@@ -50,3 +50,6 @@ yarn-error.*
 
 # claude
 .claude/settings.local.json
+
+# supabase (CLI 캐시)
+supabase/.temp/
