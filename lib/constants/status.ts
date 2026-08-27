@@ -10,6 +10,11 @@
 //
 // 대소문자 주의: 대부분 대문자지만 APPLIED_SOURCE 와 EVENT_LOG_ENV 는 소문자다.
 //               DB CHECK 가 그렇게 정의돼 있다.
+//
+// ⚠️⚠️ DB 값과 Analytics 값은 다르다. ⚠️⚠️
+//       track() 에 넘기기 전 반드시 변환 맵을 거친다. (파일 하단 "DB → Analytics 변환 맵")
+//       DB 는 CHECK 제약이 있어 틀리면 즉시 터지지만, Analytics 는 검증이 없어
+//       잘못된 값이 조용히 쌓인다. 리포트를 쓸 때 발견하면 이미 늦다.
 // ============================================================================
 
 // ── 모임 ───────────────────────────────────────────────────────────────────
@@ -202,14 +207,81 @@ export type EventLogEnv = (typeof EVENT_LOG_ENV)[keyof typeof EVENT_LOG_ENV];
 
 
 // ============================================================================
-// Analytics 파라미터 값
+// Analytics 파라미터 열거값
+// 기준: docs/06_이벤트로그정의서_v1.md 7장
 //
-// ⚠️ DB 값과 **다르다.** docs/06_이벤트로그정의서_v1.md 가 소문자 스네이크를
-//    쓰기로 정했기 때문이다. track() 에 넘길 때는 아래 상수를 쓴다.
-//    DB 에 넣을 때는 위쪽 DB 상수를 쓴다. 섞으면 CHECK 제약에서 터진다.
+// ⚠️⚠️ DB 값과 Analytics 값은 다르다. ⚠️⚠️
+//       track() 에 넘기기 전 반드시 아래 변환 맵을 거친다.
+//
+//       DB 는 대문자 스네이크, Analytics 는 소문자 스네이크다. (docs/06 §4)
+//       DB 값을 그대로 track() 에 넘기면 CHECK 제약이 없으므로 **아무 에러 없이**
+//       잘못된 값이 쌓인다. 리포트를 쓸 때 발견하면 이미 늦다.
+//
+// 문서에 열거값이 정의되지 않은 파라미터는 여기에 만들지 않았다.
+// 아래 "문서 미정의" 목록 참조. 임의로 값을 지어내지 않는다. (docs/06 §11)
 // ============================================================================
 
-/** docs/06 §7-2 의 category 값. DB 의 CATEGORY_CODE 와 철자가 다르다. */
+// ── 여행 생성 (docs/06 §7-1) ───────────────────────────────────────────────
+
+/** trip_create_started.entry_point */
+export const ENTRY_POINT = {
+  HOME: 'home',
+  EMPTY_STATE: 'empty_state',
+  GROUP_DETAIL: 'group_detail',
+  PAST_TRIP: 'past_trip',
+} as const;
+export type EntryPoint = (typeof ENTRY_POINT)[keyof typeof ENTRY_POINT];
+
+/** trip_companion_selected.companion_type. DB 대응 없음 (신규/기존 모임 구분은 앱 상태다). */
+export const COMPANION_TYPE = {
+  PERSONAL: 'personal',
+  EXISTING_GROUP: 'existing_group',
+  NEW_GROUP: 'new_group',
+} as const;
+export type CompanionType = (typeof COMPANION_TYPE)[keyof typeof COMPANION_TYPE];
+
+/**
+ * budget_method_selected.method
+ * ⚠️ DB BUDGET_METHOD 와 이름도 뜻도 같지만 값이 다르다. USER_DEFINED ≠ user_entered.
+ */
+export const ANALYTICS_BUDGET_METHOD = {
+  RECOMMENDED: 'recommended',
+  USER_ENTERED: 'user_entered',
+} as const;
+export type AnalyticsBudgetMethod =
+  (typeof ANALYTICS_BUDGET_METHOD)[keyof typeof ANALYTICS_BUDGET_METHOD];
+
+/**
+ * travel_fund_registered.fund_type
+ * ⚠️ DB FUND_SOURCE_TYPE 은 값이 4개(MOCK 포함), 이쪽은 3개다.
+ */
+export const FUND_TYPE = {
+  ACCOUNT: 'account',
+  MANUAL: 'manual',
+  ZERO: 'zero',
+} as const;
+export type FundType = (typeof FUND_TYPE)[keyof typeof FUND_TYPE];
+
+/**
+ * trip_created.owner_type
+ * ⚠️ DB TRIP_OWNER_TYPE 은 'PERSONAL' | 'GROUP' (대문자). 여기는 소문자다.
+ */
+export const ANALYTICS_OWNER_TYPE = {
+  PERSONAL: 'personal',
+  GROUP: 'group',
+} as const;
+export type AnalyticsOwnerType =
+  (typeof ANALYTICS_OWNER_TYPE)[keyof typeof ANALYTICS_OWNER_TYPE];
+
+// ── 예산 상세 (docs/06 §7-2) ───────────────────────────────────────────────
+
+/**
+ * budget_category_edited.category / budget_plan_item_*.category /
+ * transaction_*.category / personalization_offered.top_category / tip_*.category
+ *
+ * ⚠️ DB CATEGORY_CODE 와 **철자가 아예 다르다.** AIRFARE ≠ flight, CONTINGENCY ≠ reserve.
+ *    반드시 CATEGORY_CODE_TO_ANALYTICS 를 거친다.
+ */
 export const ANALYTICS_CATEGORY = {
   FLIGHT: 'flight',
   ACCOMMODATION: 'accommodation',
@@ -222,7 +294,87 @@ export const ANALYTICS_CATEGORY = {
 } as const;
 export type AnalyticsCategory = (typeof ANALYTICS_CATEGORY)[keyof typeof ANALYTICS_CATEGORY];
 
-/** DB category_code → Analytics category. track() 에 넘기기 전에 이걸로 변환한다. */
+// budget_category_edited.applied_source 는 DB APPLIED_SOURCE 와 값이 같다.
+// (DB 쪽이 원래 소문자다) 이 파라미터만 변환 없이 그대로 넘겨도 된다.
+
+// ── 입출금·예산 연결 (docs/06 §7-3) ────────────────────────────────────────
+
+/**
+ * transaction_categorized.mapped_by
+ * ⚠️ DB CATEGORY_METHOD 는 AUTO|USER|NONE 3개. 여기는 NONE 이 없다.
+ *    미분류(NONE) 거래는 이 이벤트를 쏘지 않는다.
+ */
+export const MAPPED_BY = {
+  AUTO: 'auto',
+  USER: 'user',
+} as const;
+export type MappedBy = (typeof MAPPED_BY)[keyof typeof MAPPED_BY];
+
+/**
+ * transaction_categorized.source_type
+ * ⚠️ DB TRANSACTION_SOURCE_TYPE 은 ACCOUNT|MANUAL|MOCK 3개. 문서는 mock|manual 2개다.
+ *    MVP 거래가 전부 Mock/수기라서 ACCOUNT 는 v1 문서에 정의되지 않았다.
+ *    이 값으로 재는 것은 사용자 습관이 아니라 **자동분류 로직의 품질**이다. (docs/06 §7-3)
+ */
+export const ANALYTICS_TRANSACTION_SOURCE_TYPE = {
+  MOCK: 'mock',
+  MANUAL: 'manual',
+} as const;
+export type AnalyticsTransactionSourceType =
+  (typeof ANALYTICS_TRANSACTION_SOURCE_TYPE)[keyof typeof ANALYTICS_TRANSACTION_SOURCE_TYPE];
+
+// ── 수기 → 계좌 전환 (docs/06 §7-4) ────────────────────────────────────────
+
+/** fund_conversion_completed.result */
+export const CONVERSION_RESULT = {
+  SUCCESS: 'success',
+  FAIL: 'fail',
+} as const;
+export type ConversionResult = (typeof CONVERSION_RESULT)[keyof typeof CONVERSION_RESULT];
+
+// ── 결산 (docs/06 §7-5) ────────────────────────────────────────────────────
+
+/** settlement_prompted.trigger. 여행 종료 자동 유도인지 사용자가 직접 눌렀는지. */
+export const SETTLEMENT_TRIGGER = {
+  AUTO: 'auto',
+  MANUAL: 'manual',
+} as const;
+export type SettlementTrigger =
+  (typeof SETTLEMENT_TRIGGER)[keyof typeof SETTLEMENT_TRIGGER];
+
+// ── 여행자보험 (docs/06 §7-7) ──────────────────────────────────────────────
+
+/**
+ * insurance_cta_clicked.placement
+ * 값이 SCREENS 의 일부와 같지만 의미가 다르다(CTA 가 놓인 위치).
+ * SCREENS 를 재사용하지 말고 이 상수를 쓴다. 문서가 이 두 곳만 정의했다.
+ */
+export const INSURANCE_PLACEMENT = {
+  BUDGET_DETAIL: 'budget_detail',
+  TRIP_HOME: 'trip_home',
+} as const;
+export type InsurancePlacement =
+  (typeof INSURANCE_PLACEMENT)[keyof typeof INSURANCE_PLACEMENT];
+
+// ── 여행 팁 (docs/06 §7-8) ─────────────────────────────────────────────────
+
+/** tip_reacted.reaction — 고도화(9/07~) 이벤트의 파라미터다. MVP 에서 쓰지 않는다. */
+export const TIP_REACTION = {
+  UP: 'up',
+  DOWN: 'down',
+} as const;
+export type TipReaction = (typeof TIP_REACTION)[keyof typeof TIP_REACTION];
+
+
+// ============================================================================
+// DB → Analytics 변환 맵
+//
+// track() 에 DB 값을 넘길 때는 반드시 여기를 거친다.
+// null 은 "해당 Analytics 값이 문서에 정의되지 않음" 이다. null 이면 이벤트를 쏘지 않거나
+// 사람에게 문의한다. 임의 값으로 채우지 않는다.
+// ============================================================================
+
+/** budget_categories.category_code → 이벤트 category */
 export const CATEGORY_CODE_TO_ANALYTICS: Record<CategoryCode, AnalyticsCategory> = {
   AIRFARE: ANALYTICS_CATEGORY.FLIGHT,
   LODGING: ANALYTICS_CATEGORY.ACCOMMODATION,
@@ -234,17 +386,71 @@ export const CATEGORY_CODE_TO_ANALYTICS: Record<CategoryCode, AnalyticsCategory>
   CONTINGENCY: ANALYTICS_CATEGORY.RESERVE,
 };
 
-/**
- * docs/06 §7-3 `transaction_categorized` 의 mapped_by 값.
- * DB 컬럼이 아니다. DB 는 category_method (AUTO|USER|NONE) 를 쓴다.
- * NONE 인 거래는 아직 분류되지 않은 것이므로 이 이벤트를 쏘지 않는다.
- */
-export const MAPPED_BY = {
-  AUTO: 'auto',
-  USER: 'user',
-} as const;
-export type MappedBy = (typeof MAPPED_BY)[keyof typeof MAPPED_BY];
+/** trips.owner_type → trip_created.owner_type */
+export const OWNER_TYPE_TO_ANALYTICS: Record<TripOwnerType, AnalyticsOwnerType> = {
+  PERSONAL: ANALYTICS_OWNER_TYPE.PERSONAL,
+  GROUP: ANALYTICS_OWNER_TYPE.GROUP,
+};
 
+/** trip_budgets.method → budget_method_selected.method */
+export const BUDGET_METHOD_TO_ANALYTICS: Record<BudgetMethod, AnalyticsBudgetMethod> = {
+  RECOMMENDED: ANALYTICS_BUDGET_METHOD.RECOMMENDED,
+  USER_DEFINED: ANALYTICS_BUDGET_METHOD.USER_ENTERED,
+};
+
+/**
+ * fund_sources.source_type → travel_fund_registered.fund_type
+ *
+ * [확인 필요] MOCK → 'account' 로 둔 것은 판단이다.
+ * MVP 의 Mock 계좌는 사용자 관점에서 '계좌 연결'이고, 데이터 Source 만 Mock 이므로
+ * (CLAUDE.md 11장) 이 이벤트가 재려는 "계좌 연결 없이 쓰는 비율" 의 분자에 들어가야
+ * 맞다고 보았다. 아니라면 이 한 줄만 고치면 된다.
+ */
+export const FUND_SOURCE_TYPE_TO_ANALYTICS: Record<FundSourceType, FundType> = {
+  ACCOUNT: FUND_TYPE.ACCOUNT,
+  MOCK: FUND_TYPE.ACCOUNT,
+  MANUAL: FUND_TYPE.MANUAL,
+  ZERO: FUND_TYPE.ZERO,
+};
+
+/**
+ * transactions.category_method → transaction_categorized.mapped_by
+ * NONE 은 아직 분류되지 않은 상태라 대응 값이 없다. null 이면 이벤트를 쏘지 않는다.
+ */
+export const CATEGORY_METHOD_TO_ANALYTICS: Record<CategoryMethod, MappedBy | null> = {
+  AUTO: MAPPED_BY.AUTO,
+  USER: MAPPED_BY.USER,
+  NONE: null,
+};
+
+/**
+ * transactions.source_type → transaction_categorized.source_type
+ * ACCOUNT 는 v1 문서에 대응 값이 없다. 실계좌 연동이 붙는 시점에 사람에게 요청한다.
+ */
+export const TRANSACTION_SOURCE_TYPE_TO_ANALYTICS: Record<
+  TransactionSourceType,
+  AnalyticsTransactionSourceType | null
+> = {
+  MOCK: ANALYTICS_TRANSACTION_SOURCE_TYPE.MOCK,
+  MANUAL: ANALYTICS_TRANSACTION_SOURCE_TYPE.MANUAL,
+  ACCOUNT: null,
+};
+
+
+// ============================================================================
+// 문서 미정의 파라미터 — 상수를 만들지 않았다
+//
+// docs/06 7장이 파라미터 이름만 적고 열거값을 정하지 않은 것들이다.
+// 값을 지어내면 Analytics 에 조용히 잘못된 값이 쌓인다.
+// 필요해지면 임의로 추가하지 말고 사람에게 요청한다. (docs/06 §11, CLAUDE.md 8장)
+//
+//   login_completed.provider              (§7-0)
+//   trip_basic_info_submitted.travel_style (§7-1)
+//   spending_profile_generated.profile_type (§7-5)
+//   settlement_shared.channel             (§7-5, 고도화)
+//   tip_impression.placement              (§7-8) — 보험 placement 와 다른 값 집합이다
+//   tip_list_viewed.sort                  (§7-8)
+// ============================================================================
 
 // ============================================================================
 // 화면 표시용 한국어 라벨
