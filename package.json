@@ -1,7 +1,7 @@
 {
   "name": "tmp",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -9,13 +9,31 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@amplitude/analytics-react-native": "^1.7.0",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-firebase/analytics": "^26.3.2",
+    "@react-native-firebase/app": "^26.3.2",
+    "@supabase/supabase-js": "^2.112.4",
+    "date-fns": "^4.4.0",
     "expo": "~54.0.36",
+    "expo-constants": "~18.0.14",
+    "expo-dev-client": "~6.0.21",
+    "expo-linking": "~8.0.12",
+    "expo-router": "~6.0.24",
     "expo-status-bar": "~3.0.9",
+    "nativewind": "^4.2.6",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-hook-form": "^7.86.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.7",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.16.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "tailwindcss": "^3.4.19",
     "typescript": "~5.9.2"
   },
   "private": true

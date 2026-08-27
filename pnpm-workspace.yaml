@@ -1,0 +1,10 @@
+# React Native / Metro는 평탄한 node_modules를 전제로 한다.
+# pnpm 기본값(isolated symlink)에서는 nativewind → react-native-css-interop 같은
+# 중첩 의존성을 Metro가 해석하지 못한다. (Expo 공식 권장 설정)
+# pnpm 10+ 부터 이 설정은 .npmrc가 아니라 이 파일에서 읽는다.
+nodeLinker: hoisted
+
+# postinstall 스크립트 실행 허용 여부. 둘 다 RN 번들링에 불필요하므로 차단.
+allowBuilds:
+  '@firebase/util': false
+  protobufjs: false
