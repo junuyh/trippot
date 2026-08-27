@@ -62,3 +62,17 @@
 - `_v2` 를 추가하면 이 README 의 문서 목록과 작업별 매핑을 함께 갱신한다.
 - 같은 번호에 v1·v2 가 함께 있으면 **높은 버전이 기준**이다. v1 은 이력으로 남긴다.
 - 문서 상단 메타 표(문서 상태·작성일·변경 사유·이전 버전)를 새 파일에도 유지한다.
+
+---
+
+## 5. 미반영 변경사항
+
+구현이 문서보다 앞서 나간 지점이다. **`05_ERD_v1.md` 는 아직 갱신되지 않았다.**
+아래 2건은 팀 확인 후 `05_ERD_v2.md` 로 반영 예정이다. 그때까지는 **마이그레이션 SQL이 실제 기준**이다.
+
+| # | 문서 | 어긋난 내용 | 이유 |
+|---|---|---|---|
+| 1 | `05_ERD_v1.md` §3 `budget_categories` | 문서는 `expected_amount` / `prepared_amount` / `actual_amount`. 실제 스키마는 `recommended_amount` / `personalized_amount` / `planned_amount` + `applied_source` + `prepared_amount` / `actual_amount` | `CLAUDE.md` 4장 3칼럼 규칙이 상위. `expected_amount` 는 `planned_amount` 와 의미가 같아 제외 |
+| 2 | `05_ERD_v1.md` §3 | `event_log` 테이블 정의 없음 | `CLAUDE.md` 8장이 요구하는 테이블이라 스키마에 추가함 |
+
+기준 파일: `supabase/migrations/20260827000001_init_schema.sql`
