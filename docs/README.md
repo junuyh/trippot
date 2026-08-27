@@ -67,12 +67,16 @@
 
 ## 5. 미반영 변경사항
 
-구현이 문서보다 앞서 나간 지점이다. **`05_ERD_v1.md` 는 아직 갱신되지 않았다.**
-아래 2건은 팀 확인 후 `05_ERD_v2.md` 로 반영 예정이다. 그때까지는 **마이그레이션 SQL이 실제 기준**이다.
+구현이 문서보다 앞서 나간 지점이다. **`05_ERD_v1.md` 와 `06_이벤트로그정의서_v1.md` 는 아직 갱신되지 않았다.**
+아래 4건은 팀 확인 후 각 문서의 `_v2` 로 반영 예정이다. 그때까지는 **아래 "기준 파일"이 실제 기준**이다.
 
 | # | 문서 | 어긋난 내용 | 이유 |
 |---|---|---|---|
 | 1 | `05_ERD_v1.md` §3 `budget_categories` | 문서는 `expected_amount` / `prepared_amount` / `actual_amount`. 실제 스키마는 `recommended_amount` / `personalized_amount` / `planned_amount` + `applied_source` + `prepared_amount` / `actual_amount` | `CLAUDE.md` 4장 3칼럼 규칙이 상위. `expected_amount` 는 `planned_amount` 와 의미가 같아 제외 |
 | 2 | `05_ERD_v1.md` §3 | `event_log` 테이블 정의 없음 | `CLAUDE.md` 8장이 요구하는 테이블이라 스키마에 추가함 |
+| 3 | `06_이벤트로그정의서_v1.md` §7 | Analytics 열거값 6종(`provider`, `travel_style`, `profile_type`, `channel`, tip `placement`, `sort`)이 문서에 미정의 | 2026-08-27 값 확정. `lib/constants/status.ts` 가 실제 기준 |
+| 4 | `06_이벤트로그정의서_v1.md` §7-2 | Analytics `category`(`flight` 등)와 DB `category_code`(`AIRFARE` 등) 철자 불일치 | 두 벌을 그대로 두고 변환 맵으로 잇는다. `lib/constants/status.ts` 의 변환 맵이 실제 기준 |
 
-기준 파일: `supabase/migrations/20260827000001_init_schema.sql`
+기준 파일
+- 스키마: `supabase/migrations/20260827000001_init_schema.sql`
+- 열거값·라벨·변환 맵: `lib/constants/status.ts`
