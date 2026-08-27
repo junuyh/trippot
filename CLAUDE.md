@@ -47,6 +47,28 @@ MVP 마감 2026-08-31 · 최종 2026-09-23 · 3인 병렬 개발 · Claude Code 
 
 ---
 
+## 1-1. docs 폴더 규칙
+
+`docs/` 는 확정된 기획 산출물이다. 코드보다 상위 기준이다.
+
+**절대 하지 말 것**
+- 기존 문서를 수정·삭제·이름변경 하지 않는다.
+- 문서 내용을 코드에 맞춰 고치지 않는다.
+
+**내용이 바뀔 때**
+- 원본을 두고 `_v2` 파일을 새로 만들고, 상단에 변경 사유와 이전 버전을 기록한다.
+- PRD v1 → v2 비교가 이 프로젝트의 최종 산출물이므로 이전 버전을 반드시 보존한다.
+- `_v2` 를 추가하면 `docs/README.md` 도 함께 갱신한다.
+
+**코드와 문서가 어긋날 때**
+- 임의로 맞추지 않는다. 어긋난 지점을 먼저 사람에게 알린다.
+
+**참조 방법**
+- 매번 docs 전체를 읽지 않는다. `docs/README.md` 로 필요한 문서를 판단하고 그것만 읽는다.
+- `docs/archive/` 는 원본 보관용이므로 평소에 읽지 않는다.
+
+---
+
 ## 2. 가장 중요한 문장
 
 > **TripPot의 중심 데이터는 거래내역이 아니라 여행 예산 계획이다.**
@@ -334,5 +356,5 @@ npx expo start                 개발 서버
 npx tsc --noEmit               타입 체크
 npx supabase db push           스키마 반영
 npx supabase gen types typescript --linked > types/database.ts
-eas build -p android --profile preview
+eas build -p android --profile preview    (사람이 직접 실행 — Claude Code 권한 차단됨)
 ```
