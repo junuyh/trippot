@@ -365,6 +365,91 @@ export const TIP_REACTION = {
 } as const;
 export type TipReaction = (typeof TIP_REACTION)[keyof typeof TIP_REACTION];
 
+// ── 확정 열거값 (2026-08-27) ───────────────────────────────────────────────
+// docs/06 v1 은 파라미터 이름만 적고 값을 정하지 않았던 것들이다.
+// 아래 값으로 확정했다. ⚠️ docs/06 에는 아직 반영되지 않았다 (v2 대상).
+
+/**
+ * login_completed.provider
+ * MVP 는 kakao 만 구현한다. 나머지는 [Future] — 값만 확정해 두고 쓰지 않는다.
+ */
+export const AUTH_PROVIDER = {
+  KAKAO: 'kakao',
+  /** [Future] */
+  APPLE: 'apple',
+  /** [Future] */
+  GOOGLE: 'google',
+  /** [Future] */
+  EMAIL: 'email',
+} as const;
+export type AuthProvider = (typeof AUTH_PROVIDER)[keyof typeof AUTH_PROVIDER];
+
+/**
+ * trip_basic_info_submitted.travel_style
+ *
+ * 예산 추천 배수의 기준이 되는 값이다. Analytics 파라미터인 동시에
+ * trips.travel_style_json 에 담기는 앱 데이터이기도 하다.
+ * (해당 칼럼은 jsonb 라 DB CHECK 로 막혀 있지 않다. 이 상수가 유일한 방어선이다.)
+ */
+export const TRAVEL_STYLE = {
+  BUDGET: 'budget',
+  STANDARD: 'standard',
+  COMFORT: 'comfort',
+  LUXURY: 'luxury',
+} as const;
+export type TravelStyle = (typeof TRAVEL_STYLE)[keyof typeof TRAVEL_STYLE];
+
+/**
+ * spending_profile_generated.profile_type
+ * balanced 는 뚜렷한 편차가 없을 때의 기본값이다.
+ */
+export const SPENDING_PROFILE_TYPE = {
+  GOURMET: 'gourmet',
+  LODGING_FOCUSED: 'lodging_focused',
+  EXPERIENCE: 'experience',
+  SHOPPING: 'shopping',
+  FRUGAL: 'frugal',
+  /** 뚜렷한 편차가 없을 때의 기본값 */
+  BALANCED: 'balanced',
+} as const;
+export type SpendingProfileType =
+  (typeof SPENDING_PROFILE_TYPE)[keyof typeof SPENDING_PROFILE_TYPE];
+
+/** settlement_shared.channel — 고도화(9/07~) 이벤트의 파라미터다. MVP 에서 쓰지 않는다. */
+export const SHARE_CHANNEL = {
+  KAKAO: 'kakao',
+  LINK: 'link',
+  IMAGE: 'image',
+} as const;
+export type ShareChannel = (typeof SHARE_CHANNEL)[keyof typeof SHARE_CHANNEL];
+
+/**
+ * tip_impression.placement
+ *
+ * ⚠️ INSURANCE_PLACEMENT 와 **별개 상수다. 이름을 재사용하지 않는다.**
+ *    파라미터 이름이 둘 다 placement 라 헷갈리기 쉽지만 값 집합이 다르다.
+ *      보험: budget_detail | trip_home                      (2개)
+ *      팁  : budget_category | budget_detail | trip_home | tip_list  (4개)
+ *    서로 바꿔 쓰면 Analytics 에 조용히 잘못된 값이 쌓인다.
+ */
+export const TIP_PLACEMENT = {
+  BUDGET_CATEGORY: 'budget_category',
+  BUDGET_DETAIL: 'budget_detail',
+  TRIP_HOME: 'trip_home',
+  TIP_LIST: 'tip_list',
+} as const;
+export type TipPlacement = (typeof TIP_PLACEMENT)[keyof typeof TIP_PLACEMENT];
+
+/** tip_list_viewed.sort — 고도화(9/07~) 이벤트의 파라미터다. MVP 에서 쓰지 않는다. */
+export const TIP_SORT = {
+  LATEST: 'latest',
+  POPULAR: 'popular',
+  PRICE_LOW: 'price_low',
+  PRICE_HIGH: 'price_high',
+} as const;
+export type TipSort = (typeof TIP_SORT)[keyof typeof TIP_SORT];
+
+
 
 // ============================================================================
 // DB → Analytics 변환 맵
@@ -401,10 +486,10 @@ export const BUDGET_METHOD_TO_ANALYTICS: Record<BudgetMethod, AnalyticsBudgetMet
 /**
  * fund_sources.source_type → travel_fund_registered.fund_type
  *
- * [확인 필요] MOCK → 'account' 로 둔 것은 판단이다.
- * MVP 의 Mock 계좌는 사용자 관점에서 '계좌 연결'이고, 데이터 Source 만 Mock 이므로
- * (CLAUDE.md 11장) 이 이벤트가 재려는 "계좌 연결 없이 쓰는 비율" 의 분자에 들어가야
- * 맞다고 보았다. 아니라면 이 한 줄만 고치면 된다.
+ * MOCK 과 ACCOUNT 를 둘 다 'account' 로 보낸다.
+ * fund_type 은 "사용자가 어떤 경로를 택했나"를 재는 값이지 데이터 출처를 재는 값이
+ * 아니다. MVP 에서 계좌 연결은 곧 Mock 계좌 연결이고, 사용자 경험상 둘의 구분이 없다.
+ * 데이터 출처는 transaction_categorized.source_type 이 따로 재고 있다.
  */
 export const FUND_SOURCE_TYPE_TO_ANALYTICS: Record<FundSourceType, FundType> = {
   ACCOUNT: FUND_TYPE.ACCOUNT,
@@ -438,20 +523,22 @@ export const TRANSACTION_SOURCE_TYPE_TO_ANALYTICS: Record<
 
 
 // ============================================================================
-// 문서 미정의 파라미터 — 상수를 만들지 않았다
+// docs/06 미반영 — v2 대상
 //
-// docs/06 7장이 파라미터 이름만 적고 열거값을 정하지 않은 것들이다.
-// 값을 지어내면 Analytics 에 조용히 잘못된 값이 쌓인다.
-// 필요해지면 임의로 추가하지 말고 사람에게 요청한다. (docs/06 §11, CLAUDE.md 8장)
+// 아래 6개 파라미터는 docs/06_이벤트로그정의서_v1.md 7장이 이름만 적고
+// 열거값을 정하지 않았던 것들이다. 2026-08-27 에 값을 확정해 위에 상수로 넣었다.
+// **문서에는 아직 반영되지 않았다.** 그때까지는 이 파일이 실제 기준이다.
 //
-//   login_completed.provider              (§7-0)
-//   trip_basic_info_submitted.travel_style (§7-1)
-//   spending_profile_generated.profile_type (§7-5)
-//   settlement_shared.channel             (§7-5, 고도화)
-//   tip_impression.placement              (§7-8) — 보험 placement 와 다른 값 집합이다
-//   tip_list_viewed.sort                  (§7-8)
+//   login_completed.provider                (§7-0)  → AUTH_PROVIDER
+//   trip_basic_info_submitted.travel_style  (§7-1)  → TRAVEL_STYLE
+//   spending_profile_generated.profile_type (§7-5)  → SPENDING_PROFILE_TYPE
+//   settlement_shared.channel               (§7-5)  → SHARE_CHANNEL      [고도화]
+//   tip_impression.placement                (§7-8)  → TIP_PLACEMENT
+//   tip_list_viewed.sort                    (§7-8)  → TIP_SORT           [고도화]
+//
+// 이 목록에 없는 새 파라미터 값이 필요하면 임의로 추가하지 말고 사람에게 요청한다.
+// (docs/06 §11, CLAUDE.md 8장)
 // ============================================================================
-
 // ============================================================================
 // 화면 표시용 한국어 라벨
 // 화면에 상태값을 그대로 노출하지 않는다. 반드시 이 라벨을 거친다.
@@ -589,4 +676,25 @@ export const INSURANCE_REFERRAL_STATUS_LABEL: Record<InsuranceReferralStatus, st
   CLICKED: '조회함',
   QUOTE_COMPLETED: '견적 완료',
   PURCHASE_COMPLETED: '가입 완료',
+};
+
+// ── Analytics 열거값 라벨 ──────────────────────────────────────────────────
+// 값은 소문자 스네이크(Analytics 규격)지만, 화면에도 노출되는 값이라 라벨이 필요하다.
+
+/** 예산 추천 배수의 기준. 여행 생성 화면에서 사용자가 고른다. */
+export const TRAVEL_STYLE_LABEL: Record<TravelStyle, string> = {
+  budget: '알뜰형',
+  standard: '표준형',
+  comfort: '편안형',
+  luxury: '럭셔리형',
+};
+
+/** 결산 후 소비 유형 결과 화면에 표시한다. */
+export const SPENDING_PROFILE_TYPE_LABEL: Record<SpendingProfileType, string> = {
+  gourmet: '미식형',
+  lodging_focused: '숙박 중시형',
+  experience: '체험형',
+  shopping: '쇼핑 중심형',
+  frugal: '절약형',
+  balanced: '균형형',
 };
