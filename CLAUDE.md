@@ -177,6 +177,8 @@ Expo Router Param도 동일한 이름을 쓴다.
 /trips/[tripId]/transactions
 ```
 
+상태값·열거형 문자열은 `lib/constants/status.ts` 의 상수만 사용한다. 리터럴 금지.
+
 ---
 
 ## 7. DB Query 규칙
