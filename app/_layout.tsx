@@ -16,6 +16,10 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerBackTitle: '뒤로' }}>
       {/* 하단 탭 4개. (tabs) 는 URL 에 나타나지 않는다. */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+      {/* 여행 생성 3단계는 자체 Stack 을 가진다. (app/trips/new/_layout.tsx)
+          여기서 헤더를 끄지 않으면 헤더가 두 겹으로 그려진다. */}
+      <Stack.Screen name="trips/new" options={{ headerShown: false }} />
     </Stack>
   );
 }

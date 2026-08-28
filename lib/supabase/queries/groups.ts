@@ -5,6 +5,11 @@
 //   - 다른 사용자·모임·여행 데이터에 접근할 수 있는 Query 를 만들지 않는다.
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
+import {
+  GROUP_MEMBER_ROLE,
+  GROUP_MEMBER_STATUS,
+  GROUP_STATUS,
+} from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Tables, TablesInsert } from '@/types/database';
 
@@ -14,9 +19,19 @@ export type GroupMember = Tables<'group_members'>;
 
 /** 내가 속한 모임만 반환한다. 다른 사용자의 모임이 섞이지 않게 한다. */
 export async function getMyGroups(userId: string): Promise<Group[]> {
-  // TODO: group_members 를 통해 user_id = userId, status = 'ACTIVE' 인 모임 조회.
-  //       groups.status = 'DELETED' 는 제외.
-  return [];
+  // group_members 를 기준으로 조회한다. groups.owner_user_id 로 조회하면
+  // 내가 만든 모임만 나오고, 초대받아 들어간 모임이 빠진다.
+  const { data, error } = await supabase
+    .from('group_members')
+    .select('groups!inner(*)')
+    .eq('user_id', userId)
+    .eq('status', GROUP_MEMBER_STATUS.ACTIVE)
+    .neq('groups.status', GROUP_STATUS.DELETED)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => row.groups);
 }
 
 export async function getGroupById(groupId: string): Promise<Group | null> {
@@ -25,8 +40,43 @@ export async function getGroupById(groupId: string): Promise<Group | null> {
   return null;
 }
 
+/**
+ * 모임 생성. owner 를 group_members 에 role='OWNER' 로 함께 넣는다.
+ *
+ * ⚠️ supabase-js 에는 트랜잭션이 없다. groups insert 는 성공했는데
+ *    group_members insert 가 실패하면 **멤버가 아무도 없는 모임**이 남고,
+ *    그 모임은 getMyGroups() 에 잡히지 않아 사용자 눈에도 안 보인다.
+ *    그래서 실패 시 방금 만든 groups 행을 지워 원래 상태로 되돌린다.
+ *    진짜 원자성이 필요해지면 Edge Function 이나 RPC 로 옮긴다.
+ *
+ * ⚠️ 동행자(아직 앱에 가입하지 않은 사람)는 여기 넣지 않는다.
+ *    group_members.user_id 가 NOT NULL + users FK 라 가입자만 들어갈 수 있다.
+ *    동행자 이름은 trip_members.display_name 에 저장한다.
+ *    (docs/README.md §5 #15)
+ */
 export async function createGroup(input: GroupInsert): Promise<Group> {
-  // TODO: groups insert 후, owner 를 group_members 에 role='OWNER' 로 함께 추가.
-  //       두 작업이 함께 성공하거나 함께 실패해야 한다.
-  throw new Error('[queries/groups] createGroup 미구현');
+  const { data: group, error } = await supabase
+    .from('groups')
+    .insert(input)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  const { error: memberError } = await supabase.from('group_members').insert({
+    group_id: group.id,
+    user_id: group.owner_user_id,
+    role: GROUP_MEMBER_ROLE.OWNER,
+    status: GROUP_MEMBER_STATUS.ACTIVE,
+    joined_at: new Date().toISOString(),
+  });
+
+  if (memberError) {
+    // 보상 삭제. 이것마저 실패하면 멤버 없는 모임이 남지만,
+    // 원래 에러를 덮어쓰지 않도록 삭제 에러는 무시한다.
+    await supabase.from('groups').delete().eq('id', group.id);
+    throw memberError;
+  }
+
+  return group;
 }
