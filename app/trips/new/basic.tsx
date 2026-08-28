@@ -8,9 +8,9 @@
 // ============================================================================
 import { Ionicons } from '@expo/vector-icons';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
-import { Stack, router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Stack, router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutAnimation, ScrollView, Text, View } from 'react-native';
 
 import {
   DateRangeCalendar,
@@ -109,19 +109,59 @@ export default function ScreenTRIP02() {
   const missingMessage = useMemo(() => {
     if (canSubmit) return null;
     if (!destinationValid) {
-      return draft.isCustomDestination && trimmedName.length > 0
-        ? '어느 지역인지 선택해 주세요.'
-        : '여행지를 선택해 주세요.';
+      if (draft.isCustomDestination) {
+        // 이름이 비었으면 Input 이 인라인으로 알려준다. 같은 말을 두 번 하지 않는다.
+        return trimmedName.length > 0 ? '어느 지역인지 선택해 주세요.' : null;
+      }
+      return '여행지를 선택해 주세요.';
     }
     if (!datesValid) return '가는 날과 오는 날을 선택해 주세요.';
     if (!draft.travelStyle) return '여행 스타일을 선택해 주세요.';
     return null;
   }, [canSubmit, datesValid, destinationValid, draft.isCustomDestination, draft.travelStyle, trimmedName.length]);
 
+  // ── 단계별 노출 ───────────────────────────────────────────────────────
+  //
+  // 네 항목을 한 번에 펼쳐 두면 첫 화면이 스크롤 세 배 길이가 된다.
+  // 여행지를 정해야 일정이, 일정을 정해야 스타일이 의미를 갖기도 한다.
+  //
+  //   여행지 → (정하면) 일정·인원 → (정하면) 여행 스타일
+  //
+  // ⚠️ 한 번 펼친 단계는 다시 접지 않는다.
+  //    여행지를 직접 입력으로 바꾸는 순간 아래 두 단계가 통째로 사라지면
+  //    이미 고른 날짜가 없어진 것처럼 보인다. 값은 draft 에 그대로 있다.
+  //    빠진 값은 접는 대신 '다음' 을 눌렀을 때 missingMessage 로 알린다.
+  const [scheduleRevealed, setScheduleRevealed] = useState(false);
+  const [styleRevealed, setStyleRevealed] = useState(false);
+
+  useEffect(() => {
+    if (destinationValid && !scheduleRevealed) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setScheduleRevealed(true);
+    }
+  }, [destinationValid, scheduleRevealed]);
+
+  useEffect(() => {
+    if (datesValid && !styleRevealed) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setStyleRevealed(true);
+    }
+  }, [datesValid, styleRevealed]);
+
   // ── 다음 단계 ─────────────────────────────────────────────────────────
+  // 연타로 같은 화면이 스택에 두 번 쌓이는 것을 막는다. (NFR-005)
+  const navigatingRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      navigatingRef.current = false;
+    }, []),
+  );
+
   const handleNext = useCallback(() => {
     setSubmitAttempted(true);
     if (!canSubmit || !draft.startDate || !draft.endDate || !draft.travelStyle) return;
+    if (navigatingRef.current) return;
+    navigatingRef.current = true;
 
     const destination = trimmedName;
     if (draft.isCustomDestination) patchDraft({ destinationName: destination });
@@ -177,6 +217,8 @@ export default function ScreenTRIP02() {
       </View>
 
       {/* ── 일정 ── */}
+      {scheduleRevealed ? (
+      <>
       <View className="mt-7">
         <Text className="mb-2.5 text-base font-semibold text-gray-900">
           일정 <Text className="text-red-500">*</Text>
@@ -191,7 +233,7 @@ export default function ScreenTRIP02() {
         ) : null}
       </View>
 
-      {/* ── 인원 ── */}
+      {/* ── 인원 ── 일정과 함께 나타난다 */}
       <View className="mt-7">
         <Text className="mb-2.5 text-base font-semibold text-gray-900">인원</Text>
         <HeadcountStepper
@@ -207,8 +249,11 @@ export default function ScreenTRIP02() {
           }
         />
       </View>
+      </>
+      ) : null}
 
       {/* ── 여행 스타일 ── */}
+      {styleRevealed ? (
       <View className="mt-7">
         <Text className="mb-1 text-base font-semibold text-gray-900">
           여행 스타일 <Text className="text-red-500">*</Text>
@@ -221,6 +266,7 @@ export default function ScreenTRIP02() {
           onChange={(value: TravelStyle) => patchDraft({ travelStyle: value })}
         />
       </View>
+      ) : null}
 
       {submitAttempted && missingMessage ? (
         <View className="mt-5 flex-row items-center gap-1.5">
@@ -230,14 +276,19 @@ export default function ScreenTRIP02() {
       ) : null}
 
       {/*
-        빠진 값이 있어도 버튼을 disabled 로 두지 않는다.
-        disabled 면 onPress 가 불리지 않아 "무엇이 빠졌는지" 를 알려줄 기회가 없다.
+        마지막 단계가 펼쳐지기 전에는 '다음' 을 노출하지 않는다.
+        아직 물어볼 게 남았는데 완료 버튼이 먼저 보이면 단계 노출의 의미가 없다.
+
+        단, 일단 노출한 뒤에는 disabled 로 두지 않는다.
+        disabled 면 onPress 가 불리지 않아 "무엇이 빠졌는지" 를 알려줄 기회가 없고,
         사용자는 버튼을 눌렀는데 아무 반응이 없는 상태를 보게 된다.
-        대신 handleNext 에서 막고 missingMessage 로 이유를 알린다.
+        handleNext 에서 막고 missingMessage 로 이유를 알린다.
       */}
-      <View className="mt-8">
-        <Button label="다음" onPress={handleNext} />
-      </View>
+      {styleRevealed ? (
+        <View className="mt-8">
+          <Button label="다음" onPress={handleNext} />
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
