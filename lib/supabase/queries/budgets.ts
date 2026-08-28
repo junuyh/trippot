@@ -21,6 +21,31 @@ export type BudgetPlanItemUpdate = TablesUpdate<'budget_plan_items'>;
  */
 export type BudgetCategoryUpdate = Omit<TablesUpdate<'budget_categories'>, 'recommended_amount'>;
 
+export type TripBudgetInsert = TablesInsert<'trip_budgets'>;
+export type BudgetCategoryInsert = TablesInsert<'budget_categories'>;
+
+/** 여행 예산을 만든다. trip_budgets.trip_id 는 UNIQUE 라 여행당 하나뿐이다. */
+export async function createTripBudget(input: TripBudgetInsert): Promise<TripBudget> {
+  const { data, error } = await supabase.from('trip_budgets').insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 카테고리를 한 번에 만든다.
+ *
+ * ⚠️ recommended_amount 는 여기서 한 번만 쓰고 이후 덮어쓰지 않는다.
+ *    사용자가 고친 값은 planned_amount 다. (CLAUDE.md 4장)
+ *    그래서 BudgetCategoryUpdate 에서 recommended_amount 가 빠져 있다.
+ */
+export async function createBudgetCategories(
+  inputs: BudgetCategoryInsert[],
+): Promise<BudgetCategory[]> {
+  const { data, error } = await supabase.from('budget_categories').insert(inputs).select();
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function getBudgetByTripId(tripId: string): Promise<TripBudget | null> {
   // TODO: trip_budgets 단건 조회 (trip_id UNIQUE). .maybeSingle() 사용.
   return null;

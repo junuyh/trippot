@@ -6,11 +6,45 @@
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
 import { supabase } from '@/lib/supabase/client';
-import type { Tables, TablesUpdate } from '@/types/database';
+import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
 
 export type FundSource = Tables<'fund_sources'>;
 export type FinancialAccount = Tables<'financial_accounts'>;
 export type FundSourceUpdate = TablesUpdate<'fund_sources'>;
+
+export type FundSourceInsert = TablesInsert<'fund_sources'>;
+
+/**
+ * 여행자금을 등록한다. fund_sources.trip_id 는 UNIQUE 라 여행당 하나뿐이다.
+ *
+ * ⚠️ 직접입력 금액과 계좌 잔액을 절대 합산하지 않는다. (CLAUDE.md 3장)
+ *    current_amount 는 항상 **단일 소스** 기준이다.
+ *    ACCOUNT/MOCK 이면 계좌 잔액, MANUAL 이면 사용자가 적은 값, ZERO 면 0.
+ */
+export async function createFundSource(input: FundSourceInsert): Promise<FundSource> {
+  const { data, error } = await supabase.from('fund_sources').insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 모임의 연결 가능한 Mock 계좌.
+ *
+ * ⚠️ financial_accounts 는 group_id 만 갖는다. 개인 여행에는 계좌가 붙지 않는다.
+ *    개인 사용자는 직접 입력 또는 0원으로 시작한다. 계좌 연결은 필수가 아니다.
+ *    (CLAUDE.md 3장, AC-01)
+ */
+export async function getGroupAccounts(groupId: string): Promise<FinancialAccount[]> {
+  const { data, error } = await supabase
+    .from('financial_accounts')
+    .select('*')
+    .eq('group_id', groupId)
+    .is('disconnected_at', null)
+    .order('connected_at', { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
 
 export async function getTravelFund(tripId: string): Promise<FundSource | null> {
   // TODO: fund_sources 단건 조회 (trip_id UNIQUE). .maybeSingle() 사용.
