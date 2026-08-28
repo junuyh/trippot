@@ -6,6 +6,7 @@ export { DateRangeCalendar } from './DateRangeCalendar';
 export { DestinationPicker } from './DestinationPicker';
 export { FundSourceSelector } from './FundSourceSelector';
 export { GroupPicker } from './GroupPicker';
+export { HeaderBackButton } from './HeaderBackButton';
 export { HeadcountStepper } from './HeadcountStepper';
 export { NewGroupForm } from './NewGroupForm';
 export { OwnerTypeSelector } from './OwnerTypeSelector';

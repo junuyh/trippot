@@ -12,7 +12,14 @@ import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
-import { GroupPicker, NewGroupForm, OwnerTypeSelector, PastDataChoice, StepProgress } from '@/components/trip-create';
+import {
+  GroupPicker,
+  HeaderBackButton,
+  NewGroupForm,
+  OwnerTypeSelector,
+  PastDataChoice,
+  StepProgress,
+} from '@/components/trip-create';
 import { Button } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
@@ -251,13 +258,35 @@ export default function ScreenTRIP01() {
     router.navigate('/trips/new/basic');
   }, [canProceed, draft.companionNames, draft.companionType, patchDraft, trimmedGroupName]);
 
+  // ── 나가기 ────────────────────────────────────────────────────────────
+  // TRIP-01 은 /trips/new 중첩 Stack 의 첫 화면이라 Stack 이 back 버튼을 그려 주지
+  // 않는다. 헤더 왼쪽에 직접 붙이고, 들어온 곳(홈 또는 여행 준비 홈)으로 되돌린다.
+  //
+  // 이 스택을 벗어나면 draft 가 사라지지만(useTripDraft) 되묻지 않는다.
+  // 1단계에서 잃을 입력이 적고, 잘못 들어온 사용자를 한 번 더 붙잡지 않는다.
+  //
+  // 딥링크로 이 화면에 바로 들어오면 돌아갈 스택이 없어 back() 이 아무 일도 하지
+  // 않는다. 그때만 홈 탭으로 보낸다.
+  const handleExit = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/');
+  }, []);
+
   return (
     <ScrollView
       className="flex-1 bg-white"
       contentContainerClassName="px-5 pb-10 pt-6"
       keyboardShouldPersistTaps="handled"
     >
-      <Stack.Screen options={{ title: '여행 만들기' }} />
+      <Stack.Screen
+        options={{
+          title: '여행 만들기',
+          headerLeft: () => <HeaderBackButton onPress={handleExit} />,
+        }}
+      />
 
       <StepProgress current={1} />
 
