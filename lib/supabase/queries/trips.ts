@@ -63,6 +63,62 @@ export async function getTrips(userId: string): Promise<Trip[]> {
 }
 
 /**
+ * 홈 카드에 얹는 금액. 값이 없으면 null 이고 화면이 대체 표시를 한다.
+ *
+ * ⚠️ currentAmount 는 fund_sources.current_amount 하나만 읽는다.
+ *    직접입력 금액과 계좌 잔액을 절대 합산하지 않는다. (CLAUDE.md 3장)
+ *    current_amount 자체가 이미 단일 소스 기준이다.
+ */
+export type TripWithSummary = Trip & {
+  /** trip_budgets.target_amount. 예산 미확정이면 0 이 들어있을 수 있다. */
+  targetAmount: number | null;
+  /** fund_sources.current_amount. 여행자금 미등록이면 null. */
+  currentAmount: number | null;
+  /** settlements.actual_amount. 결산 전(ENDED)이면 null. */
+  finalAmount: number | null;
+};
+
+/**
+ * 홈(HOME-01) 카드용 여행 목록. 목표 여행비·현재 여행자금·최종 여행비를 함께 담는다.
+ *
+ * 여행마다 예산·자금·결산을 따로 조회하면 여행 수에 비례해 쿼리가 늘어난다(N+1).
+ * 여행 id 를 모아 테이블당 한 번씩만 조회하고 메모리에서 붙인다.
+ * 여행이 몇 개든 쿼리 수는 고정이다.
+ *
+ * ⚠️ 조회 범위는 getTrips(userId) 가 돌려준 여행으로만 한정한다.
+ *    tripIds 를 받는 공개 함수로 쪼개지 않는 이유다 — 임의의 tripId 를 넘겨
+ *    남의 여행 금액을 읽을 수 있는 통로를 만들지 않는다. (CLAUDE.md 7장)
+ */
+export async function getTripsWithSummary(userId: string): Promise<TripWithSummary[]> {
+  const trips = await getTrips(userId);
+  if (trips.length === 0) return [];
+
+  const tripIds = trips.map((trip) => trip.id);
+
+  const [budgets, funds, settlements] = await Promise.all([
+    supabase.from('trip_budgets').select('trip_id, target_amount').in('trip_id', tripIds),
+    supabase.from('fund_sources').select('trip_id, current_amount').in('trip_id', tripIds),
+    supabase.from('settlements').select('trip_id, actual_amount').in('trip_id', tripIds),
+  ]);
+
+  if (budgets.error) throw budgets.error;
+  if (funds.error) throw funds.error;
+  if (settlements.error) throw settlements.error;
+
+  // trip_id 가 셋 다 UNIQUE 라 여행당 최대 한 행이다.
+  const targetByTrip = new Map((budgets.data ?? []).map((r) => [r.trip_id, r.target_amount]));
+  const currentByTrip = new Map((funds.data ?? []).map((r) => [r.trip_id, r.current_amount]));
+  const finalByTrip = new Map((settlements.data ?? []).map((r) => [r.trip_id, r.actual_amount]));
+
+  return trips.map((trip) => ({
+    ...trip,
+    targetAmount: targetByTrip.get(trip.id) ?? null,
+    currentAmount: currentByTrip.get(trip.id) ?? null,
+    finalAmount: finalByTrip.get(trip.id) ?? null,
+  }));
+}
+
+/**
  * 이 사용자가 만든 여행 수. trip_created.user_trip_count 에 쓴다.
  *
  * `>= 2` 인 비율이 재사용률이고 가설 5 의 직접 지표다. (docs/06 §7-1)
