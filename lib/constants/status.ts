@@ -402,6 +402,15 @@ export type TravelStyle = (typeof TRAVEL_STYLE)[keyof typeof TRAVEL_STYLE];
 /**
  * spending_profile_generated.profile_type
  * balanced 는 뚜렷한 편차가 없을 때의 기본값이다.
+ *
+ * ⚠️ [미확정] 여행 유형 목록은 아직 확정되지 않았다.
+ *    현재 6개 값은 임시값이며, 산출 방식(규칙 기반 / AI 활용)도 미정이다.
+ *    TYPE-01 화면 구현 시점에 확정한다.
+ *    IA 문서에는 '교통 효율형'이 있으나 여기에는 없고,
+ *    여기 있는 balanced 는 IA에 없다.
+ *
+ *    값을 바꾸려면 supabase/seed.sql 의 travel_types 도 함께 고쳐야 한다.
+ *    시드가 이 값들을 code 로 참조하고 있다.
  */
 export const SPENDING_PROFILE_TYPE = {
   GOURMET: 'gourmet',
