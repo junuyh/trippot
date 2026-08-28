@@ -1,6 +1,6 @@
 // ============================================================================
 // Analytics 상수
-// 기준 문서: docs/06_이벤트로그정의서_v1.md 7장
+// 기준 문서: docs/06_이벤트로그정의서_v2.md 7장
 //
 // ⚠️ 이 파일은 CLAUDE.md 5장 [공유] 파일이다.
 // ⚠️ 문서에 없는 이벤트를 임의로 추가하지 않는다. 필요하면 사람에게 요청한다.
@@ -11,13 +11,20 @@
 //   고도화  9/07 이후 — 이름만 확정, 호출부는 만들지 않는다
 // ============================================================================
 
-/** 화면 진입 로깅에 쓰는 screen_name 값. docs/06 §7-0 */
+/**
+ * 화면 진입 로깅에 쓰는 screen_name 값. docs/06 v2 §7-0 — 17개.
+ *
+ * ⚠️ 아래 고도화 7화면은 아직 값이 없다. 임의로 추가하지 않는다.
+ *    FUND-02 · CONTRIB-01 · TYPE-01 · COMM-03 · COMM-04 · INSURANCE-01 · MY-03
+ *    해당 화면 구현(2026-09-07~) 시점에 docs/06 을 v3로 갱신한 뒤 추가한다.
+ */
 export const SCREENS = {
   HOME: 'home',
   TRIP_CREATE_WHO: 'trip_create_who',
   TRIP_CREATE_INFO: 'trip_create_info',
+  /** TRIP-03 은 "예산·자금" 한 화면이다. v2에서 trip_create_fund 를 제거했다. */
   TRIP_CREATE_BUDGET: 'trip_create_budget',
-  TRIP_CREATE_FUND: 'trip_create_fund',
+  /** TRIP-HOME-01(진행)과 TRIP-HOME-02(종료)가 공유한다. trip_status 로 구분한다. */
   TRIP_HOME: 'trip_home',
   BUDGET_DETAIL: 'budget_detail',
   BUDGET_CATEGORY_DETAIL: 'budget_category_detail',
@@ -27,11 +34,15 @@ export const SCREENS = {
   TIP_LIST: 'tip_list',
   TIP_DETAIL: 'tip_detail',
   GROUP_LIST: 'group_list',
+  GROUP_DETAIL: 'group_detail',
   MY_PAGE: 'my_page',
+  MY_TRIPS: 'my_trips',
+  MY_SETTINGS: 'my_settings',
 } as const;
 
 export const EVENTS = {
   // ── 7-0. 공통 ─────────────────────────────────────────────── MVP ──
+  /** 파라미터: screen_name, trip_status (trip_home 외에는 null) */
   SCREEN_VIEWED: 'screen_viewed',
   LOGIN_COMPLETED: 'login_completed',
 
