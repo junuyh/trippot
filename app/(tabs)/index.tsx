@@ -15,8 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { HomeView, type EndedTripCardData, type HomeGroupItem, type OngoingTripCardData } from '@/components/home';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
-import { EVENTS, SCREENS } from '@/lib/analytics/events';
-import { track } from '@/lib/analytics/track';
+import { SCREENS } from '@/lib/analytics/events';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   ENTRY_POINT,
@@ -73,8 +72,10 @@ export default function ScreenHOME01() {
   }
 
   function handlePressCreateTrip(entryPoint: EntryPoint) {
-    track(EVENTS.TRIP_CREATE_STARTED, { entry_point: entryPoint });
-    router.push('/trips/new/owner');
+    // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint param 을 읽어 기록한다.
+    // 홈에서도 track() 하면 trip_create_started 가 두 번 쌓여 퍼널이 부풀려진다.
+    // (docs/README.md §5 17번 — HOME-01 담당자가 param 을 붙여달라는 요청)
+    router.push(`/trips/new/owner?entryPoint=${entryPoint}`);
   }
 
   if (loadState === 'loading') {
