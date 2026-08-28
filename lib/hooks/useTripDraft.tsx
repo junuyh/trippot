@@ -12,12 +12,13 @@
 // ============================================================================
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
-import type { CompanionType, EntryPoint } from '@/lib/constants/status';
+import type { DestinationCode, RegionCode } from '@/lib/constants/destinations';
+import type { CompanionType, EntryPoint, TravelStyle } from '@/lib/constants/status';
 
 /**
  * 생성 흐름에서 모으는 값.
  *
- * TRIP-02 / TRIP-03 필드는 해당 화면을 만들 때 추가한다.
+ * TRIP-03 필드는 해당 화면을 만들 때 추가한다.
  * 지금 빈 껍데기를 미리 만들어 두지 않는다. (CLAUDE.md 9장)
  */
 export type TripDraft = {
@@ -38,6 +39,26 @@ export type TripDraft = {
   applyPastData: boolean | null;
   /** 결산 완료된 과거 여행 수. 0 이면 반영 여부를 묻지 않는다 */
   pastTripCount: number;
+
+  // ── TRIP-02 ──────────────────────────────────────────────────────────
+  /** 목록에서 고른 목적지. 직접 입력이면 null */
+  destinationCode: DestinationCode | null;
+  /** trips.destination(text) 에 저장할 한글명. 목록/직접입력 둘 다 여기 담긴다 */
+  destinationName: string | null;
+  /**
+   * 기준 금액을 찾을 지역.
+   * 목록 선택이면 그 목적지의 region, 직접 입력이면 사용자가 고른 값이다.
+   * 직접 입력 목적지의 지역을 문자열로 추정하지 않는다. (docs/README.md §5 #12)
+   */
+  region: RegionCode | null;
+  /** true 면 기준 데이터가 없어 지역 평균으로 추천한다 (NFR-004 안내 문구 노출) */
+  isCustomDestination: boolean;
+  /** 'YYYY-MM-DD'. trips.start_date 는 date 타입이라 시각을 담지 않는다 */
+  startDate: string | null;
+  endDate: string | null;
+  /** trips.headcount. DB CHECK 로 0 이하가 막혀 있다 */
+  headcount: number;
+  travelStyle: TravelStyle | null;
 };
 
 const INITIAL_DRAFT: TripDraft = {
@@ -48,6 +69,15 @@ const INITIAL_DRAFT: TripDraft = {
   companionNames: [],
   applyPastData: null,
   pastTripCount: 0,
+
+  destinationCode: null,
+  destinationName: null,
+  region: null,
+  isCustomDestination: false,
+  startDate: null,
+  endDate: null,
+  headcount: 1,
+  travelStyle: null,
 };
 
 type TripDraftContextValue = {
