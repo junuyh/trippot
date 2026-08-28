@@ -288,6 +288,21 @@ export default function ScreenTRIP03() {
       });
 
       resetDraft();
+
+      // 생성 흐름을 스택에서 통째로 걷어낸 뒤 준비 홈으로 보낸다.
+      //
+      // /trips/new 는 중첩 Stack 이라 replace() 만으로는 그 안쪽 히스토리
+      // (누구와 → 기본정보 → 예산·자금)가 남는다. 준비 홈에서 뒤로가기를 누르면
+      // 방금 만든 여행의 입력 화면이 다시 나오고, 거기서 또 만들면 같은 여행이
+      // 두 개 생긴다.
+      //
+      // dismissAll() 로 중첩 스택을 닫고 나서 이동한다.
+      // 닫을 게 없으면 던지므로 감싼다.
+      try {
+        router.dismissAll();
+      } catch {
+        // 스택이 이미 비어 있으면 무시한다
+      }
       router.replace(`/trips/${trip.id}`);
     } catch {
       // 반쪽 여행은 createTripBundle 이 되돌린다. 사용자는 다시 시도하면 된다.
