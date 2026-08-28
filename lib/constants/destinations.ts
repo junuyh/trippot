@@ -239,32 +239,6 @@ export const DESTINATIONS: readonly Destination[] = [
     },
   },
 
-  // ── 홍콩 ─────────────────────────────────────────────────────────────────
-  {
-    code: DESTINATION_CODE.HONG_KONG,
-    nameKo: '홍콩',
-    countryKo: '홍콩',
-    region: REGION.ASIA,
-    baseline: {
-      // 비행 약 3시간 40분. 일본보다 한 단계 비싸다
-      airfarePerPerson: 380_000,
-      // 아시아권 최고 수준 숙박비. 같은 등급이 도쿄보다 25% 비싸다
-      lodgingPerNight: 100_000,
-      perPersonPerDay: {
-        // 딤섬·차찬텡은 저렴하지만 저녁 외식 단가가 높다
-        FOOD: 50_000,
-        // MTR 단가는 낮으나 공항고속·트램·페리가 더해진다
-        TRANSPORT: 18_000,
-        // 디즈니랜드·오션파크·피크트램
-        ACTIVITY: 28_000,
-        // 면세 지역이라 쇼핑 지출 비중이 높다
-        SHOPPING: 20_000,
-        INSURANCE: 4_000,
-        CONTINGENCY: 14_000,
-      },
-    },
-  },
-
   // ── 중국 ─────────────────────────────────────────────────────────────────
   {
     code: DESTINATION_CODE.SHANGHAI,
@@ -311,6 +285,32 @@ export const DESTINATIONS: readonly Destination[] = [
         SHOPPING: 14_000,
         INSURANCE: 4_000,
         CONTINGENCY: 10_000,
+      },
+    },
+  },
+
+  // ── 홍콩 ─────────────────────────────────────────────────────────────────
+  {
+    code: DESTINATION_CODE.HONG_KONG,
+    nameKo: '홍콩',
+    countryKo: '홍콩',
+    region: REGION.ASIA,
+    baseline: {
+      // 비행 약 3시간 40분. 일본보다 한 단계 비싸다
+      airfarePerPerson: 380_000,
+      // 아시아권 최고 수준 숙박비. 같은 등급이 도쿄보다 25% 비싸다
+      lodgingPerNight: 100_000,
+      perPersonPerDay: {
+        // 딤섬·차찬텡은 저렴하지만 저녁 외식 단가가 높다
+        FOOD: 50_000,
+        // MTR 단가는 낮으나 공항고속·트램·페리가 더해진다
+        TRANSPORT: 18_000,
+        // 디즈니랜드·오션파크·피크트램
+        ACTIVITY: 28_000,
+        // 면세 지역이라 쇼핑 지출 비중이 높다
+        SHOPPING: 20_000,
+        INSURANCE: 4_000,
+        CONTINGENCY: 14_000,
       },
     },
   },
