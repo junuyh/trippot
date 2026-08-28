@@ -16,8 +16,8 @@
 // 이 파일은 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/trip-home/.
 // ============================================================================
 import { differenceInCalendarDays, parseISO } from 'date-fns';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import {
@@ -114,9 +114,16 @@ export default function ScreenTripHome() {
     }
   }, [tripId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // 화면에 들어올 때마다 다시 읽는다.
+  //
+  // useEffect 는 최초 마운트에서만 돈다. 예산 상세에서 금액을 고치고 돌아오거나,
+  // 자금이 바뀐 뒤 다시 들어오면 옛 숫자가 그대로 남는다.
+  // 금액을 보여주는 화면에서 옛 값은 틀린 값이다.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);

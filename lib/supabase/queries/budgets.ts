@@ -77,12 +77,70 @@ export async function getBudgetCategories(budgetId: string): Promise<BudgetCateg
  *    개인화 추천은 personalized_amount 까지만 쓴다.
  *    planned_amount 를 바꿀 때는 applied_source 도 함께 맞춰준다.
  */
+/**
+ * 목표 예산 확정. trip_budgets 를 갱신한다.
+ *
+ * ⚠️ confirmed_at 이 들어가는 순간이 '사용자가 확정한 시점' 이다.
+ *    null 이면 아직 예산을 정하지 않은 여행이다. (시드의 오사카)
+ */
+export async function updateTripBudget(
+  budgetId: string,
+  patch: TablesUpdate<'trip_budgets'>,
+): Promise<TripBudget> {
+  const { data, error } = await supabase
+    .from('trip_budgets')
+    .update(patch)
+    .eq('id', budgetId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 가상 금고 배분액 저장.
+ *
+ * 현재 여행자금이 바뀌면 배분도 달라진다. 화면에서 계산한 값을 여기로 저장한다.
+ * (배분 규칙은 lib/budget/vault.ts)
+ *
+ * ⚠️ 각 행을 따로 update 한다. supabase-js 에 다중 행 부분 update 가 없고,
+ *    upsert 는 NOT NULL 칼럼(trip_budget_id / category_code)을 전부 넘겨야 해서
+ *    하나라도 빠뜨리면 새 행이 생긴다. 그쪽이 더 위험하다.
+ */
+export async function updateBudgetCategoriesPrepared(
+  items: { id: string; preparedAmount: number }[],
+): Promise<void> {
+  if (items.length === 0) return;
+
+  const results = await Promise.all(
+    items.map((item) =>
+      supabase
+        .from('budget_categories')
+        .update({ prepared_amount: item.preparedAmount })
+        .eq('id', item.id),
+    ),
+  );
+
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw failed.error;
+}
+
 export async function updateBudgetCategory(
   categoryId: string,
   patch: BudgetCategoryUpdate,
 ): Promise<BudgetCategory> {
-  // TODO: budget_categories update 후 갱신된 행 반환.
-  throw new Error('[queries/budgets] updateBudgetCategory 미구현');
+  // ⚠️ BudgetCategoryUpdate 는 recommended_amount 를 뺀 타입이다.
+  //    추천 원본은 최초 생성 후 덮어쓰지 않는다. (CLAUDE.md 4장)
+  const { data, error } = await supabase
+    .from('budget_categories')
+    .update(patch)
+    .eq('id', categoryId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function getBudgetPlanItems(categoryId: string): Promise<BudgetPlanItem[]> {
