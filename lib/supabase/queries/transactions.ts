@@ -15,20 +15,41 @@ export type TransactionListOptions = {
   categoryId?: string;
   /** 지정하면 입금/출금 한쪽만. */
   transactionType?: Transaction['transaction_type'];
+  /** 최근 N건만. 준비 홈의 '최근 여행자금 내역' 처럼 일부만 필요할 때 쓴다. */
+  limit?: number;
 };
 
 export async function getTransactions(
   tripId: string,
   options?: TransactionListOptions,
 ): Promise<Transaction[]> {
-  // TODO: transactions 조회. trip_id = tripId, deleted_at is null.
-  //       occurred_at 내림차순 정렬. options 로 추가 필터.
-  return [];
+  let query = supabase
+    .from('transactions')
+    .select('*')
+    .eq('trip_id', tripId)
+    // 삭제된 거래는 목록에도 합계에도 들어가면 안 된다
+    .is('deleted_at', null)
+    .order('occurred_at', { ascending: false });
+
+  if (options?.categoryId) query = query.eq('budget_category_id', options.categoryId);
+  if (options?.transactionType) query = query.eq('transaction_type', options.transactionType);
+  if (options?.limit) query = query.limit(options.limit);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function getTransactionById(transactionId: string): Promise<Transaction | null> {
-  // TODO: transactions 단건 조회. .maybeSingle() 사용.
-  return null;
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('id', transactionId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 /**
