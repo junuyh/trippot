@@ -84,19 +84,13 @@ export function DestinationPicker({
   onSelectRegion,
   customNameError = null,
 }: Props) {
-  // 펼친 지역의 도시를 국가별로 묶는다. 니스·밀라노·베니스는 도시명만으로
-  // 어느 나라인지 바로 안 떠오른다. 지역 하나당 국가는 많아야 둘이라 짧다.
-  const countryGroups = useMemo(() => {
-    if (!openRegion) return [];
-    const groups: { countryKo: string; destinations: Destination[] }[] = [];
-    for (const destination of DESTINATIONS) {
-      if (destination.region !== openRegion) continue;
-      const group = groups.find((g) => g.countryKo === destination.countryKo);
-      if (group) group.destinations.push(destination);
-      else groups.push({ countryKo: destination.countryKo, destinations: [destination] });
-    }
-    return groups;
-  }, [openRegion]);
+  // 국가로 한 번 더 묶지 않는다. 아시아는 4개국에 6개 도시가 걸쳐 있어
+  // 국가 라벨을 붙이면 줄 수가 다시 늘어난다. 12개 다 알 만한 도시라
+  // 도시명만으로 충분하다.
+  const cities = useMemo(
+    () => (openRegion ? DESTINATIONS.filter((d) => d.region === openRegion) : []),
+    [openRegion],
+  );
 
   return (
     <View className="gap-3">
@@ -114,26 +108,14 @@ export function DestinationPicker({
 
       {/* ── 2단계: 도시 ── */}
       {!isCustom && openRegion ? (
-        <View className="gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3">
-          {countryGroups.map((group) => (
-            <View key={group.countryKo}>
-              {/* 지역 안에 나라가 하나뿐이면 라벨이 군더더기다 */}
-              {countryGroups.length > 1 ? (
-                <Text className="mb-1.5 text-xs font-medium text-gray-500">
-                  {group.countryKo}
-                </Text>
-              ) : null}
-              <View className="flex-row flex-wrap gap-2">
-                {group.destinations.map((destination) => (
-                  <Chip
-                    key={destination.code}
-                    label={destination.nameKo}
-                    selected={selectedCode === destination.code}
-                    onPress={() => onSelectDestination(destination)}
-                  />
-                ))}
-              </View>
-            </View>
+        <View className="flex-row flex-wrap gap-2 rounded-2xl border border-gray-100 bg-gray-50 p-3">
+          {cities.map((destination) => (
+            <Chip
+              key={destination.code}
+              label={destination.nameKo}
+              selected={selectedCode === destination.code}
+              onPress={() => onSelectDestination(destination)}
+            />
           ))}
         </View>
       ) : null}

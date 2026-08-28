@@ -72,16 +72,24 @@ export const BASELINE_ESTIMATE_NOTICE = '기준 데이터가 없어 지역 평�
 // 국가 단위로 쪼개면 표본이 1개인 지역이 늘어나 평균의 의미가 없어진다.
 
 export const REGION = {
-  JAPAN: 'japan',
-  GREATER_CHINA: 'greater_china',
+  ASIA: 'asia',
   SOUTHEAST_ASIA: 'southeast_asia',
   EUROPE: 'europe',
 } as const;
 export type RegionCode = (typeof REGION)[keyof typeof REGION];
 
+/**
+ * 화면의 지역 선택 순서이기도 하다. 정의 순서대로 그려진다.
+ *
+ * ⚠️ 일본과 중화권을 'asia' 하나로 합쳤다. (2026-08-28)
+ *    물가 차이만 보면 나누는 편이 정확하지만, 사용자에게 '일본' 과 '아시아' 가
+ *    나란히 놓이면 일본은 아시아가 아닌 것처럼 읽힌다.
+ *    목적지별 기준 금액은 도시 단위로 따로 갖고 있으므로, 지역을 합쳐도
+ *    목록에 있는 12개의 추천 정확도는 그대로다.
+ *    지역 평균은 '목록에 없는 목적지' 에만 쓰인다.
+ */
 export const REGION_LABEL: Record<RegionCode, string> = {
-  japan: '일본',
-  greater_china: '중화권',
+  asia: '아시아',
   southeast_asia: '동남아시아',
   europe: '유럽',
 };
@@ -153,7 +161,7 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.TOKYO,
     nameKo: '도쿄',
     countryKo: '일본',
-    region: REGION.JAPAN,
+    region: REGION.ASIA,
     baseline: {
       // 275,000 × 4인 = 1,100,000 (시드 AIRFARE 와 일치)
       // 근거: 인천-나리타/하네다 왕복 25~30만원대
@@ -187,7 +195,7 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.OSAKA,
     nameKo: '오사카',
     countryKo: '일본',
-    region: REGION.JAPAN,
+    region: REGION.ASIA,
     baseline: {
       // 인천-간사이는 도쿄보다 소폭 저렴하다
       airfarePerPerson: 260_000,
@@ -211,7 +219,7 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.FUKUOKA,
     nameKo: '후쿠오카',
     countryKo: '일본',
-    region: REGION.JAPAN,
+    region: REGION.ASIA,
     baseline: {
       // 일본 노선 중 가장 가깝다 (비행 약 1시간 10분). LCC 비중이 높다
       airfarePerPerson: 220_000,
@@ -236,7 +244,7 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.HONG_KONG,
     nameKo: '홍콩',
     countryKo: '홍콩',
-    region: REGION.GREATER_CHINA,
+    region: REGION.ASIA,
     baseline: {
       // 비행 약 3시간 40분. 일본보다 한 단계 비싸다
       airfarePerPerson: 380_000,
@@ -262,7 +270,7 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.SHANGHAI,
     nameKo: '상하이',
     countryKo: '중국',
-    region: REGION.GREATER_CHINA,
+    region: REGION.ASIA,
     baseline: {
       // 비행 약 2시간. 홍콩보다 가깝다
       airfarePerPerson: 320_000,
@@ -287,7 +295,7 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.TAIPEI,
     nameKo: '타이베이',
     countryKo: '대만',
-    region: REGION.GREATER_CHINA,
+    region: REGION.ASIA,
     baseline: {
       // 비행 약 2시간 30분. 중화권에서 항공비 대비 물가가 가장 낮다
       airfarePerPerson: 330_000,
@@ -463,29 +471,16 @@ export const DESTINATIONS: readonly Destination[] = [
 // ============================================================================
 
 export const REGION_BASELINE: Record<RegionCode, DestinationBaseline> = {
-  // 도쿄·오사카·후쿠오카 평균
-  japan: {
-    airfarePerPerson: 250_000,
-    lodgingPerNight: 72_000,
-    perPersonPerDay: {
-      FOOD: 42_000,
-      TRANSPORT: 18_000,
-      ACTIVITY: 23_000,
-      SHOPPING: 14_000,
-      INSURANCE: 3_750,
-      CONTINGENCY: 12_000,
-    },
-  },
-  // 홍콩·상하이·타이베이 평균
-  greater_china: {
-    airfarePerPerson: 340_000,
-    lodgingPerNight: 76_000,
+  // 도쿄·오사카·후쿠오카·홍콩·상하이·타이베이 6개 평균 (1,000원 단위 반올림)
+  asia: {
+    airfarePerPerson: 300_000,
+    lodgingPerNight: 75_000,
     perPersonPerDay: {
       FOOD: 41_000,
-      TRANSPORT: 15_000,
+      TRANSPORT: 17_000,
       ACTIVITY: 23_000,
-      SHOPPING: 16_000,
-      INSURANCE: 4_000,
+      SHOPPING: 15_000,
+      INSURANCE: 3_900,
       CONTINGENCY: 12_000,
     },
   },
@@ -530,7 +525,7 @@ export const REGION_BASELINE: Record<RegionCode, DestinationBaseline> = {
  *    유지 비용이 크고 오탐이 난다. 사용자가 한 번 더 고르는 편이 정확하고 구현도 단순하다.
  *    이 상수는 그 선택마저 비어 있을 때의 최종 방어선이다.
  */
-export const DEFAULT_REGION: RegionCode = REGION.SOUTHEAST_ASIA;
+export const DEFAULT_REGION: RegionCode = REGION.ASIA;
 
 // ============================================================================
 // 화면·조회 보조
