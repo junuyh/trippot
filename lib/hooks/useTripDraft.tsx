@@ -39,6 +39,11 @@ export type TripDraft = {
   applyPastData: boolean | null;
   /** 결산 완료된 과거 여행 수. 0 이면 반영 여부를 묻지 않는다 */
   pastTripCount: number;
+  /**
+   * 고른 기존 모임의 참여 멤버 수. TRIP-02 인원 기본값으로 쓴다.
+   * 기존 모임이 아니면 0 이다.
+   */
+  groupMemberCount: number;
 
   // ── TRIP-02 ──────────────────────────────────────────────────────────
   /** 목록에서 고른 목적지. 직접 입력이면 null */
@@ -69,6 +74,7 @@ const INITIAL_DRAFT: TripDraft = {
   companionNames: [],
   applyPastData: null,
   pastTripCount: 0,
+  groupMemberCount: 0,
 
   destinationCode: null,
   destinationName: null,

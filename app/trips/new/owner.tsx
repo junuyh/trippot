@@ -21,7 +21,7 @@ import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { COMPANION_TYPE, ENTRY_POINT, type CompanionType, type EntryPoint } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { useTripDraft } from '@/lib/hooks/useTripDraft';
-import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
+import { getGroupMemberCount, getMyGroups, type Group } from '@/lib/supabase/queries/groups';
 import { getSettledTripCount } from '@/lib/supabase/queries/personalization';
 
 /** ENTRY_POINT 에 없는 값이 param 으로 들어와도 이벤트를 오염시키지 않는다. */
@@ -124,6 +124,7 @@ export default function ScreenTRIP01() {
         newGroupName: companionType === COMPANION_TYPE.NEW_GROUP ? draft.newGroupName : null,
         applyPastData: null,
         pastTripCount: 0,
+        groupMemberCount: 0,
       });
       setGroupNameError(null);
 
@@ -141,8 +142,14 @@ export default function ScreenTRIP01() {
 
   const handleSelectGroup = useCallback(
     (groupId: string) => {
-      patchDraft({ groupId, applyPastData: null, pastTripCount: 0 });
+      patchDraft({ groupId, applyPastData: null, pastTripCount: 0, groupMemberCount: 0 });
       void loadPastTripCount(COMPANION_TYPE.EXISTING_GROUP, groupId);
+
+      // 인원 기본값. 실패해도 여행 생성을 막지 않는다.
+      // 0 이면 TRIP-02 가 1명으로 두고, 사용자가 직접 올릴 수 있다.
+      void getGroupMemberCount(groupId)
+        .then((count) => patchDraft({ groupMemberCount: count }))
+        .catch(() => patchDraft({ groupMemberCount: 0 }));
     },
     [loadPastTripCount, patchDraft],
   );

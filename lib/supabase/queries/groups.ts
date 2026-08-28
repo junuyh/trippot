@@ -34,6 +34,26 @@ export async function getMyGroups(userId: string): Promise<Group[]> {
   return (data ?? []).map((row) => row.groups);
 }
 
+/**
+ * 모임의 참여 중인 멤버 수.
+ *
+ * 여행 생성에서 인원 기본값으로 쓴다. 기존 모임을 골랐는데 인원이 1명으로
+ * 남아 있으면 사용자가 매번 직접 올려야 하고, 그대로 넘어가면 4인 여행 예산이
+ * 1인 기준으로 추천된다.
+ *
+ * INVITED / LEFT 는 세지 않는다. 아직 안 왔거나 이미 나간 사람이다.
+ */
+export async function getGroupMemberCount(groupId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('group_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('group_id', groupId)
+    .eq('status', GROUP_MEMBER_STATUS.ACTIVE);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function getGroupById(groupId: string): Promise<Group | null> {
   // TODO: groups 단건 조회. 호출자가 이 모임의 멤버인지 확인한 뒤 반환한다.
   //       .maybeSingle() 사용.

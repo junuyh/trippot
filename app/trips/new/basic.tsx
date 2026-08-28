@@ -40,14 +40,19 @@ export default function ScreenTRIP02() {
   // 모임 여행이면 동행자 수 + 본인. 개인은 1명이다.
   // 사용자가 직접 만진 뒤에는 덮어쓰지 않는다.
   const [headcountTouched, setHeadcountTouched] = useState(false);
+  const suggestedHeadcount =
+    draft.companionType === COMPANION_TYPE.PERSONAL
+      ? 1
+      : draft.companionType === COMPANION_TYPE.EXISTING_GROUP
+        ? // 기존 모임은 참여 멤버 수. 아직 못 불러왔으면(0) 1 로 둔다.
+          Math.max(1, draft.groupMemberCount)
+        : // 신규 모임은 입력한 동행자 + 본인
+          Math.max(1, draft.companionNames.length + 1);
+
   useEffect(() => {
     if (headcountTouched) return;
-    const suggested =
-      draft.companionType === COMPANION_TYPE.PERSONAL
-        ? 1
-        : Math.max(1, draft.companionNames.length + 1);
-    if (suggested !== draft.headcount) patchDraft({ headcount: suggested });
-  }, [draft.companionNames.length, draft.companionType, draft.headcount, headcountTouched, patchDraft]);
+    if (suggestedHeadcount !== draft.headcount) patchDraft({ headcount: suggestedHeadcount });
+  }, [draft.headcount, headcountTouched, patchDraft, suggestedHeadcount]);
 
   // ── 여행지 ────────────────────────────────────────────────────────────
   // 펼쳐 놓을 지역. 뒤로 갔다 돌아오면 이미 고른 목적지의 지역을 열어 둔다.
@@ -242,7 +247,9 @@ export default function ScreenTRIP02() {
           }}
           hint={
             draft.companionType !== COMPANION_TYPE.PERSONAL && !headcountTouched
-              ? '동행자 수에 맞춰 자동으로 채웠어요. 바꿀 수 있어요.'
+              ? draft.companionType === COMPANION_TYPE.EXISTING_GROUP
+                ? '모임 인원에 맞춰 자동으로 채웠어요. 바꿀 수 있어요.'
+                : '동행자 수에 맞춰 자동으로 채웠어요. 바꿀 수 있어요.'
               : undefined
           }
         />
