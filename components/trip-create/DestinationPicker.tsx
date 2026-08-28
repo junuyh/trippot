@@ -1,83 +1,142 @@
-// TRIP-02 여행지 선택. 12개 목록을 국가별로 묶어 보여주고, 없으면 직접 입력한다.
+// TRIP-02 여행지 선택. 지역을 고르면 그 지역의 도시만 펼쳐진다.
 //
-// 자유 텍스트만 받으면 목적지별 물가를 반영할 수 없어 추천이 뭉뚱그려진다.
-// 그래서 목록 선택이 기본이다. (docs/README.md §5 #9)
+// 12개를 국가별로 한 번에 늘어놓으면 목적지 하나에 화면 10줄을 쓴다.
+// 지역(4) → 도시(최대 5) 두 단계로 줄이면 2줄이면 된다.
+//
+// ⚠️ 검색창으로 받지 않는다. 12개뿐이라 사용자가 목록에 무엇이 있는지 모른 채
+//    검색을 하게 되고, 있는 목적지를 못 찾아 직접 입력으로 새면 기준 데이터를
+//    쓰지 못한다. 목록에 있는 곳으로 유도해야 추천이 정확해진다.
+//
+// ⚠️ 대륙 → 나라 → 도시 3단계도 쓰지 않는다. 12개에 탭 세 번은 과하다.
 //
 // 직접 입력이면 기준 데이터가 없으므로 **지역을 함께 받는다.**
-// '다낭' → southeast_asia 같은 문자열 매칭은 하지 않는다. (§5 #12)
+// '다낭' → southeast_asia 같은 문자열 매칭은 하지 않는다. (docs/README.md §5 #12)
 import { Ionicons } from '@expo/vector-icons';
+import { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Input } from '@/components/ui';
 import {
   BASELINE_ESTIMATE_NOTICE,
-  DESTINATIONS_BY_COUNTRY,
+  DESTINATIONS,
   REGION_LABEL,
   type Destination,
   type DestinationCode,
   type RegionCode,
 } from '@/lib/constants/destinations';
 
+const REGIONS = Object.keys(REGION_LABEL) as RegionCode[];
+
 type Props = {
   selectedCode: DestinationCode | null;
+  /** 펼쳐 놓을 지역. 아직 안 고르면 null */
+  openRegion: RegionCode | null;
+  onOpenRegion: (region: RegionCode) => void;
+
   isCustom: boolean;
   customName: string;
   customRegion: RegionCode | null;
   onSelectDestination: (destination: Destination) => void;
   onStartCustom: () => void;
   onChangeCustomName: (value: string) => void;
+  onBlurCustomName: () => void;
   onSelectRegion: (region: RegionCode) => void;
-  /** 직접 입력 목적지명 검증 실패 메시지 */
   customNameError?: string | null;
 };
 
+function Chip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
+      onPress={onPress}
+      className={`rounded-full border px-4 py-2.5 ${
+        selected ? 'border-blue-600 bg-blue-600' : 'border-gray-200 bg-white active:bg-gray-50'
+      }`}
+    >
+      <Text className={`text-sm ${selected ? 'font-semibold text-white' : 'text-gray-800'}`}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function DestinationPicker({
   selectedCode,
+  openRegion,
+  onOpenRegion,
   isCustom,
   customName,
   customRegion,
   onSelectDestination,
   onStartCustom,
   onChangeCustomName,
+  onBlurCustomName,
   onSelectRegion,
   customNameError = null,
 }: Props) {
+  // 펼친 지역의 도시를 국가별로 묶는다. 니스·밀라노·베니스는 도시명만으로
+  // 어느 나라인지 바로 안 떠오른다. 지역 하나당 국가는 많아야 둘이라 짧다.
+  const countryGroups = useMemo(() => {
+    if (!openRegion) return [];
+    const groups: { countryKo: string; destinations: Destination[] }[] = [];
+    for (const destination of DESTINATIONS) {
+      if (destination.region !== openRegion) continue;
+      const group = groups.find((g) => g.countryKo === destination.countryKo);
+      if (group) group.destinations.push(destination);
+      else groups.push({ countryKo: destination.countryKo, destinations: [destination] });
+    }
+    return groups;
+  }, [openRegion]);
+
   return (
-    <View className="gap-4">
-      {DESTINATIONS_BY_COUNTRY.map((group) => (
-        <View key={group.countryKo}>
-          <Text className="mb-1.5 text-xs font-semibold text-gray-500">
-            {group.countryKo}
-          </Text>
-          <View className="flex-row flex-wrap gap-2">
-            {group.destinations.map((destination) => {
-              const selected = !isCustom && selectedCode === destination.code;
-              return (
-                <Pressable
-                  key={destination.code}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={destination.nameKo}
-                  onPress={() => onSelectDestination(destination)}
-                  className={`rounded-full border px-4 py-2.5 ${
-                    selected
-                      ? 'border-blue-600 bg-blue-600'
-                      : 'border-gray-200 bg-white active:bg-gray-50'
-                  }`}
-                >
-                  <Text
-                    className={`text-sm ${
-                      selected ? 'font-semibold text-white' : 'text-gray-800'
-                    }`}
-                  >
-                    {destination.nameKo}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+    <View className="gap-3">
+      {/* ── 1단계: 지역 ── */}
+      <View className="flex-row flex-wrap gap-2">
+        {REGIONS.map((region) => (
+          <Chip
+            key={region}
+            label={REGION_LABEL[region]}
+            selected={!isCustom && openRegion === region}
+            onPress={() => onOpenRegion(region)}
+          />
+        ))}
+      </View>
+
+      {/* ── 2단계: 도시 ── */}
+      {!isCustom && openRegion ? (
+        <View className="gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3">
+          {countryGroups.map((group) => (
+            <View key={group.countryKo}>
+              {/* 지역 안에 나라가 하나뿐이면 라벨이 군더더기다 */}
+              {countryGroups.length > 1 ? (
+                <Text className="mb-1.5 text-xs font-medium text-gray-500">
+                  {group.countryKo}
+                </Text>
+              ) : null}
+              <View className="flex-row flex-wrap gap-2">
+                {group.destinations.map((destination) => (
+                  <Chip
+                    key={destination.code}
+                    label={destination.nameKo}
+                    selected={selectedCode === destination.code}
+                    onPress={() => onSelectDestination(destination)}
+                  />
+                ))}
+              </View>
+            </View>
+          ))}
         </View>
-      ))}
+      ) : null}
 
       {/* ── 직접 입력 ── */}
       <Pressable
@@ -106,6 +165,7 @@ export function DestinationPicker({
             required
             value={customName}
             onChangeText={onChangeCustomName}
+            onBlur={onBlurCustomName}
             placeholder="예: 다낭"
             error={customNameError}
             maxLength={20}
@@ -120,31 +180,14 @@ export function DestinationPicker({
               지역을 알아야 평균 물가로 예산을 추천할 수 있어요.
             </Text>
             <View className="flex-row flex-wrap gap-2">
-              {(Object.keys(REGION_LABEL) as RegionCode[]).map((region) => {
-                const selected = customRegion === region;
-                return (
-                  <Pressable
-                    key={region}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={REGION_LABEL[region]}
-                    onPress={() => onSelectRegion(region)}
-                    className={`rounded-full border px-4 py-2 ${
-                      selected
-                        ? 'border-blue-600 bg-blue-600'
-                        : 'border-gray-200 bg-white active:bg-gray-100'
-                    }`}
-                  >
-                    <Text
-                      className={`text-sm ${
-                        selected ? 'font-semibold text-white' : 'text-gray-800'
-                      }`}
-                    >
-                      {REGION_LABEL[region]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {REGIONS.map((region) => (
+                <Chip
+                  key={region}
+                  label={REGION_LABEL[region]}
+                  selected={customRegion === region}
+                  onPress={() => onSelectRegion(region)}
+                />
+              ))}
             </View>
           </View>
 

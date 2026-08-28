@@ -17,6 +17,8 @@ type Props = {
   onChangeGroupName: (value: string) => void;
   /** 모임명 검증 실패 메시지. null 이면 정상 */
   groupNameError: string | null;
+  /** 입력칸을 벗어날 때 검증한다. '다음' 이 disabled 라 눌러서는 띄울 수 없다 */
+  onBlurGroupName: () => void;
 
   companionNames: string[];
   onChangeCompanionName: (index: number, value: string) => void;
@@ -30,6 +32,7 @@ export function NewGroupForm({
   groupName,
   onChangeGroupName,
   groupNameError,
+  onBlurGroupName,
   companionNames,
   onChangeCompanionName,
   onAddCompanion,
@@ -43,6 +46,7 @@ export function NewGroupForm({
         required
         value={groupName}
         onChangeText={onChangeGroupName}
+        onBlur={onBlurGroupName}
         placeholder="예: 대학 동기 모임"
         error={groupNameError}
         editable={!disabled}

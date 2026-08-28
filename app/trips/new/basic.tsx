@@ -6,10 +6,9 @@
 // 이 파일은 상태 관리 · 검증 · 로그 기록만 한다. UI 는 components/trip-create/.
 // TRIP-01 과 마찬가지로 DB 에 쓰지 않는다. 저장은 TRIP-03 에서 한 번에 한다.
 // ============================================================================
-import { Ionicons } from '@expo/vector-icons';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { Stack, router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LayoutAnimation, ScrollView, Text, View } from 'react-native';
 
 import {
@@ -36,7 +35,6 @@ export default function ScreenTRIP02() {
   useScreenView(SCREENS.TRIP_CREATE_INFO);
 
   const { draft, patchDraft } = useTripDraft();
-  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // ── 인원 기본값 ───────────────────────────────────────────────────────
   // 모임 여행이면 동행자 수 + 본인. 개인은 1명이다.
@@ -52,6 +50,11 @@ export default function ScreenTRIP02() {
   }, [draft.companionNames.length, draft.companionType, draft.headcount, headcountTouched, patchDraft]);
 
   // ── 여행지 ────────────────────────────────────────────────────────────
+  // 펼쳐 놓을 지역. 뒤로 갔다 돌아오면 이미 고른 목적지의 지역을 열어 둔다.
+  const [openRegion, setOpenRegion] = useState<RegionCode | null>(
+    () => (draft.isCustomDestination ? null : draft.region),
+  );
+
   const handleSelectDestination = useCallback(
     (destination: Destination) => {
       patchDraft({
@@ -75,7 +78,10 @@ export default function ScreenTRIP02() {
   }, [draft.destinationName, draft.isCustomDestination, draft.region, patchDraft]);
 
   const handleChangeCustomName = useCallback(
-    (value: string) => patchDraft({ destinationName: value }),
+    (value: string) => {
+      patchDraft({ destinationName: value });
+      setCustomNameError(null);
+    },
     [patchDraft],
   );
 
@@ -101,24 +107,14 @@ export default function ScreenTRIP02() {
 
   const canSubmit = destinationValid && datesValid && draft.headcount >= 1 && draft.travelStyle !== null;
 
-  const customNameError =
-    submitAttempted && draft.isCustomDestination && trimmedName.length === 0
-      ? '여행지를 입력해 주세요.'
-      : null;
-
-  const missingMessage = useMemo(() => {
-    if (canSubmit) return null;
-    if (!destinationValid) {
-      if (draft.isCustomDestination) {
-        // 이름이 비었으면 Input 이 인라인으로 알려준다. 같은 말을 두 번 하지 않는다.
-        return trimmedName.length > 0 ? '어느 지역인지 선택해 주세요.' : null;
-      }
-      return '여행지를 선택해 주세요.';
-    }
-    if (!datesValid) return '가는 날과 오는 날을 선택해 주세요.';
-    if (!draft.travelStyle) return '여행 스타일을 선택해 주세요.';
-    return null;
-  }, [canSubmit, datesValid, destinationValid, draft.isCustomDestination, draft.travelStyle, trimmedName.length]);
+  // '다음' 이 disabled 라 눌러서는 검증을 띄울 수 없다.
+  // 입력칸을 건드렸다가 비운 채 벗어나는 시점에 알린다.
+  const [customNameError, setCustomNameError] = useState<string | null>(null);
+  const handleBlurCustomName = useCallback(() => {
+    setCustomNameError(
+      (draft.destinationName ?? '').trim().length === 0 ? '여행지를 입력해 주세요.' : null,
+    );
+  }, [draft.destinationName]);
 
   // ── 단계별 노출 ───────────────────────────────────────────────────────
   //
@@ -158,7 +154,6 @@ export default function ScreenTRIP02() {
   );
 
   const handleNext = useCallback(() => {
-    setSubmitAttempted(true);
     if (!canSubmit || !draft.startDate || !draft.endDate || !draft.travelStyle) return;
     if (navigatingRef.current) return;
     navigatingRef.current = true;
@@ -205,12 +200,15 @@ export default function ScreenTRIP02() {
         </Text>
         <DestinationPicker
           selectedCode={draft.destinationCode}
+          openRegion={openRegion}
+          onOpenRegion={setOpenRegion}
           isCustom={draft.isCustomDestination}
           customName={draft.isCustomDestination ? (draft.destinationName ?? '') : ''}
           customRegion={draft.region}
           onSelectDestination={handleSelectDestination}
           onStartCustom={handleStartCustom}
           onChangeCustomName={handleChangeCustomName}
+          onBlurCustomName={handleBlurCustomName}
           onSelectRegion={handleSelectRegion}
           customNameError={customNameError}
         />
@@ -268,25 +266,14 @@ export default function ScreenTRIP02() {
       </View>
       ) : null}
 
-      {submitAttempted && missingMessage ? (
-        <View className="mt-5 flex-row items-center gap-1.5">
-          <Ionicons name="alert-circle" size={16} color="#ef4444" />
-          <Text className="text-sm text-red-500">{missingMessage}</Text>
-        </View>
-      ) : null}
-
       {/*
         마지막 단계가 펼쳐지기 전에는 '다음' 을 노출하지 않는다.
         아직 물어볼 게 남았는데 완료 버튼이 먼저 보이면 단계 노출의 의미가 없다.
-
-        단, 일단 노출한 뒤에는 disabled 로 두지 않는다.
-        disabled 면 onPress 가 불리지 않아 "무엇이 빠졌는지" 를 알려줄 기회가 없고,
-        사용자는 버튼을 눌렀는데 아무 반응이 없는 상태를 보게 된다.
-        handleNext 에서 막고 missingMessage 로 이유를 알린다.
+        필수값이 비면 disabled 로 막고, 무엇이 빠졌는지는 해당 입력칸에서 알린다.
       */}
       {styleRevealed ? (
         <View className="mt-8">
-          <Button label="다음" onPress={handleNext} />
+          <Button label="다음" onPress={handleNext} disabled={!canSubmit} />
         </View>
       ) : null}
     </ScrollView>

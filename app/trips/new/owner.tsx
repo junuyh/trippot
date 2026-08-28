@@ -8,9 +8,8 @@
 //    실제 저장(groups / trips / trip_members insert)은 TRIP-03 에서 한 번에 한다.
 //    (lib/hooks/useTripDraft.tsx 주석 참조)
 // ============================================================================
-import { Ionicons } from '@expo/vector-icons';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { GroupPicker, NewGroupForm, OwnerTypeSelector, PastDataChoice, StepProgress } from '@/components/trip-create';
@@ -71,6 +70,15 @@ export default function ScreenTRIP01() {
       setGroupsLoading(false);
     }
   }, []);
+
+  // 뒤로 갔다 돌아오면 이 화면이 다시 마운트되지만 draft 의 선택은 남아 있다.
+  // 그때 handleSelectCompanionType 이 다시 불리지 않으므로 목록을 여기서 채운다.
+  // 없으면 이미 '기존 모임' 을 고른 사용자에게 빈 목록이 보인다.
+  useEffect(() => {
+    if (draft.companionType === COMPANION_TYPE.EXISTING_GROUP && !groupsLoaded && !groupsLoading) {
+      void loadGroups();
+    }
+  }, [draft.companionType, groupsLoaded, groupsLoading, loadGroups]);
 
   // ── 과거 결산 완료 여행 수 ────────────────────────────────────────────
   // 개인이든 모임이든 소유 단위만 바뀔 뿐 판정은 같다.
@@ -161,6 +169,14 @@ export default function ScreenTRIP01() {
     [groupNameError, patchDraft],
   );
 
+  // '다음' 이 disabled 라 눌러서는 검증을 띄울 수 없다.
+  // 입력칸을 건드렸다가 비운 채 벗어나는 시점에 알린다.
+  const handleBlurGroupName = useCallback(() => {
+    setGroupNameError(
+      (draft.newGroupName ?? '').trim().length === 0 ? '모임 이름을 입력해 주세요.' : null,
+    );
+  }, [draft.newGroupName]);
+
   const handleAddCompanion = useCallback(() => {
     patchDraft({ companionNames: [...draft.companionNames, ''] });
   }, [draft.companionNames, patchDraft]);
@@ -182,7 +198,6 @@ export default function ScreenTRIP01() {
   );
 
   // ── 다음 단계 ─────────────────────────────────────────────────────────
-  const [submitAttempted, setSubmitAttempted] = useState(false);
   const showPastDataChoice = draft.pastTripCount > 0 && !pastCountLoading;
 
   const trimmedGroupName = (draft.newGroupName ?? '').trim();
@@ -201,20 +216,6 @@ export default function ScreenTRIP01() {
 
   const canProceed = companionValid && pastDataValid;
 
-  const missingMessage = useMemo(() => {
-    if (canProceed) return null;
-    if (!draft.companionType) return '누구와 가는지 선택해 주세요.';
-    if (draft.companionType === COMPANION_TYPE.EXISTING_GROUP && !draft.groupId) {
-      return '어떤 모임인지 선택해 주세요.';
-    }
-    // 모임 이름은 Input 이 인라인으로 이미 알려준다. 같은 말을 두 번 하지 않는다.
-    if (draft.companionType === COMPANION_TYPE.NEW_GROUP && !trimmedGroupName) {
-      return null;
-    }
-    if (!pastDataValid) return '지난 여행 데이터를 반영할지 선택해 주세요.';
-    return null;
-  }, [canProceed, draft.companionType, draft.groupId, pastDataValid, trimmedGroupName]);
-
   // 연타로 같은 화면이 스택에 두 번 쌓이는 것을 막는다. (NFR-005)
   // 이 화면으로 돌아오면 useFocusEffect 가 다시 열어 준다.
   const navigatingRef = useRef(false);
@@ -225,11 +226,6 @@ export default function ScreenTRIP01() {
   );
 
   const handleNext = useCallback(() => {
-    setSubmitAttempted(true);
-
-    if (draft.companionType === COMPANION_TYPE.NEW_GROUP && !trimmedGroupName) {
-      setGroupNameError('모임 이름을 입력해 주세요.');
-    }
     if (!canProceed) return;
 
     if (draft.companionType === COMPANION_TYPE.NEW_GROUP) {
@@ -285,6 +281,7 @@ export default function ScreenTRIP01() {
             groupName={draft.newGroupName ?? ''}
             onChangeGroupName={handleChangeGroupName}
             groupNameError={groupNameError}
+            onBlurGroupName={handleBlurGroupName}
             companionNames={draft.companionNames}
             onChangeCompanionName={handleChangeCompanion}
             onAddCompanion={handleAddCompanion}
@@ -303,20 +300,13 @@ export default function ScreenTRIP01() {
         </View>
       ) : null}
 
-      {submitAttempted && missingMessage ? (
-        <View className="mt-5 flex-row items-center gap-1.5">
-          <Ionicons name="alert-circle" size={16} color="#ef4444" />
-          <Text className="text-sm text-red-500">{missingMessage}</Text>
-        </View>
-      ) : null}
-
       {/*
-        빠진 값이 있어도 disabled 로 두지 않는다. disabled 면 onPress 가 불리지 않아
-        무엇이 빠졌는지 알려줄 기회가 없고, 사용자는 눌러도 반응이 없는 화면을 본다.
-        handleNext 에서 막고 missingMessage 로 이유를 알린다. (TRIP-02 와 동일)
+        필수값이 비면 '다음' 을 disabled 로 막는다.
+        무엇이 빠졌는지는 하단에 문구를 따로 띄우지 않고 해당 입력칸에서 바로 알린다
+        (빨간 테두리 + 칸 아래 작은 문구). 같은 말을 두 곳에서 하지 않는다.
       */}
       <View className="mt-8">
-        <Button label="다음" onPress={handleNext} />
+        <Button label="다음" onPress={handleNext} disabled={!canProceed} />
       </View>
     </ScrollView>
   );
