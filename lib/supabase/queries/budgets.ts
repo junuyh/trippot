@@ -143,25 +143,63 @@ export async function updateBudgetCategory(
   return data;
 }
 
+/**
+ * 카테고리의 세부 계획 항목.
+ *
+ * ⚠️ 관광지 추천 목록이 아니다. **이번 여행에서 돈을 쓸 계획 항목**이다. (docs/09 §2-3)
+ *    '스시로 시부야 70,000원' 처럼 사용자가 직접 적는다.
+ */
 export async function getBudgetPlanItems(categoryId: string): Promise<BudgetPlanItem[]> {
-  // TODO: budget_plan_items 조회. budget_category_id = categoryId, sort_order 오름차순.
-  return [];
+  const { data, error } = await supabase
+    .from('budget_plan_items')
+    .select('*')
+    .eq('budget_category_id', categoryId)
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function createBudgetPlanItem(input: BudgetPlanItemInsert): Promise<BudgetPlanItem> {
-  // TODO: budget_plan_items insert 후 생성된 행 반환.
-  throw new Error('[queries/budgets] createBudgetPlanItem 미구현');
+  const { data, error } = await supabase
+    .from('budget_plan_items')
+    .insert(input)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function updateBudgetPlanItem(
   budgetItemId: string,
   patch: BudgetPlanItemUpdate,
 ): Promise<BudgetPlanItem> {
-  // TODO: budget_plan_items update 후 갱신된 행 반환.
-  throw new Error('[queries/budgets] updateBudgetPlanItem 미구현');
+  const { data, error } = await supabase
+    .from('budget_plan_items')
+    .update(patch)
+    .eq('id', budgetItemId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
+/**
+ * 계획 항목 삭제.
+ *
+ * ⚠️ 상위 카테고리의 actual_amount 를 다시 계산하지 않는다.
+ *    actual_amount 는 **거래(transactions)의 합**이지 계획 항목의 합이 아니다.
+ *    계획 항목을 지워도 실제로 쓴 돈이 사라지지는 않는다.
+ *    (transactions.budget_plan_item_id 는 ON DELETE SET NULL 이라
+ *     거래는 남고 항목 연결만 끊긴다)
+ */
 export async function deleteBudgetPlanItem(budgetItemId: string): Promise<void> {
-  // TODO: budget_plan_items 삭제. 삭제 후 상위 카테고리 actual_amount 재계산이 필요한지 확인.
-  return;
+  const { error } = await supabase
+    .from('budget_plan_items')
+    .delete()
+    .eq('id', budgetItemId);
+
+  if (error) throw error;
 }
