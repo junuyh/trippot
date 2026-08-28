@@ -304,24 +304,15 @@ export default function ScreenTripHome() {
 
           {/* 최근 여행자금 내역 */}
           <View className="gap-2.5">
-            <View className="flex-row items-end justify-between">
-              <Text className="text-base font-semibold text-gray-900">최근 여행자금 내역</Text>
-              <Text
-                accessibilityRole="button"
-                onPress={() => router.push(`/trips/${trip.id}/funds`)}
-                className="text-xs font-medium text-blue-600"
-              >
-                전체 보기
-              </Text>
-            </View>
+            {/*
+              '전체 보기'(FUND-01)와 거래 상세(FUND-03)는 둘 다 고도화 화면이다.
+              MVP 에서는 링크를 붙이지 않는다. 눌렀는데 빈 뼈대가 뜨는 것보다
+              아예 없는 편이 낫다. (docs/README.md §5 #19)
+            */}
+            <Text className="text-base font-semibold text-gray-900">최근 여행자금 내역</Text>
 
             {recentTransactions.length > 0 ? (
-              <RecentTransactionList
-                transactions={recentTransactions}
-                onSelect={(transactionId) =>
-                  router.push(`/trips/${trip.id}/transactions/${transactionId}`)
-                }
-              />
+              <RecentTransactionList transactions={recentTransactions} />
             ) : (
               <View className="items-center rounded-2xl border border-gray-200 bg-white px-4 py-8">
                 <Text className="text-sm text-gray-500">아직 거래 내역이 없어요.</Text>

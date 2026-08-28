@@ -28,7 +28,14 @@ export type RecentTransaction = {
 
 type Props = {
   transactions: RecentTransaction[];
-  onSelect: (transactionId: string) => void;
+  /**
+   * 거래 상세로 이동. **없으면 읽기 전용으로 그린다.**
+   *
+   * 거래 상세(FUND-03)는 고도화 화면이라 MVP 에서는 갈 곳이 없다.
+   * 눌리는 것처럼 보이는데 빈 화면이 뜨는 것보다 아예 안 눌리는 편이 낫다.
+   * (docs/04_v3 — FUND-01/02/03 전부 고도화)
+   */
+  onSelect?: (transactionId: string) => void;
 };
 
 export function RecentTransactionList({ transactions, onSelect }: Props) {
@@ -36,15 +43,20 @@ export function RecentTransactionList({ transactions, onSelect }: Props) {
     <View className="overflow-hidden rounded-2xl border border-gray-200">
       {transactions.map((transaction, index) => {
         const deposit = transaction.transactionType === TRANSACTION_TYPE.DEPOSIT;
+        const Row = onSelect ? Pressable : View;
         return (
-          <Pressable
+          <Row
             key={transaction.id}
-            accessibilityRole="button"
-            accessibilityLabel={`${transaction.merchantName ?? '거래'} 상세`}
-            onPress={() => onSelect(transaction.id)}
-            className={`flex-row items-center justify-between px-4 py-3.5 active:bg-gray-50 ${
-              index > 0 ? 'border-t border-gray-100' : ''
-            }`}
+            {...(onSelect
+              ? {
+                  accessibilityRole: 'button' as const,
+                  accessibilityLabel: `${transaction.merchantName ?? '거래'} 상세`,
+                  onPress: () => onSelect(transaction.id),
+                }
+              : {})}
+            className={`flex-row items-center justify-between px-4 py-3.5 ${
+              onSelect ? 'active:bg-gray-50' : ''
+            } ${index > 0 ? 'border-t border-gray-100' : ''}`}
           >
             <View className="flex-1 pr-3">
               <Text numberOfLines={1} className="text-base text-gray-800">
@@ -75,9 +87,11 @@ export function RecentTransactionList({ transactions, onSelect }: Props) {
                 {deposit ? '+' : '−'}
                 {transaction.amount.toLocaleString('ko-KR')}
               </Text>
-              <Ionicons name="chevron-forward" size={15} color="#d1d5db" />
+              {onSelect ? (
+                <Ionicons name="chevron-forward" size={15} color="#d1d5db" />
+              ) : null}
             </View>
-          </Pressable>
+          </Row>
         );
       })}
     </View>
