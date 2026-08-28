@@ -14,8 +14,10 @@
 // ============================================================================
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 
-import { applyStyleMultiplier } from '@/lib/constants/budgetMultiplier';
+import { applyStyleMultiplier, BUDGET_STYLE_MULTIPLIER } from '@/lib/constants/budgetMultiplier';
 import {
+  DESTINATION_BASIS,
+  REGION_BASIS,
   getDestinationBaseline,
   getRegionBaseline,
   type BaselineSource,
@@ -44,6 +46,19 @@ export type RecommendedCategory = {
   /** 스타일 배수까지 적용하고 1,000원 단위로 반올림한 카테고리 총액 */
   recommendedAmount: number;
   sortOrder: number;
+
+  // ── 이 금액이 어디서 나왔는지 ──────────────────────────────────────
+  // 금액만 보여주면 사용자는 믿을 근거도, 고칠 기준도 없다.
+  // 화면에서 카테고리를 펼치면 아래 셋을 그대로 보여준다.
+
+  /** 조사 근거 한 줄. 예: '인천–나리타/하네다 왕복 25~30만원대예요.' */
+  basis: string;
+  /** 계산식. 예: '1인 1박 80,000원 × 4명 × 3박' */
+  formula: string;
+  /** 배수 적용 전 금액 ('보통' 기준) */
+  baseAmount: number;
+  /** 적용한 스타일 배수. 1 이면 화면에 따로 표시하지 않는다 */
+  multiplier: number;
 };
 
 export type BudgetRecommendation = {
@@ -116,20 +131,36 @@ export function buildBudgetRecommendation(input: RecommendationInput): BudgetRec
 
   const { baseline } = lookup;
 
+  const basisMap = destinationCode
+    ? DESTINATION_BASIS[destinationCode]
+    : REGION_BASIS[lookup.region];
+
+  const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
+
   const categories: RecommendedCategory[] = CATEGORY_ORDER.map((categoryCode, index) => {
     let base: number;
+    let formula: string;
+
     if (categoryCode === CATEGORY_CODE.AIRFARE) {
       base = baseline.airfarePerPerson * headcount;
+      formula = `1인 왕복 ${won(baseline.airfarePerPerson)} × ${headcount}명`;
     } else if (categoryCode === CATEGORY_CODE.LODGING) {
       base = baseline.lodgingPerNight * headcount * nights;
+      formula = `1인 1박 ${won(baseline.lodgingPerNight)} × ${headcount}명 × ${nights}박`;
     } else {
-      base = baseline.perPersonPerDay[categoryCode] * headcount * days;
+      const perDay = baseline.perPersonPerDay[categoryCode];
+      base = perDay * headcount * days;
+      formula = `1인 1일 ${won(perDay)} × ${headcount}명 × ${days}일`;
     }
 
     return {
       categoryCode,
       recommendedAmount: applyStyleMultiplier(base, travelStyle, categoryCode),
       sortOrder: index + 1,
+      basis: basisMap[categoryCode],
+      formula,
+      baseAmount: base,
+      multiplier: BUDGET_STYLE_MULTIPLIER[travelStyle][categoryCode],
     };
   });
 

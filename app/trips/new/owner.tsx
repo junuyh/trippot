@@ -245,7 +245,10 @@ export default function ScreenTRIP01() {
 
     if (navigatingRef.current) return;
     navigatingRef.current = true;
-    router.push('/trips/new/basic');
+    // push 가 아니라 navigate 다.
+    // 앞 단계를 고치러 뒤로 갔다가 다시 오면 push 는 같은 화면을 하나 더 쌓는다.
+    // navigate 는 스택에 이미 있으면 그 화면으로 되돌아간다. 마법사 흐름에 맞다.
+    router.navigate('/trips/new/basic');
   }, [canProceed, draft.companionNames, draft.companionType, patchDraft, trimmedGroupName]);
 
   return (

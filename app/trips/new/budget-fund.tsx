@@ -14,9 +14,10 @@
 //
 // 이 파일은 데이터 조회 · 상태 관리 · 로그 기록만 한다. UI 는 components/trip-create/.
 // ============================================================================
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutAnimation, ScrollView, Text, View } from 'react-native';
+import { LayoutAnimation, Pressable, ScrollView, Text, View } from 'react-native';
 
 import {
   BudgetCategoryList,
@@ -88,6 +89,20 @@ export default function ScreenTRIP03() {
   const [categories, setCategories] = useState<EditableCategory[]>([]);
   const [editingCode, setEditingCode] = useState<CategoryCode | null>(null);
 
+  const toEditable = useCallback(
+    (source: NonNullable<typeof recommendation>): EditableCategory[] =>
+      source.categories.map((c) => ({
+        categoryCode: c.categoryCode,
+        recommendedAmount: c.recommendedAmount,
+        plannedAmount: c.recommendedAmount,
+        basis: c.basis,
+        formula: c.formula,
+        baseAmount: c.baseAmount,
+        multiplier: c.multiplier,
+      })),
+    [],
+  );
+
   const handleSelectMethod = useCallback(
     (next: BudgetMethod) => {
       if (!recommendation) return;
@@ -96,21 +111,37 @@ export default function ScreenTRIP03() {
 
       // 추천값을 planned 초기값으로 깐다. 사용자가 확정 버튼을 누르는 순간까지는
       // applied_source = 'default' 다. 고친 카테고리만 'user' 가 된다.
-      setCategories(
-        recommendation.categories.map((c) => ({
-          categoryCode: c.categoryCode,
-          recommendedAmount: c.recommendedAmount,
-          plannedAmount: c.recommendedAmount,
-        })),
-      );
+      setCategories(toEditable(recommendation));
       setUserTotal(next === BUDGET_METHOD.USER_DEFINED ? null : recommendation.totalAmount);
 
       track(EVENTS.BUDGET_METHOD_SELECTED, {
         method: BUDGET_METHOD_TO_ANALYTICS[next],
       });
     },
-    [recommendation],
+    [recommendation, toEditable],
   );
+
+  /**
+   * 앞 단계 조건이 바뀌면 카테고리를 새 추천으로 다시 깐다.
+   *
+   * 상단의 '홍콩 · 3박 4일 · 4명' 을 눌러 일정이나 스타일을 고치고 돌아오면
+   * recommendation 은 다시 계산되지만 categories 는 예산 방식을 고른 시점에
+   * 만들어진 그대로다. 그대로 두면 '아낌없이' 로 바꿨는데 화면에는 '보통'
+   * 금액이 남고, 근거(계산식·배수)와 금액이 서로 다른 말을 하게 된다.
+   *
+   * 사용자가 고쳐둔 금액도 함께 사라지지만, 조건이 바뀌면 그 금액의 근거도
+   * 사라진 것이라 남겨두는 편이 더 위험하다.
+   */
+  const syncedRef = useRef(recommendation);
+  useEffect(() => {
+    if (syncedRef.current === recommendation) return;
+    syncedRef.current = recommendation;
+    if (!recommendation || method === null) return;
+
+    setCategories(toEditable(recommendation));
+    setEditingCode(null);
+    if (method === BUDGET_METHOD.RECOMMENDED) setUserTotal(recommendation.totalAmount);
+  }, [method, recommendation, toEditable]);
 
   /**
    * 직접 입력 총액을 카테고리에 비례 배분한다.
@@ -128,6 +159,10 @@ export default function ScreenTRIP03() {
         categoryCode: c.categoryCode,
         recommendedAmount: c.recommendedAmount,
         plannedAmount: Math.round((c.recommendedAmount * ratio) / 1000) * 1000,
+        basis: c.basis,
+        formula: c.formula,
+        baseAmount: c.baseAmount,
+        multiplier: c.multiplier,
       }));
 
       const drift = total - next.reduce((sum, c) => sum + c.plannedAmount, 0);
@@ -349,10 +384,26 @@ export default function ScreenTRIP03() {
       <StepProgress current={3} />
 
       <Text className="mt-6 text-2xl font-bold text-gray-900">예산을 정해요</Text>
-      <Text className="mt-1.5 text-sm text-gray-500">
-        {draft.destinationName} · {recommendation.nights}박 {recommendation.days}일 ·{' '}
-        {draft.headcount}명
-      </Text>
+
+      {/*
+        여행 조건을 눌러 앞 단계로 돌아간다.
+        예산이 마음에 안 들 때 사용자가 바꾸고 싶은 건 대개 금액이 아니라
+        일정이나 인원이다. 뒤로가기 버튼을 찾게 두지 않는다.
+        TRIP-02 가 스택에 남아 있으므로 back() 이면 입력이 그대로 유지된다.
+      */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="여행 조건 수정"
+        disabled={saving}
+        onPress={() => router.back()}
+        className="mt-1.5 flex-row items-center gap-1 self-start rounded-lg py-1 pr-2 active:bg-gray-100"
+      >
+        <Text className="text-sm text-gray-500">
+          {draft.destinationName} · {recommendation.nights}박 {recommendation.days}일 ·{' '}
+          {draft.headcount}명
+        </Text>
+        <Ionicons name="pencil" size={13} color="#9ca3af" />
+      </Pressable>
 
       {/* ── ① 예산 방식 ── */}
       <View className="mt-7">
@@ -401,6 +452,8 @@ export default function ScreenTRIP03() {
             </Text>
             <BudgetCategoryList
               categories={categories}
+              // recommendation 이 있으면 travelStyle 은 반드시 채워져 있다
+              travelStyle={recommendation.basis.style}
               onChangeAmount={handleChangeCategoryAmount}
               editingCode={editingCode}
               onToggleEditing={(code) => {

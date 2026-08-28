@@ -173,7 +173,10 @@ export default function ScreenTRIP02() {
       travel_style: draft.travelStyle,
     });
 
-    router.push('/trips/new/budget-fund');
+    // push 가 아니라 navigate 다.
+    // 앞 단계를 고치러 뒤로 갔다가 다시 오면 push 는 같은 화면을 하나 더 쌓는다.
+    // navigate 는 스택에 이미 있으면 그 화면으로 되돌아간다. 마법사 흐름에 맞다.
+    router.navigate('/trips/new/budget-fund');
   }, [canSubmit, draft.endDate, draft.headcount, draft.isCustomDestination, draft.startDate, draft.travelStyle, patchDraft, trimmedName]);
 
   const durationLabel =
