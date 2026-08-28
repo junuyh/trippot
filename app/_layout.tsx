@@ -12,5 +12,10 @@ export default function RootLayout() {
     void initAnalytics();
   }, []);
 
-  return <Stack />;
+  return (
+    <Stack screenOptions={{ headerBackTitle: '뒤로' }}>
+      {/* 하단 탭 4개. (tabs) 는 URL 에 나타나지 않는다. */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    </Stack>
+  );
 }
