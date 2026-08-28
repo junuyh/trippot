@@ -47,14 +47,28 @@ export async function createBudgetCategories(
 }
 
 export async function getBudgetByTripId(tripId: string): Promise<TripBudget | null> {
-  // TODO: trip_budgets 단건 조회 (trip_id UNIQUE). .maybeSingle() 사용.
-  return null;
+  const { data, error } = await supabase
+    .from('trip_budgets')
+    .select('*')
+    .eq('trip_id', tripId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function getBudgetCategories(budgetId: string): Promise<BudgetCategory[]> {
-  // TODO: budget_categories 조회. trip_budget_id = budgetId, enabled = true.
-  //       sort_order 오름차순 정렬.
-  return [];
+  // enabled = false 는 사용자가 끈 카테고리다. 화면에 보여주지 않는다.
+  // (시드의 다낭처럼 카테고리가 8개가 아닌 여행도 있다)
+  const { data, error } = await supabase
+    .from('budget_categories')
+    .select('*')
+    .eq('trip_budget_id', budgetId)
+    .eq('enabled', true)
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 /**

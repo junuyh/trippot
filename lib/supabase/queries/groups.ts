@@ -55,9 +55,15 @@ export async function getGroupMemberCount(groupId: string): Promise<number> {
 }
 
 export async function getGroupById(groupId: string): Promise<Group | null> {
-  // TODO: groups 단건 조회. 호출자가 이 모임의 멤버인지 확인한 뒤 반환한다.
-  //       .maybeSingle() 사용.
-  return null;
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*')
+    .eq('id', groupId)
+    .neq('status', GROUP_STATUS.DELETED)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 /**

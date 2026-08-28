@@ -47,8 +47,17 @@ export async function getGroupAccounts(groupId: string): Promise<FinancialAccoun
 }
 
 export async function getTravelFund(tripId: string): Promise<FundSource | null> {
-  // TODO: fund_sources 단건 조회 (trip_id UNIQUE). .maybeSingle() 사용.
-  return null;
+  // ⚠️ 현재 여행자금은 항상 **단일 소스** 기준이다.
+  //    직접입력 금액과 계좌 잔액을 합산하지 않는다. (CLAUDE.md 3장)
+  //    current_amount 하나만 보면 된다.
+  const { data, error } = await supabase
+    .from('fund_sources')
+    .select('*')
+    .eq('trip_id', tripId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 /**

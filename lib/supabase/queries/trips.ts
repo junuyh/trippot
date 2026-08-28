@@ -74,8 +74,17 @@ export async function getMyTripCount(userId: string): Promise<number> {
 
 /** 잘못된 tripId 면 null 을 반환한다. 화면은 Empty/Error 로 처리한다. */
 export async function getTripById(tripId: string): Promise<Trip | null> {
-  // TODO: trips 단건 조회. .maybeSingle() 을 써서 없을 때 throw 하지 않게 한다.
-  return null;
+  // maybeSingle() 이라 없으면 null 이다. 잘못된 tripId 로 들어와도 던지지 않는다.
+  // 화면은 null 을 Empty/Error 로 처리한다. (CLAUDE.md 9장)
+  const { data, error } = await supabase
+    .from('trips')
+    .select('*')
+    .eq('id', tripId)
+    .neq('status', TRIP_STATUS.DELETED)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function createTrip(input: TripInsert): Promise<Trip> {
