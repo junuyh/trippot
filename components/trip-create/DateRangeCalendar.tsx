@@ -9,6 +9,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
   addMonths,
+  addYears,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -17,15 +18,19 @@ import {
   isSameDay,
   isSameMonth,
   parseISO,
+  setMonth,
   startOfDay,
   startOfMonth,
   startOfWeek,
+  startOfYear,
   subMonths,
+  subYears,
 } from 'date-fns';
 import { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 type Props = {
   /** 'yyyy-MM-dd' */
@@ -52,6 +57,12 @@ export function DateRangeCalendar({
   const [visibleMonth, setVisibleMonth] = useState(() =>
     startOfMonth(start ?? today),
   );
+
+  // 년·월 선택 모드.
+  //
+  // 다음 달 버튼만 있으면 내년 여행을 계획할 때 버튼을 열몇 번 눌러야 한다.
+  // 헤더의 '2026년 8월' 을 누르면 월 그리드로 바뀌고 연도도 함께 옮길 수 있다.
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 
   // 달력 격자. 앞뒤로 빈 칸을 두지 않고 이전·다음 달 날짜로 채운다.
   const days = useMemo(
@@ -83,35 +94,102 @@ export function DateRangeCalendar({
     ? true
     : !isBefore(startOfMonth(subMonths(visibleMonth, 1)), startOfMonth(today));
 
+  // 월 선택 모드에서는 해 단위로 옮긴다. 올해보다 이전으로는 못 간다.
+  const canGoPrevYear = !disablePast
+    ? true
+    : !isBefore(startOfYear(subYears(visibleMonth, 1)), startOfYear(today));
+
   return (
     <View className="rounded-2xl border border-gray-200 bg-white p-3">
-      {/* ── 월 이동 ── */}
+      {/* ── 헤더 ── 년월을 누르면 월 선택으로 바뀐다 ── */}
       <View className="mb-2 flex-row items-center justify-between px-1">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="이전 달"
-          disabled={!canGoPrev}
-          onPress={() => setVisibleMonth((m) => subMonths(m, 1))}
+          accessibilityLabel={monthPickerOpen ? '이전 해' : '이전 달'}
+          disabled={monthPickerOpen ? !canGoPrevYear : !canGoPrev}
+          onPress={() =>
+            setVisibleMonth((m) => (monthPickerOpen ? subYears(m, 1) : subMonths(m, 1)))
+          }
           className={`h-9 w-9 items-center justify-center rounded-full active:bg-gray-100 ${
-            canGoPrev ? '' : 'opacity-30'
+            (monthPickerOpen ? canGoPrevYear : canGoPrev) ? '' : 'opacity-30'
           }`}
         >
           <Ionicons name="chevron-back" size={20} color="#374151" />
         </Pressable>
 
-        <Text className="text-base font-semibold text-gray-900">
-          {format(visibleMonth, 'yyyy년 M월')}
-        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            monthPickerOpen ? '달력으로 돌아가기' : '년월 선택'
+          }
+          accessibilityState={{ expanded: monthPickerOpen }}
+          onPress={() => setMonthPickerOpen((open) => !open)}
+          className="flex-row items-center gap-1 rounded-lg px-2 py-1 active:bg-gray-100"
+        >
+          <Text className="text-base font-semibold text-gray-900">
+            {monthPickerOpen
+              ? format(visibleMonth, 'yyyy년')
+              : format(visibleMonth, 'yyyy년 M월')}
+          </Text>
+          <Ionicons
+            name={monthPickerOpen ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color="#6b7280"
+          />
+        </Pressable>
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="다음 달"
-          onPress={() => setVisibleMonth((m) => addMonths(m, 1))}
+          accessibilityLabel={monthPickerOpen ? '다음 해' : '다음 달'}
+          onPress={() =>
+            setVisibleMonth((m) => (monthPickerOpen ? addYears(m, 1) : addMonths(m, 1)))
+          }
           className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
         >
           <Ionicons name="chevron-forward" size={20} color="#374151" />
         </Pressable>
       </View>
+
+      {/* ── 월 선택 ── */}
+      {monthPickerOpen ? (
+        <View className="flex-row flex-wrap py-1">
+          {MONTHS.map((month) => {
+            const monthDate = startOfMonth(setMonth(visibleMonth, month - 1));
+            const disabled = disablePast && isBefore(monthDate, startOfMonth(today));
+            const selected = isSameMonth(monthDate, visibleMonth);
+            return (
+              <View key={month} className="w-1/4 p-1">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${month}월`}
+                  accessibilityState={{ selected, disabled }}
+                  disabled={disabled}
+                  onPress={() => {
+                    setVisibleMonth(monthDate);
+                    setMonthPickerOpen(false);
+                  }}
+                  className={`items-center justify-center rounded-xl py-3 ${
+                    selected ? 'bg-blue-600' : 'active:bg-gray-100'
+                  }`}
+                >
+                  <Text
+                    className={`text-sm ${
+                      selected
+                        ? 'font-bold text-white'
+                        : disabled
+                          ? 'text-gray-300'
+                          : 'text-gray-800'
+                    }`}
+                  >
+                    {month}월
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+      ) : (
+      <>
 
       {/* ── 요일 ── */}
       <View className="flex-row">
@@ -173,6 +251,9 @@ export function DateRangeCalendar({
           );
         })}
       </View>
+
+      </>
+      )}
 
       {/* ── 안내 ── */}
       <Text className="mt-2 px-1 text-xs text-gray-400">

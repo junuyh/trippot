@@ -84,13 +84,20 @@ export function DestinationPicker({
   onSelectRegion,
   customNameError = null,
 }: Props) {
-  // 국가로 한 번 더 묶지 않는다. 아시아는 4개국에 6개 도시가 걸쳐 있어
-  // 국가 라벨을 붙이면 줄 수가 다시 늘어난다. 12개 다 알 만한 도시라
-  // 도시명만으로 충분하다.
-  const cities = useMemo(
-    () => (openRegion ? DESTINATIONS.filter((d) => d.region === openRegion) : []),
-    [openRegion],
-  );
+  // 펼친 지역의 도시를 국가별로 묶는다.
+  // 라벨을 도시 칩 위가 아니라 **왼쪽에** 두어 국가 하나당 한 줄로 끝낸다.
+  // (위에 두면 국가 수만큼 줄이 두 배로 늘어난다)
+  const countryGroups = useMemo(() => {
+    if (!openRegion) return [];
+    const groups: { countryKo: string; destinations: Destination[] }[] = [];
+    for (const destination of DESTINATIONS) {
+      if (destination.region !== openRegion) continue;
+      const group = groups.find((g) => g.countryKo === destination.countryKo);
+      if (group) group.destinations.push(destination);
+      else groups.push({ countryKo: destination.countryKo, destinations: [destination] });
+    }
+    return groups;
+  }, [openRegion]);
 
   return (
     <View className="gap-3">
@@ -108,15 +115,32 @@ export function DestinationPicker({
 
       {/* ── 2단계: 도시 ── */}
       {!isCustom && openRegion ? (
-        <View className="flex-row flex-wrap gap-2 rounded-2xl border border-gray-100 bg-gray-50 p-3">
-          {cities.map((destination) => (
-            <Chip
-              key={destination.code}
-              label={destination.nameKo}
-              selected={selectedCode === destination.code}
-              onPress={() => onSelectDestination(destination)}
-            />
-          ))}
+        <View className="gap-2.5 rounded-2xl border border-gray-100 bg-gray-50 p-3">
+          {countryGroups.map((group) => {
+            // 홍콩처럼 나라 이름과 도시 이름이 같으면 라벨이 군더더기다.
+            const showLabel = !(
+              group.destinations.length === 1 && group.destinations[0].nameKo === group.countryKo
+            );
+            return (
+              <View key={group.countryKo} className="flex-row items-start gap-2">
+                <View className="w-14 pt-2.5">
+                  {showLabel ? (
+                    <Text className="text-xs font-medium text-gray-500">{group.countryKo}</Text>
+                  ) : null}
+                </View>
+                <View className="flex-1 flex-row flex-wrap gap-2">
+                  {group.destinations.map((destination) => (
+                    <Chip
+                      key={destination.code}
+                      label={destination.nameKo}
+                      selected={selectedCode === destination.code}
+                      onPress={() => onSelectDestination(destination)}
+                    />
+                  ))}
+                </View>
+              </View>
+            );
+          })}
         </View>
       ) : null}
 
