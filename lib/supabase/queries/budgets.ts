@@ -21,15 +21,54 @@ export type BudgetPlanItemUpdate = TablesUpdate<'budget_plan_items'>;
  */
 export type BudgetCategoryUpdate = Omit<TablesUpdate<'budget_categories'>, 'recommended_amount'>;
 
+export type TripBudgetInsert = TablesInsert<'trip_budgets'>;
+export type BudgetCategoryInsert = TablesInsert<'budget_categories'>;
+
+/** 여행 예산을 만든다. trip_budgets.trip_id 는 UNIQUE 라 여행당 하나뿐이다. */
+export async function createTripBudget(input: TripBudgetInsert): Promise<TripBudget> {
+  const { data, error } = await supabase.from('trip_budgets').insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 카테고리를 한 번에 만든다.
+ *
+ * ⚠️ recommended_amount 는 여기서 한 번만 쓰고 이후 덮어쓰지 않는다.
+ *    사용자가 고친 값은 planned_amount 다. (CLAUDE.md 4장)
+ *    그래서 BudgetCategoryUpdate 에서 recommended_amount 가 빠져 있다.
+ */
+export async function createBudgetCategories(
+  inputs: BudgetCategoryInsert[],
+): Promise<BudgetCategory[]> {
+  const { data, error } = await supabase.from('budget_categories').insert(inputs).select();
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function getBudgetByTripId(tripId: string): Promise<TripBudget | null> {
-  // TODO: trip_budgets 단건 조회 (trip_id UNIQUE). .maybeSingle() 사용.
-  return null;
+  const { data, error } = await supabase
+    .from('trip_budgets')
+    .select('*')
+    .eq('trip_id', tripId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function getBudgetCategories(budgetId: string): Promise<BudgetCategory[]> {
-  // TODO: budget_categories 조회. trip_budget_id = budgetId, enabled = true.
-  //       sort_order 오름차순 정렬.
-  return [];
+  // enabled = false 는 사용자가 끈 카테고리다. 화면에 보여주지 않는다.
+  // (시드의 다낭처럼 카테고리가 8개가 아닌 여행도 있다)
+  const { data, error } = await supabase
+    .from('budget_categories')
+    .select('*')
+    .eq('trip_budget_id', budgetId)
+    .eq('enabled', true)
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 /**
@@ -38,12 +77,70 @@ export async function getBudgetCategories(budgetId: string): Promise<BudgetCateg
  *    개인화 추천은 personalized_amount 까지만 쓴다.
  *    planned_amount 를 바꿀 때는 applied_source 도 함께 맞춰준다.
  */
+/**
+ * 목표 예산 확정. trip_budgets 를 갱신한다.
+ *
+ * ⚠️ confirmed_at 이 들어가는 순간이 '사용자가 확정한 시점' 이다.
+ *    null 이면 아직 예산을 정하지 않은 여행이다. (시드의 오사카)
+ */
+export async function updateTripBudget(
+  budgetId: string,
+  patch: TablesUpdate<'trip_budgets'>,
+): Promise<TripBudget> {
+  const { data, error } = await supabase
+    .from('trip_budgets')
+    .update(patch)
+    .eq('id', budgetId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 가상 금고 배분액 저장.
+ *
+ * 현재 여행자금이 바뀌면 배분도 달라진다. 화면에서 계산한 값을 여기로 저장한다.
+ * (배분 규칙은 lib/budget/vault.ts)
+ *
+ * ⚠️ 각 행을 따로 update 한다. supabase-js 에 다중 행 부분 update 가 없고,
+ *    upsert 는 NOT NULL 칼럼(trip_budget_id / category_code)을 전부 넘겨야 해서
+ *    하나라도 빠뜨리면 새 행이 생긴다. 그쪽이 더 위험하다.
+ */
+export async function updateBudgetCategoriesPrepared(
+  items: { id: string; preparedAmount: number }[],
+): Promise<void> {
+  if (items.length === 0) return;
+
+  const results = await Promise.all(
+    items.map((item) =>
+      supabase
+        .from('budget_categories')
+        .update({ prepared_amount: item.preparedAmount })
+        .eq('id', item.id),
+    ),
+  );
+
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw failed.error;
+}
+
 export async function updateBudgetCategory(
   categoryId: string,
   patch: BudgetCategoryUpdate,
 ): Promise<BudgetCategory> {
-  // TODO: budget_categories update 후 갱신된 행 반환.
-  throw new Error('[queries/budgets] updateBudgetCategory 미구현');
+  // ⚠️ BudgetCategoryUpdate 는 recommended_amount 를 뺀 타입이다.
+  //    추천 원본은 최초 생성 후 덮어쓰지 않는다. (CLAUDE.md 4장)
+  const { data, error } = await supabase
+    .from('budget_categories')
+    .update(patch)
+    .eq('id', categoryId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function getBudgetPlanItems(categoryId: string): Promise<BudgetPlanItem[]> {

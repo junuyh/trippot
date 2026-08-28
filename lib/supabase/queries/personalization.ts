@@ -10,6 +10,7 @@
 //    (소비 유형·개인화 추천은 settlements + budget_categories 에서 집계한다)
 //    그래서 생성 타입을 Pick<> 으로 조합해 만들었다. 새 도메인 인터페이스를
 //    손으로 정의하지는 않았으나, 순수 생성 타입도 아니라는 점을 알린다.
+import { TRIP_STATUS } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Json, Tables } from '@/types/database';
 
@@ -42,6 +43,47 @@ export type PersonalizedBudgetSuggestion = Pick<
   /** 왜 이 금액을 제안하는지에 대한 근거. 화면에 그대로 보여준다. */
   basis: Json;
 };
+
+/**
+ * scope 에 해당하는 **결산이 확정된** 여행 수.
+ *
+ * TRIP-01 에서 "과거 데이터를 이번 여행에 반영할까요?" 를 물을지 판단하는 값이다.
+ * 0 이면 묻지 않고 넘어간다. past_data_apply_selected 의 past_trip_count 로도 쓴다.
+ *
+ * 개인 여행도 모임 여행과 똑같이 센다. 개인은 '본인 1명인 소유 단위'이지
+ * 다르게 취급하는 대상이 아니다. (docs/README.md §5 #16)
+ *
+ * getSpendingProfile() 과 판정 기준이 같아야 한다 —
+ * 결산 행이 있어도 confirmed_at 이 null 이면 확정 전이라 세지 않는다.
+ * trips.status 만 보고 세면 결산 진행 중인 여행까지 잡혀 개수가 어긋난다.
+ */
+export async function getSettledTripCount(scope: PersonalizationScope): Promise<number> {
+  // 조인 필터 대신 두 번에 나눠 조회한다.
+  // settlements 에서 trips 를 inner join 해 거르는 편이 왕복이 적지만,
+  // 소유 단위 필터가 조인 대상 테이블에 걸려 있어 조건을 한 글자만 틀려도
+  // **다른 사용자의 여행이 섞인다.** (CLAUDE.md 7장)
+  const tripQuery = supabase.from('trips').select('id').neq('status', TRIP_STATUS.DELETED);
+
+  const { data: trips, error: tripError } =
+    scope.ownerType === 'PERSONAL'
+      ? await tripQuery.eq('owner_user_id', scope.userId)
+      : await tripQuery.eq('group_id', scope.groupId);
+
+  if (tripError) throw tripError;
+
+  const tripIds = (trips ?? []).map((trip) => trip.id);
+  if (tripIds.length === 0) return 0;
+
+  const { count, error } = await supabase
+    .from('settlements')
+    .select('id', { count: 'exact', head: true })
+    .in('trip_id', tripIds)
+    .not('confirmed_at', 'is', null);
+
+  if (error) throw error;
+
+  return count ?? 0;
+}
 
 /**
  * 과거 소비 패턴 집계.
