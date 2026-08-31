@@ -2,6 +2,13 @@
 export { EndedTripCard } from './EndedTripCard';
 export { GroupShortcutList } from './GroupShortcutList';
 export { HomeButton } from './HomeButton';
+export { HomeEmpty, HomeError, HomeLoading } from './HomeStates';
 export { HomeView } from './HomeView';
 export { OngoingTripCard } from './OngoingTripCard';
-export type { EndedTripCardData, HomeGroupItem, OngoingTripCardData } from './types';
+export { TicketCard, TicketField, TicketLabel } from './TicketCard';
+export type {
+  EndedTripCardData,
+  HomeEmptyVariant,
+  HomeGroupItem,
+  OngoingTripCardData,
+} from './types';

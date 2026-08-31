@@ -22,16 +22,6 @@ export function formatAmount(value: number | null): string {
   return `${value.toLocaleString('ko-KR')}원`;
 }
 
-/** 2026.09.10 ~ 09.14. 해가 다르면 뒤쪽도 연도까지 쓴다. */
-export function formatDateRange(startDate: string | null, endDate: string | null): string {
-  const start = toDate(startDate);
-  const end = toDate(endDate);
-  if (!start || !end) return EMPTY;
-
-  const sameYear = start.getFullYear() === end.getFullYear();
-  return `${format(start, 'yyyy.MM.dd')} ~ ${format(end, sameYear ? 'MM.dd' : 'yyyy.MM.dd')}`;
-}
-
 /** 출발일 기준 D-7 / D-DAY / D+3. 잘못된 날짜면 null. */
 export function formatDDay(startDate: string | null): string | null {
   const start = toDate(startDate);
@@ -56,4 +46,25 @@ export function calcReadyRatePercent(
 ): number | null {
   if (currentAmount === null || targetAmount === null || targetAmount <= 0) return null;
   return Math.floor((currentAmount * 100) / targetAmount);
+}
+
+/**
+ * 티켓 카드용 날짜 두 조각. 참고 이미지의 7:50 → 11:25 자리다.
+ *
+ * 시작은 연도까지, 끝은 월·일만 쓴다. 해가 다르면 끝에도 연도를 붙인다.
+ * 값이 없으면 '—'.
+ */
+export function formatTripDates(
+  startDate: string | null,
+  endDate: string | null,
+): { start: string; end: string } {
+  const start = toDate(startDate);
+  const end = toDate(endDate);
+  if (!start || !end) return { start: '—', end: '—' };
+
+  const sameYear = start.getFullYear() === end.getFullYear();
+  return {
+    start: format(start, 'MM.dd'),
+    end: format(end, sameYear ? 'MM.dd' : 'yyyy.MM.dd'),
+  };
 }

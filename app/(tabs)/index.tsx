@@ -13,8 +13,16 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
-import { HomeView, type EndedTripCardData, type HomeGroupItem, type OngoingTripCardData } from '@/components/home';
-import { EmptyState, ErrorState, Loading } from '@/components/ui';
+import {
+  HomeEmpty,
+  HomeError,
+  HomeLoading,
+  HomeView,
+  type EndedTripCardData,
+  type HomeEmptyVariant,
+  type HomeGroupItem,
+  type OngoingTripCardData,
+} from '@/components/home';
 import { SCREENS } from '@/lib/analytics/events';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
@@ -79,11 +87,11 @@ export default function ScreenHOME01() {
   }
 
   if (loadState === 'loading') {
-    return <Loading message="여행을 불러오고 있어요" />;
+    return <HomeLoading />;
   }
 
   if (loadState === 'error') {
-    return <ErrorState message="여행 목록을 불러오지 못했어요." onRetry={() => void load()} />;
+    return <HomeError message="여행 목록을 불러오지 못했어요." onRetry={() => void load()} />;
   }
 
   const groupNameById = new Map(groups.map((group) => [group.id, group.name]));
@@ -134,19 +142,17 @@ export default function ScreenHOME01() {
     ];
   });
 
+  // 진행 중 여행이 없을 때 무슨 문구를 쓸지 고른다. (docs/03 REQ-HOME-002)
+  // 여행을 한 번도 만들지 않았으면 first, 기록이 있으면 return 이다.
+  const emptyVariant: HomeEmptyVariant = trips.length === 0 ? 'first' : 'return';
+
   // 여행도 모임도 없을 때만 전체 빈 상태를 보여준다.
   // TODO: REQ-HOME-002(Should) — 최초 방문과 재방문 빈 상태를 구분한다.
   //       무엇으로 구분하는지 문서에 정의가 없어 지금은 한 가지만 보여준다.
   // 종료된 여행이나 모임이 있으면 본문을 그리고, 진행 중 여행 자리에만 안내를 둔다.
   if (trips.length === 0 && groups.length === 0) {
     return (
-      <EmptyState
-        icon="airplane-outline"
-        title="아직 준비 중인 여행이 없어요"
-        description="여행을 만들면 목표 여행비와 준비율을 여기서 볼 수 있어요."
-        actionLabel="새 여행 만들기"
-        onAction={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
-      />
+      <HomeEmpty onCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)} />
     );
   }
 
@@ -154,6 +160,7 @@ export default function ScreenHOME01() {
     <HomeView
       ongoingTrips={ongoingTrips}
       endedTrips={endedTrips}
+      emptyVariant={emptyVariant}
       groups={groups.map<HomeGroupItem>((group) => ({ groupId: group.id, name: group.name }))}
       onPressTrip={handlePressTrip}
       onPressGroup={handlePressGroup}

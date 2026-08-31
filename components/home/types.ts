@@ -44,3 +44,16 @@ export type HomeGroupItem = {
   groupId: string;
   name: string;
 };
+
+/**
+ * 진행 중 여행이 없을 때의 빈 상태 종류. (docs/03 REQ-HOME-002)
+ *
+ * `first`  여행을 한 번도 만들지 않았다 — 무엇을 하는 서비스인지부터 알려준다
+ * `return` 여행 기록은 있는데 지금 진행 중인 것만 없다 — 다음 여행을 권한다
+ *
+ * ⚠️ [검토 필요] 문서가 "최초/재방문을 구분한다"고만 하고 판정 기준을 정하지 않았다.
+ *    여행 이력 유무로 정했다. 로컬 저장값이나 users.created_at 을 쓰는 방법도 있으나,
+ *    이미 조회한 데이터로 판정되고 "재방문"보다 "여행을 해봤는가"가
+ *    보여줄 문구를 고르는 데 더 맞는 기준이라고 봤다.
+ */
+export type HomeEmptyVariant = 'first' | 'return';
