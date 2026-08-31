@@ -137,6 +137,12 @@ export type Destination = {
   nameKo: string;
   countryKo: string;
   region: RegionCode;
+  /** 영문 도시명. 티켓의 TO 표기와 배경 워터마크에 쓴다 */
+  nameEn: string;
+  /** 국기 이모지. 준비 홈 티켓에 표시한다 */
+  flag: string;
+  /** 도착 공항 IATA 코드. 보딩패스 표시용이다 */
+  airportCode: string;
   baseline: DestinationBaseline;
 };
 
@@ -161,6 +167,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.TOKYO,
     nameKo: '도쿄',
     countryKo: '일본',
+    nameEn: 'TOKYO',
+    flag: '🇯🇵',
+    airportCode: 'NRT',
     region: REGION.ASIA,
     baseline: {
       // 275,000 × 4인 = 1,100,000 (시드 AIRFARE 와 일치)
@@ -195,6 +204,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.OSAKA,
     nameKo: '오사카',
     countryKo: '일본',
+    nameEn: 'OSAKA',
+    flag: '🇯🇵',
+    airportCode: 'KIX',
     region: REGION.ASIA,
     baseline: {
       // 인천-간사이는 도쿄보다 소폭 저렴하다
@@ -219,6 +231,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.FUKUOKA,
     nameKo: '후쿠오카',
     countryKo: '일본',
+    nameEn: 'FUKUOKA',
+    flag: '🇯🇵',
+    airportCode: 'FUK',
     region: REGION.ASIA,
     baseline: {
       // 일본 노선 중 가장 가깝다 (비행 약 1시간 10분). LCC 비중이 높다
@@ -244,6 +259,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.SHANGHAI,
     nameKo: '상하이',
     countryKo: '중국',
+    nameEn: 'SHANGHAI',
+    flag: '🇨🇳',
+    airportCode: 'PVG',
     region: REGION.ASIA,
     baseline: {
       // 비행 약 2시간. 홍콩보다 가깝다
@@ -269,6 +287,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.TAIPEI,
     nameKo: '타이베이',
     countryKo: '대만',
+    nameEn: 'TAIPEI',
+    flag: '🇹🇼',
+    airportCode: 'TPE',
     region: REGION.ASIA,
     baseline: {
       // 비행 약 2시간 30분. 중화권에서 항공비 대비 물가가 가장 낮다
@@ -294,6 +315,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.HONG_KONG,
     nameKo: '홍콩',
     countryKo: '홍콩',
+    nameEn: 'HONG KONG',
+    flag: '🇭🇰',
+    airportCode: 'HKG',
     region: REGION.ASIA,
     baseline: {
       // 비행 약 3시간 40분. 일본보다 한 단계 비싸다
@@ -320,6 +344,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.PARIS,
     nameKo: '파리',
     countryKo: '프랑스',
+    nameEn: 'PARIS',
+    flag: '🇫🇷',
+    airportCode: 'CDG',
     region: REGION.EUROPE,
     baseline: {
       // 직항 약 12~14시간. 아시아 노선의 4~5배다
@@ -345,6 +372,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.NICE,
     nameKo: '니스',
     countryKo: '프랑스',
+    nameEn: 'NICE',
+    flag: '🇫🇷',
+    airportCode: 'NCE',
     region: REGION.EUROPE,
     baseline: {
       // 직항이 없어 경유가 기본이다. 파리보다 비싸다
@@ -369,6 +399,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.ROME,
     nameKo: '로마',
     countryKo: '이탈리아',
+    nameEn: 'ROME',
+    flag: '🇮🇹',
+    airportCode: 'FCO',
     region: REGION.EUROPE,
     baseline: {
       // 직항 약 12시간 30분
@@ -391,6 +424,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.MILAN,
     nameKo: '밀라노',
     countryKo: '이탈리아',
+    nameEn: 'MILAN',
+    flag: '🇮🇹',
+    airportCode: 'MXP',
     region: REGION.EUROPE,
     baseline: {
       airfarePerPerson: 1_250_000,
@@ -412,6 +448,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.VENICE,
     nameKo: '베니스',
     countryKo: '이탈리아',
+    nameEn: 'VENICE',
+    flag: '🇮🇹',
+    airportCode: 'VCE',
     region: REGION.EUROPE,
     baseline: {
       // 직항이 없어 경유가 기본이다
@@ -437,6 +476,9 @@ export const DESTINATIONS: readonly Destination[] = [
     code: DESTINATION_CODE.CEBU,
     nameKo: '세부',
     countryKo: '필리핀',
+    nameEn: 'CEBU',
+    flag: '🇵🇭',
+    airportCode: 'CEB',
     region: REGION.SOUTHEAST_ASIA,
     baseline: {
       // 비행 약 4시간 30분. 일본보다 비싸고 유럽의 1/3 수준이다
