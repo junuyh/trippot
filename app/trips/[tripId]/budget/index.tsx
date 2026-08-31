@@ -14,19 +14,28 @@
 // ============================================================================
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { LayoutAnimation, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import {
   BudgetCategoryRow,
   BudgetOverviewCard,
+  PersonalizationBanner,
   type BudgetCategoryRowData,
+  type PersonalizationItem,
 } from '@/components/budget';
 import { Button, EmptyState, ErrorState, Loading } from '@/components/ui';
 import { EVENTS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
 import { perPerson } from '@/lib/budget/recommendation';
 import { allocateVault } from '@/lib/budget/vault';
-import { APPLIED_SOURCE, type CategoryCode } from '@/lib/constants/status';
+import {
+  APPLIED_SOURCE,
+  CATEGORY_CODE_TO_ANALYTICS,
+  TRIP_OWNER_TYPE,
+  type CategoryCode,
+} from '@/lib/constants/status';
+// TODO: 로그인 연동 시 교체
+import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -37,6 +46,12 @@ import {
   type TripBudget,
 } from '@/lib/supabase/queries/budgets';
 import { getTravelFund, type FundSource } from '@/lib/supabase/queries/funds';
+import {
+  applyPersonalizedBudget,
+  getPersonalizedBudget,
+  savePersonalizedAmounts,
+  type PersonalizedBudgetSuggestion,
+} from '@/lib/supabase/queries/personalization';
 import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
 
 type BudgetData = {
@@ -57,6 +72,16 @@ export default function ScreenBUDGET01() {
   const [confirming, setConfirming] = useState(false);
   /** 이번 진입에서 금고 배분을 이미 저장했는지 */
   const syncedRef = useRef(false);
+
+  // ── 개인화 제안 ───────────────────────────────────────────────────────
+  const [suggestions, setSuggestions] = useState<PersonalizedBudgetSuggestion[]>([]);
+  const [basedOnTripCount, setBasedOnTripCount] = useState(0);
+  const [personalizationExpanded, setPersonalizationExpanded] = useState(false);
+  const [applyingPersonalization, setApplyingPersonalization] = useState(false);
+  /** 이번 진입에서 사용자가 제안을 닫았는가. 닫으면 다시 띄우지 않는다 */
+  const [personalizationDismissed, setPersonalizationDismissed] = useState(false);
+  /** personalization_offered 를 이 진입에서 이미 쐈는지 */
+  const offeredRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!tripId) {
@@ -160,6 +185,94 @@ export default function ScreenBUDGET01() {
     void load();
   }, [load]);
 
+  // ── 개인화 제안 불러오기 ──────────────────────────────────────────────
+  //
+  // ⚠️ 개인 여행 데이터는 개인에, 모임 여행 데이터는 해당 모임에만 누적한다.
+  //    다른 소유 단위로 승계하지 않는다. (docs/06 §7-6 확정 정책)
+  //    그래서 scope 를 여행의 소유 단위에서 그대로 가져온다.
+  useEffect(() => {
+    if (!data || offeredRef.current) return;
+    // 예산을 아직 확정하지 않았으면 비교할 기준이 없다. 확정 후에 제안한다.
+    if (data.budget.target_amount <= 0) return;
+
+    offeredRef.current = true;
+
+    const scope =
+      data.trip.owner_type === TRIP_OWNER_TYPE.GROUP && data.trip.group_id
+        ? ({ ownerType: 'GROUP', groupId: data.trip.group_id } as const)
+        : // TODO: 로그인 연동 시 교체
+          ({ ownerType: 'PERSONAL', userId: data.trip.owner_user_id ?? DEV_USER_ID } as const);
+
+    void getPersonalizedBudget(data.trip.id, scope)
+      .then(async (result) => {
+        if (result.length === 0) return;
+
+        // 제안값을 personalized_amount 에 저장해 둔다.
+        // ⚠️ planned_amount 는 건드리지 않는다. 사용자가 확정하기 전이다.
+        await savePersonalizedAmounts(result).catch(() => undefined);
+
+        const first = result[0].basis as { basedOnTripCount: number; deviationBp: number };
+        setSuggestions(result);
+        setBasedOnTripCount(first.basedOnTripCount);
+
+        // 제안을 실제로 보여준 시점에만 쏜다. 노출 모수다. (docs/06 §7-6)
+        track(EVENTS.PERSONALIZATION_OFFERED, {
+          trip_id: data.trip.id,
+          based_on_trip_count: first.basedOnTripCount,
+          top_category: CATEGORY_CODE_TO_ANALYTICS[result[0].category_code as CategoryCode],
+          deviation_rate: first.deviationBp,
+        });
+      })
+      // 개인화는 부가 기능이다. 실패해도 예산 화면은 그대로 보여준다.
+      .catch(() => undefined);
+  }, [data]);
+
+  const handleApplyPersonalization = useCallback(async () => {
+    if (!data || suggestions.length === 0 || applyingPersonalization) return;
+    setApplyingPersonalization(true);
+
+    try {
+      // 여기가 개인화가 planned_amount 를 쓰는 **유일한 경로**다.
+      // 사용자가 '반영하기' 를 눌렀을 때만 실행된다. (CLAUDE.md 4장)
+      await applyPersonalizedBudget(suggestions);
+
+      // 카테고리 합이 곧 목표 여행비다. 하나가 바뀌면 총액도 바뀐다.
+      const changed = new Map(suggestions.map((sg) => [sg.id, sg.personalized_amount ?? 0]));
+      const total = data.categories.reduce(
+        (sum, category) => sum + (changed.get(category.id) ?? category.planned_amount),
+        0,
+      );
+      await updateTripBudget(data.budget.id, {
+        target_amount: total,
+        per_person_amount: perPerson(total, data.trip.headcount),
+      });
+
+      // 저장에 성공한 뒤에만 쏜다. 가설 4 의 핵심 지표다.
+      track(EVENTS.PERSONALIZATION_APPLIED, {
+        trip_id: data.trip.id,
+        applied: true,
+      });
+
+      setSuggestions([]);
+      syncedRef.current = false;
+      await load();
+    } catch {
+      setError(true);
+    } finally {
+      setApplyingPersonalization(false);
+    }
+  }, [applyingPersonalization, data, load, suggestions]);
+
+  const handleDismissPersonalization = useCallback(() => {
+    if (!data) return;
+    setPersonalizationDismissed(true);
+    // 거절도 기록해야 한다. 노출 대비 반영률의 분모가 성립한다.
+    track(EVENTS.PERSONALIZATION_APPLIED, {
+      trip_id: data.trip.id,
+      applied: false,
+    });
+  }, [data]);
+
   // ── 예산 확정 (미확정 여행) ───────────────────────────────────────────
   //
   // 추천값(recommended_amount)은 이미 있다. 사용자가 확정만 하면 된다.
@@ -218,6 +331,25 @@ export default function ScreenBUDGET01() {
       })),
     [data?.categories],
   );
+
+  const personalizationItems: PersonalizationItem[] = useMemo(() => {
+    const byId = new Map((data?.categories ?? []).map((c) => [c.id, c]));
+    return suggestions.flatMap((suggestion) => {
+      const category = byId.get(suggestion.id);
+      if (!category || suggestion.personalized_amount === null) return [];
+      const basis = suggestion.basis as { deviationBp: number; clamped: boolean };
+      return [
+        {
+          categoryId: suggestion.id,
+          categoryCode: suggestion.category_code as CategoryCode,
+          recommendedAmount: category.recommended_amount,
+          personalizedAmount: suggestion.personalized_amount,
+          deviationBp: basis.deviationBp,
+          clamped: basis.clamped,
+        },
+      ];
+    });
+  }, [data?.categories, suggestions]);
 
   const totals = useMemo(() => {
     const categories = data?.categories ?? [];
@@ -302,6 +434,22 @@ export default function ScreenBUDGET01() {
           />
         </View>
       )}
+
+      {/* 개인화 제안 — 추천 + 근거 → 사용자 확인 (CLAUDE.md 4장) */}
+      {!personalizationDismissed && personalizationItems.length > 0 ? (
+        <PersonalizationBanner
+          basedOnTripCount={basedOnTripCount}
+          items={personalizationItems}
+          expanded={personalizationExpanded}
+          onToggle={() => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setPersonalizationExpanded((prev) => !prev);
+          }}
+          onApply={() => void handleApplyPersonalization()}
+          onDismiss={handleDismissPersonalization}
+          applying={applyingPersonalization}
+        />
+      ) : null}
 
       <View className="gap-2.5">
         <View className="flex-row items-end justify-between">
