@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 
+import { HeaderBackButton } from '@/components/ui';
 import { initAnalytics } from '@/lib/analytics/track';
 
 import '../global.css';
@@ -13,7 +14,18 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack screenOptions={{ headerBackTitle: '뒤로' }}>
+    <Stack
+      screenOptions={{
+        headerBackTitle: '뒤로',
+        // 스와이프로도 뒤로 갈 수 있게 한다 (iOS 기본이지만 명시해 둔다)
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        // ⚠️ 뒤로 버튼을 직접 그린다.
+        //    네이티브 헤더는 히스토리가 있을 때만 버튼을 그려서, 딥링크나
+        //    앱의 첫 화면으로 들어오면 돌아갈 방법이 사라진다.
+        headerLeft: () => <HeaderBackButton />,
+      }}
+    >
       {/* 하단 탭 4개. (tabs) 는 URL 에 나타나지 않는다. */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
