@@ -1,9 +1,10 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 
-import { TRIP_OWNER_TYPE, TRIP_OWNER_TYPE_LABEL, TRIP_STATUS_LABEL } from '@/lib/constants/status';
+import { TRIP_OWNER_TYPE, TRIP_OWNER_TYPE_LABEL } from '@/lib/constants/status';
 
-import { calcReadyRatePercent, formatAmount, formatDDay, formatTripDates } from './format';
-import { TicketCard, TicketField } from './TicketCard';
+import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from './format';
+import { TripCardShell } from './TripCardShell';
 import type { OngoingTripCardData } from './types';
 
 type Props = {
@@ -17,13 +18,16 @@ const NUM = { fontVariant: ['tabular-nums' as const] };
  * 1-1. 진행 중인 여행 카드. (docs/09_IA_v1.md §1)
  * 여행지 · 일정/D-Day · 개인/모임명 · 현재 여행자금/목표 여행비 · 준비율
  *
- * 위 칸은 여행, 절취선 아래는 돈이다.
- * 빨강은 D-Day 한 곳에만 쓴다. 여러 군데 쓰면 강조가 사라진다.
+ * 항공권 검색 결과 카드 구조다.
+ *   윗줄   국기 뱃지 · 여행지 · 개인/모임명 | 기간
+ *   가운데 출발일 → 도착일 (가장 큰 숫자) · 공항 코드
+ *   점선 아래  D-Day | 준비율 배지 · 현재 여행자금
  */
 export function OngoingTripCard({ trip, onPress }: Props) {
   const destination = trip.destination ?? '여행지 미정';
   const dday = formatDDay(trip.startDate);
   const dates = formatTripDates(trip.startDate, trip.endDate);
+  const nights = formatNights(trip.startDate, trip.endDate);
   const rate = calcReadyRatePercent(trip.currentAmount, trip.targetAmount);
   const ownerLabel =
     trip.ownerType === TRIP_OWNER_TYPE.GROUP
@@ -31,84 +35,114 @@ export function OngoingTripCard({ trip, onPress }: Props) {
       : TRIP_OWNER_TYPE_LABEL.PERSONAL;
 
   return (
-    <TicketCard
+    <TripCardShell
+      accentColor={trip.theme.primary}
       accessibilityLabel={`${destination} 여행 준비 홈으로 이동`}
       onPress={() => onPress(trip.tripId)}
-      top={
-        <>
-          <View className="flex-row items-start justify-between">
-            <View className="flex-1 pr-3">
+    >
+      {/* 윗줄 */}
+      <View className="flex-row items-center">
+
+        <View className="flex-1">
+          <Text
+            className="font-bold text-pot-ink"
+            style={{ fontSize: 17, letterSpacing: -0.3 }}
+            numberOfLines={1}
+          >
+            {destination}
+          </Text>
+          <Text className="mt-0.5 text-pot-faint" style={{ fontSize: 13 }} numberOfLines={1}>
+            {ownerLabel}
+          </Text>
+        </View>
+
+        {nights ? (
+          <View className="flex-row items-center">
+            <Ionicons name="time-outline" size={15} color="#9AA3AE" />
+            <Text className="ml-1 text-pot-faint" style={{ fontSize: 13 }}>
+              {nights}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* 가운데 — 출발일 → 도착일 */}
+      <View className="mt-4 flex-row items-center">
+        <View className="flex-1">
+          <Text
+            className="font-bold text-pot-ink"
+            style={{ fontSize: 30, lineHeight: 34, letterSpacing: -0.5, ...NUM }}
+          >
+            {dates.start}
+          </Text>
+          <View className="mt-1 flex-row items-center">
+            <Ionicons name="arrow-up-circle-outline" size={14} color="#2E3A47" />
+            <Text className="ml-1 text-pot-ink" style={{ fontSize: 12.5 }} numberOfLines={1}>
+              ICN (서울)
+            </Text>
+          </View>
+        </View>
+
+        <Ionicons name="airplane" size={17} color="#2E3A47" style={{ marginHorizontal: 6 }} />
+
+        <View className="flex-1 items-end">
+          <Text
+            className="font-bold text-pot-ink"
+            style={{ fontSize: 30, lineHeight: 34, letterSpacing: -0.5, ...NUM }}
+          >
+            {dates.end}
+          </Text>
+          <View className="mt-1 flex-row items-center">
+            <Ionicons name="arrow-down-circle-outline" size={14} color="#2E3A47" />
+            <Text className="ml-1 text-pot-ink" style={{ fontSize: 12.5 }} numberOfLines={1}>
+              {trip.airportCode} ({destination})
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 점선 */}
+      <View className="my-3.5 border-t border-dashed border-pot-dash" />
+
+      {/* 아랫줄 */}
+      <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center">
+          <Ionicons name="calendar-outline" size={15} color="#9AA3AE" />
+          <Text className="ml-1.5 text-pot-faint" style={{ fontSize: 13 }}>
+            {dday ?? '일정 미정'}
+          </Text>
+        </View>
+
+        <View className="flex-row items-center">
+          {rate !== null ? (
+            <View
+              className="mr-2 rounded-md px-1.5 py-0.5"
+              style={{ backgroundColor: trip.theme.primarySoft }}
+            >
               <Text
-                className="text-[32px] font-bold leading-[36px] tracking-tighter text-pot-ink"
-                numberOfLines={1}
+                className="font-bold"
+                style={{ fontSize: 12, color: trip.theme.primary, ...NUM }}
               >
-                {destination}
-              </Text>
-              <Text className="mt-1.5 text-xs text-pot-mute" numberOfLines={1}>
-                {ownerLabel} · {TRIP_STATUS_LABEL[trip.status]}
+                {rate}%
               </Text>
             </View>
+          ) : null}
+          <Text
+            className="font-bold text-pot-ink"
+            style={{ fontSize: 17, letterSpacing: -0.3, ...NUM }}
+          >
+            {trip.currentAmount === null
+              ? '—'
+              : `${trip.currentAmount.toLocaleString('ko-KR')}원`}
+          </Text>
+        </View>
+      </View>
 
-            {dday ? (
-              <View className="items-end">
-                <Text className="text-[10px] font-semibold tracking-[1.4px] text-pot-mute">
-                  D-DAY
-                </Text>
-                <Text className="mt-0.5 text-2xl font-bold text-pot-red" style={NUM}>
-                  {dday}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View className="mt-5 flex-row items-baseline">
-            <Text className="text-xl font-bold tracking-tight text-pot-ink" style={NUM}>
-              {dates.start}
-            </Text>
-            <View className="mx-3 h-[1.5px] w-6 bg-pot-ink" />
-            <Text className="text-xl font-bold tracking-tight text-pot-ink" style={NUM}>
-              {dates.end}
-            </Text>
-          </View>
-        </>
-      }
-      bottom={
-        <>
-          <View className="flex-row items-end justify-between">
-            <TicketField label="현재 여행자금">
-              <Text className="text-[22px] font-bold tracking-tight text-pot-ink" style={NUM}>
-                {formatAmount(trip.currentAmount)}
-              </Text>
-            </TicketField>
-            <TicketField label="목표" align="right">
-              <Text className="text-sm font-medium text-pot-mute" style={NUM}>
-                {formatAmount(trip.targetAmount)}
-              </Text>
-            </TicketField>
-          </View>
-
-          {rate === null ? (
-            <Text className="mt-4 text-[11px] leading-4 text-pot-mute">
-              목표 여행비와 여행자금을 등록하면 준비율을 볼 수 있어요.
-            </Text>
-          ) : (
-            <View className="mt-4">
-              <View className="h-1 w-full overflow-hidden rounded-full bg-pot-line">
-                <View
-                  className="h-full rounded-full bg-pot-ink"
-                  style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
-                />
-              </View>
-              <Text
-                className="mt-2 text-right text-[11px] font-semibold text-pot-ink"
-                style={NUM}
-              >
-                준비율 {rate}%
-              </Text>
-            </View>
-          )}
-        </>
-      }
-    />
+      {rate === null ? (
+        <Text className="mt-2 text-pot-faint" style={{ fontSize: 11, lineHeight: 15 }}>
+          목표 여행비와 여행자금을 등록하면 준비율을 볼 수 있어요.
+        </Text>
+      ) : null}
+    </TripCardShell>
   );
 }

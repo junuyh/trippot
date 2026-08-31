@@ -22,6 +22,10 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: '홈',
+          // 홈은 티켓 카드가 화면을 끌고 가는 구조라 제목 줄을 두지 않는다.
+          // title 은 남겨 둔다 — 하단 탭 라벨이 이 값을 쓴다.
+          // ⚠️ 헤더를 끄면 내용이 상태바 밑으로 들어간다. HomeView 가 안전영역을 준다.
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />

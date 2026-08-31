@@ -3,9 +3,10 @@ export { EndedTripCard } from './EndedTripCard';
 export { GroupShortcutList } from './GroupShortcutList';
 export { HomeButton } from './HomeButton';
 export { HomeEmpty, HomeError, HomeLoading } from './HomeStates';
+export { HomeHeader } from './HomeHeader';
 export { HomeView } from './HomeView';
 export { OngoingTripCard } from './OngoingTripCard';
-export { TicketCard, TicketField, TicketLabel } from './TicketCard';
+export { TripCardShell } from './TripCardShell';
 export type {
   EndedTripCardData,
   HomeEmptyVariant,

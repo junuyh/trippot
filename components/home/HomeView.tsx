@@ -2,6 +2,7 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { EndedTripCard } from './EndedTripCard';
 import { GroupShortcutList } from './GroupShortcutList';
+import { HomeHeader } from './HomeHeader';
 import { HomeButton } from './HomeButton';
 import { OngoingTripCard } from './OngoingTripCard';
 import type {
@@ -25,7 +26,10 @@ type Props = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View className="mt-8">
-      <Text className="mb-3 text-[10px] font-semibold tracking-[1.4px] text-pot-mute">
+      <Text
+        className="mb-3 font-black text-pot-ink"
+        style={{ fontSize: 20, lineHeight: 24, letterSpacing: -0.6 }}
+      >
         {title}
       </Text>
       {children}
@@ -54,7 +58,9 @@ export function HomeView({
   onPressCreateTrip,
 }: Props) {
   return (
-    <ScrollView className="flex-1 bg-pot-stone" contentContainerClassName="px-5 pb-12 pt-2">
+    <View className="flex-1 bg-pot-visual">
+      <HomeHeader />
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-12 pt-1">
       <Section title="진행 중인 여행">
         {ongoingTrips.length === 0 ? (
           <Text className="text-sm leading-5 text-pot-mute">
@@ -88,6 +94,7 @@ export function HomeView({
       <View className="mt-9">
         <HomeButton label="새 여행 만들기" onPress={onPressCreateTrip} />
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

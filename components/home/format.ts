@@ -68,3 +68,15 @@ export function formatTripDates(
     end: format(end, sameYear ? 'MM.dd' : 'yyyy.MM.dd'),
   };
 }
+
+/** 3박 4일. 날짜가 없거나 잘못됐으면 null. */
+export function formatNights(startDate: string | null, endDate: string | null): string | null {
+  const start = toDate(startDate);
+  const end = toDate(endDate);
+  if (!start || !end) return null;
+
+  const nights = differenceInCalendarDays(end, start);
+  if (nights < 0) return null;
+  if (nights === 0) return '당일';
+  return `${nights}박 ${nights + 1}일`;
+}

@@ -16,7 +16,7 @@ type Props = {
  */
 export function GroupShortcutList({ groups, onPress }: Props) {
   if (groups.length === 0) {
-    return <Text className="text-sm text-pot-mute">아직 모임이 없어요.</Text>;
+    return <Text className="text-sm text-pot-faint">아직 모임이 없어요.</Text>;
   }
 
   return (
@@ -27,7 +27,7 @@ export function GroupShortcutList({ groups, onPress }: Props) {
           accessibilityRole="button"
           accessibilityLabel={`${group.name} 모임 상세로 이동`}
           onPress={() => onPress(group.groupId)}
-          className="flex-row items-center justify-between rounded-2xl bg-pot-paper px-5 py-4 active:opacity-70"
+          className="flex-row items-center justify-between rounded-2xl bg-white px-5 py-4 active:opacity-70"
         >
           <Text className="flex-1 pr-3 text-base font-semibold text-pot-ink" numberOfLines={1}>
             {group.name}

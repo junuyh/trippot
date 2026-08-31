@@ -24,7 +24,9 @@ import {
   type OngoingTripCardData,
 } from '@/components/home';
 import { SCREENS } from '@/lib/analytics/events';
+import { countryTheme } from '@/lib/constants/countryTheme';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { findDestinationByName } from '@/lib/constants/destinations';
 import {
   ENTRY_POINT,
   TRIP_OWNER_TYPE,
@@ -104,6 +106,8 @@ export default function ScreenHOME01() {
   }
 
   function toBase(trip: TripWithSummary, status: TripStatus) {
+    // 국기·영문명·공항코드는 목적지 상수에서 온다. 모르는 목적지면 대체값을 쓴다.
+    const meta = findDestinationByName(trip.destination);
     return {
       tripId: trip.id,
       destination: trip.destination,
@@ -115,6 +119,8 @@ export default function ScreenHOME01() {
           ? TRIP_OWNER_TYPE.GROUP
           : TRIP_OWNER_TYPE.PERSONAL,
       groupName: trip.group_id ? (groupNameById.get(trip.group_id) ?? null) : null,
+      destinationEn: meta?.nameEn ?? (trip.destination ?? 'TRIP').toUpperCase(),
+      flag: meta?.flag ?? '🌍',
     };
   }
 
@@ -124,6 +130,8 @@ export default function ScreenHOME01() {
     return [
       {
         ...toBase(trip, status),
+        airportCode: findDestinationByName(trip.destination)?.airportCode ?? '—',
+        theme: countryTheme(findDestinationByName(trip.destination)?.countryKo),
         targetAmount: trip.targetAmount,
         currentAmount: trip.currentAmount,
       },
