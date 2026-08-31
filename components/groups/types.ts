@@ -40,3 +40,44 @@ export type GroupTravelCardData = {
   /** 지난 여행 수(ENDED · SETTLED). */
   pastTripCount: number;
 };
+
+/** 3-2. 모임 상세의 멤버 한 명. (docs/09_IA_v1.md §3-2) */
+export type GroupMemberItem = {
+  memberId: string;
+  name: string;
+  /** true 면 '모임장' 배지를 붙인다. group_members.role 이 OWNER 인 사람. */
+  isOwner: boolean;
+};
+
+/**
+ * 3-2. 모임 상세의 연결 계좌 한 건.
+ *
+ * ⚠️ 은행명과 잔액은 MVP 에서 표시하지 않는다.
+ *    institution_code 를 은행명으로 바꾸는 매핑이 프로젝트에 없고,
+ *    잔액 표시 정책도 정해지지 않았다.
+ *    masked_account_number 는 DB 에 이미 마스킹된 값이라 그대로 쓴다. (NFR-002)
+ */
+export type GroupAccountItem = {
+  accountId: string;
+  maskedAccountNumber: string | null;
+};
+
+/** 3-2. 모임 상세 화면 전체. (docs/09_IA_v1.md §3-2) */
+export type GroupDetailData = {
+  groupId: string;
+  name: string;
+  /** groups.created_at. 기본정보에 '만든 날' 로 표시한다. */
+  createdAt: string;
+  /**
+   * ACTIVE 멤버 수.
+   * ⚠️ members.length 와 다를 수 있다. getGroupMemberCount() 를 쓴다 —
+   *    GROUP-01 카드와 같은 기준을 유지하기 위해서다. (후속 확인 사항)
+   */
+  memberCount: number;
+  members: GroupMemberItem[];
+  accounts: GroupAccountItem[];
+  /** 진행 중(PLANNING · TRAVELING). 전체 표시한다. */
+  ongoingTrips: GroupTripItem[];
+  /** 지난 여행(ENDED · SETTLED). 전체 표시한다. */
+  pastTrips: GroupTripItem[];
+};
