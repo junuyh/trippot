@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import { formatDateRange, formatMemberCount } from './format';
@@ -17,14 +18,33 @@ const TRIP_LINE_HEIGHT = 20;
  *
  * 여행이 0건이든 6건이든 이 높이는 변하지 않는다.
  * 이 고정이 "같은 화면의 모든 카드는 같은 높이" 정책의 핵심이다.
- * 여행 건수에 따라 영역이 늘면 모임마다 카드 높이가 달라지고,
- * 이후 순서 변경 기능의 좌표 계산도 깨진다.
  */
 const TRIP_SLOT_HEIGHT = TRIP_LINE_HEIGHT * MAX_VISIBLE_TRIPS;
 
+/**
+ * 편집 모드에서 본문이 좌우로 비켜 앉는 폭(px).
+ *
+ * ⚠️ 가로 여백만 준다. 세로에는 손대지 않는다.
+ *    체크와 Chevron 은 absolute 라 레이아웃에서 빠지므로 카드 높이가 그대로다.
+ */
+const EDIT_INSET_LEFT = 32;
+const EDIT_INSET_RIGHT = 36;
+
 type Props = {
   group: GroupTravelCardData;
+  /** 일반 모드에서 카드를 눌렀을 때. 편집 모드에서는 불리지 않는다. */
   onPress: (groupId: string) => void;
+
+  // ── 편집 모드 ────────────────────────────────────────────────────────
+  editMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (groupId: string) => void;
+  onMoveUp?: (groupId: string) => void;
+  onMoveDown?: (groupId: string) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  /** 저장 중. Chevron 을 잠근다. (NFR-005 중복 실행 방지) */
+  actionsDisabled?: boolean;
 };
 
 /** 한 줄짜리 여행 표시. 여행지는 말줄임되고 날짜는 끝까지 남는다. */
@@ -41,73 +61,153 @@ function TripLine({ trip, suffix }: { trip: GroupTripItem; suffix?: string }) {
   );
 }
 
+/** 순서 이동 버튼 하나. 카드 선택과 터치가 섞이지 않게 별도 Pressable 이다. */
+function MoveButton({
+  icon,
+  label,
+  disabled,
+  onPress,
+}: {
+  icon: 'chevron-up' | 'chevron-down';
+  label: string;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      hitSlop={8}
+      onPress={onPress}
+      className="h-7 w-7 items-center justify-center rounded-lg active:bg-gray-100"
+    >
+      <Ionicons name={icon} size={18} color={disabled ? '#d1d5db' : '#6b7280'} />
+    </Pressable>
+  );
+}
+
 /**
  * 모임 카드. (docs/09_IA_v1.md §3-1)
  *
  * 모임명 · 멤버(인원 수) · 진행 중인 여행 · 지난 여행 수 를 담는다.
- * '대표 모임 여행 유형' 은 [고도화] 라 넣지 않는다.
- * 생성일 · 대표 이미지 · More 는 IA §3-1 에 없어서 넣지 않는다.
  *
- * 카드 전체를 누르면 모임 상세로 간다. (docs/03 POL-NAV-001)
+ * 일반 모드 — 카드를 누르면 모임 상세로 간다. (docs/03 POL-NAV-001)
+ * 편집 모드 — 상세 이동을 막고 선택 토글로 바꾼다. Chevron 으로 순서를 바꾼다.
  *
  * ── 높이 정책 ─────────────────────────────────────────────────────────────
- * 폭은 부모가 정하고(화면 폭 - 좌우 여백), 높이는 콘텐츠와 무관하게 정해진다.
+ * 폭은 부모가 정하고, 높이는 콘텐츠와 무관하게 정해진다.
  *   - 모든 텍스트가 1줄 고정 + 명시적 leading
  *   - 진행 중 여행 영역은 건수와 무관하게 TRIP_SLOT_HEIGHT 고정
- * 따라서 같은 화면의 카드는 항상 같은 크기다.
- *
- * 선택 체크 같은 오버레이를 얹어도 높이가 바뀌지 않는다. 이 Pressable 이
- * 기준 컨테이너라서 position:absolute 자식은 레이아웃에 영향을 주지 않는다.
+ *   - 편집 UI 는 absolute + 가로 여백이라 세로에 영향이 없다
+ * 따라서 편집 모드로 들어가도 카드 크기가 그대로다.
  */
-export function GroupTravelCard({ group, onPress }: Props) {
+export function GroupTravelCard({
+  group,
+  onPress,
+  editMode = false,
+  selected = false,
+  onToggleSelect,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
+  actionsDisabled = false,
+}: Props) {
   const { ongoingTrips, pastTripCount } = group;
 
   const visibleTrips = ongoingTrips.slice(0, MAX_VISIBLE_TRIPS);
   const hiddenCount = ongoingTrips.length - visibleTrips.length;
 
+  function handlePress() {
+    if (editMode) {
+      onToggleSelect?.(group.groupId);
+      return;
+    }
+    onPress(group.groupId);
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${group.name} 모임 상세로 이동`}
-      onPress={() => onPress(group.groupId)}
+      accessibilityLabel={
+        editMode
+          ? `${group.name} ${selected ? '선택 해제' : '선택'}`
+          : `${group.name} 모임 상세로 이동`
+      }
+      accessibilityState={{ selected: editMode ? selected : undefined }}
+      onPress={handlePress}
       className="rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"
     >
-      {/* 모임명 + 인원 */}
-      <View className="flex-row items-center justify-between">
-        <Text
-          numberOfLines={1}
-          className="flex-1 pr-3 text-lg font-bold leading-6 text-gray-900"
-        >
-          {group.name}
-        </Text>
-        <Text className="shrink-0 text-sm leading-6 text-gray-500">
-          {formatMemberCount(group.memberCount)}
-        </Text>
-      </View>
+      {/* 편집 UI — absolute 라 카드 높이에 관여하지 않는다 */}
+      {editMode ? (
+        <>
+          <View className="absolute bottom-0 left-3 top-0 justify-center">
+            <Ionicons
+              name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+              size={22}
+              color={selected ? '#2563eb' : '#d1d5db'}
+            />
+          </View>
 
-      {/* 진행 중인 여행 — 건수와 무관하게 높이 고정 */}
-      <View className="mt-4 border-t border-gray-100 pt-3">
-        <Text className="text-xs font-medium leading-4 text-gray-500">진행 중인 여행</Text>
+          <View className="absolute bottom-0 right-2 top-0 justify-center gap-1">
+            <MoveButton
+              icon="chevron-up"
+              label="위로 이동"
+              disabled={actionsDisabled || !canMoveUp}
+              onPress={() => onMoveUp?.(group.groupId)}
+            />
+            <MoveButton
+              icon="chevron-down"
+              label="아래로 이동"
+              disabled={actionsDisabled || !canMoveDown}
+              onPress={() => onMoveDown?.(group.groupId)}
+            />
+          </View>
+        </>
+      ) : null}
 
-        <View style={{ height: TRIP_SLOT_HEIGHT }} className="mt-1.5">
-          {visibleTrips.length === 0 ? (
-            // 0건. 둘째 줄은 비지만 영역 높이는 그대로다.
-            <View style={{ height: TRIP_LINE_HEIGHT }} className="justify-center">
-              <Text className="text-sm leading-5 text-gray-400">진행 중인 여행이 없어요.</Text>
-            </View>
-          ) : (
-            visibleTrips.map((trip, index) => {
-              // '외 N건' 은 별도 줄을 만들지 않고 마지막 줄 끝에 붙인다.
-              const isLastVisible = index === visibleTrips.length - 1;
-              const suffix = isLastVisible && hiddenCount > 0 ? ` · 외 ${hiddenCount}건` : undefined;
-              return <TripLine key={trip.tripId} trip={trip} suffix={suffix} />;
-            })
-          )}
+      <View
+        style={{
+          paddingLeft: editMode ? EDIT_INSET_LEFT : 0,
+          paddingRight: editMode ? EDIT_INSET_RIGHT : 0,
+        }}
+      >
+        <View className="flex-row items-center justify-between">
+          <Text
+            numberOfLines={1}
+            className="flex-1 pr-3 text-lg font-bold leading-6 text-gray-900"
+          >
+            {group.name}
+          </Text>
+          <Text className="shrink-0 text-sm leading-6 text-gray-500">
+            {formatMemberCount(group.memberCount)}
+          </Text>
         </View>
 
-        <Text className="mt-3 text-xs leading-4 text-gray-400">
-          {`지난 여행 ${pastTripCount}회`}
-        </Text>
+        <View className="mt-4 border-t border-gray-100 pt-3">
+          <Text className="text-xs font-medium leading-4 text-gray-500">진행 중인 여행</Text>
+
+          <View style={{ height: TRIP_SLOT_HEIGHT }} className="mt-1.5">
+            {visibleTrips.length === 0 ? (
+              <View style={{ height: TRIP_LINE_HEIGHT }} className="justify-center">
+                <Text className="text-sm leading-5 text-gray-400">진행 중인 여행이 없어요.</Text>
+              </View>
+            ) : (
+              visibleTrips.map((trip, index) => {
+                const isLastVisible = index === visibleTrips.length - 1;
+                const suffix =
+                  isLastVisible && hiddenCount > 0 ? ` · 외 ${hiddenCount}건` : undefined;
+                return <TripLine key={trip.tripId} trip={trip} suffix={suffix} />;
+              })
+            )}
+          </View>
+
+          <Text className="mt-3 text-xs leading-4 text-gray-400">
+            {`지난 여행 ${pastTripCount}회`}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );

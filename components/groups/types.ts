@@ -81,3 +81,9 @@ export type GroupDetailData = {
   /** 지난 여행(ENDED · SETTLED). 전체 표시한다. */
   pastTrips: GroupTripItem[];
 };
+
+/** 편집 모드 '숨긴 모임' 바텀시트 한 줄. 이름과 다시 표시만 있으면 된다. */
+export type HiddenGroupItem = {
+  groupId: string;
+  name: string;
+};
