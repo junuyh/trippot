@@ -13,11 +13,12 @@ import {
 } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Trip } from '@/lib/supabase/queries/trips';
-import type { Tables, TablesInsert } from '@/types/database';
+import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
 
 export type Group = Tables<'groups'>;
 export type GroupInsert = TablesInsert<'groups'>;
 export type GroupMember = Tables<'group_members'>;
+export type GroupUpdate = TablesUpdate<'groups'>;
 
 /** 내가 속한 모임만 반환한다. 다른 사용자의 모임이 섞이지 않게 한다. */
 export async function getMyGroups(userId: string): Promise<Group[]> {
@@ -180,4 +181,23 @@ export async function getGroupTrips(groupId: string): Promise<GroupTrips> {
       (trip) => trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED,
     ),
   };
+}
+
+/**
+ * 모임 정보 수정. 지금은 이름 변경에만 쓴다.
+ *
+ * 권한은 RLS 가 판단한다. (docs/05_ERD_v3.md §6-2 — groups 는 소유자 또는 ACTIVE 멤버만)
+ * 앱에서 별도 owner 검사를 넣지 않는다. 두 곳에 권한 규칙이 생기면 서로 어긋난다.
+ * 권한이 없으면 Supabase 가 error 를 주고 화면이 실패 메시지를 띄운다.
+ */
+export async function updateGroup(groupId: string, patch: GroupUpdate): Promise<Group> {
+  const { data, error } = await supabase
+    .from('groups')
+    .update(patch)
+    .eq('id', groupId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
