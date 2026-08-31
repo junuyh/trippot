@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { HeaderBackButton } from '@/components/ui';
 import { initAnalytics } from '@/lib/analytics/track';
@@ -14,6 +15,9 @@ export default function RootLayout() {
   }, []);
 
   return (
+    // 스와이프 삭제 같은 제스처가 동작하려면 루트를 이걸로 감싸야 한다.
+    // expo-router 가 gesture-handler 를 의존으로 갖고 있어 새 패키지는 아니다.
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <Stack
       screenOptions={{
         headerBackTitle: '뒤로',
@@ -33,5 +37,6 @@ export default function RootLayout() {
           여기서 헤더를 끄지 않으면 헤더가 두 겹으로 그려진다. */}
       <Stack.Screen name="trips/new" options={{ headerShown: false }} />
     </Stack>
+    </GestureHandlerRootView>
   );
 }

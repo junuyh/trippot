@@ -111,3 +111,123 @@ export function usageRate(actualAmount: number, plannedAmount: number): number {
   if (plannedAmount <= 0) return 0;
   return Math.round((actualAmount / plannedAmount) * 100);
 }
+
+// ============================================================================
+// 목표 도달 마일스톤
+//
+// "지금 얼마 모았나" 만 보여주면 숫자일 뿐이다.
+// **"항공권까지는 확보했다"** 를 보여줘야 목표에 다가가는 느낌이 생긴다.
+//
+// 금고를 채우는 순서(VAULT_FILL_ORDER)가 그대로 마일스톤이 된다.
+// 항공 → 숙소 → 보험 → … 순으로 누적 금액을 넘길 때마다 하나씩 확보된다.
+// ============================================================================
+
+export type VaultMilestone = {
+  categoryCode: CategoryCode;
+  /** 이 카테고리까지 확보하는 데 필요한 누적 금액 */
+  cumulativeAmount: number;
+  /** 현재 자금으로 이미 다 채웠는가 */
+  reached: boolean;
+};
+
+/**
+ * 카테고리를 채우는 순서대로 누적 금액을 낸다.
+ *
+ * 계획액이 0인 카테고리는 건너뛴다. 0원짜리를 '확보했다' 고 말할 게 없다.
+ */
+export function vaultMilestones(
+  currentAmount: number,
+  categories: VaultAllocationInput[],
+): VaultMilestone[] {
+  const plannedByCode = new Map(categories.map((c) => [c.categoryCode, c.plannedAmount]));
+  const funds = Math.max(0, currentAmount);
+
+  const milestones: VaultMilestone[] = [];
+  let cumulative = 0;
+
+  for (const categoryCode of VAULT_FILL_ORDER) {
+    const planned = plannedByCode.get(categoryCode);
+    if (planned === undefined || planned <= 0) continue;
+
+    cumulative += planned;
+    milestones.push({
+      categoryCode,
+      cumulativeAmount: cumulative,
+      reached: funds >= cumulative,
+    });
+  }
+
+  return milestones;
+}
+
+// ============================================================================
+// 출발까지의 여정 — 5단계
+//
+// 카테고리 8개를 그대로 늘어놓으면 정거장이 너무 많아 "어디까지 왔나" 가 안 읽힌다.
+// 여행자가 실제로 체감하는 순서로 묶는다.
+//
+//   짐 싸기 → 항공 → 숙소 → 현지생활 → 도착
+//
+// 금고를 채우는 순서(VAULT_FILL_ORDER)와 어긋나지 않는다.
+// 각 단계의 문턱은 그 단계까지의 **누적 계획액**이다.
+// ============================================================================
+
+export type JourneyStageKey = 'PACK' | 'FLIGHT' | 'STAY' | 'LOCAL' | 'ARRIVE';
+
+export type JourneyStage = {
+  key: JourneyStageKey;
+  label: string;
+  emoji: string;
+  /** 이 단계에 닿는 데 필요한 누적 금액 */
+  threshold: number;
+  reached: boolean;
+};
+
+/** 단계별로 어떤 카테고리를 누적하는가. 순서가 곧 여정 순서다. */
+const STAGE_CATEGORIES: { key: JourneyStageKey; label: string; emoji: string; codes: CategoryCode[] }[] = [
+  { key: 'PACK', label: '짐 싸기', emoji: '🧳', codes: [] },
+  { key: 'FLIGHT', label: '항공', emoji: '✈️', codes: [CATEGORY_CODE.AIRFARE] },
+  { key: 'STAY', label: '숙소', emoji: '🏨', codes: [CATEGORY_CODE.LODGING] },
+  {
+    key: 'LOCAL',
+    label: '현지생활',
+    emoji: '🍜',
+    codes: [CATEGORY_CODE.FOOD, CATEGORY_CODE.TRANSPORT, CATEGORY_CODE.ACTIVITY],
+  },
+  // 마지막 단계는 남은 카테고리 전부다. 목표 금액과 같아진다.
+  {
+    key: 'ARRIVE',
+    label: '도착',
+    emoji: '🏯',
+    codes: [CATEGORY_CODE.SHOPPING, CATEGORY_CODE.INSURANCE, CATEGORY_CODE.CONTINGENCY],
+  },
+];
+
+/**
+ * 여정 5단계와 도달 여부.
+ *
+ * @param destinationLabel 마지막 단계 이름에 쓸 여행지명. 없으면 '도착'
+ *
+ * ⚠️ 첫 단계(짐 싸기)의 문턱은 0 이다. 자금이 0원이어도 여정은 시작된 것으로 본다.
+ *    "아직 아무것도 안 했다" 보다 "이제 막 시작했다" 가 맞다.
+ */
+export function journeyStages(
+  currentAmount: number,
+  categories: VaultAllocationInput[],
+  destinationLabel?: string | null,
+): JourneyStage[] {
+  const plannedByCode = new Map(categories.map((c) => [c.categoryCode, c.plannedAmount]));
+  const funds = Math.max(0, currentAmount);
+
+  let cumulative = 0;
+  return STAGE_CATEGORIES.map((stage) => {
+    for (const code of stage.codes) cumulative += plannedByCode.get(code) ?? 0;
+    return {
+      key: stage.key,
+      label: stage.key === 'ARRIVE' ? (destinationLabel ?? stage.label) : stage.label,
+      emoji: stage.emoji,
+      threshold: cumulative,
+      reached: funds >= cumulative,
+    };
+  });
+}
