@@ -5,5 +5,6 @@ export { CurrencyInput } from './CurrencyInput';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
 export { Header } from './Header';
+export { HeaderBackButton } from './HeaderBackButton';
 export { Input } from './Input';
 export { Loading } from './Loading';

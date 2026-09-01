@@ -39,6 +39,12 @@ type Props = {
   onChange: (next: { startDate: string | null; endDate: string | null }) => void;
   /** 과거 날짜 선택을 막는다. 기본 true */
   disablePast?: boolean;
+  /**
+   * 'range'  가는 날~오는 날 (기본)
+   * 'single' 하루만 고른다. 지출 날짜처럼 한 날짜만 필요할 때 쓴다.
+   *          이때 startDate 와 endDate 에 같은 날이 담긴다.
+   */
+  mode?: 'range' | 'single';
 };
 
 const KEY = 'yyyy-MM-dd';
@@ -48,6 +54,7 @@ export function DateRangeCalendar({
   endDate,
   onChange,
   disablePast = true,
+  mode = 'range',
 }: Props) {
   const today = useMemo(() => startOfDay(new Date()), []);
 
@@ -76,6 +83,12 @@ export function DateRangeCalendar({
 
   function handlePress(day: Date) {
     const key = format(day, KEY);
+
+    // 하루만 고르는 모드. 누른 날이 곧 답이다.
+    if (mode === 'single') {
+      onChange({ startDate: key, endDate: key });
+      return;
+    }
 
     // 시작일이 없거나 이미 범위가 완성됐으면 새 범위를 시작한다.
     if (!start || (start && end)) {
@@ -257,11 +270,13 @@ export function DateRangeCalendar({
 
       {/* ── 안내 ── */}
       <Text className="mt-2 px-1 text-xs text-gray-400">
-        {!start
-          ? '가는 날을 선택해 주세요.'
-          : !end
-            ? '오는 날을 선택해 주세요.'
-            : '날짜를 다시 누르면 새로 선택할 수 있어요.'}
+        {mode === 'single'
+          ? '날짜를 눌러 바꿀 수 있어요.'
+          : !start
+            ? '가는 날을 선택해 주세요.'
+            : !end
+              ? '오는 날을 선택해 주세요.'
+              : '날짜를 다시 누르면 새로 선택할 수 있어요.'}
       </Text>
     </View>
   );

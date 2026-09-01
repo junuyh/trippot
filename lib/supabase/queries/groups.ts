@@ -9,13 +9,16 @@ import {
   GROUP_MEMBER_ROLE,
   GROUP_MEMBER_STATUS,
   GROUP_STATUS,
+  TRIP_STATUS,
 } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
-import type { Tables, TablesInsert } from '@/types/database';
+import type { Trip } from '@/lib/supabase/queries/trips';
+import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
 
 export type Group = Tables<'groups'>;
 export type GroupInsert = TablesInsert<'groups'>;
 export type GroupMember = Tables<'group_members'>;
+export type GroupUpdate = TablesUpdate<'groups'>;
 
 /** 내가 속한 모임만 반환한다. 다른 사용자의 모임이 섞이지 않게 한다. */
 export async function getMyGroups(userId: string): Promise<Group[]> {
@@ -105,4 +108,325 @@ export async function createGroup(input: GroupInsert): Promise<Group> {
   }
 
   return group;
+}
+
+export type GroupMemberWithUser = GroupMember & {
+  user: Pick<Tables<'users'>, 'id' | 'name' | 'profile_image_url'>;
+};
+
+/**
+ * 모임의 참여 중인 멤버 목록. 이름까지 함께 가져온다.
+ *
+ * getGroupMemberCount() 는 숫자만 센다. 인원 수만 필요하면 그쪽이 더 싸다.
+ * 화면에 이름을 보여줘야 할 때만 이 함수를 쓴다.
+ *
+ * INVITED / LEFT 는 제외한다. 아직 안 왔거나 이미 나간 사람이다.
+ * 탈퇴한 사용자(users.deleted_at)도 제외한다. 이름 자리가 비어 보이게 된다.
+ *
+ * OWNER 를 맨 앞에 둔다. 모임장이 누구인지 목록 첫 줄에서 바로 보이게 한다.
+ */
+export async function getGroupMembers(groupId: string): Promise<GroupMemberWithUser[]> {
+  const { data, error } = await supabase
+    .from('group_members')
+    .select('*, users!inner(id, name, profile_image_url)')
+    .eq('group_id', groupId)
+    .eq('status', GROUP_MEMBER_STATUS.ACTIVE)
+    .is('users.deleted_at', null)
+    .order('joined_at', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? [])
+    .map(({ users, ...member }) => ({ ...member, user: users }))
+    .sort((a, b) => {
+      // OWNER 먼저. 나머지는 조회 순서(가입일 오름차순)를 그대로 둔다.
+      if (a.role === b.role) return 0;
+      return a.role === GROUP_MEMBER_ROLE.OWNER ? -1 : 1;
+    });
+}
+
+export type GroupTrips = {
+  /** 아직 끝나지 않은 여행. PLANNING · TRAVELING */
+  ongoing: Trip[];
+  /** 끝난 여행. ENDED · SETTLED */
+  past: Trip[];
+};
+
+/**
+ * 모임의 여행 목록을 진행 중 / 지난 으로 나눠 반환한다.
+ *
+ * GROUP-01 은 진행 중인 여행과 지난 여행 수를, GROUP-02 는 양쪽 목록을 모두 쓴다.
+ * 화면마다 status 로 나누면 분류 기준이 갈라지므로 여기서 한 번만 나눈다.
+ *
+ * 최신 여행이 위로 오도록 start_date 내림차순이다.
+ */
+export async function getGroupTrips(groupId: string): Promise<GroupTrips> {
+  const { data, error } = await supabase
+    .from('trips')
+    .select('*')
+    .eq('group_id', groupId)
+    .neq('status', TRIP_STATUS.DELETED)
+    .order('start_date', { ascending: false });
+
+  if (error) throw error;
+
+  const trips = data ?? [];
+
+  return {
+    ongoing: trips.filter(
+      (trip) =>
+        trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING,
+    ),
+    past: trips.filter(
+      (trip) => trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED,
+    ),
+  };
+}
+
+/**
+ * 모임 정보 수정. 지금은 이름 변경에만 쓴다.
+ *
+ * 권한은 RLS 가 판단한다. (docs/05_ERD_v3.md §6-2 — groups 는 소유자 또는 ACTIVE 멤버만)
+ * 앱에서 별도 owner 검사를 넣지 않는다. 두 곳에 권한 규칙이 생기면 서로 어긋난다.
+ * 권한이 없으면 Supabase 가 error 를 주고 화면이 실패 메시지를 띄운다.
+ */
+export async function updateGroup(groupId: string, patch: GroupUpdate): Promise<Group> {
+  const { data, error } = await supabase
+    .from('groups')
+    .update(patch)
+    .eq('id', groupId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+
+// ============================================================================
+// GROUP-01 목록 표시 설정 (user_group_list_preferences)
+//
+// ⚠️ 이 아래 함수들은 GROUP-01 전용이다. getMyGroups() 는 HOME-01 과 TRIP-01 도
+//    함께 쓰므로 숨김·정렬을 그쪽에 넣지 않는다. 숨긴 모임으로도 새 여행을
+//    만들 수 있어야 하고, 홈에서는 계속 보여야 한다.
+//    (supabase/migrations/20260831000001_add_user_group_list_preferences.sql)
+// ============================================================================
+export type GroupListPreference = Tables<'user_group_list_preferences'>;
+export type GroupListPreferenceInsert = TablesInsert<'user_group_list_preferences'>;
+
+/** 목록이 어떤 기준으로 정렬돼 있는지. 화면은 이 값을 문구로만 보여준다. */
+export type GroupSortMode = 'CREATED_AT' | 'CUSTOM';
+
+/** 정렬·쓰기에 필요한 최소 정보. 카드 데이터로는 화면이 다시 가공한다. */
+export type GroupListEntry = {
+  group: Group;
+  /** null 이면 사용자가 이 모임의 순서를 지정한 적이 없다. */
+  sortOrder: number | null;
+};
+
+export type MyGroupListForDisplay = {
+  /** 숨김을 제외하고 정렬까지 끝난 목록. */
+  entries: GroupListEntry[];
+  sortMode: GroupSortMode;
+  /** 편집 모드의 '숨긴 모임 N개 보기' 노출 판단에 쓴다. */
+  hiddenCount: number;
+};
+
+/** 최신 모임이 위로. 기본 정렬이자 모든 동률의 보조 기준이다. */
+function compareCreatedAtDesc(a: Group, b: Group): number {
+  return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+}
+
+/** 현재 사용자의 표시 설정 전체. 숨긴 행도 포함한다. */
+async function getListPreferences(userId: string): Promise<GroupListPreference[]> {
+  const { data, error } = await supabase
+    .from('user_group_list_preferences')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * GROUP-01 목록. 숨김을 빼고 정렬까지 끝내서 준다.
+ *
+ * ⚠️ 읽기만 한다. preference 행을 자동으로 만들지 않는다.
+ *    화면 진입마다(useFocusEffect) 불리는 함수라 여기서 쓰면 탭 전환만으로
+ *    DB 에 쓰게 된다. 순서 부여는 사용자가 Chevron 을 누를 때만 한다.
+ *
+ * 정렬
+ *   1. sort_order 가 있는 모임  → sort_order ASC
+ *   2. 순서 미설정 모임         → groups.created_at DESC (뒤쪽)
+ *   동률·NULL 은 항상 created_at DESC 로 갈라 결과가 흔들리지 않게 한다.
+ *
+ * ⚠️ getMyGroups() 는 group_members.created_at(내 가입 시각) 으로 정렬한다.
+ *    GROUP-01 기본 정렬은 groups.created_at(모임 생성일) 이라 여기서 다시 세운다.
+ *    공유 함수를 고치지 않는 이유는 위 파일 상단 주석과 같다.
+ */
+export async function getMyGroupListForDisplay(userId: string): Promise<MyGroupListForDisplay> {
+  const [groups, preferences] = await Promise.all([
+    getMyGroups(userId),
+    getListPreferences(userId),
+  ]);
+
+  const byGroupId = new Map(preferences.map((row) => [row.group_id, row]));
+
+  // 정렬 모드는 숨긴 행까지 포함해 판정한다.
+  // 보이는 행만 보면 순서를 지정한 모임을 전부 숨겼을 때 모드가 임의로 돌아간다.
+  const sortMode: GroupSortMode = preferences.some((row) => row.sort_order !== null)
+    ? 'CUSTOM'
+    : 'CREATED_AT';
+
+  const visible: GroupListEntry[] = [];
+  let hiddenCount = 0;
+
+  for (const group of groups) {
+    const preference = byGroupId.get(group.id);
+    if (preference?.hidden) {
+      hiddenCount += 1;
+      continue;
+    }
+    visible.push({ group, sortOrder: preference?.sort_order ?? null });
+  }
+
+  const ordered = visible.filter((entry) => entry.sortOrder !== null);
+  const unordered = visible.filter((entry) => entry.sortOrder === null);
+
+  ordered.sort(
+    (a, b) =>
+      (a.sortOrder as number) - (b.sortOrder as number) || compareCreatedAtDesc(a.group, b.group),
+  );
+  unordered.sort((a, b) => compareCreatedAtDesc(a.group, b.group));
+
+  return { entries: [...ordered, ...unordered], sortMode, hiddenCount };
+}
+
+/**
+ * 숨긴 모임. 편집 모드의 바텀시트에서만 쓴다.
+ *
+ * getMyGroups() 를 거쳐서 만든다. 그래야 참여 중(ACTIVE) 판정과
+ * 삭제 모임 제외 기준이 일반 목록과 정확히 같아진다.
+ */
+export async function getHiddenGroups(userId: string): Promise<Group[]> {
+  const [groups, preferences] = await Promise.all([
+    getMyGroups(userId),
+    getListPreferences(userId),
+  ]);
+
+  const hiddenIds = new Set(
+    preferences.filter((row) => row.hidden).map((row) => row.group_id),
+  );
+
+  return groups.filter((group) => hiddenIds.has(group.id)).sort(compareCreatedAtDesc);
+}
+
+/**
+ * ⚠️ upsert 는 명시하지 않은 칼럼을 기본값으로 덮어쓴다.
+ *    hidden 과 sort_order 를 항상 함께 실어야 기존 값이 초기화되지 않는다.
+ *    unique (user_id, group_id) 가 있어 onConflict 가 성립한다.
+ *
+ * 배열을 한 번에 보내면 PostgREST 가 단일 INSERT ... ON CONFLICT 문으로 실행한다.
+ * SQL 한 문장은 원자적이라 일부 행만 반영되는 상태가 생기지 않는다.
+ */
+async function upsertPreferences(rows: GroupListPreferenceInsert[]): Promise<void> {
+  if (rows.length === 0) return;
+
+  const { error } = await supabase
+    .from('user_group_list_preferences')
+    .upsert(rows, { onConflict: 'user_id,group_id' });
+
+  if (error) throw error;
+}
+
+/**
+ * 내 목록에서 제거. 여러 건을 한 번에 처리한다.
+ *
+ * ⚠️ 삭제도 탈퇴도 아니다. groups / group_members / trips 를 건드리지 않는다.
+ *    현재 사용자의 GROUP-01 표시 여부만 바꾼다.
+ *
+ * sort_order 는 넘겨받은 값을 그대로 유지한다. 원래 위치 복원에 쓰기 위해서가
+ * 아니라, 사용자가 이미 사용자 지정 정렬을 쓰고 있었다는 상태를 잃지 않기 위해서다.
+ */
+export async function hideGroups(
+  userId: string,
+  items: { groupId: string; sortOrder: number | null }[],
+): Promise<void> {
+  await upsertPreferences(
+    items.map((item) => ({
+      user_id: userId,
+      group_id: item.groupId,
+      hidden: true,
+      sort_order: item.sortOrder,
+    })),
+  );
+}
+
+/**
+ * 숨긴 모임을 다시 표시한다.
+ *
+ * 원래 위치로 되돌리지 않는다. 복구는 '목록에 다시 추가' 의 의미다.
+ *   기본 정렬 상태      → sortOrder = null  (created_at 자리로 들어간다)
+ *   사용자 지정 순 상태 → 보이는 목록의 마지막 값 + 1  (맨 아래)
+ * 위치 계산은 화면이 한다. 여기서는 받은 값을 그대로 쓴다.
+ */
+export async function unhideGroup(
+  userId: string,
+  groupId: string,
+  sortOrder: number | null,
+): Promise<void> {
+  await upsertPreferences([
+    { user_id: userId, group_id: groupId, hidden: false, sort_order: sortOrder },
+  ]);
+}
+
+/**
+ * 보이는 목록 전체에 1..N 을 부여한다.
+ *
+ * 사용자가 처음 Chevron 을 누를 때 쓴다. 일부에만 순서를 넣으면 NULL 과 숫자가
+ * 섞여 정렬이 정의되지 않으므로 항상 전체를 정규화한다.
+ * 이동을 반영한 최종 순서를 받아서 한 번에 저장한다. 저장을 두 단계로 나누지 않는다.
+ */
+export async function saveGroupOrder(userId: string, orderedGroupIds: string[]): Promise<void> {
+  await upsertPreferences(
+    orderedGroupIds.map((groupId, index) => ({
+      user_id: userId,
+      group_id: groupId,
+      hidden: false,
+      sort_order: index + 1,
+    })),
+  );
+}
+
+/**
+ * 인접한 두 모임의 sort_order 를 교환한다.
+ *
+ * 두 행을 한 배열로 보낸다. 각각 독립 UPDATE 로 보내면 한 행만 성공해
+ * sort_order 가 중복되거나 비는 상태가 생긴다. (upsertPreferences 주석)
+ */
+export async function swapGroupOrder(
+  userId: string,
+  a: { groupId: string; sortOrder: number },
+  b: { groupId: string; sortOrder: number },
+): Promise<void> {
+  await upsertPreferences([
+    { user_id: userId, group_id: a.groupId, hidden: false, sort_order: b.sortOrder },
+    { user_id: userId, group_id: b.groupId, hidden: false, sort_order: a.sortOrder },
+  ]);
+}
+
+/**
+ * 사용자 지정 순서를 모두 지운다. 모임 생성일 순으로 돌아간다.
+ *
+ * ⚠️ hidden 은 건드리지 않는다. 정렬 초기화가 숨김 해제까지 하면 사용자가
+ *    예상하지 못한다. 숨김 해제는 '숨긴 모임 → 다시 표시' 만 담당한다.
+ *    그래서 upsert 가 아니라 update 다. upsert 는 hidden 을 덮어쓴다.
+ */
+export async function resetGroupOrder(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('user_group_list_preferences')
+    .update({ sort_order: null })
+    .eq('user_id', userId);
+
+  if (error) throw error;
 }
