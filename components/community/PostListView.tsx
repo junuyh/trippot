@@ -91,7 +91,7 @@ export function PostListView({
         </ScrollView>
       </View>
 
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-12 pt-1">
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-28 pt-1">
         {posts.length === 0 ? (
           <Text className="mt-8 text-center text-pot-faint" style={{ fontSize: 14 }}>
             이 유형의 글이 아직 없어요.
