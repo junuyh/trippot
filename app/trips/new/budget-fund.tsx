@@ -58,8 +58,9 @@ import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   APPLIED_SOURCE,
   BUDGET_METHOD,
-  CATEGORY_CODE,
   BUDGET_METHOD_TO_ANALYTICS,
+  CATEGORY_CODE,
+  CATEGORY_CODE_TO_ANALYTICS,
   COMPANION_TYPE,
   FUND_SOURCE_TYPE,
   FUND_SOURCE_TYPE_TO_ANALYTICS,
@@ -68,6 +69,7 @@ import {
   type BudgetMethod,
   type CategoryCode,
   type FundSourceType,
+  type TravelStyle,
 } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { useTripDraft } from '@/lib/hooks/useTripDraft';
@@ -375,6 +377,23 @@ export default function ScreenTRIP03() {
     });
   }, [pastAdjustments, pastProfileTripCount]);
 
+  /**
+   * 여행 스타일 변경.
+   *
+   * 같은 값을 다시 눌러도 쏘지 않는다. 세그먼트는 눌린 것을 또 누를 수 있어서
+   * 그대로 두면 '바꾼 횟수' 가 '누른 횟수' 가 된다.
+   */
+  const handleChangeTravelStyle = useCallback(
+    (next: TravelStyle) => {
+      const from = draft.travelStyle;
+      if (from === next) return;
+
+      patchDraft({ travelStyle: next });
+      track(EVENTS.TRAVEL_STYLE_CHANGED, { from_style: from, to_style: next });
+    },
+    [draft.travelStyle, patchDraft],
+  );
+
   const [pastSheetOpen, setPastSheetOpen] = useState(false);
 
   /**
@@ -441,31 +460,44 @@ export default function ScreenTRIP03() {
       const catalog = getProductCategory(categoryCode);
       if (!catalog) return;
 
-      setSelectedProductIds((prev) => {
-        const next = new Set(prev);
+      // ⚠️ setState 업데이터 안에서 계산하지 않는다. 로그를 남겨야 하는데
+      //    업데이터는 순수해야 하고, StrictMode 에서 두 번 불릴 수 있다.
+      //    두 번 불리면 같은 클릭이 이벤트 두 건으로 잡힌다.
+      const next = new Set(selectedProductIds);
+      const wasSelected = next.has(productId);
 
-        if (catalog.single) {
-          // 왕복 항공권을 두 개 사지는 않는다. 같은 것을 다시 누르면 해제한다.
-          const wasSelected = next.has(productId);
-          for (const product of catalog.products) next.delete(product.id);
-          if (!wasSelected) next.add(productId);
-        } else {
-          if (next.has(productId)) next.delete(productId);
-          else next.add(productId);
-        }
+      if (catalog.single) {
+        // 왕복 항공권을 두 개 사지는 않는다. 같은 것을 다시 누르면 해제한다.
+        for (const product of catalog.products) next.delete(product.id);
+        if (!wasSelected) next.add(productId);
+      } else {
+        if (wasSelected) next.delete(productId);
+        else next.add(productId);
+      }
 
-        setCategories((cats) =>
-          cats.map((c) =>
-            c.categoryCode === categoryCode
-              ? { ...c, plannedAmount: computeAmount(c, next, droppedCategories, adjustmentByCode) }
-              : c,
-          ),
-        );
+      const target = categories.find((c) => c.categoryCode === categoryCode);
+      const fromAmount = target?.plannedAmount ?? 0;
+      const toAmount = target
+        ? computeAmount(target, next, droppedCategories, adjustmentByCode)
+        : fromAmount;
 
-        return next;
+      setSelectedProductIds(next);
+      setCategories((cats) =>
+        cats.map((c) =>
+          c.categoryCode === categoryCode ? { ...c, plannedAmount: toAmount } : c,
+        ),
+      );
+
+      // 근거를 보여줬을 때 사용자가 실제로 예산을 조정하는지. (docs/06 §7-1)
+      track(EVENTS.BUDGET_PRODUCT_CHANGED, {
+        category: CATEGORY_CODE_TO_ANALYTICS[categoryCode],
+        product_id: productId,
+        selected: !wasSelected,
+        from_amount: fromAmount,
+        to_amount: toAmount,
       });
     },
-    [adjustmentByCode, computeAmount, droppedCategories],
+    [adjustmentByCode, categories, computeAmount, droppedCategories, selectedProductIds],
   );
 
   /**
@@ -840,7 +872,7 @@ export default function ScreenTRIP03() {
           <Text className="mb-2.5 text-base font-semibold text-gray-900">여행 스타일</Text>
           <TravelStyleSelector
             value={draft.travelStyle}
-            onChange={(value) => patchDraft({ travelStyle: value })}
+            onChange={handleChangeTravelStyle}
             disabled={saving}
           />
         </View>
