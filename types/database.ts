@@ -75,6 +75,7 @@ export type Database = {
           actual_amount: number
           budget_category_id: string
           created_at: string
+          display_mode: string
           expected_amount: number
           id: string
           name: string
@@ -86,6 +87,7 @@ export type Database = {
           actual_amount?: number
           budget_category_id: string
           created_at?: string
+          display_mode?: string
           expected_amount?: number
           id?: string
           name: string
@@ -97,6 +99,7 @@ export type Database = {
           actual_amount?: number
           budget_category_id?: string
           created_at?: string
+          display_mode?: string
           expected_amount?: number
           id?: string
           name?: string
@@ -730,6 +733,7 @@ export type Database = {
           name: string | null
           occurred_at: string
           raw_reference: Json | null
+          refund_status: string
           source_type: string
           transaction_type: string
           trip_id: string
@@ -748,6 +752,7 @@ export type Database = {
           name?: string | null
           occurred_at: string
           raw_reference?: Json | null
+          refund_status?: string
           source_type?: string
           transaction_type: string
           trip_id: string
@@ -766,6 +771,7 @@ export type Database = {
           name?: string | null
           occurred_at?: string
           raw_reference?: Json | null
+          refund_status?: string
           source_type?: string
           transaction_type?: string
           trip_id?: string
