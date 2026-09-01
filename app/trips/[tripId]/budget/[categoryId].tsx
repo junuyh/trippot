@@ -324,7 +324,10 @@ export default function ScreenBUDGET02() {
         setToast("연결된 지출을 찾지 못했어요");
         return;
       }
-      router.push(`/trips/${data.trip.id}/transactions/${linked.id}`);
+      // 거래 상세는 전체 내역 화면의 바텀시트다. ?transactionId= 로 지목해 연다.
+      router.push(
+        `/trips/${data.trip.id}/funds/transactions?transactionId=${linked.id}`,
+      );
     },
     [data],
   );

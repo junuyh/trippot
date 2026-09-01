@@ -51,7 +51,9 @@ import { useScreenView } from "@/lib/hooks/useScreenView";
 import {
   getBudgetByTripId,
   getBudgetCategories,
+  getBudgetPlanItems,
   type BudgetCategory,
+  type BudgetPlanItem,
 } from "@/lib/supabase/queries/budgets";
 import {
   deleteTransaction,
@@ -61,12 +63,15 @@ import {
   updateTransactionMapping,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
+import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
 import { getGroupAccounts } from "@/lib/supabase/queries/funds";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
 
 type FundsData = {
   trip: Trip;
   categories: BudgetCategory[];
+  /** 이 여행의 모든 계획 항목. 거래를 계획에 연결할 때 후보로 쓴다 */
+  planItems: BudgetPlanItem[];
   transactions: Transaction[];
   /** 마스킹된 계좌번호. 연결 계좌가 없으면 null (NFR-002) */
   maskedAccountNumber: string | null;
@@ -117,9 +122,16 @@ export default function ScreenFUND01() {
         getTransactions(trip.id, categoryId ? { categoryId } : undefined),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
       ]);
+      // 계획 항목은 카테고리별로 나뉘어 있어 한 번에 모은다
+      const planItems = (
+        await Promise.all(
+          categories.map((category) => getBudgetPlanItems(category.id)),
+        )
+      ).flat();
       setData({
         trip,
         categories,
+        planItems,
         transactions,
         maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
       });
@@ -172,6 +184,57 @@ export default function ScreenFUND01() {
     swipeRefs.current.get(transactionId)?.close();
   }, []);
   const [busy, setBusy] = useState(false);
+
+  /** 계획 연결 시트를 연 거래 */
+  const [linking, setLinking] = useState<Transaction | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  /**
+   * 거래를 계획 항목에 연결하거나 연결을 푼다.
+   *
+   * ⚠️ 연결하면 그 계획의 카테고리로 거래도 함께 옮긴다.
+   *    계획은 항공인데 거래는 식비로 남아 있으면 두 화면이 다른 말을 한다.
+   *
+   * ⚠️ 연결 해제는 **여기서만** 한다. BUDGET-02 에서는 못 푼다. (스펙 9장)
+   *    계획 화면에서 풀면 이미 쓴 돈이 어디로 갔는지 모르게 된다.
+   */
+  const handleLinkPlan = useCallback(
+    async (planItemId: string | null) => {
+      if (!linking || !data || linkBusy) return;
+      setLinkBusy(true);
+      try {
+        const item = planItemId
+          ? (data.planItems.find((plan) => plan.id === planItemId) ?? null)
+          : null;
+
+        await updateTransactionMapping(linking.id, {
+          categoryId: item
+            ? item.budget_category_id
+            : linking.budget_category_id,
+          budgetItemId: planItemId,
+          categoryMethod: item ? CATEGORY_METHOD.USER : linking.category_method,
+        });
+
+        if (planItemId) {
+          track(EVENTS.TRANSACTION_LINKED_TO_ITEM, {
+            trip_id: data.trip.id,
+            item_id: planItemId,
+          });
+        }
+
+        setLinking(null);
+        setDetail(null);
+        await load();
+        setToast(planItemId ? "계획에 연결했어요" : "계획 연결을 풀었어요");
+      } catch {
+        setToast("연결을 저장하지 못했어요");
+      } finally {
+        setLinkBusy(false);
+      }
+    },
+    [data, linkBusy, linking, load],
+  );
 
   const handleChangeCategory = useCallback(
     async (nextCategoryId: string) => {
@@ -256,15 +319,18 @@ export default function ScreenFUND01() {
   }, [data, transactionId]);
 
   const visibleTransactions = useMemo(() => {
-    // 이 화면은 '전체 지출 내역' 이다. 입금은 FUND-01 허브에서 본다.
-    let rows = (data?.transactions ?? []).filter(
-      (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
-    );
-    if (filter === "REVIEW") rows = rows.filter((t) => reviewReason(t) !== null);
+    // ⚠️ '전체' 는 입금까지 포함한다. 출금만 남기면 FUND-01 에서 '입출금 전체
+    //    내역' 으로 들어왔는데 방금 넣은 입금이 사라져 빈 화면이 된다.
+    //    좁히는 건 아래 필터가 한다.
+    let rows = [...(data?.transactions ?? [])];
+    if (filter === "REVIEW")
+      rows = rows.filter((t) => reviewReason(t) !== null);
     if (filter === "REFUND") rows = rows.filter((t) => isRefundRelated(t));
 
-    if (sort === "AMOUNT_DESC") rows = [...rows].sort((a, b) => b.amount - a.amount);
-    if (sort === "AMOUNT_ASC") rows = [...rows].sort((a, b) => a.amount - b.amount);
+    if (sort === "AMOUNT_DESC")
+      rows = [...rows].sort((a, b) => b.amount - a.amount);
+    if (sort === "AMOUNT_ASC")
+      rows = [...rows].sort((a, b) => a.amount - b.amount);
     return rows;
   }, [data?.transactions, filter, sort]);
 
@@ -635,10 +701,10 @@ export default function ScreenFUND01() {
                         ? CATEGORY_CODE_LABEL[categoryCode]
                         : "미분류",
                       // ⚠️ 시안의 '민지 개인카드' 처럼 사람 이름은 붙일 수 없다.
-                    //    거래와 사람을 잇는 연결이 스키마에 없다.
-                    transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL
-                      ? "직접 입력"
-                      : "연결 계좌",
+                      //    거래와 사람을 잇는 연결이 스키마에 없다.
+                      transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL
+                        ? "직접 입력"
+                        : "연결 계좌",
                     ].join(" · ")}
                   </Text>
                   {/* 왜 확인이 필요한지 이유를 적는다. 배지만 달면 뭘 고칠지 모른다 */}
@@ -685,21 +751,47 @@ export default function ScreenFUND01() {
         onClose={() => setDetail(null)}
         footer={
           detail ? (
-            <View className="flex-row gap-2">
-              <View style={{ flex: 1 }}>
-                <Button
-                  label="카테고리 변경"
-                  variant="secondary"
-                  onPress={() => {
-                    const target = detail;
-                    setDetail(null);
-                    setEditing(target);
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button label="닫기" onPress={() => setDetail(null)} />
-              </View>
+            <View style={{ gap: 8 }}>
+              {/*
+                ⚠️ 입금에는 카테고리 변경·계획 연결을 두지 않는다.
+                   입금은 자금이 들어온 것이지 예산을 쓴 게 아니다.
+                   버튼을 두면 사용자는 없는 할 일을 하게 되고,
+                   카테고리가 붙으면 그 예산의 실제 사용액이 부풀려진다.
+              */}
+              {detail.transaction_type === TRANSACTION_TYPE.DEPOSIT ? null : (
+                <View className="flex-row gap-2">
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      label="카테고리 변경"
+                      variant="secondary"
+                      onPress={() => {
+                        const target = detail;
+                        setDetail(null);
+                        setEditing(target);
+                      }}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    {/* 연결 해제는 여기서만 한다. BUDGET-02 에서는 못 푼다 (스펙 9장) */}
+                    <Button
+                      label={
+                        detail.budget_plan_item_id ? "연결 해제" : "계획 연결"
+                      }
+                      variant="secondary"
+                      loading={linkBusy}
+                      onPress={() => {
+                        if (detail.budget_plan_item_id) {
+                          void handleLinkPlan(null);
+                          return;
+                        }
+                        setLinking(detail);
+                        setDetail(null);
+                      }}
+                    />
+                  </View>
+                </View>
+              )}
+              <Button label="확인 완료" onPress={() => setDetail(null)} />
             </View>
           ) : null
         }
@@ -742,34 +834,43 @@ export default function ScreenFUND01() {
                     "거래일",
                     format(parseISO(detail.occurred_at), "yyyy년 M월 d일"),
                   ],
-                  [
-                    "예산 카테고리",
-                    detail.budget_category_id
-                      ? (CATEGORY_CODE_LABEL[
-                          (data?.categories.find(
-                            (c) => c.id === detail.budget_category_id,
-                          )?.category_code ?? "") as CategoryCode
-                        ] ?? "미분류")
-                      : "미분류",
-                  ],
-                  [
-                    "분류 방식",
-                    detail.category_method === CATEGORY_METHOD.AUTO
-                      ? `자동 분류${detail.category_confidence !== null ? ` · 신뢰도 ${detail.category_confidence}%` : ""}`
-                      : detail.category_method === CATEGORY_METHOD.USER
-                        ? "직접 지정"
-                        : "분류 전",
-                  ],
-                  [
-                    "연결 계좌",
-                    detail.financial_account_id
-                      ? (data?.maskedAccountNumber ?? "연결 계좌")
-                      : "직접 입력",
-                  ],
-                  [
-                    "연결된 계획",
-                    detail.budget_plan_item_id ? "계획에 연결됨" : "연결 안 됨",
-                  ],
+                  ...(detail.transaction_type === TRANSACTION_TYPE.DEPOSIT
+                    ? ([] as [string, string][])
+                    : ([
+                        [
+                          "예산 카테고리",
+                          detail.budget_category_id
+                            ? (CATEGORY_CODE_LABEL[
+                                (data?.categories.find(
+                                  (c) => c.id === detail.budget_category_id,
+                                )?.category_code ?? "") as CategoryCode
+                              ] ?? "미분류")
+                            : "미분류",
+                        ],
+                        [
+                          "분류 방식",
+                          detail.category_method === CATEGORY_METHOD.AUTO
+                            ? `자동 분류${detail.category_confidence !== null ? ` · 신뢰도 ${detail.category_confidence}%` : ""}`
+                            : detail.category_method === CATEGORY_METHOD.USER
+                              ? "직접 지정"
+                              : "분류 전",
+                        ],
+                        [
+                          "연결 계좌",
+                          detail.financial_account_id
+                            ? (data?.maskedAccountNumber ?? "연결 계좌")
+                            : "직접 입력",
+                        ],
+                        [
+                          "연결된 계획",
+                          detail.budget_plan_item_id
+                            ? (data?.planItems.find(
+                                (plan) =>
+                                  plan.id === detail.budget_plan_item_id,
+                              )?.name ?? "계획에 연결됨")
+                            : "연결 안 됨",
+                        ],
+                      ] as [string, string][])),
                   [
                     "환불·취소",
                     detail.refund_status === REFUND_STATUS.PENDING
@@ -829,6 +930,91 @@ export default function ScreenFUND01() {
             ) : null}
           </View>
         ) : null}
+      </BottomSheet>
+
+      {/* ── 계획 항목 연결 ── */}
+      <BottomSheet
+        visible={linking !== null}
+        title="계획 항목에 연결"
+        description="연결하면 그 계획의 카테고리로 함께 옮겨요. 계획에는 실제 결제 금액이 표시돼요."
+        onClose={() => setLinking(null)}
+      >
+        <View style={{ paddingTop: 12, gap: 8 }}>
+          {(data?.planItems ?? []).length === 0 ? (
+            <Text
+              style={{
+                fontSize: 11,
+                color: "#858e9c",
+                paddingVertical: 20,
+                textAlign: "center",
+              }}
+            >
+              아직 세부 계획이 없어요. 예산 상세에서 먼저 계획을 만들어 주세요.
+            </Text>
+          ) : (
+            (data?.planItems ?? []).map((plan) => {
+              const category = data?.categories.find(
+                (c) => c.id === plan.budget_category_id,
+              );
+              // 이미 다른 거래가 붙은 계획은 고르지 못하게 한다.
+              // 한 계획에 두 거래가 붙으면 '예상 대비 실제' 가 무엇을 뜻하는지 흐려진다.
+              const taken =
+                plan.actual_amount > 0 &&
+                plan.id !== linking?.budget_plan_item_id;
+              return (
+                <Pressable
+                  key={plan.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${plan.name} 에 연결`}
+                  accessibilityState={{ disabled: taken }}
+                  disabled={taken || linkBusy}
+                  onPress={() => void handleLinkPlan(plan.id)}
+                  className="active:bg-gray-50"
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: 13,
+                    borderWidth: 1,
+                    borderColor: "#e5e8ec",
+                    borderRadius: 12,
+                    opacity: taken ? 0.45 : 1,
+                  }}
+                >
+                  <Text style={{ fontSize: 18 }}>
+                    {category
+                      ? CATEGORY_EMOJI[category.category_code as CategoryCode]
+                      : "📌"}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "700",
+                        color: "#141b28",
+                      }}
+                    >
+                      {plan.name}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 10, color: "#858e9c", marginTop: 3 }}
+                    >
+                      {category
+                        ? CATEGORY_CODE_LABEL[
+                            category.category_code as CategoryCode
+                          ]
+                        : "미분류"}
+                      {" · 예상 "}
+                      {plan.expected_amount.toLocaleString("ko-KR")}원
+                      {taken ? " · 이미 연결됨" : ""}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={15} color="#a8afb9" />
+                </Pressable>
+              );
+            })
+          )}
+        </View>
       </BottomSheet>
 
       {/* 카테고리 변경 시트 */}
