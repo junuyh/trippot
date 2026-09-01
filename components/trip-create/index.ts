@@ -12,5 +12,6 @@ export { HeadcountStepper } from './HeadcountStepper';
 export { NewGroupForm } from './NewGroupForm';
 export { OwnerTypeSelector } from './OwnerTypeSelector';
 export { PastDataChoice } from './PastDataChoice';
+export { PastTripSheet, type PastTripRow } from './PastTripSheet';
 export { StepProgress, TRIP_CREATE_STEPS } from './StepProgress';
 export { TravelStyleSelector } from './TravelStyleSelector';

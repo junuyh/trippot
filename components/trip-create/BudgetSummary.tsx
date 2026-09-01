@@ -46,6 +46,8 @@ type Props = {
   } | null;
   /** 지난 여행 반영을 전부 빼거나 전부 되돌린다 */
   onToggleAllPast?: () => void;
+  /** '어떻게 반영되나요?' — 항목별 예상·실제를 펼쳐 보여준다 */
+  onPressPastDetail?: () => void;
 };
 
 function formatBaselineMonth(isoDate: string): string {
@@ -64,6 +66,7 @@ export function BudgetSummary({
   productCount = 0,
   pastApplied = null,
   onToggleAllPast,
+  onPressPastDetail,
 }: Props) {
   const diff = targetTotal - recommendedTotal;
   const compact = variant === 'compact';
@@ -176,6 +179,22 @@ export function BudgetSummary({
             </Pressable>
           ) : null}
         </View>
+      ) : null}
+
+      {/*
+        비율만 보여주면 믿을 근거가 없다. 항목별 예상·실제를 펼쳐 볼 수 있게 한다.
+        반영을 껐을 때도 남긴다. 무엇을 안 쓰기로 한 건지 확인할 수 있어야 한다.
+      */}
+      {pastApplied && onPressPastDetail ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="지난 여행이 어떻게 반영되는지 보기"
+          onPress={onPressPastDetail}
+          className="-mt-1 flex-row items-center gap-1 self-start rounded-lg py-1 pr-2 active:bg-gray-100"
+        >
+          <Text className="text-xs font-bold text-blue-600">어떻게 반영되나요?</Text>
+          <Ionicons name="chevron-forward" size={12} color="#2563eb" />
+        </Pressable>
       ) : null}
 
       {/* NFR-004 */}

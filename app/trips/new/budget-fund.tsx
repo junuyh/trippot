@@ -36,15 +36,17 @@ import {
   BudgetMethodSelector,
   BudgetSummary,
   FundSourceSelector,
+  PastTripSheet,
   StepProgress,
   TravelStyleSelector,
   type EditableCategory,
+  type PastTripRow,
 } from '@/components/trip-create';
 import { CurrencyInput, ErrorState } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
 import { buildPastAdjustments, bpToPercent, applyBp, type PastAdjustment } from '@/lib/budget/pastAdjustment';
-import { perPerson } from '@/lib/budget/recommendation';
+import { CATEGORY_ORDER, perPerson } from '@/lib/budget/recommendation';
 import {
   getDefaultProductIds,
   getProductCategory,
@@ -72,6 +74,7 @@ import { useTripDraft } from '@/lib/hooks/useTripDraft';
 import { createGroup } from '@/lib/supabase/queries/groups';
 import { getGroupAccounts, type FinancialAccount } from '@/lib/supabase/queries/funds';
 import {
+  deviationBp,
   getSpendingProfile,
   type SpendingProfile,
 } from '@/lib/supabase/queries/personalization';
@@ -371,6 +374,39 @@ export default function ScreenTRIP03() {
       deviation_rate: top.rawBp,
     });
   }, [pastAdjustments, pastProfileTripCount]);
+
+  const [pastSheetOpen, setPastSheetOpen] = useState(false);
+
+  /**
+   * 시트에 보여줄 항목별 예상·실제.
+   *
+   * pastAdjustments 는 편차가 작은 항목을 아예 버린다. 시트는 그것까지 보여줘야
+   * 한다. 표에 없는 항목이 있으면 사용자는 집계가 빠졌다고 본다.
+   * 그래서 pastProfile(집계 원본)을 기준으로 만들고, 반영 여부만 표시한다.
+   */
+  const pastTripRows = useMemo<PastTripRow[]>(() => {
+    if (!pastProfile) return [];
+
+    return CATEGORY_ORDER.flatMap((categoryCode) => {
+      const past = pastProfile.categories.find((c) => c.category_code === categoryCode);
+      if (!past || past.planned_amount <= 0) return [];
+
+      const adjustment = adjustmentByCode.get(categoryCode);
+      const rawBp = deviationBp(past.planned_amount, past.actual_amount);
+
+      return [
+        {
+          categoryCode,
+          plannedAmount: past.planned_amount,
+          actualAmount: past.actual_amount,
+          diffPercent: (rawBp >= 0 ? 1 : -1) * bpToPercent(rawBp),
+          clamped: adjustment?.clamped ?? false,
+          // 편차가 작아 반영 대상에서 빠진 항목
+          ignored: !adjustment,
+        },
+      ];
+    });
+  }, [adjustmentByCode, pastProfile]);
 
   /**
    * 지난 여행 반영을 전부 빼거나 전부 되돌린다.
@@ -853,6 +889,7 @@ export default function ScreenTRIP03() {
                   : null
               }
               onToggleAllPast={handleToggleAllPast}
+              onPressPastDetail={() => setPastSheetOpen(true)}
               // 총액을 이미 정해 온 사람에게 자기가 넣은 숫자를 크게 되돌려
               // 보여줄 이유가 없다. 비교만 한 줄로 남긴다.
               variant={method === BUDGET_METHOD.USER_DEFINED ? 'compact' : 'full'}
@@ -916,6 +953,13 @@ export default function ScreenTRIP03() {
         아직 못 고른 게 있어도 버튼은 그린다. 여행자금까지 처음부터 보이므로
         마지막에 무엇을 누르게 되는지 알려주는 편이 낫다. 빠진 값은 disabled 로 막는다.
       */}
+      <PastTripSheet
+        visible={pastSheetOpen}
+        onClose={() => setPastSheetOpen(false)}
+        tripCount={pastProfileTripCount}
+        rows={pastTripRows}
+      />
+
       <BottomCta
         label="이 예산으로 여행 만들기"
         onPress={() => void handleSubmit()}
