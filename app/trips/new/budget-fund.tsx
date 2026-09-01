@@ -567,6 +567,13 @@ export default function ScreenTRIP03() {
           ...adjustmentFields,
           productHint: catalog.hint,
           singleSelect: catalog.single,
+          // 지난 여행 반영을 얹기 전, 고른 상품만의 합계다.
+          productSubtotal:
+            Math.round(
+              (category.baseAmount *
+                sumSelectedRatio(category.categoryCode, selectedProductIds)) /
+                1000,
+            ) * 1000,
           products: catalog.products.map((product) => ({
             id: product.id,
             name: product.name,

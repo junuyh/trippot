@@ -53,6 +53,12 @@ export type EditableCategory = {
   productHint?: string;
   /** true 면 상품을 하나만 고를 수 있다 */
   singleSelect?: boolean;
+  /**
+   * 지금 고른 상품들의 합계. 지난 여행 반영을 얹기 **전** 금액이다.
+   * 이 줄이 없으면 상품을 바꿔도 계산부에는 그 숫자가 어디에도 안 나와서,
+   * 선택이 반영되지 않은 것처럼 보인다.
+   */
+  productSubtotal?: number;
 
   // ── 지난 여행 반영 ───────────────────────────────────────────────────
   // 편차가 ±5% 미만인 카테고리에는 아예 붙지 않는다. 노이즈다.
@@ -307,6 +313,20 @@ export function BudgetCategoryList({
                     </Text>
                   </View>
 
+                  {/*
+                    지금 고른 상품이 얼마인지. 기준 금액과 다를 때만 그린다.
+                    기본 조합 그대로면 두 줄이 같은 숫자라 군더더기다.
+                  */}
+                  {category.productSubtotal !== undefined &&
+                  category.productSubtotal !== category.baseAmount ? (
+                    <View className="flex-row items-center justify-between">
+                      <Text className="text-xs text-gray-500">선택한 상품 합계</Text>
+                      <Text className="text-xs font-bold text-gray-900">
+                        {won(category.productSubtotal)}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {/* ── 지난 여행 반영 ── 뺄 수 있고 되돌릴 수 있다 ── */}
                   {category.adjustmentPercent ? (
                     <View className="flex-row items-center justify-between gap-2">
@@ -350,10 +370,27 @@ export function BudgetCategoryList({
                     </View>
                   ) : null}
 
+                  {/*
+                    맨 아래는 확정될 금액이다. 위 줄들이 이 숫자로 수렴한다.
+                    추천 금액은 비교 기준으로 그 아래 작게 둔다. 불변 원본이라
+                    사용자가 무엇을 고르든 움직이지 않는다. (CLAUDE.md 4장)
+                  */}
                   <View className="mt-0.5 flex-row items-center justify-between border-t border-gray-100 pt-1.5">
-                    <Text className="text-xs font-semibold text-gray-700">추천 금액</Text>
+                    <Text className="text-xs font-semibold text-gray-700">
+                      {CATEGORY_CODE_LABEL[category.categoryCode]} 예산
+                    </Text>
                     <Text className="text-sm font-bold text-blue-700">
+                      {won(category.plannedAmount)}
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-[11px] text-gray-400">추천 금액</Text>
+                    <Text className="text-[11px] font-medium text-gray-400">
                       {won(category.recommendedAmount)}
+                      {diff !== 0
+                        ? `  ${diff > 0 ? '+' : '−'}${Math.abs(diff).toLocaleString('ko-KR')}`
+                        : '  그대로'}
                     </Text>
                   </View>
                 </View>
@@ -367,16 +404,6 @@ export function BudgetCategoryList({
                     editable={!disabled}
                   />
 
-                  {diff !== 0 ? (
-                    <Text
-                      className={`mt-1 text-right text-xs font-medium ${
-                        diff > 0 ? 'text-red-500' : 'text-blue-600'
-                      }`}
-                    >
-                      추천보다 {diff > 0 ? '+' : ''}
-                      {diff.toLocaleString('ko-KR')}원
-                    </Text>
-                  ) : null}
                 </View>
               </View>
             ) : null}
