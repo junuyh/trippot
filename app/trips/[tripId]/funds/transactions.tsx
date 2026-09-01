@@ -39,6 +39,7 @@ import { findDestinationByName } from "@/lib/constants/destinations";
 import {
   CATEGORY_CODE_LABEL,
   CATEGORY_METHOD,
+  REFUND_STATUS,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
   type CategoryCode,
@@ -55,6 +56,7 @@ import {
 import {
   deleteTransaction,
   getTransactions,
+  isRefundRelated,
   reviewReason,
   updateTransactionMapping,
   type Transaction,
@@ -259,8 +261,7 @@ export default function ScreenFUND01() {
       (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
     );
     if (filter === "REVIEW") rows = rows.filter((t) => reviewReason(t) !== null);
-    // TODO: 환불 필터 — transactions.refund_status 마이그레이션 적용 후 연결한다
-    if (filter === "REFUND") rows = [];
+    if (filter === "REFUND") rows = rows.filter((t) => isRefundRelated(t));
 
     if (sort === "AMOUNT_DESC") rows = [...rows].sort((a, b) => b.amount - a.amount);
     if (sort === "AMOUNT_ASC") rows = [...rows].sort((a, b) => a.amount - b.amount);
@@ -769,6 +770,16 @@ export default function ScreenFUND01() {
                     "연결된 계획",
                     detail.budget_plan_item_id ? "계획에 연결됨" : "연결 안 됨",
                   ],
+                  [
+                    "환불·취소",
+                    detail.refund_status === REFUND_STATUS.PENDING
+                      ? "환불 예정"
+                      : detail.refund_status === REFUND_STATUS.REFUNDED
+                        ? "환불 완료"
+                        : detail.refund_status === REFUND_STATUS.CANCELED
+                          ? "결제 취소"
+                          : "해당 없음",
+                  ],
                 ] as const
               ).map(([label, value]) => (
                 <View
@@ -810,7 +821,9 @@ export default function ScreenFUND01() {
                 >
                   {reviewReason(detail) === "UNCATEGORIZED"
                     ? "아직 예산 카테고리가 없어요. 카테고리를 정하면 해당 예산의 실제 사용액에 반영돼요."
-                    : "자동으로 분류했지만 확신이 낮아요. 맞는지 확인해 주세요."}
+                    : reviewReason(detail) === "REFUND_PENDING"
+                      ? "환불이 예정된 거래예요. 아직 돈이 돌아오지 않아 지출에는 남아 있어요."
+                      : "자동으로 분류했지만 확신이 낮아요. 맞는지 확인해 주세요."}
                 </Text>
               </View>
             ) : null}

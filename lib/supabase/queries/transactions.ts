@@ -5,7 +5,7 @@
 //   - 다른 사용자·모임·여행 데이터에 접근할 수 있는 Query 를 만들지 않는다.
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
-import { CATEGORY_METHOD, TRANSACTION_TYPE } from '@/lib/constants/status';
+import { CATEGORY_METHOD, REFUND_STATUS, TRANSACTION_TYPE } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Tables, TablesInsert } from '@/types/database';
 
@@ -184,7 +184,7 @@ export type FundTotals = {
 export async function getFundTotals(tripId: string): Promise<FundTotals> {
   const { data, error } = await supabase
     .from('transactions')
-    .select('transaction_type, amount')
+    .select('transaction_type, amount, refund_status')
     .eq('trip_id', tripId)
     .is('deleted_at', null);
 
@@ -193,8 +193,19 @@ export async function getFundTotals(tripId: string): Promise<FundTotals> {
   let depositTotal = 0;
   let withdrawalTotal = 0;
   for (const row of data ?? []) {
-    if (row.transaction_type === TRANSACTION_TYPE.DEPOSIT) depositTotal += row.amount;
-    else withdrawalTotal += row.amount;
+    if (row.transaction_type === TRANSACTION_TYPE.DEPOSIT) {
+      depositTotal += row.amount;
+      continue;
+    }
+    // ⚠️ 환불 완료·결제 취소는 나간 돈이 아니다. 지출 합계에서 뺀다.
+    //    환불 '예정' 은 아직 돈이 나가 있는 상태라 그대로 센다.
+    if (
+      row.refund_status === REFUND_STATUS.REFUNDED ||
+      row.refund_status === REFUND_STATUS.CANCELED
+    ) {
+      continue;
+    }
+    withdrawalTotal += row.amount;
   }
   return { depositTotal, withdrawalTotal };
 }
@@ -212,9 +223,11 @@ export async function getFundTotals(tripId: string): Promise<FundTotals> {
  */
 export const LOW_CONFIDENCE_THRESHOLD = 70;
 
-export type ReviewReason = 'UNCATEGORIZED' | 'LOW_CONFIDENCE';
+export type ReviewReason = 'UNCATEGORIZED' | 'LOW_CONFIDENCE' | 'REFUND_PENDING';
 
 export function reviewReason(transaction: Transaction): ReviewReason | null {
+  // 환불이 예정된 거래는 결과를 확인해야 한다. 분류보다 먼저 물어야 할 것이다.
+  if (transaction.refund_status === REFUND_STATUS.PENDING) return 'REFUND_PENDING';
   // 입금은 예산 카테고리에 붙지 않는다. 분류를 물을 대상이 아니다.
   if (transaction.transaction_type === TRANSACTION_TYPE.DEPOSIT) return null;
   if (!transaction.budget_category_id) return 'UNCATEGORIZED';
@@ -226,4 +239,9 @@ export function reviewReason(transaction: Transaction): ReviewReason | null {
     return 'LOW_CONFIDENCE';
   }
   return null;
+}
+
+/** 환불 필터 대상인가. 예정·완료·취소를 모두 보여준다 */
+export function isRefundRelated(transaction: Transaction): boolean {
+  return transaction.refund_status !== REFUND_STATUS.NONE;
 }

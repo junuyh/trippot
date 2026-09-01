@@ -310,7 +310,7 @@ export default function ScreenTripHome() {
    *       그때는 누적 모금액을 따로 보관하거나 입금 합계로 계산해야 한다.
    *       (docs/README.md §5 에 기록)
    */
-  const raisedAmount = fund?.current_amount ?? 0;
+  const raisedAmount = (fund?.current_amount ?? 0) + data.depositTotal;
   const actualTotal = data.categories.reduce((sum, c) => sum + c.actual_amount, 0);
   // 100 을 넘겨 넘기지 않는다. 비행기가 도착지를 지나치면 안 된다. (스펙 3장)
   const progress = targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;
