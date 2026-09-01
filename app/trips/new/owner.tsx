@@ -173,6 +173,7 @@ export default function ScreenTRIP01() {
       patchDraft({
         companionType,
         groupId: null,
+        groupName: null,
         newGroupName: companionType === COMPANION_TYPE.NEW_GROUP ? draft.newGroupName : null,
         applyPastData: null,
         pastDataInteracted: false,
@@ -197,6 +198,8 @@ export default function ScreenTRIP01() {
     (groupId: string) => {
       patchDraft({
         groupId,
+        // TRIP-02 인원 안내 문구에 쓴다. 목록에 없으면 null 로 두고 문구를 낮춘다.
+        groupName: groups.find((group) => group.id === groupId)?.name ?? null,
         applyPastData: null,
         pastDataInteracted: false,
         pastTripCount: 0,
@@ -210,7 +213,7 @@ export default function ScreenTRIP01() {
         .then((count) => patchDraft({ groupMemberCount: count }))
         .catch(() => patchDraft({ groupMemberCount: 0 }));
     },
-    [loadPastTripCount, patchDraft],
+    [groups, loadPastTripCount, patchDraft],
   );
 
   // ⚠️ 여기서 track() 을 부르지 않는다.

@@ -68,7 +68,7 @@ export default function ScreenTRIP02() {
   // 모른 채 검색부터 하게 되고, 있는 목적지를 못 찾아 직접 입력으로 새면
   // 기준 데이터를 쓰지 못한다.
   const [openRegion, setOpenRegion] = useState<RegionCode | null>(
-    () => (draft.isCustomDestination ? null : (draft.region ?? DEFAULT_OPEN_REGION)),
+    () => draft.region ?? DEFAULT_OPEN_REGION,
   );
 
   const handleSelectDestination = useCallback(
@@ -83,29 +83,6 @@ export default function ScreenTRIP02() {
     [patchDraft],
   );
 
-  const handleStartCustom = useCallback(() => {
-    patchDraft({
-      destinationCode: null,
-      // 목록에서 고른 이름을 그대로 두면 직접 입력 칸에 남아 헷갈린다.
-      destinationName: draft.isCustomDestination ? draft.destinationName : null,
-      region: draft.isCustomDestination ? draft.region : null,
-      isCustomDestination: true,
-    });
-  }, [draft.destinationName, draft.isCustomDestination, draft.region, patchDraft]);
-
-  const handleChangeCustomName = useCallback(
-    (value: string) => {
-      patchDraft({ destinationName: value });
-      setCustomNameError(null);
-    },
-    [patchDraft],
-  );
-
-  const handleSelectRegion = useCallback(
-    (region: RegionCode) => patchDraft({ region }),
-    [patchDraft],
-  );
-
   // ── 일정 ──────────────────────────────────────────────────────────────
   const handleChangeDates = useCallback(
     (next: { startDate: string | null; endDate: string | null }) => patchDraft(next),
@@ -115,23 +92,14 @@ export default function ScreenTRIP02() {
   // ── 검증 ──────────────────────────────────────────────────────────────
   // 시작일 > 종료일은 달력이 구조적으로 만들지 못한다(뒤를 누르면 새 시작일이 된다).
   // DB CHECK trips_date_order 가 최종 방어선이다.
+  // ⚠️ 2026-09-01 · 직접 입력을 MVP 에서 뺐다. 목록에 있는 12개만 고른다.
+  //    draft.isCustomDestination 은 이제 항상 false 다. 되돌릴 때를 위해 타입은 남긴다.
   const trimmedName = (draft.destinationName ?? '').trim();
-  const destinationValid = draft.isCustomDestination
-    ? trimmedName.length > 0 && draft.region !== null
-    : draft.destinationCode !== null;
+  const destinationValid = draft.destinationCode !== null;
   const datesValid = Boolean(draft.startDate && draft.endDate);
 
   // 스타일은 TRIP-03 으로 옮겼으므로 여기서 요구하지 않는다.
   const canSubmit = destinationValid && datesValid && draft.headcount >= 1;
-
-  // '다음' 이 disabled 라 눌러서는 검증을 띄울 수 없다.
-  // 입력칸을 건드렸다가 비운 채 벗어나는 시점에 알린다.
-  const [customNameError, setCustomNameError] = useState<string | null>(null);
-  const handleBlurCustomName = useCallback(() => {
-    setCustomNameError(
-      (draft.destinationName ?? '').trim().length === 0 ? '여행지를 입력해 주세요.' : null,
-    );
-  }, [draft.destinationName]);
 
   // ⚠️ 2026-09-01 · 단계별 노출을 걷어냈다. (HTML 디자인 반영)
   //    원래는 여행지 → 일정·인원 → 스타일 순으로 하나씩 펼쳤다. 한 번에 펼치면
@@ -153,7 +121,6 @@ export default function ScreenTRIP02() {
     navigatingRef.current = true;
 
     const destination = trimmedName;
-    if (draft.isCustomDestination) patchDraft({ destinationName: destination });
 
     // ⚠️ travel_style 파라미터를 지우지 않는다. (CLAUDE.md 13장 로그 보호)
     //    다만 스타일 입력이 TRIP-03 으로 가면서, 이 시점에는 사용자가 아직 고르지
@@ -187,6 +154,28 @@ export default function ScreenTRIP02() {
     draft.startDate && draft.endDate
       ? `${getDurationDays(draft.startDate, draft.endDate) - 1}박 ${getDurationDays(draft.startDate, draft.endDate)}일`
       : null;
+
+  /**
+   * 인원 안내 문구. (HTML renderPeople 과 같은 규칙)
+   *
+   * 모임 인원과 비교해 지금 몇 명인지를 그때그때 말해준다.
+   * "맞췄어요" 로만 고정해 두면 사용자가 인원을 바꾼 뒤에도 문구가 그대로라
+   * 화면이 거짓말을 하게 된다.
+   */
+  const headcountHint = (() => {
+    if (draft.companionType !== COMPANION_TYPE.EXISTING_GROUP) {
+      return '함께 가는 인원을 정해주세요';
+    }
+
+    const base = draft.groupMemberCount;
+    // 멤버 수를 못 불러왔으면 비교할 기준이 없다. 없는 숫자를 말하지 않는다.
+    if (base <= 0) return '함께 가는 인원을 정해주세요';
+
+    const name = draft.groupName ?? '모임';
+    if (draft.headcount === base) return `${name} 멤버 ${base}명으로 맞췄어요`;
+    if (draft.headcount < base) return `${name} 멤버 ${base}명 중 ${draft.headcount}명이 가요`;
+    return `${name} 멤버 ${base}명보다 ${draft.headcount - base}명 많아요`;
+  })();
 
   // 날짜를 아직 다 안 골랐을 때만 섹션 헤더에서 다음 할 일을 알려준다.
   const scheduleHint = !draft.startDate
@@ -223,15 +212,7 @@ export default function ScreenTRIP02() {
             selectedCode={draft.destinationCode}
             openRegion={openRegion}
             onOpenRegion={setOpenRegion}
-            isCustom={draft.isCustomDestination}
-            customName={draft.isCustomDestination ? (draft.destinationName ?? '') : ''}
-            customRegion={draft.region}
             onSelectDestination={handleSelectDestination}
-            onStartCustom={handleStartCustom}
-            onChangeCustomName={handleChangeCustomName}
-            onBlurCustomName={handleBlurCustomName}
-            onSelectRegion={handleSelectRegion}
-            customNameError={customNameError}
           />
         </View>
 
@@ -268,7 +249,7 @@ export default function ScreenTRIP02() {
             <View className="mb-2.5 flex-row items-baseline">
               <Text className="text-[15px] font-bold text-gray-900">인원</Text>
               <Text className="ml-1 text-[15px] font-bold text-red-500">*</Text>
-              {!headcountTouched ? (
+              {draft.companionType === COMPANION_TYPE.EXISTING_GROUP ? (
                 <Text className="ml-auto text-[11px] font-medium text-gray-400">바꿀 수 있어요</Text>
               ) : null}
             </View>
@@ -278,13 +259,7 @@ export default function ScreenTRIP02() {
                 setHeadcountTouched(true);
                 patchDraft({ headcount: value });
               }}
-              hint={
-                !headcountTouched
-                  ? draft.companionType === COMPANION_TYPE.EXISTING_GROUP
-                    ? `모임 인원 ${draft.headcount}명으로 맞췄어요`
-                    : `동행자 수에 맞춰 ${draft.headcount}명으로 맞췄어요`
-                  : undefined
-              }
+              hint={headcountHint}
             />
           </View>
         ) : null}

@@ -28,6 +28,12 @@ export type TripDraft = {
   companionType: CompanionType | null;
   /** 기존 모임을 골랐을 때만 채워진다 */
   groupId: string | null;
+  /**
+   * 고른 기존 모임의 이름. TRIP-02 인원 안내 문구에 쓴다.
+   * ("대학동기 멤버 4명 중 3명이 가요")
+   * 기존 모임이 아니면 null 이다. 저장에는 쓰지 않는다.
+   */
+  groupName: string | null;
   /** 신규 모임을 골랐을 때만 채워진다. 모임 생성은 TRIP-03 에서 한다 */
   newGroupName: string | null;
   /**
@@ -89,6 +95,7 @@ const INITIAL_DRAFT: TripDraft = {
   entryPoint: 'home',
   companionType: null,
   groupId: null,
+  groupName: null,
   newGroupName: null,
   companionNames: [],
   applyPastData: null,

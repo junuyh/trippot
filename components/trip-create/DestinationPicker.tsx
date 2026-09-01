@@ -11,17 +11,18 @@
 //    검색하다 못 찾고 직접 입력으로 새면 기준 데이터를 못 쓰기 때문이었다.
 //    그래서 검색을 **목록을 걷어내지 않는 방식**으로 넣었다.
 //      · 검색어가 없으면 지역 칩 + 도시 목록이 그대로 보인다. 검색은 곁다리다.
-//      · 결과가 없을 때 막다른 길로 두지 않고 직접 입력으로 바로 잇는다.
 //
-// 직접 입력이면 기준 데이터가 없으므로 **지역을 함께 받는다.**
-// '다낭' → southeast_asia 같은 문자열 매칭은 하지 않는다. (docs/README.md §5 #12)
+// ⚠️ 2026-09-01 · '찾는 곳이 없나요? 직접 입력' 을 뺐다. **MVP 범위에서 제외한다.**
+//    목록에 있는 12개만 고를 수 있다. 기준 데이터가 있는 목적지만 다루면
+//    추천 금액이 항상 근거를 갖는다.
+//    지역 평균으로 추천하는 경로(BASELINE_ESTIMATE_NOTICE, isCustomDestination,
+//    지역 직접 선택)는 draft 와 계산 쪽에 그대로 남아 있다. UI 만 걷어냈다.
+//    되돌릴 때는 이 커밋을 참고한다.
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { Input } from '@/components/ui';
 import {
-  BASELINE_ESTIMATE_NOTICE,
   DESTINATIONS,
   REGION_LABEL,
   type Destination,
@@ -37,15 +38,7 @@ type Props = {
   openRegion: RegionCode | null;
   onOpenRegion: (region: RegionCode) => void;
 
-  isCustom: boolean;
-  customName: string;
-  customRegion: RegionCode | null;
   onSelectDestination: (destination: Destination) => void;
-  onStartCustom: () => void;
-  onChangeCustomName: (value: string) => void;
-  onBlurCustomName: () => void;
-  onSelectRegion: (region: RegionCode) => void;
-  customNameError?: string | null;
 };
 
 function Chip({
@@ -97,13 +90,19 @@ function CountryRow({
         isFirst ? '' : 'border-t border-gray-100'
       }`}
     >
-      {/* 홍콩처럼 라벨이 없는 줄은 칸을 비워 두지 않는다. 도시가 왼쪽부터 시작한다. */}
-      {showLabel ? (
-        <View className="w-[74px] flex-row items-center gap-1 pt-2.5">
-          <Text className="text-sm">{destinations[0].flag}</Text>
-          <Text className="text-xs font-bold text-gray-500">{countryKo}</Text>
-        </View>
-      ) : null}
+      {/*
+        홍콩처럼 나라 이름과 도시 이름이 같으면 라벨을 그리지 않는다.
+        다만 칸은 비워 둔다. 라벨이 없다고 칸까지 없애면 그 줄의 도시만 왼쪽으로
+        튀어나와, 세로로 훑을 때 다른 도시들과 줄이 맞지 않는다.
+      */}
+      <View className="w-[74px] flex-row items-center gap-1 pt-2.5">
+        {showLabel ? (
+          <>
+            <Text className="text-sm">{destinations[0].flag}</Text>
+            <Text className="text-xs font-bold text-gray-500">{countryKo}</Text>
+          </>
+        ) : null}
+      </View>
       <View className="flex-1 flex-row flex-wrap gap-1.5">
         {destinations.map((destination) => (
           <Chip
@@ -122,15 +121,7 @@ export function DestinationPicker({
   selectedCode,
   openRegion,
   onOpenRegion,
-  isCustom,
-  customName,
-  customRegion,
   onSelectDestination,
-  onStartCustom,
-  onChangeCustomName,
-  onBlurCustomName,
-  onSelectRegion,
-  customNameError = null,
 }: Props) {
   // 검색어는 화면에 올리지 않는다. 저장되지도 기록되지도 않는 표시용 상태다.
   const [query, setQuery] = useState('');
@@ -199,7 +190,7 @@ export function DestinationPicker({
           <Chip
             key={region}
             label={REGION_LABEL[region]}
-            selected={!isCustom && !trimmedQuery && openRegion === region}
+            selected={!trimmedQuery && openRegion === region}
             onPress={() => {
               setQuery('');
               onOpenRegion(region);
@@ -209,7 +200,7 @@ export function DestinationPicker({
       </ScrollView>
 
       {/* ── 도시 ── */}
-      {!isCustom && (trimmedQuery || openRegion) ? (
+      {trimmedQuery || openRegion ? (
         <View className="rounded-2xl border border-gray-200 bg-white py-1">
           {countryGroups.length > 0 ? (
             countryGroups.map((group, index) => (
@@ -223,88 +214,13 @@ export function DestinationPicker({
               />
             ))
           ) : (
-            // 막다른 길로 두지 않는다. 검색해서 못 찾은 사람이 갈 곳은 직접 입력이다.
-            <View className="items-center gap-3 px-4 py-7">
+            <View className="items-center gap-2 px-4 py-7">
               <Text className="text-center text-xs leading-5 text-gray-400">
                 &lsquo;{trimmedQuery}&rsquo; 는 목록에 없어요.{'\n'}
-                직접 입력하면 지역 평균으로 추천해 드려요.
+                위 지역에서 골라보시겠어요?
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="직접 입력하기"
-                onPress={() => {
-                  setQuery('');
-                  onStartCustom();
-                }}
-                className="rounded-xl bg-gray-100 px-4 py-2.5 active:bg-gray-200"
-              >
-                <Text className="text-[13px] font-bold text-gray-700">직접 입력하기</Text>
-              </Pressable>
             </View>
           )}
-        </View>
-      ) : null}
-
-      {/* ── 직접 입력 ── */}
-      <Pressable
-        accessibilityRole="radio"
-        accessibilityState={{ selected: isCustom }}
-        accessibilityLabel="찾는 곳이 없나요? 직접 입력"
-        onPress={onStartCustom}
-        className={`flex-row items-center gap-2 rounded-xl border px-4 py-3 ${
-          isCustom ? 'border-blue-600 bg-blue-50' : 'border-dashed border-gray-300 active:bg-gray-50'
-        }`}
-      >
-        <Ionicons
-          name={isCustom ? 'checkmark-circle' : 'add'}
-          size={18}
-          color={isCustom ? '#2563eb' : '#6b7280'}
-        />
-        <Text className={`text-sm ${isCustom ? 'font-semibold text-blue-700' : 'text-gray-600'}`}>
-          찾는 곳이 없나요? 직접 입력
-        </Text>
-      </Pressable>
-
-      {isCustom ? (
-        <View className="gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <Input
-            label="여행지"
-            required
-            value={customName}
-            onChangeText={onChangeCustomName}
-            onBlur={onBlurCustomName}
-            placeholder="예: 다낭"
-            error={customNameError}
-            maxLength={20}
-            returnKeyType="done"
-          />
-
-          <View>
-            <Text className="mb-1.5 text-sm font-medium text-gray-700">
-              어느 지역인가요? <Text className="text-red-500">*</Text>
-            </Text>
-            <Text className="mb-2 text-xs text-gray-400">
-              지역을 알아야 평균 물가로 예산을 추천할 수 있어요.
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {REGIONS.map((region) => (
-                <Chip
-                  key={region}
-                  label={REGION_LABEL[region]}
-                  selected={customRegion === region}
-                  onPress={() => onSelectRegion(region)}
-                />
-              ))}
-            </View>
-          </View>
-
-          {/* NFR-004 — 추천이 추정치임을 화면에 표시한다 */}
-          <View className="flex-row items-start gap-1.5 rounded-xl bg-amber-50 px-3 py-2.5">
-            <Ionicons name="information-circle-outline" size={16} color="#d97706" />
-            <Text className="flex-1 text-xs leading-4 text-amber-700">
-              {BASELINE_ESTIMATE_NOTICE}
-            </Text>
-          </View>
         </View>
       ) : null}
     </View>
