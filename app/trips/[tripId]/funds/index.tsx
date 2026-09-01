@@ -1,66 +1,96 @@
 // ============================================================================
-// FUND-01 여행자금 내역  ·  /trips/:tripId/funds
+// FUND-01 여행자금 / 입출금 관리  ·  /trips/:tripId/funds
 //
-// 계좌 내역처럼 거래를 **날짜별로 묶어** 보여준다.
-//   ?categoryId=... 로 들어오면 그 카테고리 지출만 (BUDGET-02 '전체 내역 보기')
-//   없으면 이 여행의 전체 입출금
+// 여행자금을 **관리하는** 자리다. 목록만 보는 자리가 아니다. (IA v2 §2-4)
+//   ① 현재 여행자금 — 누적 모금액 · 목표 · 앞으로 필요한 금액
+//   ② 자금 추가 / 차감          ← 계좌를 연결하지 않은 사용자의 유일한 조정 수단
+//   ③ 최근 입출금 10건 (카테고리 구분 없이 최신순)
+//   ④ 입출금 전체 내역 → /funds/transactions
+//   ⑤ 계좌 연결 / 전환 → FUND-02
 //
-// ⚠️ 입금과 출금을 한 목록에 두되 부호로 구분한다.
-//    **출금만 예산 실제 사용액에 합산된다.** 입금은 자금 유입이다. (ERD §3)
+// ⚠️ 누적 모금액과 현재 잔액을 혼용하지 않는다. (IA v2 §2-4-1)
+//    결제로 줄어드는 것은 잔액이지 모은 금액이 아니다.
 //
-// ⚠️ 거래명은 화면에 보여주되 이벤트 파라미터로 보내지 않는다. (NFR-007)
+// ⚠️ 자금 추가·차감을 fund_sources.current_amount 직접 수정으로 처리하지 않는다.
+//    거래로 남겨야 **언제 얼마를 모았는지**가 남는다. 그게 없으면
+//    "하루 얼마씩 모으면 목표에 닿아요" 의 근거도, 결산·개인화에 쓸 데이터도
+//    만들어지지 않는다.
 //
-// 거래 상세(FUND-03)는 아직 고도화 단계라 항목을 눌러도 이동하지 않는다.
-// (docs/README.md §5 #19)
+// 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/fund/.
 // ============================================================================
-import { format, isSameDay, parseISO } from 'date-fns';
-import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import { Alert, Modal, Pressable, SectionList, Text, View } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
-
-import { EmptyState, ErrorState, Loading } from '@/components/ui';
-import { SCREENS } from '@/lib/analytics/events';
-import { countryTheme } from '@/lib/constants/countryTheme';
-import { findDestinationByName } from '@/lib/constants/destinations';
+import { Ionicons } from "@expo/vector-icons";
+import { format } from "date-fns";
 import {
-  CATEGORY_CODE_LABEL,
-  CATEGORY_METHOD,
+  Stack,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+
+import {
+  FundSummaryCard,
+  RecentFundList,
+  type FundDraft,
+} from "@/components/fund";
+import {
+  BottomSheet,
+  Button,
+  CurrencyInput,
+  EmptyState,
+  ErrorState,
+  Input,
+  Loading,
+} from "@/components/ui";
+import { SCREENS } from "@/lib/analytics/events";
+import { countryTheme } from "@/lib/constants/countryTheme";
+import { findDestinationByName } from "@/lib/constants/destinations";
+import {
+  FUND_SOURCE_TYPE,
+  TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
-  type CategoryCode,
-} from '@/lib/constants/status';
-import { EVENTS } from '@/lib/analytics/events';
-import { track } from '@/lib/analytics/track';
-import { CATEGORY_CODE_TO_ANALYTICS, MAPPED_BY } from '@/lib/constants/status';
-import { useScreenView } from '@/lib/hooks/useScreenView';
+  type TransactionType,
+} from "@/lib/constants/status";
+import { useScreenView } from "@/lib/hooks/useScreenView";
 import {
   getBudgetByTripId,
-  getBudgetCategories,
-  type BudgetCategory,
-} from '@/lib/supabase/queries/budgets';
+  type TripBudget,
+} from "@/lib/supabase/queries/budgets";
+import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
 import {
-  deleteTransaction,
+  createTransaction,
+  getFundTotals,
   getTransactions,
-  updateTransactionMapping,
   type Transaction,
-} from '@/lib/supabase/queries/transactions';
-import { getGroupAccounts } from '@/lib/supabase/queries/funds';
-import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
+} from "@/lib/supabase/queries/transactions";
+import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
 
-type FundsData = {
+/** 허브에 보여줄 최근 내역 건수. 전체는 /funds/transactions 가 담당한다 */
+const RECENT_LIMIT = 10;
+
+type FundData = {
   trip: Trip;
-  categories: BudgetCategory[];
+  budget: TripBudget | null;
+  fund: FundSource | null;
   transactions: Transaction[];
-  /** 마스킹된 계좌번호. 연결 계좌가 없으면 null (NFR-002) */
-  maskedAccountNumber: string | null;
+  depositTotal: number;
+  withdrawalTotal: number;
 };
 
 export default function ScreenFUND01() {
-  const { tripId, categoryId } = useLocalSearchParams<{ tripId: string; categoryId?: string }>();
+  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  useScreenView(SCREENS.TRANSACTION_LIST);
 
-  const [data, setData] = useState<FundsData | null>(null);
+  const [data, setData] = useState<FundData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
@@ -79,24 +109,27 @@ export default function ScreenFUND01() {
         setNotFound(true);
         return;
       }
-      const budget = await getBudgetByTripId(trip.id);
-      const [categories, transactions, accounts] = await Promise.all([
-        budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
-        getTransactions(trip.id, categoryId ? { categoryId } : undefined),
-        trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+      const [budget, fund, transactions, totals] = await Promise.all([
+        getBudgetByTripId(trip.id),
+        getTravelFund(trip.id),
+        getTransactions(trip.id, { limit: RECENT_LIMIT }),
+        getFundTotals(trip.id),
       ]);
       setData({
         trip,
-        categories,
+        budget,
+        fund,
         transactions,
-        maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
+        depositTotal: totals.depositTotal,
+        withdrawalTotal: totals.withdrawalTotal,
       });
     } catch {
       setError(true);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [categoryId, tripId]);
+  }, [tripId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,131 +137,79 @@ export default function ScreenFUND01() {
     }, [load]),
   );
 
-  useScreenView(SCREENS.TRANSACTION_LIST);
+  // ── 자금 추가 / 차감 ──────────────────────────────────────────────────
+  const [sheetType, setSheetType] = useState<TransactionType | null>(null);
+  const [draft, setDraft] = useState<FundDraft>({ name: "", amount: null });
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  // ── 카테고리 변경 ─────────────────────────────────────────────────────
-  /** 편집 중인 거래. null 이면 시트를 닫는다 */
-  const [editing, setEditing] = useState<Transaction | null>(null);
-  const [busy, setBusy] = useState(false);
+  const openSheet = useCallback((type: TransactionType) => {
+    setDraft({ name: "", amount: null });
+    setNameError(null);
+    setSheetType(type);
+  }, []);
 
-  const handleChangeCategory = useCallback(
-    async (nextCategoryId: string) => {
-      if (!editing || !data || busy) return;
-      setBusy(true);
-      try {
-        await updateTransactionMapping(editing.id, {
-          categoryId: nextCategoryId,
-          // 사용자가 직접 고친 분류다. 자동분류 정확도를 재는 기준이 된다
-          categoryMethod: CATEGORY_METHOD.USER,
-        });
+  const handleSubmit = useCallback(async () => {
+    if (!data || !sheetType || saving) return;
+    const name = draft.name.trim();
+    if (!name) {
+      setNameError("내용을 입력해 주세요.");
+      return;
+    }
+    if (!draft.amount || draft.amount <= 0) {
+      setNameError(null);
+      return;
+    }
 
-        const nextCode = data.categories.find((c) => c.id === nextCategoryId)?.category_code;
-        if (nextCode) {
-          // 자동분류가 틀려서 사용자가 고쳤다는 신호다. (docs/06 §7-3)
-          track(EVENTS.TRANSACTION_CATEGORY_CORRECTED, {
-            trip_id: data.trip.id,
-            category: CATEGORY_CODE_TO_ANALYTICS[nextCode as CategoryCode],
-            mapped_by: MAPPED_BY.USER,
-          });
-        }
+    setSaving(true);
+    try {
+      await createTransaction({
+        trip_id: data.trip.id,
+        // 직접 입력한 자금 이동이다. 계좌에서 불러온 거래가 아니다.
+        source_type: TRANSACTION_SOURCE_TYPE.MANUAL,
+        transaction_type: sheetType,
+        occurred_at: new Date().toISOString(),
+        name,
+        amount: draft.amount,
+        // ⚠️ 예산 카테고리에 붙이지 않는다.
+        //    입금은 자금 유입이라 지출이 아니고, 자금 차감도 여행 지출이 아니다.
+        //    카테고리를 붙이면 그 카테고리의 실제 사용액이 부풀려진다.
+        budget_category_id: null,
+      });
+      setSheetType(null);
+      await load();
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  }, [data, draft, load, saving, sheetType]);
 
-        setEditing(null);
-        await load();
-      } catch {
-        setError(true);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [busy, data, editing, load],
-  );
-
-  // 삭제는 되돌릴 수 없다. 먼저 확인한다. (NFR-003)
-  const handleDelete = useCallback(
-    (transaction: Transaction) => {
-      Alert.alert(
-        '이 거래를 삭제할까요?',
-        `${transaction.name ?? '이름 없는 거래'} · ${transaction.amount.toLocaleString('ko-KR')}원`,
-        [
-          { text: '취소', style: 'cancel' },
-          {
-            text: '삭제',
-            style: 'destructive',
-            onPress: () => {
-              void deleteTransaction(transaction.id)
-                .then(() => load())
-                .catch(() => setError(true));
-            },
-          },
-        ],
-      );
-    },
-    [load],
-  );
-
+  // ── 파생값 ────────────────────────────────────────────────────────────
   const theme = useMemo(
-    () => countryTheme(findDestinationByName(data?.trip.destination)?.countryKo),
+    () =>
+      countryTheme(findDestinationByName(data?.trip.destination)?.countryKo),
     [data?.trip.destination],
   );
-
-  const categoryLabel = useMemo(() => {
-    if (!categoryId || !data) return null;
-    const found = data.categories.find((category) => category.id === categoryId);
-    return found ? CATEGORY_CODE_LABEL[found.category_code as CategoryCode] : null;
-  }, [categoryId, data]);
-
-  // 날짜별로 묶는다. 거래는 이미 occurred_at 내림차순으로 온다.
-  const sections = useMemo(() => {
-    const byCategory = new Map((data?.categories ?? []).map((c) => [c.id, c.category_code]));
-    const groups: { title: string; total: number; data: Transaction[] }[] = [];
-
-    for (const transaction of data?.transactions ?? []) {
-      const when = parseISO(transaction.occurred_at);
-      const last = groups[groups.length - 1];
-      if (last && isSameDay(parseISO(last.data[0].occurred_at), when)) {
-        last.data.push(transaction);
-      } else {
-        groups.push({ title: format(when, 'M월 d일'), total: 0, data: [transaction] });
-      }
-    }
-
-    // 날짜별 출금 합계. 입금은 자금 유입이라 지출 합계에 넣지 않는다.
-    for (const group of groups) {
-      group.total = group.data
-        .filter((t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL)
-        .reduce((sum, t) => sum + t.amount, 0);
-    }
-
-    return groups.map((group) => ({
-      ...group,
-      data: group.data.map((transaction) => ({
-        transaction,
-        categoryCode: transaction.budget_category_id
-          ? ((byCategory.get(transaction.budget_category_id) as CategoryCode | undefined) ?? null)
-          : null,
-      })),
-    }));
-  }, [data?.categories, data?.transactions]);
-
-  const title = categoryLabel ? `${categoryLabel} 지출` : '여행자금 내역';
 
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
-        <Loading message="내역을 불러오는 중…" />
+        <Stack.Screen options={{ title: "여행자금" }} />
+        <Loading message="여행자금을 불러오는 중…" />
       </View>
     );
   }
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{ title: "여행자금" }} />
         <EmptyState
-          icon="receipt-outline"
+          icon="wallet-outline"
           title="여행을 찾을 수 없어요"
+          description="삭제되었거나 접근할 수 없는 여행이에요."
           actionLabel="홈으로"
-          onAction={() => router.replace('/')}
+          onAction={() => router.replace("/")}
         />
       </View>
     );
@@ -236,248 +217,195 @@ export default function ScreenFUND01() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
-        <ErrorState message="내역을 불러오지 못했어요." onRetry={() => void load()} />
-      </View>
-    );
-  }
-
-  if (sections.length === 0) {
-    return (
-      <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
-        <EmptyState
-          icon="receipt-outline"
-          title="아직 거래 내역이 없어요"
-          description="계좌를 연결하거나 지출을 직접 입력하면 여기에 쌓여요."
+        <Stack.Screen options={{ title: "여행자금" }} />
+        <ErrorState
+          message="여행자금을 불러오지 못했어요."
+          onRetry={() => void load()}
         />
       </View>
     );
   }
+
+  /**
+   * 누적 모금액 = 등록 금액 + 입금 합계. (IA v2 §2-4-1)
+   * 결제로 줄지 않는다. 잘못 넣은 입금을 지우면 그때 다시 계산된다.
+   */
+  const raisedAmount = (data.fund?.current_amount ?? 0) + data.depositTotal;
+  /** 현재 잔액 = 누적 모금액 − 출금 합계 */
+  const balance = Math.max(0, raisedAmount - data.withdrawalTotal);
+  const targetAmount = data.budget?.target_amount ?? 0;
+  const connected =
+    data.fund?.source_type === FUND_SOURCE_TYPE.MOCK ||
+    data.fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT;
+
+  const deposit = sheetType === TRANSACTION_TYPE.DEPOSIT;
 
   return (
     <View className="flex-1 bg-white">
-      <Stack.Screen options={{ title }} />
-
-      {/*
-        연결 계좌 안내는 여기서만 보여준다.
-        카테고리 화면(BUDGET-02)에서는 지출 자체에 집중하도록 숨겼다.
-      */}
-      {data.maskedAccountNumber ? (
-        <View
-          className="flex-row items-center gap-2.5"
-          style={{ paddingHorizontal: 16, paddingVertical: 13, backgroundColor: '#f5f7fa' }}
-        >
-          <View
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
-              backgroundColor: '#fff',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Ionicons name="card-outline" size={16} color="#5d6674" />
-          </View>
-          <View className="flex-1">
-            <Text style={{ fontSize: 11, fontWeight: '700', color: '#121a2a' }}>
-              연결 계좌 자동 분류
-            </Text>
-            <Text style={{ fontSize: 9, color: '#7d8797', marginTop: 3 }}>
-              {data.maskedAccountNumber}
-            </Text>
-          </View>
-          <View
-            style={{ backgroundColor: '#e8f7f0', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 5 }}
-          >
-            <Text style={{ fontSize: 8, fontWeight: '900', color: '#2d8a63' }}>연결됨</Text>
-          </View>
-        </View>
-      ) : null}
-
-      {/* 밀어서 수정·삭제 */}
-      <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
-        <Text style={{ fontSize: 10, color: '#a3a9b3' }}>
-          왼쪽으로 밀면 카테고리를 바꾸거나 삭제할 수 있어요
-        </Text>
-      </View>
-
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.transaction.id}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        stickySectionHeadersEnabled={false}
-        renderSectionHeader={({ section }) => (
-          <View
-            className="flex-row items-center justify-between"
-            style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: '800', color: '#121a2a' }}>
-              {section.title}
-            </Text>
-            {section.total > 0 ? (
-              <Text style={{ fontSize: 11, color: '#8b94a2' }}>
-                지출 {section.total.toLocaleString('ko-KR')}원
-              </Text>
-            ) : null}
-          </View>
-        )}
-        renderItem={({ item }) => {
-          const { transaction, categoryCode } = item;
-          const deposit = transaction.transaction_type === TRANSACTION_TYPE.DEPOSIT;
-          const auto = transaction.category_method === CATEGORY_METHOD.AUTO;
-
-          return (
-            <Swipeable
-              overshootRight={false}
-              renderRightActions={() => (
-                <View className="flex-row">
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="카테고리 변경"
-                    onPress={() => setEditing(transaction)}
-                    style={{ width: 72, backgroundColor: '#4b5563' }}
-                    className="items-center justify-center"
-                  >
-                    <Ionicons name="pricetag-outline" size={17} color="#fff" />
-                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', marginTop: 3 }}>
-                      수정
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="거래 삭제"
-                    onPress={() => handleDelete(transaction)}
-                    style={{ width: 72, backgroundColor: '#e1394a' }}
-                    className="items-center justify-center"
-                  >
-                    <Ionicons name="trash-outline" size={17} color="#fff" />
-                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', marginTop: 3 }}>
-                      삭제
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
-            >
-            <View
-              className="flex-row items-center gap-3"
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 13,
-                borderTopWidth: 1,
-                borderColor: '#f1f3f5',
-                backgroundColor: '#fff',
-              }}
-            >
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 11,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: deposit ? '#e8f7f0' : auto ? '#fff0e8' : '#eef2f8',
-                }}
-              >
-                <Ionicons
-                  name={deposit ? 'arrow-down' : auto ? 'flash-outline' : 'create-outline'}
-                  size={15}
-                  color={deposit ? '#2d8a63' : auto ? '#d97a4a' : '#5d6674'}
-                />
-              </View>
-
-              <View className="flex-1">
-                <Text numberOfLines={1} style={{ fontSize: 14, color: '#121a2a' }}>
-                  {transaction.name ?? '이름 없는 거래'}
-                </Text>
-                <Text style={{ fontSize: 10, color: '#8b94a2', marginTop: 3 }}>
-                  {[
-                    categoryCode ? CATEGORY_CODE_LABEL[categoryCode] : '미분류',
-                    auto ? '자동 분류' : '직접 입력',
-                  ].join(' · ')}
-                </Text>
-              </View>
-
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: '700',
-                  color: deposit ? theme.primary : '#121a2a',
-                }}
-              >
-                {deposit ? '+' : '−'}
-                {transaction.amount.toLocaleString('ko-KR')}원
-              </Text>
-            </View>
-            </Swipeable>
-          );
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 16,
+          paddingBottom: 40,
         }}
-      />
-
-      {/* 카테고리 변경 시트 */}
-      <Modal
-        visible={editing !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setEditing(null)}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void load();
+            }}
+          />
+        }
       >
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }}
-          onPress={() => setEditing(null)}
+        <Stack.Screen options={{ title: "여행자금" }} />
+
+        <FundSummaryCard
+          theme={theme}
+          raisedAmount={raisedAmount}
+          balanceAmount={balance}
+          targetAmount={targetAmount}
+          spentAmount={data.withdrawalTotal}
+          onAdd={() => openSheet(TRANSACTION_TYPE.DEPOSIT)}
+          onSubtract={() => openSheet(TRANSACTION_TYPE.WITHDRAWAL)}
         />
-        <View
+
+        {/* ── 계좌 연결 / 전환 ── */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={connected ? "연결 계좌 관리" : "계좌 연결하기"}
+          onPress={() => router.push(`/trips/${data.trip.id}/funds/connect`)}
+          className="active:bg-gray-50"
           style={{
-            backgroundColor: '#fff',
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            paddingHorizontal: 20,
-            paddingTop: 20,
-            paddingBottom: 34,
+            marginTop: 12,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            padding: 14,
+            borderWidth: 1,
+            borderColor: "#e8eaee",
+            borderRadius: 14,
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: '800', color: '#121a2a' }}>
-            카테고리 변경
-          </Text>
-          <Text numberOfLines={1} style={{ fontSize: 12, color: '#8b94a2', marginTop: 4 }}>
-            {editing?.name ?? '이름 없는 거래'} ·{' '}
-            {(editing?.amount ?? 0).toLocaleString('ko-KR')}원
-          </Text>
+          <Ionicons name="card-outline" size={18} color={theme.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, fontWeight: "800", color: "#141b28" }}>
+              {connected ? "연결 계좌 관리" : "계좌 연결하기"}
+            </Text>
+            <Text style={{ marginTop: 3, fontSize: 10, color: "#858e9c" }}>
+              {connected
+                ? "연결을 해제하면 직접 입력으로 돌아가요."
+                : "연결하면 입출금이 자동으로 기록돼요."}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={15} color="#a8afb9" />
+        </Pressable>
 
-          <View className="mt-4 flex-row flex-wrap" style={{ gap: 8 }}>
-            {(data?.categories ?? []).map((category) => {
-              const selected = editing?.budget_category_id === category.id;
-              return (
-                <Pressable
-                  key={category.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  disabled={busy}
-                  onPress={() => void handleChangeCategory(category.id)}
-                  style={{
-                    paddingHorizontal: 14,
-                    paddingVertical: 10,
-                    borderRadius: 20,
-                    borderWidth: 1,
-                    borderColor: selected ? theme.primary : '#e7e9ed',
-                    backgroundColor: selected ? theme.primary : '#fff',
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: selected ? '800' : '400',
-                      color: selected ? theme.onPrimary : '#121a2a',
-                    }}
-                  >
-                    {CATEGORY_CODE_LABEL[category.category_code as CategoryCode]}
-                  </Text>
-                </Pressable>
-              );
-            })}
+        {/* ── 최근 입출금 ── */}
+        <View style={{ marginTop: 26 }}>
+          <View
+            className="flex-row items-end justify-between"
+            style={{ marginHorizontal: 3, marginBottom: 11 }}
+          >
+            <Text style={{ fontSize: 17, fontWeight: "800", color: "#141b28" }}>
+              최근 입출금
+            </Text>
+            <Text
+              accessibilityRole="button"
+              onPress={() =>
+                router.push(`/trips/${data.trip.id}/funds/transactions`)
+              }
+              style={{ fontSize: 10, fontWeight: "600", color: theme.primary }}
+            >
+              입출금 전체 내역 ›
+            </Text>
+          </View>
+
+          <RecentFundList
+            theme={theme}
+            transactions={data.transactions.map((transaction) => ({
+              id: transaction.id,
+              name: transaction.name,
+              amount: transaction.amount,
+              deposit:
+                transaction.transaction_type === TRANSACTION_TYPE.DEPOSIT,
+              occurredAt: transaction.occurred_at,
+            }))}
+            onSelect={(transactionId) =>
+              router.push(
+                `/trips/${data.trip.id}/funds/transactions?transactionId=${transactionId}`,
+              )
+            }
+          />
+        </View>
+      </ScrollView>
+
+      {/* ── 자금 추가 / 차감 ── */}
+      <BottomSheet
+        visible={sheetType !== null}
+        title={deposit ? "여행자금 추가" : "여행자금 차감"}
+        description={
+          deposit
+            ? "모은 금액을 기록해요. 오늘 날짜로 입금 내역이 남아요."
+            : "여행자금에서 뺀 금액이에요. 모은 금액은 줄지 않고 잔액만 줄어요."
+        }
+        onClose={() => setSheetType(null)}
+        footer={
+          <View className="flex-row gap-2">
+            <View style={{ flex: 1 }}>
+              <Button
+                label="취소"
+                variant="secondary"
+                onPress={() => setSheetType(null)}
+                disabled={saving}
+              />
+            </View>
+            <View style={{ flex: 2 }}>
+              <Button
+                label={deposit ? "추가" : "차감"}
+                loading={saving}
+                onPress={() => void handleSubmit()}
+              />
+            </View>
+          </View>
+        }
+      >
+        <View style={{ gap: 13, paddingTop: 13 }}>
+          <Input
+            label="내용"
+            required
+            value={draft.name}
+            onChangeText={(name) => {
+              setDraft({ ...draft, name });
+              if (nameError) setNameError(null);
+            }}
+            placeholder={deposit ? "예: 9월 적금" : "예: 여행자금에서 인출"}
+            error={nameError}
+            maxLength={30}
+          />
+          <CurrencyInput
+            label="금액"
+            required
+            value={draft.amount}
+            onChangeValue={(amount) => setDraft({ ...draft, amount })}
+          />
+          <View
+            style={{
+              borderRadius: 11,
+              backgroundColor: "#f5f6f8",
+              padding: 11,
+            }}
+          >
+            <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }}>
+              {format(new Date(), "M월 d일")} 자로 기록돼요.
+              {"\n"}
+              {deposit
+                ? "잘못 넣었다면 입출금 전체 내역에서 지울 수 있어요."
+                : "여행 지출이 아니라 자금 이동이에요. 예산 사용액에는 넣지 않아요."}
+            </Text>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </View>
   );
 }

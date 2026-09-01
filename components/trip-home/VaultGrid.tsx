@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
 
+import { CATEGORY_EMOJI } from '@/lib/constants/categoryEmoji';
 import type { CountryTheme } from '@/lib/constants/countryTheme';
 import { CATEGORY_CODE, CATEGORY_CODE_LABEL, type CategoryCode } from '@/lib/constants/status';
 
@@ -15,17 +16,6 @@ export type VaultCategory = {
   plannedAmount: number;
   preparedAmount: number;
   actualAmount: number;
-};
-
-const EMOJI: Record<CategoryCode, string> = {
-  [CATEGORY_CODE.AIRFARE]: '✈️',
-  [CATEGORY_CODE.LODGING]: '🏨',
-  [CATEGORY_CODE.FOOD]: '🍽️',
-  [CATEGORY_CODE.TRANSPORT]: '🚇',
-  [CATEGORY_CODE.ACTIVITY]: '🎡',
-  [CATEGORY_CODE.SHOPPING]: '🛍️',
-  [CATEGORY_CODE.INSURANCE]: '🛡️',
-  [CATEGORY_CODE.CONTINGENCY]: '💰',
 };
 
 /** 화면 표시 순서. 금고를 채우는 순서와 다르다 (vault.ts VAULT_FILL_ORDER) */
@@ -85,13 +75,17 @@ export function VaultGrid({ categories, theme, onSelect }: Props) {
               borderWidth: 1,
               borderStyle: unset ? 'dashed' : 'solid',
               borderColor: active ? theme.primary + '55' : '#e8ebef',
-              backgroundColor: active ? theme.primarySoft : unset ? '#fafbfc' : '#fff',
+              // ⚠️ 채움 표시는 **미세하게** 둔다. (스펙 10장)
+              //    8칸 중 6칸이 채워지는 일이 흔해서, 배지 수준으로 칠하면
+              //    화면 절반이 포인트 컬러로 덮여 정작 강조할 곳이 묻힌다.
+              //    시안 기준(#fff7f8)에 맞춰 포인트 컬러를 5% 만 얹는다.
+              backgroundColor: active ? theme.primary + '0D' : unset ? '#fafbfc' : '#fff',
               paddingVertical: 11,
               paddingHorizontal: 8,
               justifyContent: 'space-between',
             }}
           >
-            <Text style={{ fontSize: 21 }}>{EMOJI[code]}</Text>
+            <Text style={{ fontSize: 21 }}>{CATEGORY_EMOJI[code]}</Text>
             <View>
               <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#111827' }}>
                 {CATEGORY_CODE_LABEL[code]}
