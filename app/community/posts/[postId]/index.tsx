@@ -19,10 +19,13 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
 import { PostDetailView, type PostDetailData } from '@/components/community';
+import { toCoverUrls } from '@/components/community/cover';
 import { formatPublished } from '@/components/community/format';
 import { ErrorState, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
+import { countryTheme } from '@/lib/constants/countryTheme';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { findDestinationByName } from '@/lib/constants/destinations';
 import { POST_TYPE_LABEL } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import {
@@ -31,6 +34,15 @@ import {
   removeLike,
   type PostDetail,
 } from '@/lib/supabase/queries/community';
+
+/**
+ * 카드 윗면 색. 목적지 국가 테마에서 가져온다.
+ * 여행이 연결되지 않은 글은 뉴트럴 테마다. (countryTheme 의 기본값)
+ */
+function toAccent(destination: string | null) {
+  const theme = countryTheme(findDestinationByName(destination)?.countryKo);
+  return { background: theme.primary, foreground: theme.onPrimary };
+}
 
 type LoadState = 'loading' | 'ready' | 'error' | 'notFound';
 
@@ -136,6 +148,9 @@ export default function ScreenCOMM02() {
     content: post.content,
     likeCount: post.likeCount,
     likedByMe: post.likedByMe,
+    accent: toAccent(post.destination),
+    // TODO: 사진 스키마가 생기면 post.imageUrls 로 바꾼다. [임시]
+    imageUrls: toCoverUrls(post.postId),
   };
 
   return (

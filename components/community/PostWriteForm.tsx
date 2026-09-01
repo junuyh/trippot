@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/ui';
 
@@ -21,6 +22,14 @@ type Props = {
   /** 저장 실패 같은 화면 전체 오류. */
   submitError: string | null;
 
+  /** 고른 사진들의 기기 내 경로. */
+  imageUris: string[];
+  maxImages: number;
+  imageError: string | null;
+  imagePicking: boolean;
+  onPickImages: () => void;
+  onRemoveImage: (index: number) => void;
+
   /** 저장 중이면 버튼이 잠기고 스피너가 뜬다. (중복 제출 방지) */
   submitting: boolean;
   onSubmit: () => void;
@@ -33,6 +42,8 @@ type Props = {
  * ⚠️ '여행 유형 공유'(TYPE_SHARE)도 없다. 그 글은 여행 유형 결과(TYPE-01)에서
  *    나와야 하는데 그 화면이 고도화이고 유형 목록도 미확정이다.
  * ⚠️ 임시저장(DRAFT)은 두지 않았다. 화면 목록에 없는 기능이다.
+ * ⚠️ 사진은 고르고 미리보기까지만 된다. 저장할 스키마와 Storage 버킷이 없다.
+ *    준비되면 업로드 URL 을 createPost 에 넘긴다. (useCoverImage 주석 참조)
  *
  * 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
  */
@@ -47,6 +58,12 @@ export function PostWriteForm({
   titleError,
   contentError,
   submitError,
+  imageUris,
+  maxImages,
+  imageError,
+  imagePicking,
+  onPickImages,
+  onRemoveImage,
   submitting,
   onSubmit,
 }: Props) {
@@ -56,6 +73,52 @@ export function PostWriteForm({
       contentContainerClassName="px-5 pb-12 pt-5"
       keyboardShouldPersistTaps="handled"
     >
+      {/* 사진 */}
+      <Text className="mb-2 font-bold text-pot-ink" style={{ fontSize: 13 }}>
+        사진 <Text className="text-pot-faint">({imageUris.length}/{maxImages})</Text>
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+        {imageUris.map((uri, index) => (
+          <View key={uri} className="overflow-hidden rounded-2xl">
+            <Image source={{ uri }} style={{ width: 110, height: 110 }} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${index + 1}번째 사진 지우기`}
+              disabled={submitting}
+              onPress={() => onRemoveImage(index)}
+              className="absolute right-1.5 top-1.5 h-7 w-7 items-center justify-center rounded-full bg-black/55 active:opacity-70"
+            >
+              <Ionicons name="close" size={15} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        ))}
+
+        {imageUris.length < maxImages ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="사진 추가"
+            disabled={submitting || imagePicking}
+            onPress={onPickImages}
+            className="items-center justify-center rounded-2xl bg-white active:opacity-70"
+            style={{ width: 110, height: 110, opacity: imagePicking ? 0.5 : 1 }}
+          >
+            <Ionicons name="add" size={24} color="#9AA3AE" />
+            <Text className="mt-1 text-pot-faint" style={{ fontSize: 12 }}>
+              사진 추가
+            </Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+      {imageError ? (
+        <Text className="mt-1.5 text-red-500" style={{ fontSize: 12 }}>
+          {imageError}
+        </Text>
+      ) : (
+        <Text className="mt-1.5 text-pot-faint" style={{ fontSize: 11, lineHeight: 15 }}>
+          사진 저장은 준비 중이에요. 지금은 미리보기만 됩니다.
+        </Text>
+      )}
+
       {/* 유형 */}
       <Text className="mb-2 font-bold text-pot-ink" style={{ fontSize: 13 }}>
         어떤 글인가요

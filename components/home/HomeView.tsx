@@ -60,7 +60,7 @@ export function HomeView({
   return (
     <View className="flex-1 bg-pot-visual">
       <HomeHeader />
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-12 pt-1">
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-28 pt-1">
       <Section title="진행 중인 여행">
         {ongoingTrips.length === 0 ? (
           <Text className="text-sm leading-5 text-pot-mute">

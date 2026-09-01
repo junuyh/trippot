@@ -1,5 +1,5 @@
 // ============================================================================
-// COMM-01 커뮤니티 홈 · COMM-02 상세 · COMM-04 작성이 그리는 데이터 모양
+// COMM-01 커뮤니티 홈(목록) · COMM-02 상세 · COMM-04 작성이 그리는 데이터 모양
 // 기준 문서: docs/09_IA_v1.md §4
 //
 // ⚠️ 유료 팁·댓글은 다루지 않는다. 2026-08-31 팀 결정.
@@ -7,6 +7,20 @@
 // UI 컴포넌트는 supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
 import type { PostType } from '@/lib/constants/status';
+
+/**
+ * 카드 윗면 색.
+ *
+ * ⚠️ 참고 디자인은 커버 사진을 쓰지만 community_posts 에 이미지 컬럼이 없다.
+ *    사진 자리를 목적지 국가 색으로 채운다. 홈 카드의 왼쪽 띠와 같은 규칙이라
+ *    앱 전체가 한 벌로 보인다. 이미지 컬럼이 생기면 이 자리에 사진만 끼우면 된다.
+ */
+export type PostAccent = {
+  /** 카드 윗면 배경. countryTheme.primary */
+  background: string;
+  /** 그 위에 얹는 글자색. countryTheme.onPrimary */
+  foreground: string;
+};
 
 /** 목록 카드 한 장. */
 export type PostCardData = {
@@ -24,6 +38,9 @@ export type PostCardData = {
   likeCount: number;
   /** 내가 좋아요를 눌렀는가. */
   likedByMe: boolean;
+  accent: PostAccent;
+  /** 사진 주소 목록. 첫 장이 카드 커버다. [임시] 지금은 더미다. (cover.ts) */
+  imageUrls: string[];
 };
 
 /** COMM-02 상세가 그리는 데이터. */
