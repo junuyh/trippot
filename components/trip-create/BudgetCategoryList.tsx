@@ -36,6 +36,13 @@ export type EditableCategory = {
   baseAmount: number;
   /** 스타일 배수. 1 이면 표시하지 않는다 */
   multiplier: number;
+  /**
+   * 지난 여행 소비를 반영한 금액. 제안이 없으면 null.
+   * ⚠️ recommendedAmount 를 덮어쓰지 않는다. 둘 다 보여줘야 사용자가 고를 수 있다.
+   */
+  personalizedAmount: number | null;
+  /** 지난 여행 계획 대비 실제 편차. basis point 정수. 1250 = +12.50% */
+  personalizedBp: number | null;
 };
 
 type Props = {
@@ -51,6 +58,12 @@ function won(value: number): string {
   return `${value.toLocaleString('ko-KR')}원`;
 }
 
+/** basis point 정수를 사람이 읽는 퍼센트로. 1250 → '+12.5%' */
+function bp(value: number): string {
+  const percent = value / 100;
+  return `${percent > 0 ? '+' : ''}${percent.toFixed(1).replace(/\.0$/, '')}%`;
+}
+
 export function BudgetCategoryList({
   categories,
   travelStyle,
@@ -63,8 +76,14 @@ export function BudgetCategoryList({
     <View className="overflow-hidden rounded-2xl border border-gray-200">
       {categories.map((category, index) => {
         const editing = editingCode === category.categoryCode;
-        const diff = category.plannedAmount - category.recommendedAmount;
+        // 사용자에게 제시한 값이 비교 기준이다. 개인화가 있으면 그쪽이다.
+        const baseline = category.personalizedAmount ?? category.recommendedAmount;
         const styled = category.multiplier !== 1;
+        // 개인화 금액을 그대로 쓰고 있을 때만 배지를 단다.
+        // 사용자가 손대면 그 값은 더 이상 '지난 여행 반영' 이 아니다.
+        const personalized =
+          category.personalizedAmount !== null &&
+          category.plannedAmount === category.personalizedAmount;
 
         return (
           <View
@@ -81,9 +100,16 @@ export function BudgetCategoryList({
                 editing ? 'bg-blue-50' : 'bg-white active:bg-gray-50'
               }`}
             >
-              <Text className="text-base text-gray-800">
-                {CATEGORY_CODE_LABEL[category.categoryCode]}
-              </Text>
+              <View className="flex-row items-center gap-1.5">
+                <Text className="text-base text-gray-800">
+                  {CATEGORY_CODE_LABEL[category.categoryCode]}
+                </Text>
+                {personalized ? (
+                  <View className="rounded-md bg-violet-100 px-1.5 py-0.5">
+                    <Text className="text-[10px] font-semibold text-violet-700">지난 여행 반영</Text>
+                  </View>
+                ) : null}
+              </View>
 
               <View className="flex-row items-center gap-1.5">
                 <Text className="text-base font-semibold text-gray-900">
@@ -131,10 +157,33 @@ export function BudgetCategoryList({
 
                     <View className="mt-0.5 flex-row items-center justify-between border-t border-gray-100 pt-1.5">
                       <Text className="text-xs font-semibold text-gray-700">추천 금액</Text>
-                      <Text className="text-sm font-bold text-blue-700">
+                      <Text
+                        className={`text-sm font-bold ${
+                          category.personalizedAmount !== null
+                            ? 'text-gray-400 line-through'
+                            : 'text-blue-700'
+                        }`}
+                      >
                         {won(category.recommendedAmount)}
                       </Text>
                     </View>
+
+                    {/*
+                      기본 추천과 개인화 추천을 **둘 다** 보여준다.
+                      개인화 금액만 보이면 사용자는 무엇이 왜 바뀌었는지 알 수 없고,
+                      기본 추천 대비 개인화가 정확했는지도 나중에 설명하지 못한다.
+                      (CLAUDE.md 4장 — recommended_amount 는 불변 원본)
+                    */}
+                    {category.personalizedAmount !== null && category.personalizedBp !== null ? (
+                      <View className="flex-row items-center justify-between">
+                        <Text className="text-xs font-semibold text-violet-700">
+                          지난 여행 반영 {bp(category.personalizedBp)}
+                        </Text>
+                        <Text className="text-sm font-bold text-violet-700">
+                          {won(category.personalizedAmount)}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
 
@@ -146,14 +195,20 @@ export function BudgetCategoryList({
                   editable={!disabled}
                 />
 
-                {diff !== 0 ? (
+                {/*
+                  비교 기준은 사용자가 지금 보고 있는 추천이다.
+                  개인화가 붙었는데 기본 추천과 비교해 주면, 손대지도 않은 금액에
+                  '추천보다 +17만원' 이 뜬다.
+                */}
+                {baseline !== null && category.plannedAmount !== baseline ? (
                   <Text
                     className={`-mt-1 text-right text-xs font-medium ${
-                      diff > 0 ? 'text-red-500' : 'text-blue-600'
+                      category.plannedAmount > baseline ? 'text-red-500' : 'text-blue-600'
                     }`}
                   >
-                    추천보다 {diff > 0 ? '+' : ''}
-                    {diff.toLocaleString('ko-KR')}원
+                    {category.personalizedAmount !== null ? '지난 여행 반영' : '추천'}보다{' '}
+                    {category.plannedAmount > baseline ? '+' : ''}
+                    {(category.plannedAmount - baseline).toLocaleString('ko-KR')}원
                   </Text>
                 ) : null}
               </View>
