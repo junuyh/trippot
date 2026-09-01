@@ -48,7 +48,11 @@ import {
 } from '@/lib/supabase/queries/budgets';
 import { getTravelFund, type FundSource } from '@/lib/supabase/queries/funds';
 import { getGroupById } from '@/lib/supabase/queries/groups';
-import { getTransactions, type Transaction } from '@/lib/supabase/queries/transactions';
+import {
+  getFundTotals,
+  getTransactions,
+  type Transaction,
+} from '@/lib/supabase/queries/transactions';
 import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
 
 /**
@@ -76,6 +80,8 @@ type TripHomeData = {
   categories: BudgetCategory[];
   fund: FundSource | null;
   transactions: Transaction[];
+  /** 입금 거래 합계. 누적 모금액 계산에 쓴다 */
+  depositTotal: number;
   groupName: string | null;
 };
 
@@ -108,14 +114,23 @@ export default function ScreenTripHome() {
 
       // 여행을 찾은 뒤에야 나머지를 붙인다. 예산·자금이 없어도 화면은 떠야 한다.
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, fund, transactions, group] = await Promise.all([
+      const [categories, fund, transactions, totals, group] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         getTravelFund(trip.id),
         getTransactions(trip.id, { limit: RECENT_LIMIT }),
+        getFundTotals(trip.id),
         trip.group_id ? getGroupById(trip.group_id) : Promise.resolve(null),
       ]);
 
-      setData({ trip, budget, categories, fund, transactions, groupName: group?.name ?? null });
+      setData({
+        trip,
+        budget,
+        categories,
+        fund,
+        transactions,
+        depositTotal: totals.depositTotal,
+        groupName: group?.name ?? null,
+      });
     } catch {
       setError(true);
     } finally {
@@ -147,7 +162,7 @@ export default function ScreenTripHome() {
     // 금고 채움도 누적 모금액 기준이다. 항공권을 사면 항공 금고가 0% 로
     // 되돌아가는 일이 없어야 한다. (스펙 12장)
     const allocations = allocateVault(
-      data.fund?.current_amount ?? 0,
+      (data.fund?.current_amount ?? 0) + data.depositTotal,
       data.categories.map((category) => ({
         categoryCode: category.category_code as CategoryCode,
         plannedAmount: category.planned_amount,
@@ -211,14 +226,14 @@ export default function ScreenTripHome() {
   const stages = useMemo(
     () =>
       journeyStages(
-        data?.fund?.current_amount ?? 0,
+        (data?.fund?.current_amount ?? 0) + (data?.depositTotal ?? 0),
         (data?.categories ?? []).map((category) => ({
           categoryCode: category.category_code as CategoryCode,
           plannedAmount: category.planned_amount,
         })),
         data?.trip.destination,
       ),
-    [data?.categories, data?.fund?.current_amount, data?.trip.destination],
+    [data?.categories, data?.depositTotal, data?.fund?.current_amount, data?.trip.destination],
   );
 
   const recentTransactions: RecentTransaction[] = useMemo(() => {
@@ -295,7 +310,7 @@ export default function ScreenTripHome() {
    *       그때는 누적 모금액을 따로 보관하거나 입금 합계로 계산해야 한다.
    *       (docs/README.md §5 에 기록)
    */
-  const raisedAmount = fund?.current_amount ?? 0;
+  const raisedAmount = (fund?.current_amount ?? 0) + data.depositTotal;
   const actualTotal = data.categories.reduce((sum, c) => sum + c.actual_amount, 0);
   // 100 을 넘겨 넘기지 않는다. 비행기가 도착지를 지나치면 안 된다. (스펙 3장)
   const progress = targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;

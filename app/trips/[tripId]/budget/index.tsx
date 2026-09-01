@@ -60,6 +60,7 @@ import {
   type TripBudget,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import { getFundTotals } from "@/lib/supabase/queries/transactions";
 import {
   getPersonalizedBudget,
   savePersonalizedAmounts,
@@ -72,6 +73,8 @@ type BudgetData = {
   budget: TripBudget;
   categories: BudgetCategory[];
   fund: FundSource | null;
+  /** 입금 거래 합계. 누적 모금액 계산에 쓴다 */
+  depositTotal: number;
 };
 
 export default function ScreenBUDGET01() {
@@ -120,12 +123,13 @@ export default function ScreenBUDGET01() {
         setNotFound(true);
         return;
       }
-      const [categories, fund] = await Promise.all([
+      const [categories, fund, totals] = await Promise.all([
         getBudgetCategories(budget.id),
         getTravelFund(trip.id),
+        getFundTotals(trip.id),
       ]);
 
-      setData({ trip, budget, categories, fund });
+      setData({ trip, budget, categories, fund, depositTotal: totals.depositTotal });
     } catch {
       setError(true);
     } finally {
@@ -476,7 +480,7 @@ export default function ScreenBUDGET01() {
    *    fund_sources.current_amount 는 등록·동기화 시점에만 쓰는 값이라
    *    거래가 쌓여도 변하지 않는다. (TRIP-HOME 과 같은 기준)
    */
-  const raisedAmount = data.fund?.current_amount ?? 0;
+  const raisedAmount = (data.fund?.current_amount ?? 0) + data.depositTotal;
   const progress =
     data.budget.target_amount > 0
       ? Math.min(100, (raisedAmount / data.budget.target_amount) * 100)

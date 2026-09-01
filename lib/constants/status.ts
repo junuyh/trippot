@@ -112,6 +112,24 @@ export const PLAN_DISPLAY_MODE = {
 } as const;
 export type PlanDisplayMode = (typeof PLAN_DISPLAY_MODE)[keyof typeof PLAN_DISPLAY_MODE];
 
+/**
+ * transactions.refund_status. 환불·취소 상태다.
+ *
+ * ⚠️ 환불을 입금(DEPOSIT) 거래로 넣지 않는다. 누적 모금액이 잘못 늘어난다.
+ *    금액은 양수로 두고 성격만 이 값으로 구분한다.
+ *
+ *   PENDING   환불 예정. 아직 돈이 돌아오지 않아 **지출에 남긴다**
+ *   REFUNDED  환불 완료. 실제 지출 집계에서 뺀다
+ *   CANCELED  결제 취소. 처음부터 없던 거래로 본다
+ */
+export const REFUND_STATUS = {
+  NONE: 'NONE',
+  PENDING: 'PENDING',
+  REFUNDED: 'REFUNDED',
+  CANCELED: 'CANCELED',
+} as const;
+export type RefundStatus = (typeof REFUND_STATUS)[keyof typeof REFUND_STATUS];
+
 // ── 여행자금 ───────────────────────────────────────────────────────────────
 /** fund_sources.source_type. ZERO 는 '아직 등록 안 함'이다. */
 export const FUND_SOURCE_TYPE = {
