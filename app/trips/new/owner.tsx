@@ -44,6 +44,29 @@ function normalizeEntryPoint(raw: string | string[] | undefined): EntryPoint {
   return value && allowed.includes(value) ? (value as EntryPoint) : ENTRY_POINT.HOME;
 }
 
+/**
+ * 동행이 바뀌면 TRIP-02 에서 고른 것을 비운다.
+ *
+ * 뒤로 와서 **실제로 무언가를 바꿨을 때만** 비운다. 뒤로 갔다가 그냥 돌아오는
+ * 경우(실수로 눌렀거나 확인만 한 경우)에는 그대로 둔다. 아무것도 바꾸지 않은
+ * 사람에게 여행지와 날짜를 다시 입력시킬 이유가 없다.
+ *
+ * ⚠️ TRIP-03 상단의 '도쿄 · 3박 4일 · 4명 ✏️' 는 TRIP-02 로 곧장 돌아가는
+ *    경로라 TRIP-01 을 거치지 않는다. 그래서 이 초기화의 영향을 받지 않는다.
+ *    거기서 인원만 고치고 돌아와도 여행지·일정은 그대로 남는다.
+ *
+ * 여행 스타일은 비우지 않는다. TRIP-03 소관이고 동행과 무관하다.
+ * 인원은 여기서 건드리지 않는다. TRIP-02 가 새 동행 기준으로 다시 채운다.
+ */
+const CLEARED_TRIP_BASICS = {
+  destinationCode: null,
+  destinationName: null,
+  region: null,
+  isCustomDestination: false,
+  startDate: null,
+  endDate: null,
+} as const;
+
 export default function ScreenTRIP01() {
   useScreenView(SCREENS.TRIP_CREATE_WHO);
 
@@ -171,6 +194,7 @@ export default function ScreenTRIP01() {
       if (companionType === draft.companionType) return;
 
       patchDraft({
+        ...CLEARED_TRIP_BASICS,
         companionType,
         groupId: null,
         groupName: null,
@@ -196,7 +220,12 @@ export default function ScreenTRIP01() {
 
   const handleSelectGroup = useCallback(
     (groupId: string) => {
+      // 이미 고른 모임을 다시 누른 것이면 바뀐 게 없다.
+      // 그냥 두지 않으면 여행지·일정만 애꿎게 비워진다.
+      if (groupId === draft.groupId) return;
+
       patchDraft({
+        ...CLEARED_TRIP_BASICS,
         groupId,
         // TRIP-02 인원 안내 문구에 쓴다. 목록에 없으면 null 로 두고 문구를 낮춘다.
         groupName: groups.find((group) => group.id === groupId)?.name ?? null,
@@ -213,7 +242,7 @@ export default function ScreenTRIP01() {
         .then((count) => patchDraft({ groupMemberCount: count }))
         .catch(() => patchDraft({ groupMemberCount: 0 }));
     },
-    [groups, loadPastTripCount, patchDraft],
+    [draft.groupId, groups, loadPastTripCount, patchDraft],
   );
 
   // ⚠️ 여기서 track() 을 부르지 않는다.
