@@ -11,6 +11,12 @@ import { Text, View } from 'react-native';
 type Props = {
   /** 시스템 추천 총액 (불변) */
   recommendedTotal: number;
+  /**
+   * 지난 여행을 반영한 추천 총액. 개인화 제안이 없으면 null.
+   * ⚠️ recommendedTotal 을 대체하지 않는다. 둘 다 보여줘야
+   *    기본 추천 대비 개인화 추천이 얼마나 정확했는지 나중에 설명할 수 있다.
+   */
+  personalizedTotal?: number | null;
   /** 사용자가 확정할 총액 */
   targetTotal: number;
   headcount: number;
@@ -28,13 +34,17 @@ function formatBaselineMonth(isoDate: string): string {
 
 export function BudgetSummary({
   recommendedTotal,
+  personalizedTotal = null,
   targetTotal,
   headcount,
   perPersonAmount,
   baselineUpdatedAt,
   estimateNotice,
 }: Props) {
-  const diff = targetTotal - recommendedTotal;
+  // 사용자에게 제시한 값이 비교 기준이다.
+  // 개인화가 붙었는데 기본 추천과 비교하면, 손대지도 않았는데 '+27만원' 이 뜬다.
+  const baseline = personalizedTotal ?? recommendedTotal;
+  const diff = targetTotal - baseline;
 
   return (
     <View className="gap-3 rounded-2xl border border-gray-200 bg-white p-4">
@@ -54,21 +64,46 @@ export function BudgetSummary({
       <View className="flex-row items-center justify-between">
         <Text className="text-sm text-gray-500">추천 예산</Text>
         <View className="flex-row items-center gap-2">
-          <Text className="text-sm text-gray-700">
+          <Text
+            className={`text-sm ${
+              personalizedTotal !== null ? 'text-gray-400 line-through' : 'text-gray-700'
+            }`}
+          >
             {recommendedTotal.toLocaleString('ko-KR')}원
           </Text>
-          {diff !== 0 ? (
+          {personalizedTotal === null && diff !== 0 ? (
             <Text
               className={`text-sm font-semibold ${diff > 0 ? 'text-red-500' : 'text-blue-600'}`}
             >
               {diff > 0 ? '+' : ''}
               {diff.toLocaleString('ko-KR')}
             </Text>
-          ) : (
+          ) : personalizedTotal === null ? (
             <Text className="text-sm font-medium text-gray-400">그대로</Text>
-          )}
+          ) : null}
         </View>
       </View>
+
+      {personalizedTotal !== null ? (
+        <View className="-mt-1 flex-row items-center justify-between">
+          <Text className="text-sm font-semibold text-violet-700">지난 여행 반영</Text>
+          <View className="flex-row items-center gap-2">
+            <Text className="text-sm font-semibold text-violet-700">
+              {personalizedTotal.toLocaleString('ko-KR')}원
+            </Text>
+            {diff !== 0 ? (
+              <Text
+                className={`text-sm font-semibold ${diff > 0 ? 'text-red-500' : 'text-blue-600'}`}
+              >
+                {diff > 0 ? '+' : ''}
+                {diff.toLocaleString('ko-KR')}
+              </Text>
+            ) : (
+              <Text className="text-sm font-medium text-gray-400">그대로</Text>
+            )}
+          </View>
+        </View>
+      ) : null}
 
       {/* NFR-004 */}
       <View className="flex-row items-start gap-1.5 rounded-xl bg-gray-50 px-3 py-2.5">
