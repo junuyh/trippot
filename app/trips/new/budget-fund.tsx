@@ -534,7 +534,19 @@ export default function ScreenTRIP03() {
     (fundType === FUND_SOURCE_TYPE.MANUAL && manualAmount !== null && manualAmount >= 0) ||
     (fundType === FUND_SOURCE_TYPE.MOCK && Boolean(selectedAccount));
 
-  const canSubmit = Boolean(recommendation) && method !== null && targetTotal > 0 && fundValid;
+  /**
+   * 예산 상세(요약 · 카테고리)를 열지.
+   *
+   * 직접 입력은 금액을 넣기 전까지 열지 않는다. 안 그러면 아무것도 입력하지
+   * 않았는데 목표 여행비가 추천값으로 채워져 보인다. "정해둔 예산이 있어요" 를
+   * 고른 사람에게 시스템이 먼저 답을 내놓는 꼴이다.
+   */
+  const showBudgetDetail =
+    categories.length > 0 &&
+    (method === BUDGET_METHOD.RECOMMENDED ||
+      (method === BUDGET_METHOD.USER_DEFINED && userTotal !== null && userTotal > 0));
+
+  const canSubmit = Boolean(recommendation) && showBudgetDetail && targetTotal > 0 && fundValid;
 
   const handleSubmit = useCallback(async () => {
     if (!recommendation || !method || !draft.travelStyle || !fundType) return;
@@ -801,7 +813,7 @@ export default function ScreenTRIP03() {
       ) : null}
 
       {/* ── ② 예상 여행비 비교 ── 두 경로 모두 여기로 수렴한다 (AC-01) ── */}
-      {method !== null && categories.length > 0 ? (
+      {showBudgetDetail ? (
         <>
           <View className="mt-6">
             <BudgetSummary
@@ -811,6 +823,9 @@ export default function ScreenTRIP03() {
               perPersonAmount={perPerson(targetTotal, draft.headcount)}
               baselineUpdatedAt={recommendation.updatedAt}
               estimateNotice={recommendation.notice}
+              // 총액을 이미 정해 온 사람에게 자기가 넣은 숫자를 크게 되돌려
+              // 보여줄 이유가 없다. 비교만 한 줄로 남긴다.
+              variant={method === BUDGET_METHOD.USER_DEFINED ? 'compact' : 'full'}
             />
           </View>
 
@@ -836,46 +851,48 @@ export default function ScreenTRIP03() {
               disabled={saving}
             />
           </View>
-
-          {/* ── ④ 여행자금 ── */}
-          <View className="mt-7">
-            <Text className="mb-1 text-base font-semibold text-gray-900">
-              지금 모은 여행자금 <Text className="text-red-500">*</Text>
-            </Text>
-            <Text className="mb-2.5 text-xs text-gray-400">
-              계좌를 연결하지 않아도 괜찮아요.
-            </Text>
-            <FundSourceSelector
-              value={fundType}
-              onChange={setFundType}
-              accounts={accounts}
-              accountsLoading={accountsLoading}
-              selectedAccountId={accountId}
-              onSelectAccount={setAccountId}
-              manualAmount={manualAmount}
-              onChangeManualAmount={setManualAmount}
-              disabled={saving}
-            />
-          </View>
         </>
       ) : null}
+
+      {/*
+        ── ④ 여행자금 ──
+        예산 방식을 고르기 전에도 보여준다.
+        정할 게 둘(예산 · 자금)이라는 걸 처음부터 알려야 한다. 예산 블록이 열리고
+        카테고리를 펼치기 시작하면 화면이 길어져서, 아래에 이런 항목이 남아 있다는
+        걸 알아채기 어렵다.
+      */}
+      <View className="mt-7">
+        <Text className="mb-1 text-base font-semibold text-gray-900">
+          지금 모은 여행자금 <Text className="text-red-500">*</Text>
+        </Text>
+        <Text className="mb-2.5 text-xs text-gray-400">계좌를 연결하지 않아도 괜찮아요.</Text>
+        <FundSourceSelector
+          value={fundType}
+          onChange={setFundType}
+          accounts={accounts}
+          accountsLoading={accountsLoading}
+          selectedAccountId={accountId}
+          onSelectAccount={setAccountId}
+          manualAmount={manualAmount}
+          onChangeManualAmount={setManualAmount}
+          disabled={saving}
+        />
+      </View>
 
       {saveError ? <Text className="mt-5 text-sm text-red-500">{saveError}</Text> : null}
       </ScrollView>
 
       {/*
-        예산 방식을 고르기 전에는 확정할 것이 없어 버튼을 그리지 않는다.
-        빈 바만 남기면 눌러야 하는 것처럼 보인다.
+        아직 못 고른 게 있어도 버튼은 그린다. 여행자금까지 처음부터 보이므로
+        마지막에 무엇을 누르게 되는지 알려주는 편이 낫다. 빠진 값은 disabled 로 막는다.
       */}
-      {method !== null ? (
-        <BottomCta
-          label="이 예산으로 여행 만들기"
-          onPress={() => void handleSubmit()}
-          disabled={!canSubmit}
-          loading={saving}
-          note="지금 다 정하지 않아도 돼요. 여행을 만든 뒤에도 예산은 언제든 수정할 수 있어요."
-        />
-      ) : null}
+      <BottomCta
+        label="이 예산으로 여행 만들기"
+        onPress={() => void handleSubmit()}
+        disabled={!canSubmit}
+        loading={saving}
+        note="지금 다 정하지 않아도 돼요. 여행을 만든 뒤에도 예산은 언제든 수정할 수 있어요."
+      />
     </View>
   );
 }
