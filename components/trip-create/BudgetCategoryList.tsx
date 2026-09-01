@@ -55,8 +55,9 @@ export type EditableCategory = {
   singleSelect?: boolean;
   /**
    * 지금 고른 상품들의 합계. 지난 여행 반영을 얹기 **전** 금액이다.
-   * 이 줄이 없으면 상품을 바꿔도 계산부에는 그 숫자가 어디에도 안 나와서,
-   * 선택이 반영되지 않은 것처럼 보인다.
+   * 계산부의 출발점이라 항상 그린다. 이 줄이 없으면 상품을 바꿔도 그 숫자가
+   * 어디에도 안 나와서 선택이 반영되지 않은 것처럼 보인다.
+   * 예비비처럼 상품이 없는 카테고리는 넘기지 않는다.
    */
   productSubtotal?: number;
 
@@ -304,21 +305,29 @@ export function BudgetCategoryList({
 
                 {/* ── 계산 ── */}
                 <View className="mx-4 gap-1 rounded-xl bg-white p-3">
+                  {/*
+                    ⚠️ 계산식 옆에 금액을 두지 않는다.
+                       그 값(baseAmount)은 스타일 배수를 적용하기 전 중간값이라
+                       화면 어디에도 쓰이지 않는다. '보통' 에서는 추천 금액과
+                       같은 숫자라 중복으로 보이고, 다른 스타일에서는 상품 합계와도
+                       추천 금액과도 다른 제3의 숫자가 되어 더 헷갈린다.
+                       단가가 어디서 나왔는지는 계산식 문장만으로 충분하다.
+
+                       예비비는 예외다. 첫 줄이 비율 계산의 분모라 금액이 필요하다.
+                  */}
                   <View className="flex-row items-center justify-between">
                     <Text className="text-xs text-gray-500">
                       {isContingency ? '다른 항목 합계' : category.formula}
                     </Text>
-                    <Text className="text-xs font-medium text-gray-700">
-                      {won(isContingency ? otherCategoriesTotal : category.baseAmount)}
-                    </Text>
+                    {isContingency ? (
+                      <Text className="text-xs font-medium text-gray-700">
+                        {won(otherCategoriesTotal)}
+                      </Text>
+                    ) : null}
                   </View>
 
-                  {/*
-                    지금 고른 상품이 얼마인지. 기준 금액과 다를 때만 그린다.
-                    기본 조합 그대로면 두 줄이 같은 숫자라 군더더기다.
-                  */}
-                  {category.productSubtotal !== undefined &&
-                  category.productSubtotal !== category.baseAmount ? (
+                  {/* 지금 고른 상품이 얼마인지. 예비비에는 상품이 없다. */}
+                  {category.productSubtotal !== undefined ? (
                     <View className="flex-row items-center justify-between">
                       <Text className="text-xs text-gray-500">선택한 상품 합계</Text>
                       <Text className="text-xs font-bold text-gray-900">
