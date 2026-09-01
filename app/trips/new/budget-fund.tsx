@@ -547,19 +547,37 @@ export default function ScreenTRIP03() {
       categories.map((category) => {
         const adjustment = adjustmentByCode.get(category.categoryCode);
         const dropped = droppedCategories.has(category.categoryCode);
+        const catalog = getProductCategory(category.categoryCode);
 
-        // 반영으로 늘거나 줄어든 금액. 뺀 상태면 0 이 아니라 '제외됨' 으로 표시되므로
-        // 여기서는 부호만 맞춰 두고 화면이 판단한다.
+        // 편차를 얹기 전 금액. 화면의 '선택한 상품 합계' 와 같은 값이다.
+        // 예비비는 상품이 없으므로 기준 금액이 곧 추천 금액이다.
+        const adjustmentBase = catalog
+          ? Math.round(
+              (category.baseAmount *
+                sumSelectedRatio(category.categoryCode, selectedProductIds)) /
+                1000,
+            ) * 1000
+          : category.recommendedAmount;
+
+        /*
+          ⚠️ 반영액은 **화면에 보이는 기준(adjustmentBase)** 에 대해 계산한다.
+             personalizedAmount − recommendedAmount 로 두면 상품을 바꾼 순간
+             계산부의 줄들이 서로 더해지지 않는다.
+               선택한 상품 합계 132,000 + 반영 48,000 ≠ 숙소 예산 158,000
+
+             DB 에 저장하는 personalized_amount 는 계속 recommended_amount 기준이다.
+             그건 "개인화 추천이 얼마였나" 를 재는 값이라 사용자 수정과 무관해야 한다.
+             (CLAUDE.md 4장) 화면에 보여주는 값과 저장하는 값의 기준이 다르다.
+        */
         const adjustmentFields = adjustment
           ? {
               adjustmentPercent:
                 (adjustment.appliedBp > 0 ? 1 : -1) * bpToPercent(adjustment.appliedBp),
-              adjustmentAmount: adjustment.personalizedAmount - adjustment.recommendedAmount,
+              adjustmentAmount: applyBp(adjustmentBase, adjustment.appliedBp) - adjustmentBase,
               adjustmentDropped: dropped,
             }
           : {};
 
-        const catalog = getProductCategory(category.categoryCode);
         if (!catalog) return { ...category, ...adjustmentFields };
 
         return {
@@ -568,12 +586,7 @@ export default function ScreenTRIP03() {
           productHint: catalog.hint,
           singleSelect: catalog.single,
           // 지난 여행 반영을 얹기 전, 고른 상품만의 합계다.
-          productSubtotal:
-            Math.round(
-              (category.baseAmount *
-                sumSelectedRatio(category.categoryCode, selectedProductIds)) /
-                1000,
-            ) * 1000,
+          productSubtotal: adjustmentBase,
           products: catalog.products.map((product) => ({
             id: product.id,
             name: product.name,
