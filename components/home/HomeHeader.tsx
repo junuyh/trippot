@@ -14,8 +14,8 @@ export function HomeHeader() {
 
   return (
     <View
-      className="bg-pot-visual px-5 pb-3"
-      style={{ paddingTop: insets.top + 8 }}
+      className="bg-pot-visual px-5 pb-5"
+      style={{ paddingTop: insets.top + 20 }}
     >
       <View className="flex-row items-center">
         <View className="h-8 w-8 items-center justify-center rounded-[10px] bg-pot-ink">
