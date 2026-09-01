@@ -9,9 +9,15 @@
 //    스타일을 바꾸면 아래 추천 금액이 바로 다시 계산된다. 같은 화면에서 보여야
 //    무엇 때문에 금액이 움직였는지 알 수 있다.
 //
+//    ⚠️ 스타일은 **예산 방식보다 아래**, 추천을 고른 경우에만 묻는다.
+//       총액을 이미 정해 온 사람에게 "아낄지 말지" 를 먼저 묻는 건 순서가 맞지 않는다.
+//       직접 입력 경로에서도 스타일이 아주 무관하지는 않다. 입력한 총액을 카테고리로
+//       나눌 때 추천 비율을 쓰고 그 비율이 스타일마다 다르다. 다만 그 배분은 아래
+//       카테고리에서 직접 고칠 수 있어서, 묻지 않고 draft 값(기본 '보통')으로 나눈다.
+//
 // 단계
-//   ⓪ 여행 스타일
 //   ① 예산 방식 선택 (추천 / 직접 입력)
+//      └ 추천을 고르면 여기서 여행 스타일을 묻는다
 //   ② 예상 여행비 비교 — 두 경로 모두 여기로 수렴한다 (AC-01)
 //   ③ 카테고리 수정 → 목표 여행비 확정
 //   ④ 현재 여행자금 등록
@@ -752,28 +758,30 @@ export default function ScreenTRIP03() {
         <Ionicons name="pencil" size={13} color="#9ca3af" />
       </Pressable>
 
-      {/*
-        ── ⓪ 여행 스타일 ──
-        바꾸면 아래 추천 금액이 즉시 다시 계산된다. (syncedRef 효과)
-        그래서 예산 방식보다 위에 둔다. 금액을 본 뒤에 기준을 바꾸는 순서가 아니라,
-        기준을 정하고 금액을 보는 순서다.
-      */}
-      <View className="mt-7">
-        <Text className="mb-2.5 text-base font-semibold text-gray-900">여행 스타일</Text>
-        <TravelStyleSelector
-          value={draft.travelStyle}
-          onChange={(value) => patchDraft({ travelStyle: value })}
-          disabled={saving}
-        />
-      </View>
-
-      {/* ── ① 예산 방식 ── */}
+      {/* ── ① 예산 방식 ── 무엇부터 정할지가 여기서 갈린다 ── */}
       <View className="mt-7">
         <Text className="mb-2.5 text-base font-semibold text-gray-900">
           예산 설정 방식 <Text className="text-red-500">*</Text>
         </Text>
         <BudgetMethodSelector value={method} onChange={handleSelectMethod} disabled={saving} />
       </View>
+
+      {/*
+        ── 여행 스타일 ── 추천을 고른 경우에만 묻는다 ──
+        총액을 이미 정한 사람에게 "아낄지 말지" 를 묻는 건 순서가 맞지 않는다.
+        직접 입력 경로에서는 draft 의 값(기본 '보통')으로 카테고리를 배분한다.
+        배분 비율은 아래 카테고리에서 직접 고칠 수 있다.
+      */}
+      {method === BUDGET_METHOD.RECOMMENDED ? (
+        <View className="mt-6">
+          <Text className="mb-2.5 text-base font-semibold text-gray-900">여행 스타일</Text>
+          <TravelStyleSelector
+            value={draft.travelStyle}
+            onChange={(value) => patchDraft({ travelStyle: value })}
+            disabled={saving}
+          />
+        </View>
+      ) : null}
 
       {/* ── 직접 입력 총액 ── */}
       {method === BUDGET_METHOD.USER_DEFINED ? (
