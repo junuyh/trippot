@@ -17,7 +17,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutAnimation, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, LayoutAnimation, Pressable, ScrollView, Text, View } from 'react-native';
 
 import {
   BudgetCategoryList,
@@ -38,6 +38,7 @@ import {
   APPLIED_SOURCE,
   BUDGET_METHOD,
   BUDGET_METHOD_TO_ANALYTICS,
+  CATEGORY_CODE_TO_ANALYTICS,
   COMPANION_TYPE,
   FUND_SOURCE_TYPE,
   FUND_SOURCE_TYPE_TO_ANALYTICS,
@@ -51,6 +52,10 @@ import { useScreenView } from '@/lib/hooks/useScreenView';
 import { useTripDraft } from '@/lib/hooks/useTripDraft';
 import { createGroup } from '@/lib/supabase/queries/groups';
 import { getGroupAccounts, type FinancialAccount } from '@/lib/supabase/queries/funds';
+import {
+  getSpendingProfile,
+  personalizeFromProfile,
+} from '@/lib/supabase/queries/personalization';
 import { createTripBundle, getMyTripCount } from '@/lib/supabase/queries/trips';
 
 export default function ScreenTRIP03() {
@@ -83,6 +88,80 @@ export default function ScreenTRIP03() {
     draft.travelStyle,
   ]);
 
+  // ── 지난 여행 반영 ────────────────────────────────────────────────────
+  //
+  // TRIP-01 에서 "지난 여행 데이터를 반영할까요?" 에 '예' 를 고른 사용자에게는
+  // **처음부터** 개인화된 추천을 보여준다. 나중에 예산 상세에서 배너로 다시
+  // 제안하면, 사용자는 방금 확정한 금액을 또 고쳐야 한다.
+  //
+  // ⚠️ 개인 여행 데이터는 개인에, 모임 여행 데이터는 해당 모임에만 누적한다.
+  //    다른 소유 단위로 승계하지 않는다. (docs/06 §7-6 확정 정책)
+  //    새 모임은 과거가 있을 수 없으므로 조회하지 않는다.
+  const wantsPastData = draft.applyPastData === true && draft.pastTripCount > 0;
+  const [pastLoading, setPastLoading] = useState(wantsPastData);
+  const [personalized, setPersonalized] = useState<
+    Map<CategoryCode, { amount: number; bp: number }>
+  >(new Map());
+  const [basedOnTripCount, setBasedOnTripCount] = useState(0);
+  const pastLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!wantsPastData || !recommendation || pastLoadedRef.current) return;
+    pastLoadedRef.current = true;
+
+    if (draft.companionType === COMPANION_TYPE.NEW_GROUP) {
+      setPastLoading(false);
+      return;
+    }
+
+    const scope =
+      draft.companionType === COMPANION_TYPE.EXISTING_GROUP && draft.groupId
+        ? ({ ownerType: 'GROUP', groupId: draft.groupId } as const)
+        : // TODO: 로그인 연동 시 교체
+          ({ ownerType: 'PERSONAL', userId: DEV_USER_ID } as const);
+
+    void getSpendingProfile(scope)
+      .then((profile) => {
+        if (!profile) return;
+
+        // 아직 budget_categories 행이 없다. 방금 계산한 추천을 그대로 넣는다.
+        const results = personalizeFromProfile(
+          profile,
+          recommendation.categories.map((category) => ({
+            key: category.categoryCode,
+            categoryCode: category.categoryCode,
+            recommendedAmount: category.recommendedAmount,
+          })),
+        );
+        if (results.length === 0) return;
+
+        setBasedOnTripCount(profile.basedOnTripCount);
+        setPersonalized(
+          new Map(
+            results.map((result) => [
+              result.key as CategoryCode,
+              {
+                amount: result.personalizedAmount,
+                bp: (result.basis as { deviationBp: number }).deviationBp,
+              },
+            ]),
+          ),
+        );
+
+        // 제안을 실제로 보여준 시점에만 쏜다. 노출 모수다. (docs/06 §7-6)
+        // 여행이 아직 없어 trip_id 를 실을 수 없다. source 로 구분한다.
+        track(EVENTS.PERSONALIZATION_OFFERED, {
+          source: 'trip_create',
+          based_on_trip_count: profile.basedOnTripCount,
+          top_category: CATEGORY_CODE_TO_ANALYTICS[results[0].categoryCode as CategoryCode],
+          deviation_rate: (results[0].basis as { deviationBp: number }).deviationBp,
+        });
+      })
+      // 개인화는 부가 기능이다. 실패해도 기본 추천으로 여행을 만들 수 있다.
+      .catch(() => undefined)
+      .finally(() => setPastLoading(false));
+  }, [draft.companionType, draft.groupId, recommendation, wantsPastData]);
+
   // ── ① 예산 방식 ───────────────────────────────────────────────────────
   const [method, setMethod] = useState<BudgetMethod | null>(null);
   const [userTotal, setUserTotal] = useState<number | null>(null);
@@ -91,16 +170,24 @@ export default function ScreenTRIP03() {
 
   const toEditable = useCallback(
     (source: NonNullable<typeof recommendation>): EditableCategory[] =>
-      source.categories.map((c) => ({
-        categoryCode: c.categoryCode,
-        recommendedAmount: c.recommendedAmount,
-        plannedAmount: c.recommendedAmount,
-        basis: c.basis,
-        formula: c.formula,
-        baseAmount: c.baseAmount,
-        multiplier: c.multiplier,
-      })),
-    [],
+      source.categories.map((c) => {
+        const past = personalized.get(c.categoryCode) ?? null;
+        return {
+          categoryCode: c.categoryCode,
+          // ⚠️ 불변 원본. 개인화가 붙어도 덮어쓰지 않는다. (CLAUDE.md 4장)
+          recommendedAmount: c.recommendedAmount,
+          // 개인화가 있으면 그 값을 사용자에게 제시한다.
+          // 확정은 여전히 사용자가 한다 — 여기서 고칠 수 있고, 저장은 버튼을 눌러야 된다.
+          plannedAmount: past?.amount ?? c.recommendedAmount,
+          basis: c.basis,
+          formula: c.formula,
+          baseAmount: c.baseAmount,
+          multiplier: c.multiplier,
+          personalizedAmount: past?.amount ?? null,
+          personalizedBp: past?.bp ?? null,
+        };
+      }),
+    [personalized],
   );
 
   const handleSelectMethod = useCallback(
@@ -111,8 +198,13 @@ export default function ScreenTRIP03() {
 
       // 추천값을 planned 초기값으로 깐다. 사용자가 확정 버튼을 누르는 순간까지는
       // applied_source = 'default' 다. 고친 카테고리만 'user' 가 된다.
-      setCategories(toEditable(recommendation));
-      setUserTotal(next === BUDGET_METHOD.USER_DEFINED ? null : recommendation.totalAmount);
+      const editable = toEditable(recommendation);
+      setCategories(editable);
+      setUserTotal(
+        next === BUDGET_METHOD.USER_DEFINED
+          ? null
+          : editable.reduce((sum, c) => sum + c.plannedAmount, 0),
+      );
 
       track(EVENTS.BUDGET_METHOD_SELECTED, {
         method: BUDGET_METHOD_TO_ANALYTICS[next],
@@ -138,9 +230,12 @@ export default function ScreenTRIP03() {
     syncedRef.current = recommendation;
     if (!recommendation || method === null) return;
 
-    setCategories(toEditable(recommendation));
+    const editable = toEditable(recommendation);
+    setCategories(editable);
     setEditingCode(null);
-    if (method === BUDGET_METHOD.RECOMMENDED) setUserTotal(recommendation.totalAmount);
+    if (method === BUDGET_METHOD.RECOMMENDED) {
+      setUserTotal(editable.reduce((sum, c) => sum + c.plannedAmount, 0));
+    }
   }, [method, recommendation, toEditable]);
 
   /**
@@ -155,15 +250,20 @@ export default function ScreenTRIP03() {
       if (!recommendation || recommendation.totalAmount === 0) return;
 
       const ratio = total / recommendation.totalAmount;
-      const next = recommendation.categories.map((c) => ({
-        categoryCode: c.categoryCode,
-        recommendedAmount: c.recommendedAmount,
-        plannedAmount: Math.round((c.recommendedAmount * ratio) / 1000) * 1000,
-        basis: c.basis,
-        formula: c.formula,
-        baseAmount: c.baseAmount,
-        multiplier: c.multiplier,
-      }));
+      const next: EditableCategory[] = recommendation.categories.map((c) => {
+        const past = personalized.get(c.categoryCode) ?? null;
+        return {
+          categoryCode: c.categoryCode,
+          recommendedAmount: c.recommendedAmount,
+          plannedAmount: Math.round((c.recommendedAmount * ratio) / 1000) * 1000,
+          basis: c.basis,
+          formula: c.formula,
+          baseAmount: c.baseAmount,
+          multiplier: c.multiplier,
+          personalizedAmount: past?.amount ?? null,
+          personalizedBp: past?.bp ?? null,
+        };
+      });
 
       const drift = total - next.reduce((sum, c) => sum + c.plannedAmount, 0);
       if (drift !== 0) {
@@ -173,7 +273,7 @@ export default function ScreenTRIP03() {
 
       setCategories(next);
     },
-    [recommendation],
+    [personalized, recommendation],
   );
 
   const handleChangeCategoryAmount = useCallback((categoryCode: CategoryCode, amount: number) => {
@@ -186,8 +286,39 @@ export default function ScreenTRIP03() {
     () => categories.reduce((sum, c) => sum + c.plannedAmount, 0),
     [categories],
   );
+  /**
+   * 사용자가 **제시받은 값에서 고친** 카테고리 수.
+   *
+   * 개인화가 붙었으면 비교 기준은 개인화 금액이다. 기본 추천과 비교하면
+   * 손대지도 않은 카테고리가 전부 '수정함' 으로 잡혀
+   * budget_target_confirmed.edited_category_count 가 못 쓰게 된다.
+   */
   const editedCount = useMemo(
-    () => categories.filter((c) => c.plannedAmount !== c.recommendedAmount).length,
+    () =>
+      categories.filter(
+        (c) => c.plannedAmount !== (c.personalizedAmount ?? c.recommendedAmount),
+      ).length,
+    [categories],
+  );
+
+  /**
+   * 개인화를 반영한 추천 총액. 제안이 없으면 null.
+   * 개인화가 없는 카테고리는 기본 추천 그대로 더한다.
+   */
+  const personalizedTotal = useMemo(() => {
+    if (personalized.size === 0 || categories.length === 0) return null;
+    return categories.reduce(
+      (sum, c) => sum + (c.personalizedAmount ?? c.recommendedAmount),
+      0,
+    );
+  }, [categories, personalized]);
+
+  /** 개인화 금액을 그대로 확정하는 카테고리 수. 0 이면 개인화가 적용되지 않은 것이다 */
+  const personalizedAppliedCount = useMemo(
+    () =>
+      categories.filter(
+        (c) => c.personalizedAmount !== null && c.plannedAmount === c.personalizedAmount,
+      ).length,
     [categories],
   );
 
@@ -284,9 +415,19 @@ export default function ScreenTRIP03() {
           category_code: c.categoryCode,
           // 불변 원본. 사용자가 뭘 고쳤는지는 이 값과의 차이로만 알 수 있다.
           recommended_amount: c.recommendedAmount,
+          // 개인화 추천 원본. 제안이 없었으면 null 이다.
+          personalized_amount: c.personalizedAmount,
           planned_amount: c.plannedAmount,
+          // 세 값이 각각 다른 질문에 답한다. (CLAUDE.md 4장)
+          //   default      기본 추천을 그대로 씀
+          //   personalized 지난 여행 반영값을 그대로 씀
+          //   user         사용자가 직접 고침
           applied_source:
-            c.plannedAmount === c.recommendedAmount ? APPLIED_SOURCE.DEFAULT : APPLIED_SOURCE.USER,
+            c.personalizedAmount !== null && c.plannedAmount === c.personalizedAmount
+              ? APPLIED_SOURCE.PERSONALIZED
+              : c.plannedAmount === c.recommendedAmount
+                ? APPLIED_SOURCE.DEFAULT
+                : APPLIED_SOURCE.USER,
           // 가상 금고 배분은 BUDGET-01 에서 한다. (docs/README.md §5 #8)
           prepared_amount: 0,
           sort_order: index + 1,
@@ -314,6 +455,19 @@ export default function ScreenTRIP03() {
         fund_type: FUND_SOURCE_TYPE_TO_ANALYTICS[fundType],
         initial_amount: currentAmount,
       });
+      // 개인화를 제안받은 사용자만 쏜다. 노출 대비 반영률의 분자·분모다.
+      // 하나도 안 남았으면 전부 고친 것이므로 applied: false 다. (docs/06 §7-6)
+      if (personalized.size > 0) {
+        track(EVENTS.PERSONALIZATION_APPLIED, {
+          trip_id: trip.id,
+          source: 'trip_create',
+          applied: personalizedAppliedCount > 0,
+          applied_category_count: personalizedAppliedCount,
+          offered_category_count: personalized.size,
+          based_on_trip_count: basedOnTripCount,
+        });
+      }
+
       track(EVENTS.TRIP_CREATED, {
         trip_id: trip.id,
         owner_type:
@@ -346,12 +500,15 @@ export default function ScreenTRIP03() {
     }
   }, [
     accountId,
+    basedOnTripCount,
     categories,
     draft,
     editedCount,
     fundType,
     manualAmount,
     method,
+    personalized,
+    personalizedAppliedCount,
     recommendation,
     resetDraft,
     saving,
@@ -405,13 +562,45 @@ export default function ScreenTRIP03() {
         <Ionicons name="pencil" size={13} color="#9ca3af" />
       </Pressable>
 
-      {/* ── ① 예산 방식 ── */}
-      <View className="mt-7">
-        <Text className="mb-2.5 text-base font-semibold text-gray-900">
-          예산 설정 방식 <Text className="text-red-500">*</Text>
-        </Text>
-        <BudgetMethodSelector value={method} onChange={handleSelectMethod} disabled={saving} />
-      </View>
+      {/*
+        ── 지난 여행 반영 안내 ──
+        개인화된 금액을 보여주기 **전에** 왜 금액이 달라졌는지 먼저 말한다.
+        설명 없이 숫자만 바뀌면 사용자는 추천이 틀렸다고 생각한다.
+
+        조회가 끝나기 전에 방식 선택을 열지 않는다. 사용자가 '추천으로 할게요' 를
+        누른 뒤 금액이 조용히 바뀌면, 방금 확인한 숫자를 믿을 수 없게 된다.
+      */}
+      {pastLoading ? (
+        <View className="mt-7 flex-row items-center gap-2 rounded-2xl bg-gray-50 px-4 py-3.5">
+          <ActivityIndicator size="small" color="#8b5cf6" />
+          <Text className="text-sm text-gray-500">지난 여행 소비를 반영하는 중이에요…</Text>
+        </View>
+      ) : (
+        <>
+          {personalized.size > 0 ? (
+            <View className="mt-7 gap-1.5 rounded-2xl bg-violet-50 px-4 py-3.5">
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name="sparkles" size={15} color="#7c3aed" />
+                <Text className="text-sm font-bold text-violet-900">
+                  지난 여행 {basedOnTripCount}번을 반영했어요
+                </Text>
+              </View>
+              <Text className="text-xs leading-5 text-violet-800">
+                실제로 더 썼던 카테고리는 올리고, 남겼던 카테고리는 낮춰서 추천했어요.
+                {'\n'}항목을 눌러 기본 추천과 비교하고 고칠 수 있어요.
+              </Text>
+            </View>
+          ) : null}
+
+          {/* ── ① 예산 방식 ── */}
+          <View className="mt-7">
+            <Text className="mb-2.5 text-base font-semibold text-gray-900">
+              예산 설정 방식 <Text className="text-red-500">*</Text>
+            </Text>
+            <BudgetMethodSelector value={method} onChange={handleSelectMethod} disabled={saving} />
+          </View>
+        </>
+      )}
 
       {/* ── 직접 입력 총액 ── */}
       {method === BUDGET_METHOD.USER_DEFINED ? (
@@ -436,6 +625,7 @@ export default function ScreenTRIP03() {
           <View className="mt-6">
             <BudgetSummary
               recommendedTotal={recommendation.totalAmount}
+              personalizedTotal={personalizedTotal}
               targetTotal={targetTotal}
               headcount={draft.headcount}
               perPersonAmount={perPerson(targetTotal, draft.headcount)}
