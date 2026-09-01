@@ -69,6 +69,15 @@ export type EditableCategory = {
   adjustmentAmount?: number;
   /** 사용자가 이 카테고리만 반영에서 뺐는가 */
   adjustmentDropped?: boolean;
+
+  /**
+   * 금액을 직접 정하는 중인가.
+   *
+   * 직접 입력을 시작하면 상품 선택도 지난 여행 반영도 금액에 관여하지 않는다.
+   * 그런데 화면에 그대로 남겨 두면 셋이 함께 계산에 참여하는 것처럼 보인다.
+   * 그래서 이 모드에서는 그것들을 아예 감춘다. 둘 중 하나다.
+   */
+  isManual?: boolean;
 };
 
 /** 예비비 비율 선택지. null 은 '추천'(기준 금액 그대로)이다. */
@@ -80,6 +89,8 @@ type Props = {
   onToggleProduct: (categoryCode: CategoryCode, productId: string) => void;
   /** 카테고리 하나의 지난 여행 반영을 빼거나 되돌린다 */
   onToggleDrop: (categoryCode: CategoryCode) => void;
+  /** 'AI 추천' 과 '직접 입력' 을 오간다 */
+  onToggleManual: (categoryCode: CategoryCode) => void;
 
   /** 예비비를 뺀 나머지 합계. 비율 계산의 분모다 */
   otherCategoriesTotal: number;
@@ -166,6 +177,7 @@ export function BudgetCategoryList({
   onChangeAmount,
   onToggleProduct,
   onToggleDrop,
+  onToggleManual,
   otherCategoriesTotal,
   contingencyChoice,
   onChangeContingency,
@@ -235,8 +247,13 @@ export function BudgetCategoryList({
 
             {open ? (
               <View className="gap-3 bg-blue-50 pb-4">
-                {/* ── 근거 한 줄 ── */}
-                <View className="px-4 pt-1">
+                {/*
+                  ── 근거와 기준 금액 ──
+                  두 길(AI 추천 / 직접 입력) 중 무엇을 고를지 판단하려면
+                  "AI 는 얼마를 추천했나" 가 근거 옆에 분명히 보여야 한다.
+                  그래서 계산부 맨 아래 회색 글씨가 아니라 여기 둔다.
+                */}
+                <View className="gap-2 px-4 pt-1">
                   <View className="flex-row items-start gap-1.5">
                     <Ionicons name="bulb-outline" size={15} color="#2563eb" />
                     <Text className="flex-1 text-xs leading-5 text-gray-700">
@@ -251,169 +268,184 @@ export function BudgetCategoryList({
                         : (category.productHint ?? category.basis)}
                     </Text>
                   </View>
+
+                  <View className="flex-row items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5">
+                    <Text className="flex-1 text-[11px] text-gray-500" numberOfLines={1}>
+                      {category.formula}
+                    </Text>
+                    <Text className="text-xs font-bold text-gray-900">
+                      추천 {won(category.recommendedAmount)}
+                    </Text>
+                  </View>
                 </View>
 
-                {/* ── 근거 상품 ── 카드 줄은 좌우 여백까지 흘러 잘린 카드가 보이게 한다 ── */}
-                {category.products && category.products.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerClassName="gap-2 px-4"
-                  >
-                    {category.products.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        disabled={disabled}
-                        onPress={() => onToggleProduct(category.categoryCode, product.id)}
-                      />
-                    ))}
-                  </ScrollView>
-                ) : null}
+                {category.isManual ? (
+                  /* ── 길 B · 직접 입력 ── 상품도 반영도 관여하지 않는다 ── */
+                  <View className="gap-2 px-4">
+                    <CurrencyInput
+                      label="이 카테고리에 쓸 금액"
+                      value={category.plannedAmount}
+                      onChangeValue={(value) => onChangeAmount(category.categoryCode, value ?? 0)}
+                      editable={!disabled}
+                    />
 
-                {/* ── 예비비 비율 ── 상품 대신 비율로 정한다 ── */}
-                {isContingency ? (
-                  <View className="flex-row gap-1.5 px-4">
-                    {CONTINGENCY_OPTIONS.map((option) => {
-                      const selected = contingencyChoice === option.value;
-                      return (
-                        <Pressable
-                          key={option.label}
-                          accessibilityRole="radio"
-                          accessibilityState={{ selected, disabled }}
-                          accessibilityLabel={`예비비 ${option.label}`}
-                          disabled={disabled}
-                          onPress={() => onChangeContingency(option.value)}
-                          className={`flex-1 items-center justify-center rounded-xl border py-2.5 ${
-                            selected
-                              ? 'border-blue-600 bg-blue-600'
-                              : 'border-gray-200 bg-white active:bg-gray-100'
-                          }`}
-                        >
-                          <Text
-                            className={`text-xs font-bold ${
-                              selected ? 'text-white' : 'text-gray-600'
-                            }`}
-                          >
-                            {option.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
-
-                {/* ── 계산 ── */}
-                <View className="mx-4 gap-1 rounded-xl bg-white p-3">
-                  {/*
-                    ⚠️ 계산식 옆에 금액을 두지 않는다.
-                       그 값(baseAmount)은 스타일 배수를 적용하기 전 중간값이라
-                       화면 어디에도 쓰이지 않는다. '보통' 에서는 추천 금액과
-                       같은 숫자라 중복으로 보이고, 다른 스타일에서는 상품 합계와도
-                       추천 금액과도 다른 제3의 숫자가 되어 더 헷갈린다.
-                       단가가 어디서 나왔는지는 계산식 문장만으로 충분하다.
-
-                       예비비는 예외다. 첫 줄이 비율 계산의 분모라 금액이 필요하다.
-                  */}
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-xs text-gray-500">
-                      {isContingency ? '다른 항목 합계' : category.formula}
-                    </Text>
-                    {isContingency ? (
-                      <Text className="text-xs font-medium text-gray-700">
-                        {won(otherCategoriesTotal)}
+                    {diff !== 0 ? (
+                      <Text
+                        className={`text-right text-xs font-medium ${
+                          diff > 0 ? 'text-red-500' : 'text-blue-600'
+                        }`}
+                      >
+                        추천보다 {diff > 0 ? '+' : '−'}
+                        {Math.abs(diff).toLocaleString('ko-KR')}원
                       </Text>
                     ) : null}
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="추천으로 돌아가기"
+                      disabled={disabled}
+                      onPress={() => onToggleManual(category.categoryCode)}
+                      className="h-11 flex-row items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white active:bg-gray-100"
+                    >
+                      <Ionicons name="sparkles-outline" size={14} color="#2563eb" />
+                      <Text className="text-[13px] font-bold text-blue-600">추천으로 돌아가기</Text>
+                    </Pressable>
                   </View>
+                ) : (
+                  /* ── 길 A · AI 추천 ── 상품을 골라 금액을 만든다 ── */
+                  <>
+                    {/* 카드 줄은 좌우 여백까지 흘러 잘린 카드가 보이게 한다 */}
+                    {category.products && category.products.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerClassName="gap-2 px-4"
+                      >
+                        {category.products.map((product) => (
+                          <ProductCard
+                            key={product.id}
+                            product={product}
+                            disabled={disabled}
+                            onPress={() => onToggleProduct(category.categoryCode, product.id)}
+                          />
+                        ))}
+                      </ScrollView>
+                    ) : null}
 
-                  {/* 지금 고른 상품이 얼마인지. 예비비에는 상품이 없다. */}
-                  {category.productSubtotal !== undefined ? (
-                    <View className="flex-row items-center justify-between">
-                      <Text className="text-xs text-gray-500">선택한 상품 합계</Text>
-                      <Text className="text-xs font-bold text-gray-900">
-                        {won(category.productSubtotal)}
-                      </Text>
+                    {/* ── 예비비 비율 ── 상품 대신 비율로 정한다 ── */}
+                    {isContingency ? (
+                      <View className="flex-row gap-1.5 px-4">
+                        {CONTINGENCY_OPTIONS.map((option) => {
+                          const selected = contingencyChoice === option.value;
+                          return (
+                            <Pressable
+                              key={option.label}
+                              accessibilityRole="radio"
+                              accessibilityState={{ selected, disabled }}
+                              accessibilityLabel={`예비비 ${option.label}`}
+                              disabled={disabled}
+                              onPress={() => onChangeContingency(option.value)}
+                              className={`flex-1 items-center justify-center rounded-xl border py-2.5 ${
+                                selected
+                                  ? 'border-blue-600 bg-blue-600'
+                                  : 'border-gray-200 bg-white active:bg-gray-100'
+                              }`}
+                            >
+                              <Text
+                                className={`text-xs font-bold ${
+                                  selected ? 'text-white' : 'text-gray-600'
+                                }`}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : null}
+
+                    {/* ── 계산 ── 줄들이 맨 아래 금액으로 정확히 더해진다 ── */}
+                    <View className="mx-4 gap-1 rounded-xl bg-white p-3">
+                      <View className="flex-row items-center justify-between">
+                        <Text className="text-xs text-gray-500">
+                          {isContingency ? '다른 항목 합계' : '선택한 상품 합계'}
+                        </Text>
+                        <Text className="text-xs font-bold text-gray-900">
+                          {won(isContingency ? otherCategoriesTotal : (category.productSubtotal ?? 0))}
+                        </Text>
+                      </View>
+
+                      {/* ── 지난 여행 반영 ── 뺄 수 있고 되돌릴 수 있다 ── */}
+                      {category.adjustmentPercent ? (
+                        <View className="flex-row items-center justify-between gap-2">
+                          <Text
+                            className={`flex-1 text-xs ${
+                              category.adjustmentDropped ? 'text-gray-400' : 'text-gray-500'
+                            }`}
+                            numberOfLines={1}
+                          >
+                            지난 여행 반영 {category.adjustmentPercent > 0 ? '+' : '−'}
+                            {Math.abs(category.adjustmentPercent)}%
+                          </Text>
+
+                          <Text
+                            className={`text-xs font-medium ${
+                              category.adjustmentDropped ? 'text-gray-400' : 'text-gray-700'
+                            }`}
+                          >
+                            {category.adjustmentDropped
+                              ? '제외됨'
+                              : `${(category.adjustmentAmount ?? 0) > 0 ? '+' : '−'}${Math.abs(
+                                  category.adjustmentAmount ?? 0,
+                                ).toLocaleString('ko-KR')}원`}
+                          </Text>
+
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                              category.adjustmentDropped
+                                ? '지난 여행 반영 되돌리기'
+                                : '지난 여행 반영 빼기'
+                            }
+                            disabled={disabled}
+                            onPress={() => onToggleDrop(category.categoryCode)}
+                            className="rounded-lg border border-gray-200 px-2 py-1 active:bg-gray-100"
+                          >
+                            <Text className="text-[10px] font-bold text-gray-600">
+                              {category.adjustmentDropped ? '되돌리기' : '빼기'}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      ) : null}
+
+                      <View className="mt-0.5 flex-row items-center justify-between border-t border-gray-100 pt-1.5">
+                        <Text className="text-xs font-semibold text-gray-700">
+                          {CATEGORY_CODE_LABEL[category.categoryCode]} 예산
+                        </Text>
+                        <Text className="text-sm font-bold text-blue-700">
+                          {won(category.plannedAmount)}
+                        </Text>
+                      </View>
                     </View>
-                  ) : null}
 
-                  {/* ── 지난 여행 반영 ── 뺄 수 있고 되돌릴 수 있다 ── */}
-                  {category.adjustmentPercent ? (
-                    <View className="flex-row items-center justify-between gap-2">
-                      <Text
-                        className={`flex-1 text-xs ${
-                          category.adjustmentDropped ? 'text-gray-400' : 'text-gray-500'
-                        }`}
-                        numberOfLines={1}
-                      >
-                        지난 여행 반영 {category.adjustmentPercent > 0 ? '+' : '−'}
-                        {Math.abs(category.adjustmentPercent)}%
-                      </Text>
-
-                      <Text
-                        className={`text-xs font-medium ${
-                          category.adjustmentDropped ? 'text-gray-400' : 'text-gray-700'
-                        }`}
-                      >
-                        {category.adjustmentDropped
-                          ? '제외됨'
-                          : `${(category.adjustmentAmount ?? 0) > 0 ? '+' : '−'}${Math.abs(
-                              category.adjustmentAmount ?? 0,
-                            ).toLocaleString('ko-KR')}원`}
-                      </Text>
-
+                    {/*
+                      길 B 로 가는 문. 여기서부터는 AI 추천도 지난 여행 반영도
+                      금액에 관여하지 않는다.
+                    */}
+                    <View className="px-4">
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={
-                          category.adjustmentDropped
-                            ? '지난 여행 반영 되돌리기'
-                            : '지난 여행 반영 빼기'
-                        }
+                        accessibilityLabel="금액 직접 정하기"
                         disabled={disabled}
-                        onPress={() => onToggleDrop(category.categoryCode)}
-                        className="rounded-lg border border-gray-200 px-2 py-1 active:bg-gray-100"
+                        onPress={() => onToggleManual(category.categoryCode)}
+                        className="h-11 flex-row items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 active:bg-gray-100"
                       >
-                        <Text className="text-[10px] font-bold text-gray-600">
-                          {category.adjustmentDropped ? '되돌리기' : '빼기'}
-                        </Text>
+                        <Ionicons name="create-outline" size={14} color="#5c6675" />
+                        <Text className="text-[13px] font-bold text-gray-600">금액 직접 정하기</Text>
                       </Pressable>
                     </View>
-                  ) : null}
-
-                  {/*
-                    맨 아래는 확정될 금액이다. 위 줄들이 이 숫자로 수렴한다.
-                    추천 금액은 비교 기준으로 그 아래 작게 둔다. 불변 원본이라
-                    사용자가 무엇을 고르든 움직이지 않는다. (CLAUDE.md 4장)
-                  */}
-                  <View className="mt-0.5 flex-row items-center justify-between border-t border-gray-100 pt-1.5">
-                    <Text className="text-xs font-semibold text-gray-700">
-                      {CATEGORY_CODE_LABEL[category.categoryCode]} 예산
-                    </Text>
-                    <Text className="text-sm font-bold text-blue-700">
-                      {won(category.plannedAmount)}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-[11px] text-gray-400">추천 금액</Text>
-                    <Text className="text-[11px] font-medium text-gray-400">
-                      {won(category.recommendedAmount)}
-                      {diff !== 0
-                        ? `  ${diff > 0 ? '+' : '−'}${Math.abs(diff).toLocaleString('ko-KR')}`
-                        : '  그대로'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* ── 직접 수정 ── 상품으로 안 맞을 때를 위해 남겨 둔다 ── */}
-                <View className="px-4">
-                  <CurrencyInput
-                    label="이 금액으로 잡을게요"
-                    value={category.plannedAmount}
-                    onChangeValue={(value) => onChangeAmount(category.categoryCode, value ?? 0)}
-                    editable={!disabled}
-                  />
-
-                </View>
+                  </>
+                )}
               </View>
             ) : null}
           </View>

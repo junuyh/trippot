@@ -156,6 +156,17 @@ export default function ScreenTRIP03() {
   // 예비비는 상품이 아니라 비율로 정한다. null 이면 기준 금액(추천) 그대로다.
   const [contingencyChoice, setContingencyChoice] = useState<number | null>(null);
 
+  /**
+   * 금액을 직접 정하는 중인 카테고리.
+   *
+   * AI 추천과 직접 입력은 둘 중 하나다. 직접 입력으로 가면 상품 선택도 지난 여행
+   * 반영도 그 카테고리 금액에 관여하지 않는다.
+   *
+   * ⚠️ 상품 선택 자체는 지우지 않는다. 잠깐 다른 길을 봤을 뿐인데 골라둔 것을
+   *    날릴 이유가 없다. '추천으로 돌아가기' 를 누르면 그대로 살아난다.
+   */
+  const [manualCategories, setManualCategories] = useState<Set<CategoryCode>>(new Set());
+
   // ── 지난 여행 반영 ────────────────────────────────────────────────────
   //
   // TRIP-01 에서 토글을 켠 채로 넘어왔고 과거 결산이 있으면 편차를 얹는다.
@@ -191,6 +202,7 @@ export default function ScreenTRIP03() {
       setCategories(toEditable(recommendation));
       setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
       setContingencyChoice(null);
+      setManualCategories(new Set());
       setUserTotal(next === BUDGET_METHOD.USER_DEFINED ? null : recommendation.totalAmount);
 
       track(EVENTS.BUDGET_METHOD_SELECTED, {
@@ -225,6 +237,7 @@ export default function ScreenTRIP03() {
     // 금액은 새 추천인데 아래 카드에는 옛 조합이 체크돼 있어 서로 다른 말을 한다.
     setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
     setContingencyChoice(null);
+    setManualCategories(new Set());
 
     if (method === BUDGET_METHOD.RECOMMENDED) setUserTotal(recommendation.totalAmount);
   }, [method, recommendation, toEditable]);
@@ -343,16 +356,27 @@ export default function ScreenTRIP03() {
     adjustSyncRef.current = key;
 
     setCategories((cats) =>
-      cats.map((c) => ({
-        ...c,
-        plannedAmount: computeAmount(c, selectedProductIds, droppedCategories, adjustmentByCode),
-      })),
+      cats.map((c) =>
+        // 직접 정한 금액은 덮어쓰지 않는다. 사용자가 쓴 숫자가 최종이다.
+        manualCategories.has(c.categoryCode)
+          ? c
+          : {
+              ...c,
+              plannedAmount: computeAmount(
+                c,
+                selectedProductIds,
+                droppedCategories,
+                adjustmentByCode,
+              ),
+            },
+      ),
     );
   }, [
     adjustmentByCode,
     computeAmount,
     contingencyChoice,
     droppedCategories,
+    manualCategories,
     method,
     pastAdjustments,
     selectedProductIds,
@@ -437,6 +461,46 @@ export default function ScreenTRIP03() {
       return allDropped ? new Set() : new Set(pastAdjustments.map((a) => a.categoryCode));
     });
   }, [pastAdjustments]);
+
+  /**
+   * 'AI 추천' 과 '직접 입력' 을 오간다.
+   *
+   * 직접 입력으로 들어갈 때는 지금 금액을 그대로 출발점으로 둔다. 0 에서 시작하게
+   * 하면 방금 보던 숫자가 사라져 무엇을 고치는지 알 수 없다.
+   * 돌아올 때는 살아 있는 상품 선택과 편차로 다시 계산한다.
+   */
+  const handleToggleManual = useCallback(
+    (categoryCode: CategoryCode) => {
+      setManualCategories((prev) => {
+        const next = new Set(prev);
+        const goingBackToRecommended = next.has(categoryCode);
+
+        if (goingBackToRecommended) next.delete(categoryCode);
+        else next.add(categoryCode);
+
+        if (goingBackToRecommended) {
+          setCategories((cats) =>
+            cats.map((c) =>
+              c.categoryCode === categoryCode
+                ? {
+                    ...c,
+                    plannedAmount: computeAmount(
+                      c,
+                      selectedProductIds,
+                      droppedCategories,
+                      adjustmentByCode,
+                    ),
+                  }
+                : c,
+            ),
+          );
+        }
+
+        return next;
+      });
+    },
+    [adjustmentByCode, computeAmount, droppedCategories, selectedProductIds],
+  );
 
   /** 카테고리 하나의 지난 여행 반영을 빼거나 되돌린다. */
   const handleToggleDrop = useCallback((categoryCode: CategoryCode) => {
@@ -578,13 +642,20 @@ export default function ScreenTRIP03() {
             }
           : {};
 
-        if (!catalog) return { ...category, ...adjustmentFields };
+        if (!catalog) {
+          return {
+            ...category,
+            ...adjustmentFields,
+            isManual: manualCategories.has(category.categoryCode),
+          };
+        }
 
         return {
           ...category,
           ...adjustmentFields,
           productHint: catalog.hint,
           singleSelect: catalog.single,
+          isManual: manualCategories.has(category.categoryCode),
           // 지난 여행 반영을 얹기 전, 고른 상품만의 합계다.
           productSubtotal: adjustmentBase,
           products: catalog.products.map((product) => ({
@@ -596,7 +667,7 @@ export default function ScreenTRIP03() {
           })),
         };
       }),
-    [adjustmentByCode, categories, droppedCategories, selectedProductIds],
+    [adjustmentByCode, categories, droppedCategories, manualCategories, selectedProductIds],
   );
 
   const targetTotal = useMemo(
@@ -959,6 +1030,7 @@ export default function ScreenTRIP03() {
               onChangeAmount={handleChangeCategoryAmount}
               onToggleProduct={handleToggleProduct}
               onToggleDrop={handleToggleDrop}
+              onToggleManual={handleToggleManual}
               otherCategoriesTotal={otherCategoriesTotal}
               contingencyChoice={contingencyChoice}
               onChangeContingency={handleChangeContingency}
