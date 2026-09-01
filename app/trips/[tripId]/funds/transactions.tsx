@@ -1,0 +1,856 @@
+// ============================================================================
+// 입출금 전체 내역  ·  /trips/:tripId/funds/transactions
+//
+// FUND-01(여행자금 관리 허브)에서 '입출금 전체 내역' 으로 들어온다.
+//
+// 진입 param
+//   ?categoryId=      그 카테고리 지출만 (BUDGET-02 '전체 내역 보기')
+//   ?transactionId=   진입 즉시 그 거래의 상세 시트를 연다
+//                     (BUDGET-02 연결된 계획 → 지출 상세)
+//
+// ⚠️ 거래 상세를 별도 화면이 아니라 **바텀시트**로 연다. 목록에서 하나 눌러
+//    카테고리를 고치는 게 결산 검토의 대부분이라, 화면을 오갈 이유가 없다.
+//    다만 다른 화면에서 특정 거래를 지목해 열 수 있어야 하므로
+//    ?transactionId= 로 주소를 만들어 둔다.
+// ============================================================================
+import { format, isSameDay, parseISO } from "date-fns";
+import {
+  Stack,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { Alert, Modal, Pressable, SectionList, Text, View } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
+import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+
+import {
+  BottomSheet,
+  Button,
+  EmptyState,
+  ErrorState,
+  Loading,
+} from "@/components/ui";
+import { SCREENS } from "@/lib/analytics/events";
+import { countryTheme } from "@/lib/constants/countryTheme";
+import { findDestinationByName } from "@/lib/constants/destinations";
+import {
+  CATEGORY_CODE_LABEL,
+  CATEGORY_METHOD,
+  TRANSACTION_TYPE,
+  type CategoryCode,
+} from "@/lib/constants/status";
+import { EVENTS } from "@/lib/analytics/events";
+import { track } from "@/lib/analytics/track";
+import { CATEGORY_CODE_TO_ANALYTICS, MAPPED_BY } from "@/lib/constants/status";
+import { useScreenView } from "@/lib/hooks/useScreenView";
+import {
+  getBudgetByTripId,
+  getBudgetCategories,
+  type BudgetCategory,
+} from "@/lib/supabase/queries/budgets";
+import {
+  deleteTransaction,
+  getTransactions,
+  reviewReason,
+  updateTransactionMapping,
+  type Transaction,
+} from "@/lib/supabase/queries/transactions";
+import { getGroupAccounts } from "@/lib/supabase/queries/funds";
+import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+
+type FundsData = {
+  trip: Trip;
+  categories: BudgetCategory[];
+  transactions: Transaction[];
+  /** 마스킹된 계좌번호. 연결 계좌가 없으면 null (NFR-002) */
+  maskedAccountNumber: string | null;
+};
+
+/** 목록 필터 */
+type FundFilter = "ALL" | "DEPOSIT" | "WITHDRAWAL" | "REVIEW";
+
+export default function ScreenFUND01() {
+  const { tripId, categoryId, transactionId } = useLocalSearchParams<{
+    tripId: string;
+    categoryId?: string;
+    transactionId?: string;
+  }>();
+
+  const [data, setData] = useState<FundsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!tripId) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+    setError(false);
+    setNotFound(false);
+
+    try {
+      const trip = await getTripById(tripId);
+      if (!trip) {
+        setNotFound(true);
+        return;
+      }
+      const budget = await getBudgetByTripId(trip.id);
+      const [categories, transactions, accounts] = await Promise.all([
+        budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
+        getTransactions(trip.id, categoryId ? { categoryId } : undefined),
+        trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+      ]);
+      setData({
+        trip,
+        categories,
+        transactions,
+        maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
+      });
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [categoryId, tripId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  useScreenView(SCREENS.TRANSACTION_LIST);
+
+  // ── 카테고리 변경 ─────────────────────────────────────────────────────
+  /** 편집 중인 거래. null 이면 시트를 닫는다 */
+  const [editing, setEditing] = useState<Transaction | null>(null);
+
+  /**
+   * 목록 필터. (IA v2 §2-4-2)
+   *
+   * ⚠️ '확인 필요' 는 지금 판정할 수 있는 것만 본다 —
+   *    카테고리 없음 · 자동 분류 신뢰도 낮음.
+   *    계획 연결 후보 다중 · 카드 승인↔출금 중복 · 환불·취소는
+   *    판정할 칼럼이 없어 넣지 않았다. 없는 근거로 '확인 필요' 를 띄우면
+   *    사용자는 무엇을 고쳐야 할지 알 수 없다.
+   */
+  const [filter, setFilter] = useState<FundFilter>("ALL");
+
+  /** 거래 상세 시트에 띄울 거래 */
+  const [detail, setDetail] = useState<Transaction | null>(null);
+  /** ?transactionId= 로 들어왔을 때 한 번만 자동으로 연다 */
+  const openedRef = useRef(false);
+
+  /**
+   * 행별 Swipeable 참조.
+   *
+   * 수정·삭제를 누른 뒤 열린 행을 직접 닫는다. 닫지 않으면 시트를 저장하고
+   * 돌아와도 '수정 / 삭제' 버튼이 그대로 남아, 사용자가 오른쪽으로 다시
+   * 밀어야 원래 화면이 된다. 방금 끝낸 동작의 흔적이 남는 셈이다.
+   */
+  const swipeRefs = useRef(new Map<string, SwipeableMethods | null>());
+
+  const closeSwipe = useCallback((transactionId: string) => {
+    swipeRefs.current.get(transactionId)?.close();
+  }, []);
+  const [busy, setBusy] = useState(false);
+
+  const handleChangeCategory = useCallback(
+    async (nextCategoryId: string) => {
+      if (!editing || !data || busy) return;
+      setBusy(true);
+      try {
+        await updateTransactionMapping(editing.id, {
+          categoryId: nextCategoryId,
+          // 사용자가 직접 고친 분류다. 자동분류 정확도를 재는 기준이 된다
+          categoryMethod: CATEGORY_METHOD.USER,
+        });
+
+        const nextCode = data.categories.find(
+          (c) => c.id === nextCategoryId,
+        )?.category_code;
+        if (nextCode) {
+          // 자동분류가 틀려서 사용자가 고쳤다는 신호다. (docs/06 §7-3)
+          track(EVENTS.TRANSACTION_CATEGORY_CORRECTED, {
+            trip_id: data.trip.id,
+            category: CATEGORY_CODE_TO_ANALYTICS[nextCode as CategoryCode],
+            mapped_by: MAPPED_BY.USER,
+          });
+        }
+
+        setEditing(null);
+        await load();
+      } catch {
+        setError(true);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, data, editing, load],
+  );
+
+  // 삭제는 되돌릴 수 없다. 먼저 확인한다. (NFR-003)
+  const handleDelete = useCallback(
+    (transaction: Transaction) => {
+      Alert.alert(
+        "이 거래를 삭제할까요?",
+        `${transaction.name ?? "이름 없는 거래"} · ${transaction.amount.toLocaleString("ko-KR")}원`,
+        [
+          { text: "취소", style: "cancel" },
+          {
+            text: "삭제",
+            style: "destructive",
+            onPress: () => {
+              void deleteTransaction(transaction.id)
+                .then(() => load())
+                .catch(() => setError(true));
+            },
+          },
+        ],
+      );
+    },
+    [load],
+  );
+
+  const theme = useMemo(
+    () =>
+      countryTheme(findDestinationByName(data?.trip.destination)?.countryKo),
+    [data?.trip.destination],
+  );
+
+  const categoryLabel = useMemo(() => {
+    if (!categoryId || !data) return null;
+    const found = data.categories.find(
+      (category) => category.id === categoryId,
+    );
+    return found
+      ? CATEGORY_CODE_LABEL[found.category_code as CategoryCode]
+      : null;
+  }, [categoryId, data]);
+
+  /** ?transactionId= 로 들어오면 그 거래 상세를 바로 연다 */
+  useEffect(() => {
+    if (!data || !transactionId || openedRef.current) return;
+    const found = data.transactions.find((t) => t.id === transactionId);
+    if (!found) return;
+    openedRef.current = true;
+    setDetail(found);
+  }, [data, transactionId]);
+
+  const visibleTransactions = useMemo(() => {
+    const all = data?.transactions ?? [];
+    if (filter === "DEPOSIT") {
+      return all.filter((t) => t.transaction_type === TRANSACTION_TYPE.DEPOSIT);
+    }
+    if (filter === "WITHDRAWAL") {
+      return all.filter(
+        (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
+      );
+    }
+    if (filter === "REVIEW") return all.filter((t) => reviewReason(t) !== null);
+    return all;
+  }, [data?.transactions, filter]);
+
+  /** '확인 필요' 배지에 쓸 건수 */
+  const reviewCount = useMemo(
+    () =>
+      (data?.transactions ?? []).filter((t) => reviewReason(t) !== null).length,
+    [data?.transactions],
+  );
+
+  // 날짜별로 묶는다. 거래는 이미 occurred_at 내림차순으로 온다.
+  const sections = useMemo(() => {
+    const byCategory = new Map(
+      (data?.categories ?? []).map((c) => [c.id, c.category_code]),
+    );
+    const groups: { title: string; total: number; data: Transaction[] }[] = [];
+
+    for (const transaction of visibleTransactions) {
+      const when = parseISO(transaction.occurred_at);
+      const last = groups[groups.length - 1];
+      if (last && isSameDay(parseISO(last.data[0].occurred_at), when)) {
+        last.data.push(transaction);
+      } else {
+        groups.push({
+          title: format(when, "M월 d일"),
+          total: 0,
+          data: [transaction],
+        });
+      }
+    }
+
+    // 날짜별 출금 합계. 입금은 자금 유입이라 지출 합계에 넣지 않는다.
+    for (const group of groups) {
+      group.total = group.data
+        .filter((t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL)
+        .reduce((sum, t) => sum + t.amount, 0);
+    }
+
+    return groups.map((group) => ({
+      ...group,
+      data: group.data.map((transaction) => ({
+        transaction,
+        categoryCode: transaction.budget_category_id
+          ? ((byCategory.get(transaction.budget_category_id) as
+              CategoryCode | undefined) ?? null)
+          : null,
+      })),
+    }));
+  }, [data?.categories, visibleTransactions]);
+
+  const title = categoryLabel ? `${categoryLabel} 지출` : "여행자금 내역";
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ title }} />
+        <Loading message="내역을 불러오는 중…" />
+      </View>
+    );
+  }
+  if (notFound) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ title }} />
+        <EmptyState
+          icon="receipt-outline"
+          title="여행을 찾을 수 없어요"
+          actionLabel="홈으로"
+          onAction={() => router.replace("/")}
+        />
+      </View>
+    );
+  }
+  if (error || !data) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ title }} />
+        <ErrorState
+          message="내역을 불러오지 못했어요."
+          onRetry={() => void load()}
+        />
+      </View>
+    );
+  }
+
+  if (sections.length === 0) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ title }} />
+        <EmptyState
+          icon="receipt-outline"
+          title="아직 거래 내역이 없어요"
+          description="계좌를 연결하거나 지출을 직접 입력하면 여기에 쌓여요."
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1 bg-white">
+      <Stack.Screen options={{ title }} />
+
+      {/*
+        연결 계좌 안내는 여기서만 보여준다.
+        카테고리 화면(BUDGET-02)에서는 지출 자체에 집중하도록 숨겼다.
+      */}
+      {data.maskedAccountNumber ? (
+        <View
+          className="flex-row items-center gap-2.5"
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 13,
+            backgroundColor: "#f5f7fa",
+          }}
+        >
+          <View
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              backgroundColor: "#fff",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="card-outline" size={16} color="#5d6674" />
+          </View>
+          <View className="flex-1">
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#121a2a" }}>
+              연결 계좌 자동 분류
+            </Text>
+            <Text style={{ fontSize: 9, color: "#7d8797", marginTop: 3 }}>
+              {data.maskedAccountNumber}
+            </Text>
+          </View>
+          <View
+            style={{
+              backgroundColor: "#e8f7f0",
+              borderRadius: 20,
+              paddingHorizontal: 7,
+              paddingVertical: 5,
+            }}
+          >
+            <Text style={{ fontSize: 8, fontWeight: "900", color: "#2d8a63" }}>
+              연결됨
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {/* 밀어서 수정·삭제 */}
+      {/* ── 필터 ── 지금 판정할 수 있는 것만 둔다 (IA v2 §2-4-2) ── */}
+      <View
+        className="flex-row"
+        style={{
+          gap: 7,
+          paddingHorizontal: 16,
+          paddingTop: 12,
+          paddingBottom: 4,
+        }}
+      >
+        {(
+          [
+            { key: "ALL", label: "전체" },
+            { key: "DEPOSIT", label: "입금" },
+            { key: "WITHDRAWAL", label: "출금" },
+            {
+              key: "REVIEW",
+              label: reviewCount > 0 ? `확인 필요 ${reviewCount}` : "확인 필요",
+            },
+          ] as const
+        ).map((chip) => {
+          const active = filter === chip.key;
+          return (
+            <Pressable
+              key={chip.key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => setFilter(chip.key)}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: active ? theme.primary : "#e5e8ec",
+                backgroundColor: active ? theme.primarySoft : "#fff",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: active ? "800" : "400",
+                  color: active ? theme.primary : "#687281",
+                }}
+              >
+                {chip.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={{ paddingHorizontal: 16, paddingTop: 6 }}>
+        <Text style={{ fontSize: 10, color: "#a3a9b3" }}>
+          내역을 누르면 상세를 볼 수 있어요. 왼쪽으로 밀면 카테고리
+          변경·삭제예요.
+        </Text>
+      </View>
+
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.transaction.id}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        stickySectionHeadersEnabled={false}
+        renderSectionHeader={({ section }) => (
+          <View
+            className="flex-row items-center justify-between"
+            style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "800", color: "#121a2a" }}>
+              {section.title}
+            </Text>
+            {section.total > 0 ? (
+              <Text style={{ fontSize: 11, color: "#8b94a2" }}>
+                지출 {section.total.toLocaleString("ko-KR")}원
+              </Text>
+            ) : null}
+          </View>
+        )}
+        renderItem={({ item }) => {
+          const { transaction, categoryCode } = item;
+          const deposit =
+            transaction.transaction_type === TRANSACTION_TYPE.DEPOSIT;
+          const auto = transaction.category_method === CATEGORY_METHOD.AUTO;
+          const reason = reviewReason(transaction);
+
+          return (
+            <Swipeable
+              ref={(node) => {
+                // 화면에서 사라진 행의 참조는 지운다. 안 지우면 계속 쌓인다.
+                if (node) swipeRefs.current.set(transaction.id, node);
+                else swipeRefs.current.delete(transaction.id);
+              }}
+              overshootRight={false}
+              renderRightActions={() => (
+                <View className="flex-row">
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="카테고리 변경"
+                    onPress={() => {
+                      closeSwipe(transaction.id);
+                      setEditing(transaction);
+                    }}
+                    style={{ width: 72, backgroundColor: "#4b5563" }}
+                    className="items-center justify-center"
+                  >
+                    <Ionicons name="pricetag-outline" size={17} color="#fff" />
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: "800",
+                        marginTop: 3,
+                      }}
+                    >
+                      수정
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="거래 삭제"
+                    onPress={() => {
+                      closeSwipe(transaction.id);
+                      handleDelete(transaction);
+                    }}
+                    style={{ width: 72, backgroundColor: "#e1394a" }}
+                    className="items-center justify-center"
+                  >
+                    <Ionicons name="trash-outline" size={17} color="#fff" />
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: "800",
+                        marginTop: 3,
+                      }}
+                    >
+                      삭제
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${transaction.name ?? "이름 없는 거래"} 상세 보기`}
+                onPress={() => setDetail(transaction)}
+                className="flex-row items-center gap-3 active:bg-gray-50"
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 13,
+                  borderTopWidth: 1,
+                  borderColor: "#f1f3f5",
+                  backgroundColor: "#fff",
+                }}
+              >
+                <View
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 11,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: deposit
+                      ? "#e8f7f0"
+                      : auto
+                        ? "#fff0e8"
+                        : "#eef2f8",
+                  }}
+                >
+                  <Ionicons
+                    name={
+                      deposit
+                        ? "arrow-down"
+                        : auto
+                          ? "flash-outline"
+                          : "create-outline"
+                    }
+                    size={15}
+                    color={deposit ? "#2d8a63" : auto ? "#d97a4a" : "#5d6674"}
+                  />
+                </View>
+
+                <View className="flex-1">
+                  <Text
+                    numberOfLines={1}
+                    style={{ fontSize: 14, color: "#121a2a" }}
+                  >
+                    {transaction.name ?? "이름 없는 거래"}
+                  </Text>
+                  <Text
+                    style={{ fontSize: 10, color: "#8b94a2", marginTop: 3 }}
+                  >
+                    {[
+                      categoryCode
+                        ? CATEGORY_CODE_LABEL[categoryCode]
+                        : "미분류",
+                      auto ? "자동 분류" : "직접 입력",
+                    ].join(" · ")}
+                  </Text>
+                  {/* 왜 확인이 필요한지 이유를 적는다. 배지만 달면 뭘 고칠지 모른다 */}
+                  {reason ? (
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        fontWeight: "700",
+                        color: theme.primary,
+                        marginTop: 3,
+                      }}
+                    >
+                      {reason === "UNCATEGORIZED"
+                        ? "카테고리 확인 필요"
+                        : "자동 분류가 맞는지 확인해 주세요"}
+                    </Text>
+                  ) : null}
+                </View>
+
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "700",
+                    color: deposit ? theme.primary : "#121a2a",
+                  }}
+                >
+                  {deposit ? "+" : "−"}
+                  {transaction.amount.toLocaleString("ko-KR")}원
+                </Text>
+              </Pressable>
+            </Swipeable>
+          );
+        }}
+      />
+
+      {/*
+        ── 거래 상세 ── (IA v2 §2-4, FUND-03 역할)
+        별도 화면이 아니라 바텀시트다. 다른 화면에서 지목해 열 수 있도록
+        ?transactionId= 로 주소를 만들어 뒀다.
+      */}
+      <BottomSheet
+        visible={detail !== null}
+        title="거래 상세"
+        onClose={() => setDetail(null)}
+        footer={
+          detail ? (
+            <View className="flex-row gap-2">
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="카테고리 변경"
+                  variant="secondary"
+                  onPress={() => {
+                    const target = detail;
+                    setDetail(null);
+                    setEditing(target);
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button label="닫기" onPress={() => setDetail(null)} />
+              </View>
+            </View>
+          ) : null
+        }
+      >
+        {detail ? (
+          <View style={{ paddingTop: 14 }}>
+            <Text style={{ fontSize: 11, color: "#858e9c" }}>
+              {detail.transaction_type === TRANSACTION_TYPE.DEPOSIT
+                ? "입금"
+                : "출금"}
+            </Text>
+            <Text
+              style={{
+                marginTop: 3,
+                fontSize: 28,
+                fontWeight: "900",
+                letterSpacing: -1.2,
+                color:
+                  detail.transaction_type === TRANSACTION_TYPE.DEPOSIT
+                    ? theme.primary
+                    : "#141b28",
+              }}
+            >
+              {detail.transaction_type === TRANSACTION_TYPE.DEPOSIT ? "+" : "−"}
+              {detail.amount.toLocaleString("ko-KR")}
+              <Text style={{ fontSize: 14, letterSpacing: 0 }}>원</Text>
+            </Text>
+
+            <View
+              style={{
+                marginTop: 16,
+                borderTopWidth: 1,
+                borderColor: "#e5e8ec",
+              }}
+            >
+              {(
+                [
+                  ["거래명", detail.name ?? "이름 없는 거래"],
+                  [
+                    "거래일",
+                    format(parseISO(detail.occurred_at), "yyyy년 M월 d일"),
+                  ],
+                  [
+                    "예산 카테고리",
+                    detail.budget_category_id
+                      ? (CATEGORY_CODE_LABEL[
+                          (data?.categories.find(
+                            (c) => c.id === detail.budget_category_id,
+                          )?.category_code ?? "") as CategoryCode
+                        ] ?? "미분류")
+                      : "미분류",
+                  ],
+                  [
+                    "분류 방식",
+                    detail.category_method === CATEGORY_METHOD.AUTO
+                      ? `자동 분류${detail.category_confidence !== null ? ` · 신뢰도 ${detail.category_confidence}%` : ""}`
+                      : detail.category_method === CATEGORY_METHOD.USER
+                        ? "직접 지정"
+                        : "분류 전",
+                  ],
+                  [
+                    "연결 계좌",
+                    detail.financial_account_id
+                      ? (data?.maskedAccountNumber ?? "연결 계좌")
+                      : "직접 입력",
+                  ],
+                  [
+                    "연결된 계획",
+                    detail.budget_plan_item_id ? "계획에 연결됨" : "연결 안 됨",
+                  ],
+                ] as const
+              ).map(([label, value]) => (
+                <View
+                  key={label}
+                  className="flex-row items-center justify-between"
+                  style={{
+                    paddingVertical: 11,
+                    borderBottomWidth: 1,
+                    borderColor: "#f1f3f5",
+                  }}
+                >
+                  <Text style={{ fontSize: 11, color: "#858e9c" }}>
+                    {label}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: "#141b28",
+                    }}
+                  >
+                    {value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {reviewReason(detail) ? (
+              <View
+                style={{
+                  marginTop: 12,
+                  borderRadius: 11,
+                  backgroundColor: "#f5f6f8",
+                  padding: 11,
+                }}
+              >
+                <Text
+                  style={{ fontSize: 10, lineHeight: 15, color: "#687281" }}
+                >
+                  {reviewReason(detail) === "UNCATEGORIZED"
+                    ? "아직 예산 카테고리가 없어요. 카테고리를 정하면 해당 예산의 실제 사용액에 반영돼요."
+                    : "자동으로 분류했지만 확신이 낮아요. 맞는지 확인해 주세요."}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </BottomSheet>
+
+      {/* 카테고리 변경 시트 */}
+      <Modal
+        visible={editing !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditing(null)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }}
+          onPress={() => setEditing(null)}
+        />
+        <View
+          style={{
+            backgroundColor: "#fff",
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            paddingHorizontal: 20,
+            paddingTop: 20,
+            paddingBottom: 34,
+          }}
+        >
+          <Text style={{ fontSize: 16, fontWeight: "800", color: "#121a2a" }}>
+            카테고리 변경
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={{ fontSize: 12, color: "#8b94a2", marginTop: 4 }}
+          >
+            {editing?.name ?? "이름 없는 거래"} ·{" "}
+            {(editing?.amount ?? 0).toLocaleString("ko-KR")}원
+          </Text>
+
+          <View className="mt-4 flex-row flex-wrap" style={{ gap: 8 }}>
+            {(data?.categories ?? []).map((category) => {
+              const selected = editing?.budget_category_id === category.id;
+              return (
+                <Pressable
+                  key={category.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  disabled={busy}
+                  onPress={() => void handleChangeCategory(category.id)}
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    borderColor: selected ? theme.primary : "#e7e9ed",
+                    backgroundColor: selected ? theme.primary : "#fff",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: selected ? "800" : "400",
+                      color: selected ? theme.onPrimary : "#121a2a",
+                    }}
+                  >
+                    {
+                      CATEGORY_CODE_LABEL[
+                        category.category_code as CategoryCode
+                      ]
+                    }
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}

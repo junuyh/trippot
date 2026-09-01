@@ -5,7 +5,7 @@
 //   - 다른 사용자·모임·여행 데이터에 접근할 수 있는 Query 를 만들지 않는다.
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
-import { TRANSACTION_TYPE } from '@/lib/constants/status';
+import { CATEGORY_METHOD, TRANSACTION_TYPE } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Tables, TablesInsert } from '@/types/database';
 
@@ -158,4 +158,72 @@ export async function updateTransactionMapping(
   for (const categoryId of affected) await recalcCategoryActual(categoryId);
 
   return data;
+}
+
+/**
+ * 여행자금 집계. (IA v2 §2-4-1)
+ *
+ * ⚠️ **누적 모금액과 현재 잔액을 혼용하지 않는다.**
+ *
+ *   누적 모금액 = 등록 금액 + 입금(DEPOSIT) 합계
+ *   현재 잔액   = 누적 모금액 − 출금(WITHDRAWAL) 합계
+ *
+ * 결제로 줄어드는 것은 **잔액**이지 모은 금액이 아니다.
+ * 항공권을 샀다고 여행 준비 진행률이 뒤로 가면 안 된다.
+ *
+ * 모금 자체가 취소된 경우(잘못 넣은 입금)는 그 DEPOSIT 거래를 지운다.
+ * 지워지면 여기 합계에서도 빠져 누적 모금액이 다시 계산된다.
+ */
+export type FundTotals = {
+  /** 입금 거래 합계. fund_sources.current_amount 는 포함하지 않는다 */
+  depositTotal: number;
+  /** 출금 거래 합계 */
+  withdrawalTotal: number;
+};
+
+export async function getFundTotals(tripId: string): Promise<FundTotals> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('transaction_type, amount')
+    .eq('trip_id', tripId)
+    .is('deleted_at', null);
+
+  if (error) throw error;
+
+  let depositTotal = 0;
+  let withdrawalTotal = 0;
+  for (const row of data ?? []) {
+    if (row.transaction_type === TRANSACTION_TYPE.DEPOSIT) depositTotal += row.amount;
+    else withdrawalTotal += row.amount;
+  }
+  return { depositTotal, withdrawalTotal };
+}
+
+/**
+ * 결산 전에 사람이 확인해야 하는 거래인가. (IA v2 §2-4-2)
+ *
+ * ⚠️ 지금 판정할 수 있는 것만 본다.
+ *      카테고리 없음        budget_category_id is null
+ *      자동 분류 신뢰도 낮음 category_confidence < 기준
+ *
+ *    '계획 연결 후보 다중' · '카드 승인↔출금 중복' · '환불·취소' 는
+ *    판정할 칼럼이 없다. FUND-02(계좌 연결) 구현 시 스키마와 함께 정한다.
+ *    없는 근거로 '확인 필요' 를 띄우면 사용자는 무엇을 고쳐야 할지 알 수 없다.
+ */
+export const LOW_CONFIDENCE_THRESHOLD = 70;
+
+export type ReviewReason = 'UNCATEGORIZED' | 'LOW_CONFIDENCE';
+
+export function reviewReason(transaction: Transaction): ReviewReason | null {
+  // 입금은 예산 카테고리에 붙지 않는다. 분류를 물을 대상이 아니다.
+  if (transaction.transaction_type === TRANSACTION_TYPE.DEPOSIT) return null;
+  if (!transaction.budget_category_id) return 'UNCATEGORIZED';
+  if (
+    transaction.category_method === CATEGORY_METHOD.AUTO &&
+    transaction.category_confidence !== null &&
+    transaction.category_confidence < LOW_CONFIDENCE_THRESHOLD
+  ) {
+    return 'LOW_CONFIDENCE';
+  }
+  return null;
 }

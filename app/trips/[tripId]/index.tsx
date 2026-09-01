@@ -16,7 +16,7 @@
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import {
   JourneySteps,
@@ -498,7 +498,12 @@ export default function ScreenTripHome() {
             최근 내역. 항목 탭은 거래 상세(FUND-03)가 아직 없어 막아두고,
             '전체 보기' 만 내역 화면(FUND-01)으로 연결한다.
           */}
-          {recentTransactions.length > 0 ? (
+          {/*
+            ⚠️ 거래가 없어도 이 섹션을 숨기지 않는다.
+               여기가 여행자금 관리(FUND-01)로 들어가는 유일한 입구인데,
+               숨기면 아직 아무것도 모으지 않은 사용자가 자금을 넣을 방법이 없다.
+          */}
+          {targetAmount > 0 ? (
             <View className="gap-2.5">
               <View
                 className="flex-row items-end justify-between"
@@ -507,15 +512,42 @@ export default function ScreenTripHome() {
                 <Text style={{ fontSize: 17, fontWeight: '800', color: theme.neutral }}>
                   최근 여행자금 내역
                 </Text>
+                {/* 여행자금 관리(FUND-01)로 간다. 목록만이 아니라 추가·차감도 여기서 한다 */}
                 <Text
                   accessibilityRole="button"
                   onPress={() => router.push(`/trips/${trip.id}/funds`)}
                   style={{ fontSize: 10, fontWeight: '600', color: theme.primary }}
                 >
-                  전체 보기 ›
+                  여행자금 관리 ›
                 </Text>
               </View>
-              <RecentTransactionList transactions={recentTransactions} />
+              {recentTransactions.length > 0 ? (
+                <RecentTransactionList transactions={recentTransactions} />
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="여행자금 관리"
+                  onPress={() => router.push(`/trips/${trip.id}/funds`)}
+                  className="active:bg-gray-50"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#e8eaee',
+                    borderRadius: 14,
+                    paddingVertical: 22,
+                    paddingHorizontal: 16,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: '#858e9c' }}>
+                    아직 입출금 내역이 없어요
+                  </Text>
+                  <Text
+                    style={{ marginTop: 5, fontSize: 12, fontWeight: '800', color: theme.primary }}
+                  >
+                    모은 금액 기록하기 ›
+                  </Text>
+                </Pressable>
+              )}
             </View>
           ) : null}
 
