@@ -6,7 +6,7 @@
 // ⚠️ 금액을 축약하지 않는다. 174천이 아니라 174,000원이다. (스펙)
 // ⚠️ 실제 지출 그래프를 넣지 않는다. 이 화면은 계획을 보는 자리다.
 import { Ionicons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import type { CountryTheme } from "@/lib/constants/countryTheme";
 
@@ -22,6 +22,8 @@ type Props = {
   /** 0~100 */
   progress: number;
   destinationKo: string;
+  /** '현재 준비된 자금' 을 누르면 여행자금 관리(FUND-01)로 간다 */
+  onPressFund?: () => void;
 };
 
 function won(value: number): string {
@@ -34,6 +36,7 @@ export function BudgetTicketCard({
   raisedAmount,
   progress,
   destinationKo,
+  onPressFund,
 }: Props) {
   const needed = Math.max(0, targetAmount - raisedAmount);
   const percent = Math.round(progress);
@@ -89,21 +92,32 @@ export function BudgetTicketCard({
         style={{ paddingHorizontal: 18, paddingTop: 15, paddingBottom: 17 }}
       >
         <View className="flex-row">
-          <View style={{ flex: 1 }}>
+          {/* 자금을 더하거나 뺄 곳이 필요하다. 목록만 보는 화면이 아니다 */}
+          <Pressable
+            accessibilityRole={onPressFund ? "button" : undefined}
+            accessibilityLabel={onPressFund ? "여행자금 관리" : undefined}
+            disabled={!onPressFund}
+            onPress={onPressFund}
+            style={{ flex: 1 }}
+            className={onPressFund ? "active:opacity-60" : undefined}
+          >
             <Text style={{ fontSize: 10, color: "#7c8695" }}>
               현재 준비된 자금
             </Text>
-            <Text
-              style={{
-                marginTop: 3,
-                fontSize: 14,
-                fontWeight: "800",
-                color: "#141b28",
-              }}
+            <View
+              className="flex-row items-center"
+              style={{ gap: 3, marginTop: 3 }}
             >
-              {won(raisedAmount)}
-            </Text>
-          </View>
+              <Text
+                style={{ fontSize: 14, fontWeight: "800", color: "#141b28" }}
+              >
+                {won(raisedAmount)}
+              </Text>
+              {onPressFund ? (
+                <Ionicons name="chevron-forward" size={13} color="#a8afb9" />
+              ) : null}
+            </View>
+          </Pressable>
           <View style={{ flex: 1, alignItems: "flex-end" }}>
             <Text style={{ fontSize: 10, color: "#7c8695" }}>
               앞으로 필요한 금액
