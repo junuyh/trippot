@@ -14,16 +14,16 @@
 //
 // 색 규칙: 추가 추천만 레드, 절약 추천만 그린. 조정 없음은 회색.
 // ============================================================================
-import { Ionicons } from '@expo/vector-icons';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 
-import { CATEGORY_EMOJI } from '@/lib/constants/categoryEmoji';
-import type { CountryTheme } from '@/lib/constants/countryTheme';
-import { CATEGORY_CODE_LABEL, type CategoryCode } from '@/lib/constants/status';
+import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
+import type { CountryTheme } from "@/lib/constants/countryTheme";
+import { CATEGORY_CODE_LABEL, type CategoryCode } from "@/lib/constants/status";
 
-const GREEN = '#16805d';
-const MUTED = '#7c8695';
-const LINE = '#e8eaee';
+const GREEN = "#16805d";
+const MUTED = "#7c8695";
+const LINE = "#e8eaee";
 
 export type InsightItem = {
   categoryId: string;
@@ -39,14 +39,14 @@ export type InsightItem = {
 };
 
 function won(value: number): string {
-  return `${value.toLocaleString('ko-KR')}원`;
+  return `${value.toLocaleString("ko-KR")}원`;
 }
 
 /** basis point 를 사람이 읽는 퍼센트로. 2000 → '20' */
 function percentText(bp: number): string {
   return Math.abs(bp / 100)
     .toFixed(1)
-    .replace(/\.0$/, '');
+    .replace(/\.0$/, "");
 }
 
 // ── 진입 버튼 ───────────────────────────────────────────────────────────
@@ -62,14 +62,17 @@ export function BudgetInsightButton({
   const appliedCount = items.filter((item) => item.applied).length;
   const appliedSum = items
     .filter((item) => item.applied)
-    .reduce((sum, item) => sum + (item.personalizedAmount - item.recommendedAmount), 0);
+    .reduce(
+      (sum, item) => sum + (item.personalizedAmount - item.recommendedAmount),
+      0,
+    );
 
   // 아직 아무것도 반영하지 않았으면 '조정할 수 있어요' 로 안내한다.
   // 반영한 게 없는데 '조정했어요' 라고 하면 사실과 다르다.
   const headline =
     appliedCount === 0
       ? `예산을 ${won(Math.abs(totalOffer(items)))} 조정할 수 있어요`
-      : `예산을 ${won(Math.abs(appliedSum))} ${appliedSum >= 0 ? '늘렸어요' : '줄였어요'}`;
+      : `예산을 ${won(Math.abs(appliedSum))} ${appliedSum >= 0 ? "늘렸어요" : "줄였어요"}`;
 
   return (
     <Pressable
@@ -77,14 +80,14 @@ export function BudgetInsightButton({
       accessibilityLabel="지난 여행 지출 분석 보기"
       onPress={onPress}
       style={{
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: 10,
         padding: 14,
         borderWidth: 1,
         borderColor: LINE,
         borderRadius: 15,
-        backgroundColor: '#fff',
+        backgroundColor: "#fff",
       }}
       className="active:bg-gray-50"
     >
@@ -93,7 +96,14 @@ export function BudgetInsightButton({
 
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 9, color: MUTED }}>지난 여행 지출 분석</Text>
-        <Text style={{ marginTop: 3, fontSize: 13, fontWeight: '700', color: '#141b28' }}>
+        <Text
+          style={{
+            marginTop: 3,
+            fontSize: 13,
+            fontWeight: "700",
+            color: "#141b28",
+          }}
+        >
           {headline}
         </Text>
         <View className="flex-row" style={{ gap: 6, marginTop: 6 }}>
@@ -102,9 +112,9 @@ export function BudgetInsightButton({
               paddingHorizontal: 6,
               paddingVertical: 3,
               borderRadius: 10,
-              backgroundColor: '#f5f6f8',
+              backgroundColor: "#f5f6f8",
               fontSize: 9,
-              color: '#66717f',
+              color: "#66717f",
             }}
           >
             {appliedCount}개 항목 적용 중
@@ -114,9 +124,9 @@ export function BudgetInsightButton({
               paddingHorizontal: 6,
               paddingVertical: 3,
               borderRadius: 10,
-              backgroundColor: '#f5f6f8',
+              backgroundColor: "#f5f6f8",
               fontSize: 9,
-              color: '#66717f',
+              color: "#66717f",
             }}
           >
             항목별 변경 가능
@@ -129,9 +139,9 @@ export function BudgetInsightButton({
           width: 24,
           height: 24,
           borderRadius: 12,
-          backgroundColor: '#f5f6f8',
-          alignItems: 'center',
-          justifyContent: 'center',
+          backgroundColor: "#f5f6f8",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <Ionicons name="chevron-forward" size={14} color="#66717f" />
@@ -142,7 +152,10 @@ export function BudgetInsightButton({
 
 /** 전부 반영했을 때의 조정 합계. 안내 문구에만 쓴다 */
 function totalOffer(items: InsightItem[]): number {
-  return items.reduce((sum, item) => sum + (item.personalizedAmount - item.recommendedAmount), 0);
+  return items.reduce(
+    (sum, item) => sum + (item.personalizedAmount - item.recommendedAmount),
+    0,
+  );
 }
 
 // ── 바텀시트 ────────────────────────────────────────────────────────────
@@ -165,21 +178,29 @@ export function BudgetInsightSheet({
   const appliedCount = items.filter((item) => item.applied).length;
   const appliedSum = items
     .filter((item) => item.applied)
-    .reduce((sum, item) => sum + (item.personalizedAmount - item.recommendedAmount), 0);
+    .reduce(
+      (sum, item) => sum + (item.personalizedAmount - item.recommendedAmount),
+      0,
+    );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="닫기"
         onPress={onClose}
-        style={{ flex: 1, backgroundColor: 'rgba(15,20,30,0.36)' }}
+        style={{ flex: 1, backgroundColor: "rgba(15,20,30,0.36)" }}
       />
 
       <View
         style={{
-          maxHeight: '82%',
-          backgroundColor: '#fff',
+          maxHeight: "82%",
+          backgroundColor: "#fff",
           borderTopLeftRadius: 22,
           borderTopRightRadius: 22,
           paddingBottom: 24,
@@ -190,8 +211,8 @@ export function BudgetInsightSheet({
             width: 38,
             height: 4,
             borderRadius: 4,
-            backgroundColor: '#d9dde2',
-            alignSelf: 'center',
+            backgroundColor: "#d9dde2",
+            alignSelf: "center",
             marginTop: 9,
             marginBottom: 4,
           }}
@@ -199,10 +220,16 @@ export function BudgetInsightSheet({
 
         <View
           className="flex-row items-center"
-          style={{ paddingHorizontal: 17, paddingTop: 10, paddingBottom: 13, borderBottomWidth: 1, borderColor: LINE }}
+          style={{
+            paddingHorizontal: 17,
+            paddingTop: 10,
+            paddingBottom: 13,
+            borderBottomWidth: 1,
+            borderColor: LINE,
+          }}
         >
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: '#141b28' }}>
+            <Text style={{ fontSize: 17, fontWeight: "800", color: "#141b28" }}>
               지난 여행 지출 분석
             </Text>
             <Text style={{ marginTop: 4, fontSize: 10, color: MUTED }}>
@@ -217,19 +244,22 @@ export function BudgetInsightSheet({
               width: 30,
               height: 30,
               borderRadius: 15,
-              backgroundColor: '#f5f6f8',
-              alignItems: 'center',
-              justifyContent: 'center',
+              backgroundColor: "#f5f6f8",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             <Ionicons name="close" size={17} color="#66717f" />
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 8 }}>
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 8 }}
+        >
           {items.map((item, index) => {
             const diff = item.personalizedAmount - item.recommendedAmount;
-            const tone = diff > 0 ? theme.primary : diff < 0 ? GREEN : '#727c89';
+            const tone =
+              diff > 0 ? theme.primary : diff < 0 ? GREEN : "#727c89";
             const busy = busyCategoryId === item.categoryId;
 
             return (
@@ -244,20 +274,35 @@ export function BudgetInsightSheet({
                   borderColor: LINE,
                 }}
               >
-                <Text style={{ width: 66, fontSize: 11, fontWeight: '800', color: '#141b28' }}>
-                  {CATEGORY_EMOJI[item.categoryCode]} {CATEGORY_CODE_LABEL[item.categoryCode]}
+                <Text
+                  style={{
+                    width: 66,
+                    fontSize: 11,
+                    fontWeight: "800",
+                    color: "#141b28",
+                  }}
+                >
+                  {CATEGORY_EMOJI[item.categoryCode]}{" "}
+                  {CATEGORY_CODE_LABEL[item.categoryCode]}
                 </Text>
 
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 10, color: '#4d5765' }}>
+                  <Text style={{ fontSize: 10, color: "#4d5765" }}>
                     {diff === 0
-                      ? '지난 여행 예산과 비슷했어요'
-                      : `지난 여행 ${percentText(item.deviationBp)}% ${item.deviationBp > 0 ? '초과' : '절약'}`}
+                      ? "지난 여행 예산과 비슷했어요"
+                      : `지난 여행 ${percentText(item.deviationBp)}% ${item.deviationBp > 0 ? "초과" : "절약"}`}
                   </Text>
-                  <Text style={{ marginTop: 3, fontSize: 11, fontWeight: '800', color: tone }}>
+                  <Text
+                    style={{
+                      marginTop: 3,
+                      fontSize: 11,
+                      fontWeight: "800",
+                      color: tone,
+                    }}
+                  >
                     {diff === 0
-                      ? '이번 예산 조정 없음'
-                      : `${diff > 0 ? '+' : '-'}${won(Math.abs(diff))} ${diff > 0 ? '추가' : '차감'} 추천`}
+                      ? "이번 예산 조정 없음"
+                      : `${diff > 0 ? "+" : "-"}${won(Math.abs(diff))} ${diff > 0 ? "추가" : "차감"} 추천`}
                   </Text>
                 </View>
 
@@ -283,12 +328,20 @@ export function BudgetInsightSheet({
             borderWidth: 1,
             borderColor: LINE,
             borderRadius: 12,
-            backgroundColor: '#fff',
+            backgroundColor: "#fff",
           }}
         >
-          <Text style={{ fontSize: 11, color: '#4d5765' }}>{appliedCount}개 항목 적용 중</Text>
-          <Text style={{ fontSize: 12, fontWeight: '800', color: appliedSum >= 0 ? theme.primary : GREEN }}>
-            {appliedSum >= 0 ? '+' : '-'}
+          <Text style={{ fontSize: 11, color: "#4d5765" }}>
+            {appliedCount}개 항목 적용 중
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: "800",
+              color: appliedSum >= 0 ? theme.primary : GREEN,
+            }}
+          >
+            {appliedSum >= 0 ? "+" : "-"}
             {won(Math.abs(appliedSum))}
           </Text>
         </View>
@@ -323,9 +376,9 @@ function Switch({
         width: 34,
         height: 20,
         borderRadius: 20,
-        backgroundColor: value ? color : '#d9dde3',
+        backgroundColor: value ? color : "#d9dde3",
         opacity: disabled ? 0.4 : 1,
-        justifyContent: 'center',
+        justifyContent: "center",
       }}
     >
       <View
@@ -333,9 +386,9 @@ function Switch({
           width: 16,
           height: 16,
           borderRadius: 8,
-          backgroundColor: '#fff',
+          backgroundColor: "#fff",
           marginLeft: value ? 16 : 2,
-          shadowColor: '#000',
+          shadowColor: "#000",
           shadowOpacity: 0.18,
           shadowRadius: 2,
           shadowOffset: { width: 0, height: 1 },

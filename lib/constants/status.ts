@@ -99,6 +99,19 @@ export const BUDGET_PLAN_ITEM_STATUS = {
 export type BudgetPlanItemStatus =
   (typeof BUDGET_PLAN_ITEM_STATUS)[keyof typeof BUDGET_PLAN_ITEM_STATUS];
 
+/**
+ * budget_plan_items.display_mode. 목록에서 금액을 보여주는 방식이다.
+ *
+ * ⚠️ 표시에만 쓴다. expected_amount 는 언제나 **총액**이고 이 값에 따라
+ *    바뀌지 않는다. 계획 합계·설정 예산·결산 어디에도 영향을 주지 않는다.
+ *    (BUDGET-02 v2 스펙 / 20260901000001 마이그레이션)
+ */
+export const PLAN_DISPLAY_MODE = {
+  TOTAL: 'TOTAL',
+  PER_PERSON: 'PER_PERSON',
+} as const;
+export type PlanDisplayMode = (typeof PLAN_DISPLAY_MODE)[keyof typeof PLAN_DISPLAY_MODE];
+
 // ── 여행자금 ───────────────────────────────────────────────────────────────
 /** fund_sources.source_type. ZERO 는 '아직 등록 안 함'이다. */
 export const FUND_SOURCE_TYPE = {

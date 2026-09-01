@@ -1,19 +1,36 @@
-// BUDGET-02 세부 계획 목록.
-// HTML 시안(.plan / .plan-list)의 치수를 옮겼다. thumb 50px · radius 14 · gap 9
+// ============================================================================
+// BUDGET-02 세부 계획 목록
 //
-// ⚠️ 계산 근거("38,000원 × 4명")는 **저장하지 않고 화면에서 나눈다.**
-//    예상금액 ÷ 인원이 딱 떨어질 때만 보여준다.
-//    사용자가 90,000원을 직접 적었는데 4로 나눠 "22,500원 × 4명" 이라고 쓰면
-//    없는 단가를 지어내는 셈이다. 그런 항목은 '직접 입력' 으로 표시한다.
+// ⚠️ 삭제는 **왼쪽으로 밀었을 때만** 나온다. 체크 해제는 계획에서 빼는 것이고
+//    삭제는 항목 자체를 없애는 것이라, 두 동작이 한 자리에 같이 있으면 안 된다.
 //
-// ⚠️ 체크를 끄면 세부 계획 합계에서 빠진다. 삭제와는 다르다.
-//    budget_plan_items.status 의 PLANNED / CANCELED 로 저장한다.
-import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+// ⚠️ 체크를 해제해도 **삭제 배경이 카드 전체에 비치면 안 된다.** (스펙)
+//    빨간 배경 위에 반투명 카드를 얹는 방식은 꺼진 항목을 전부 빨갛게 만든다.
+//    카드는 항상 불투명하게 두고, 삭제 배경은 카드 뒤 오른쪽에만 깐다.
+//
+// ⚠️ 실제 지출이 연결된 항목은 **체크 해제도 스와이프 삭제도 막는다.**
+//    이미 쓴 돈이 달린 계획을 빼면 '계획에 없는 지출' 이 생겨
+//    계획 대비 실제 비교가 성립하지 않는다.
+//    연결 해제는 지출 상세 화면에서만 한다. (스펙)
+//
+// ⚠️ 여유 예산은 DB 행이 아니라 **설정 예산 − 선택된 계획 합계**다.
+//    전체 여행 공통 '예비비' 카테고리와 헷갈리지 않게 이름을 다르게 쓴다. (스펙)
+// ============================================================================
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, Text, View } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
+import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { useRef } from "react";
 
-import { Button, CurrencyInput, Input } from '@/components/ui';
-import type { CountryTheme } from '@/lib/constants/countryTheme';
+import type { CountryTheme } from "@/lib/constants/countryTheme";
+import {
+  PLAN_DISPLAY_MODE,
+  type PlanDisplayMode,
+} from "@/lib/constants/status";
+
+const GREEN = "#19865f";
+const SUB = "#858e9c";
+const LINE = "#e5e8ec";
 
 export type PlanItem = {
   id: string;
@@ -23,233 +40,348 @@ export type PlanItem = {
   /** 계획에 포함할지. 끄면 합계에서 빠진다 */
   selected: boolean;
   emoji: string;
+  /** 금액을 총액으로 보여줄지 1인당 × 인원으로 보여줄지. 총액은 바뀌지 않는다 */
+  displayMode: PlanDisplayMode;
   /**
    * 실제 지출과 연결된 항목인가.
-   *
-   * ⚠️ 연결된 항목은 **삭제도 체크 해제도 못 한다.**
-   *    이미 쓴 돈이 붙어 있는 계획을 빼면 "계획에 없는 지출" 이 생겨
-   *    계획 대비 실제 비교가 성립하지 않는다.
+   * 연결되면 잠긴다 — 체크 해제도 삭제도 못 한다.
    */
   locked: boolean;
 };
 
-export type PlanDraft = { name: string; amount: number | null };
-
-/** 썸네일 배경. HTML 의 t1~t4 를 순환한다 */
-const THUMB_BG = ['#e4efff', '#ffe8dc', '#eee4fa', '#dff5f0'];
+export type PlanDraft = {
+  name: string;
+  /** 언제나 **총액**이다. 1인당으로 보여주더라도 저장되는 값은 총액이다 */
+  amount: number | null;
+  displayMode: PlanDisplayMode;
+};
 
 type Props = {
   items: PlanItem[];
   headcount: number;
   theme: CountryTheme;
+  /** 설정 예산 − 선택된 계획 합계. 0 이면 행을 그리지 않는다 */
+  reserveAmount: number;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
-
-  adding: boolean;
-  draft: PlanDraft;
-  nameError: string | null;
+  /** 연결된 항목을 누르면 지출 상세로 간다 */
+  onOpenLinked: (id: string) => void;
   onStartAdd: () => void;
-  onChangeDraft: (draft: PlanDraft) => void;
-  onCancelAdd: () => void;
-  onConfirmAdd: () => void;
 };
 
 function won(value: number): string {
-  return `${value.toLocaleString('ko-KR')}원`;
+  return `${value.toLocaleString("ko-KR")}원`;
 }
 
-/**
- * 계산 근거 한 줄.
- * 인원으로 나누어떨어질 때만 단가를 보여준다. 아니면 '직접 입력'.
- */
-function basisLabel(amount: number, headcount: number): string {
-  if (headcount > 1 && amount > 0 && amount % headcount === 0) {
-    return `${(amount / headcount).toLocaleString('ko-KR')}원 × ${headcount}명`;
-  }
-  return '직접 입력';
+/** '총액 기준' 또는 '50,000원 × 4명'. 총액을 인원으로 나눠 보여줄 뿐이다 */
+function amountCaption(item: PlanItem, headcount: number): string {
+  if (item.displayMode !== PLAN_DISPLAY_MODE.PER_PERSON || headcount <= 0)
+    return "총액 기준";
+  return `${won(Math.round(item.expectedAmount / headcount))} × ${headcount}명`;
 }
 
 export function PlanItemCard({
   items,
   headcount,
   theme,
+  reserveAmount,
   onToggle,
   onDelete,
-  adding,
-  draft,
-  nameError,
+  onOpenLinked,
   onStartAdd,
-  onChangeDraft,
-  onCancelAdd,
-  onConfirmAdd,
 }: Props) {
+  const swipeRefs = useRef(new Map<string, SwipeableMethods | null>());
+
   return (
-    <View>
-      <View style={{ gap: 9 }}>
-        {items.map((item, index) => (
+    <View style={{ gap: 9 }}>
+      {items.map((item) =>
+        item.locked ? (
+          // ── 실제 지출과 연결된 계획 ──────────────────────────────────
+          <Pressable
+            key={item.id}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name} 지출 상세 보기`}
+            onPress={() => onOpenLinked(item.id)}
+            className="active:opacity-70"
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              minHeight: 96,
+              padding: 10,
+              borderWidth: 1,
+              borderColor: "#d9dde3",
+              borderRadius: 14,
+              backgroundColor: "#fbfcfd",
+            }}
+          >
+            <View
+              style={{
+                width: 45,
+                height: 45,
+                borderRadius: 11,
+                backgroundColor: "#eef2f7",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 22 }}>{item.emoji}</Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 9, fontWeight: "900", color: GREEN }}>
+                결제 완료 · 지출 연결됨
+              </Text>
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: "#111827",
+                }}
+              >
+                {item.name}
+              </Text>
+              <Text style={{ marginTop: 4, fontSize: 9, color: SUB }}>
+                예상 {won(item.expectedAmount)}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 7,
+                  fontSize: 9,
+                  fontWeight: "800",
+                  color: "#657080",
+                }}
+              >
+                지출 상세 보기 ›
+              </Text>
+            </View>
+
+            <View style={{ alignItems: "flex-end", minWidth: 86 }}>
+              <Text
+                style={{ fontSize: 11, fontWeight: "700", color: "#111827" }}
+              >
+                실제 {won(item.actualAmount)}
+              </Text>
+              {/*
+                예상과 실제의 차액. 아낀 건 그린, 더 쓴 건 포인트 컬러.
+                금액이 같으면 알려줄 게 없다.
+              */}
+              {item.actualAmount !== item.expectedAmount ? (
+                <Text
+                  style={{
+                    marginTop: 5,
+                    fontSize: 9,
+                    fontWeight: "900",
+                    color:
+                      item.actualAmount > item.expectedAmount
+                        ? theme.primary
+                        : GREEN,
+                  }}
+                >
+                  {won(Math.abs(item.expectedAmount - item.actualAmount))}{" "}
+                  {item.actualAmount > item.expectedAmount ? "초과" : "절약"}
+                </Text>
+              ) : null}
+              <Ionicons
+                name="lock-closed"
+                size={11}
+                color="#929aa6"
+                style={{ marginTop: 7 }}
+              />
+            </View>
+          </Pressable>
+        ) : (
+          // ── 일반 계획 ────────────────────────────────────────────────
           <Swipeable
             key={item.id}
-            // 지출이 붙은 항목은 밀어도 삭제가 열리지 않는다
-            enabled={!item.locked}
+            ref={(node) => {
+              if (node) swipeRefs.current.set(item.id, node);
+              else swipeRefs.current.delete(item.id);
+            }}
             overshootRight={false}
             renderRightActions={() => (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${item.name} 삭제`}
-                onPress={() => onDelete(item.id)}
+                onPress={() => {
+                  swipeRefs.current.get(item.id)?.close();
+                  onDelete(item.id);
+                }}
                 style={{
                   width: 74,
-                  marginLeft: 9,
-                  borderRadius: 14,
-                  backgroundColor: '#e1394a',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  backgroundColor: theme.primary,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderTopRightRadius: 14,
+                  borderBottomRightRadius: 14,
                 }}
               >
-                <Ionicons name="trash-outline" size={19} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', marginTop: 3 }}>
+                <Ionicons
+                  name="trash-outline"
+                  size={16}
+                  color={theme.onPrimary}
+                />
+                <Text
+                  style={{
+                    marginTop: 3,
+                    fontSize: 11,
+                    fontWeight: "800",
+                    color: theme.onPrimary,
+                  }}
+                >
                   삭제
                 </Text>
               </Pressable>
             )}
           >
-          <View
-            className="flex-row items-center"
-            style={{
-              gap: 11,
-              borderWidth: 1,
-              borderColor: '#e7e9ed',
-              borderRadius: 14,
-              padding: 10,
-              backgroundColor: item.selected ? '#fff' : '#f7f8f9',
-              opacity: item.selected ? 1 : 0.62,
-            }}
-          >
+            {/*
+              ⚠️ 카드는 항상 불투명하다. 체크를 꺼도 뒤의 삭제 배경이 비치지 않는다.
+                 꺼진 상태는 배경을 회색으로 바꾸고 안쪽 요소만 흐리게 해서 알린다.
+            */}
             <View
               style={{
-                width: 50,
-                height: 50,
-                borderRadius: 11,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: THUMB_BG[index % THUMB_BG.length],
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                minHeight: 72,
+                padding: 10,
+                borderWidth: 1,
+                borderColor: LINE,
+                borderRadius: 14,
+                backgroundColor: item.selected ? "#fff" : "#f7f8fa",
               }}
             >
-              <Text style={{ fontSize: 25 }}>{item.emoji}</Text>
-            </View>
+              <View
+                style={{
+                  width: 45,
+                  height: 45,
+                  borderRadius: 11,
+                  backgroundColor: "#f2f4f7",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: item.selected ? 1 : 0.48,
+                }}
+              >
+                <Text style={{ fontSize: 22 }}>{item.emoji}</Text>
+              </View>
 
-            <View className="flex-1">
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#121a2a' }}>
-                {item.name}
-              </Text>
-              <Text style={{ fontSize: 9, color: '#7d8797', marginTop: 4 }}>
-                {basisLabel(item.expectedAmount, headcount)}
-                {item.actualAmount > 0 ? `  ·  실제 ${won(item.actualAmount)}` : ''}
-              </Text>
-              {item.locked ? (
-                <Text style={{ fontSize: 9, color: '#8b94a2', marginTop: 3 }}>
-                  지출이 연결돼 있어 뺄 수 없어요
+              <View style={{ flex: 1, opacity: item.selected ? 1 : 0.48 }}>
+                <Text
+                  style={{ fontSize: 12, fontWeight: "700", color: "#111827" }}
+                >
+                  {item.name}
                 </Text>
-              ) : null}
-            </View>
+                <Text style={{ marginTop: 4, fontSize: 9, color: SUB }}>
+                  {amountCaption(item, headcount)}
+                </Text>
+              </View>
 
-            <View className="items-end">
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#121a2a' }}>
-                {won(item.expectedAmount)}
-              </Text>
-              <View className="mt-1.5">
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: item.selected, disabled: item.locked }}
-                  accessibilityLabel={`${item.name} 계획에 포함`}
-                  disabled={item.locked}
-                  onPress={() => onToggle(item.id)}
-                  hitSlop={6}
+              <View style={{ alignItems: "flex-end" }}>
+                <Text
                   style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderWidth: 1,
-                    borderColor: item.locked
-                      ? '#cfd4dc'
-                      : item.selected
-                        ? theme.primary
-                        : '#cfd4dc',
-                    backgroundColor: item.locked
-                      ? '#e7e9ed'
-                      : item.selected
-                        ? theme.primary
-                        : '#fff',
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: "#111827",
+                    opacity: item.selected ? 1 : 0.48,
                   }}
                 >
-                  {item.locked ? (
-                    <Ionicons name="lock-closed" size={10} color="#8b94a2" />
-                  ) : item.selected ? (
-                    <Ionicons name="checkmark" size={12} color={theme.onPrimary} />
+                  {won(item.expectedAmount)}
+                </Text>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={`${item.name} 계획에 포함`}
+                  accessibilityState={{ checked: item.selected }}
+                  onPress={() => onToggle(item.id)}
+                  hitSlop={8}
+                  style={{
+                    width: 23,
+                    height: 23,
+                    marginTop: 6,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: item.selected ? theme.primary : "#cfd4dc",
+                    backgroundColor: item.selected ? theme.primary : "#fff",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {item.selected ? (
+                    <Ionicons
+                      name="checkmark"
+                      size={14}
+                      color={theme.onPrimary}
+                    />
                   ) : null}
                 </Pressable>
               </View>
             </View>
-          </View>
           </Swipeable>
-        ))}
-      </View>
+        ),
+      )}
 
-      {/* 직접 추가 — 기본은 버튼만, 누르면 카드 안에서 펼친다 */}
-      {adding ? (
+      {/* ── 여유 예산 ── 설정 예산에서 계획 합계를 뺀 차액이다 ── */}
+      {reserveAmount > 0 ? (
         <View
           style={{
-            marginTop: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            minHeight: 72,
+            padding: 10,
             borderWidth: 1,
-            borderColor: theme.primary + '55',
+            borderColor: LINE,
             borderRadius: 14,
-            backgroundColor: theme.primarySoft,
-            padding: 13,
-            gap: 8,
+            backgroundColor: "#fff",
           }}
         >
-          <Input
-            value={draft.name}
-            onChangeText={(name) => onChangeDraft({ ...draft, name })}
-            placeholder="항목 이름 · 예: 오사카성 입장권"
-            error={nameError}
-            maxLength={30}
-            autoFocus
-          />
-          <CurrencyInput
-            value={draft.amount}
-            onChangeValue={(amount) => onChangeDraft({ ...draft, amount })}
-            placeholder="예상 금액"
-          />
-          <View className="flex-row justify-end gap-2">
-            <Button label="취소" variant="secondary" fullWidth={false} onPress={onCancelAdd} />
-            <Button label="추가" fullWidth={false} onPress={onConfirmAdd} />
+          <View
+            style={{
+              width: 45,
+              height: 45,
+              borderRadius: 11,
+              backgroundColor: "#fff7e8",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ fontSize: 22 }}>🪙</Text>
           </View>
-        </View>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="계획 항목 직접 추가"
-          onPress={onStartAdd}
-          style={{
-            marginTop: 10,
-            borderWidth: 1,
-            borderStyle: 'dashed',
-            borderColor: '#cdd3da',
-            borderRadius: 13,
-            backgroundColor: '#fff',
-            padding: 13,
-          }}
-          className="flex-row items-center justify-center active:bg-gray-50"
-        >
-          <Text style={{ fontSize: 12, fontWeight: '800', color: theme.primary }}>＋ </Text>
-          <Text style={{ fontSize: 12, fontWeight: '800', color: '#596474' }}>
-            계획 항목 직접 추가
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#111827" }}>
+              여유 예산
+            </Text>
+            <Text style={{ marginTop: 4, fontSize: 9, color: "#9a7a37" }}>
+              예상 밖 비용에 대비해요
+            </Text>
+          </View>
+          <Text style={{ fontSize: 11, fontWeight: "700", color: "#111827" }}>
+            {won(reserveAmount)}
           </Text>
-        </Pressable>
-      )}
+        </View>
+      ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="계획 항목 추가"
+        onPress={onStartAdd}
+        className="active:bg-gray-50"
+        style={{
+          marginTop: 1,
+          borderWidth: 1,
+          borderStyle: "dashed",
+          borderColor: "#cfd5dc",
+          borderRadius: 13,
+          backgroundColor: "#fff",
+          paddingVertical: 14,
+          alignItems: "center",
+        }}
+      >
+        <Text style={{ fontSize: 11, fontWeight: "800", color: "#576170" }}>
+          <Text style={{ color: theme.primary }}>＋ </Text>
+          계획 항목 추가
+        </Text>
+      </Pressable>
     </View>
   );
 }

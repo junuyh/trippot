@@ -75,6 +75,7 @@ export type Database = {
           actual_amount: number
           budget_category_id: string
           created_at: string
+          display_mode: string
           expected_amount: number
           id: string
           name: string
@@ -86,6 +87,7 @@ export type Database = {
           actual_amount?: number
           budget_category_id: string
           created_at?: string
+          display_mode?: string
           expected_amount?: number
           id?: string
           name: string
@@ -97,6 +99,7 @@ export type Database = {
           actual_amount?: number
           budget_category_id?: string
           created_at?: string
+          display_mode?: string
           expected_amount?: number
           id?: string
           name?: string

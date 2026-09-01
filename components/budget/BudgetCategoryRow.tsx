@@ -9,12 +9,12 @@
 //
 // ⚠️ 실제 지출 그래프를 넣지 않는다. 막대는 준비율(금고 배분) 하나다.
 //    지출 비교는 BUDGET-02 와 결산이 담당한다.
-import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, Text, View } from "react-native";
 
-import { CATEGORY_EMOJI } from '@/lib/constants/categoryEmoji';
-import type { CountryTheme } from '@/lib/constants/countryTheme';
-import { CATEGORY_CODE_LABEL, type CategoryCode } from '@/lib/constants/status';
+import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
+import type { CountryTheme } from "@/lib/constants/countryTheme";
+import { CATEGORY_CODE_LABEL, type CategoryCode } from "@/lib/constants/status";
 
 export type BudgetCategoryRowData = {
   id: string;
@@ -32,11 +32,20 @@ type Props = {
   onPress: (categoryId: string) => void;
 };
 
-export function BudgetCategoryRow({ category, theme, targetAmount, onPress }: Props) {
+export function BudgetCategoryRow({
+  category,
+  theme,
+  targetAmount,
+  onPress,
+}: Props) {
   const { plannedAmount, preparedAmount } = category;
 
-  const prepRate = plannedAmount > 0 ? Math.min(100, (preparedAmount / plannedAmount) * 100) : 0;
-  const share = targetAmount > 0 ? Math.round((plannedAmount / targetAmount) * 100) : 0;
+  const prepRate =
+    plannedAmount > 0
+      ? Math.min(100, (preparedAmount / plannedAmount) * 100)
+      : 0;
+  const share =
+    targetAmount > 0 ? Math.round((plannedAmount / targetAmount) * 100) : 0;
 
   return (
     <Pressable
@@ -45,23 +54,25 @@ export function BudgetCategoryRow({ category, theme, targetAmount, onPress }: Pr
       onPress={() => onPress(category.id)}
       className="active:bg-gray-50"
       style={{
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: 9,
         paddingHorizontal: 12,
         paddingVertical: 13,
       }}
     >
-      <Text style={{ fontSize: 20, width: 26 }}>{CATEGORY_EMOJI[category.categoryCode]}</Text>
+      <Text style={{ fontSize: 20, width: 26 }}>
+        {CATEGORY_EMOJI[category.categoryCode]}
+      </Text>
 
       <View style={{ flex: 1, gap: 6 }}>
         <View className="flex-row items-center justify-between">
-          <Text style={{ fontSize: 12, fontWeight: '800', color: '#141b28' }}>
+          <Text style={{ fontSize: 12, fontWeight: "800", color: "#141b28" }}>
             {CATEGORY_CODE_LABEL[category.categoryCode]}
           </Text>
           {/* 금액을 축약하지 않는다. 174천이 아니라 174,000원이다 (스펙) */}
-          <Text style={{ fontSize: 13, fontWeight: '800', color: '#141b28' }}>
-            {plannedAmount.toLocaleString('ko-KR')}원
+          <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
+            {plannedAmount.toLocaleString("ko-KR")}원
           </Text>
         </View>
 
@@ -71,23 +82,25 @@ export function BudgetCategoryRow({ category, theme, targetAmount, onPress }: Pr
               flex: 1,
               height: 5,
               borderRadius: 5,
-              backgroundColor: '#eff1f3',
-              overflow: 'hidden',
+              backgroundColor: "#eff1f3",
+              overflow: "hidden",
             }}
           >
             <View
               style={{
                 width: `${prepRate}%`,
-                height: '100%',
+                height: "100%",
                 borderRadius: 5,
                 backgroundColor: theme.primary,
               }}
             />
           </View>
-          <Text style={{ fontSize: 9, color: '#7c8695' }}>
-            <Text style={{ color: theme.primary, fontWeight: '800' }}>{share}%</Text>
-            {' · '}
-            {prepRate > 0 ? `${Math.round(prepRate)}% 준비` : '준비 전'}
+          <Text style={{ fontSize: 9, color: "#7c8695" }}>
+            <Text style={{ color: theme.primary, fontWeight: "800" }}>
+              {share}%
+            </Text>
+            {" · "}
+            {prepRate > 0 ? `${Math.round(prepRate)}% 준비` : "준비 전"}
           </Text>
         </View>
       </View>

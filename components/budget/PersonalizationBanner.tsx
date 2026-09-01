@@ -9,11 +9,11 @@
 //      ③ 거절할 수단 — "이번엔 괜찮아요"
 //
 //    근거 없이 금액만 바꾸자고 하면 사용자는 판단할 방법이 없다.
-import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, Text, View } from "react-native";
 
-import { Button } from '@/components/ui';
-import { CATEGORY_CODE_LABEL, type CategoryCode } from '@/lib/constants/status';
+import { Button } from "@/components/ui";
+import { CATEGORY_CODE_LABEL, type CategoryCode } from "@/lib/constants/status";
 
 export type PersonalizationItem = {
   categoryId: string;
@@ -39,11 +39,11 @@ type Props = {
 };
 
 function won(value: number): string {
-  return `${value.toLocaleString('ko-KR')}원`;
+  return `${value.toLocaleString("ko-KR")}원`;
 }
 
 function percent(bp: number): string {
-  return `${bp > 0 ? '+' : ''}${(bp / 100).toFixed(0)}%`;
+  return `${bp > 0 ? "+" : ""}${(bp / 100).toFixed(0)}%`;
 }
 
 export function PersonalizationBanner({
@@ -66,8 +66,9 @@ export function PersonalizationBanner({
         <Text className="text-base">💡</Text>
         <View className="flex-1">
           <Text className="text-[15px] font-semibold leading-5 text-gray-900">
-            지난 여행 {basedOnTripCount}건을 보니{'\n'}
-            {CATEGORY_CODE_LABEL[top.categoryCode]}를 {percent(top.deviationBp)} 쓰셨어요
+            지난 여행 {basedOnTripCount}건을 보니{"\n"}
+            {CATEGORY_CODE_LABEL[top.categoryCode]}를 {percent(top.deviationBp)}{" "}
+            쓰셨어요
           </Text>
           <Text className="mt-1 text-xs text-gray-500">
             그때 쓴 만큼으로 이번 예산을 다시 잡아드릴까요?
@@ -86,7 +87,10 @@ export function PersonalizationBanner({
         {(expanded ? items : items.slice(0, 1)).map((item) => {
           const diff = item.personalizedAmount - item.recommendedAmount;
           return (
-            <View key={item.categoryId} className="flex-row items-center justify-between">
+            <View
+              key={item.categoryId}
+              className="flex-row items-center justify-between"
+            >
               <Text className="text-[13px] text-gray-700">
                 {CATEGORY_CODE_LABEL[item.categoryCode]}
               </Text>
@@ -100,11 +104,11 @@ export function PersonalizationBanner({
                 </Text>
                 <Text
                   className={`text-[11px] font-medium ${
-                    diff > 0 ? 'text-pot-coral' : 'text-gray-500'
+                    diff > 0 ? "text-pot-coral" : "text-gray-500"
                   }`}
                 >
-                  {diff > 0 ? '+' : ''}
-                  {Math.round(diff / 1000).toLocaleString('ko-KR')}천
+                  {diff > 0 ? "+" : ""}
+                  {Math.round(diff / 1000).toLocaleString("ko-KR")}천
                 </Text>
               </View>
             </View>
@@ -114,10 +118,10 @@ export function PersonalizationBanner({
         {items.length > 1 ? (
           <View className="flex-row items-center gap-0.5">
             <Text className="text-[11px] text-gray-400">
-              {expanded ? '접기' : `외 ${items.length - 1}개 더 보기`}
+              {expanded ? "접기" : `외 ${items.length - 1}개 더 보기`}
             </Text>
             <Ionicons
-              name={expanded ? 'chevron-up' : 'chevron-down'}
+              name={expanded ? "chevron-up" : "chevron-down"}
               size={11}
               color="#9ca3af"
             />

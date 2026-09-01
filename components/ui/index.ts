@@ -1,3 +1,4 @@
+export { BottomSheet } from './BottomSheet';
 // components/ui/ 공통 컴포넌트 단일 진입점.
 // 새 공통 컴포넌트를 만들기 전에 여기부터 확인한다. (CLAUDE.md 9장)
 export { Button } from './Button';
