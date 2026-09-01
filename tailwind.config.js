@@ -7,23 +7,21 @@ module.exports = {
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
-      // ── TripPot 컬러칩 ──────────────────────────────────────────────
-      // Tailwind 기본 색(blue-600, gray-900 …)은 그대로 살아 있다.
-      // 여기 추가한 것은 새 이름이라 기존 화면 색을 바꾸지 않는다.
+      // ── TripPot 뉴트럴 ──────────────────────────────────────────────
+      // components/trip-home/TravelTicketCard 와 lib/constants/countryTheme 가
+      // 쓰는 값과 같다. 화면마다 다른 회색을 쓰지 않으려고 이름을 붙였다.
       //
-      // ⚠️ mint / sun / sky 는 흰 바탕에서 글자색으로 쓰면 대비가 모자란다.
-      //    채움(배경·막대)에 쓰고, 그 위 글자는 ink 를 얹는다.
+      // ⚠️ 배경과 기본 카드는 항상 화이트·쿨그레이다. (countryTheme.ts 규칙)
+      //    포인트 컬러는 국가 테마(theme.primary)에서 오고
+      //    진행률·D-Day 배지처럼 의미가 있는 곳에만 쓴다.
       colors: {
         pot: {
-          grape: '#B32DE6',   // 보라 — 강조
-          sky: '#4DC9F6',     // 하늘 — 정보
-          mint: '#00E39A',    // 민트 — 준비·달성
-          sun: '#FFD84D',     // 노랑 — 기한·주목
-          coral: '#FF7A5A',   // 코랄 — 초과·주의
-          blossom: '#FF9EC4', // 분홍
-          lilac: '#E3B7F2',   // 연보라
-          paper: '#ECECEC',   // 밝은 바탕
-          ink: '#0A0A0A',     // 먹 — 글자·버튼
+          ink: '#111827',    // 본문·숫자
+          mute: '#747B88',   // 보조 글자
+          faint: '#8B94A2',  // 라벨 (FROM · TO 같은 마이크로 카피)
+          line: '#E5E8EC',   // 경계선
+          dash: '#CBD0D6',   // 절취선
+          visual: '#F5F7FA', // 티켓 윗칸 바탕
         },
       },
     },
