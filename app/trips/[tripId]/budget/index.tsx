@@ -195,6 +195,17 @@ export default function ScreenBUDGET01() {
     // 예산을 아직 확정하지 않았으면 비교할 기준이 없다. 확정 후에 제안한다.
     if (data.budget.target_amount <= 0) return;
 
+    // 이미 개인화를 반영한 여행에는 다시 제안하지 않는다.
+    //
+    // 여행 생성(TRIP-03)에서 '지난 여행 반영' 을 받아들였거나, 이 화면에서
+    // 한 번 반영한 경우다. 같은 계산으로 나온 같은 금액을 다시 제안하면
+    // 사용자에게는 방금 확정한 예산이 또 틀렸다는 말로 읽히고,
+    // personalization_offered 노출 모수도 부풀려진다. (docs/06 §7-6)
+    if (data.categories.some((c) => c.applied_source === APPLIED_SOURCE.PERSONALIZED)) {
+      offeredRef.current = true;
+      return;
+    }
+
     offeredRef.current = true;
 
     const scope =
