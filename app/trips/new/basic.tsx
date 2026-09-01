@@ -1,30 +1,37 @@
 // ============================================================================
 // TRIP-02 여행 생성: 기본정보  ·  /trips/new/basic
 //
-// 여행지 · 일정 · 인원 · 여행 스타일을 받는다.
+// 여행지 · 일정 · 인원을 받는다.
+//
+// ⚠️ 2026-09-01 · 여행 스타일은 TRIP-03 으로 옮겼다. (HTML 디자인 반영)
+//    스타일을 바꿀 때 추천 금액이 바로 움직이는 것을 같은 화면에서 보게 하려는 것이다.
+//    draft.travelStyle 은 여기서 건드리지 않는다.
 //
 // 이 파일은 상태 관리 · 검증 · 로그 기록만 한다. UI 는 components/trip-create/.
 // TRIP-01 과 마찬가지로 DB 에 쓰지 않는다. 저장은 TRIP-03 에서 한 번에 한다.
 // ============================================================================
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { ko } from 'date-fns/locale';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LayoutAnimation, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import {
+  BottomCta,
   DateRangeCalendar,
   DestinationPicker,
   HeadcountStepper,
   StepProgress,
-  TravelStyleSelector,
 } from '@/components/trip-create';
-import { Button } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
-import type { Destination, RegionCode } from '@/lib/constants/destinations';
-import { COMPANION_TYPE, type TravelStyle } from '@/lib/constants/status';
+import { REGION_LABEL, type Destination, type RegionCode } from '@/lib/constants/destinations';
+import { COMPANION_TYPE } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { useTripDraft } from '@/lib/hooks/useTripDraft';
+
+/** 처음 들어왔을 때 펼쳐 둘 지역. REGION_LABEL 의 정의 순서가 화면 순서다. */
+const DEFAULT_OPEN_REGION = (Object.keys(REGION_LABEL) as RegionCode[])[0];
 
 /** 시작일·종료일을 포함한 여행 일수. 3박 4일이면 4다. */
 function getDurationDays(startDate: string, endDate: string): number {
@@ -56,8 +63,12 @@ export default function ScreenTRIP02() {
 
   // ── 여행지 ────────────────────────────────────────────────────────────
   // 펼쳐 놓을 지역. 뒤로 갔다 돌아오면 이미 고른 목적지의 지역을 열어 둔다.
+  //
+  // 처음 들어오면 첫 지역을 열어 둔다. 아무것도 안 열어 두면 목록에 무엇이 있는지
+  // 모른 채 검색부터 하게 되고, 있는 목적지를 못 찾아 직접 입력으로 새면
+  // 기준 데이터를 쓰지 못한다.
   const [openRegion, setOpenRegion] = useState<RegionCode | null>(
-    () => (draft.isCustomDestination ? null : draft.region),
+    () => (draft.isCustomDestination ? null : (draft.region ?? DEFAULT_OPEN_REGION)),
   );
 
   const handleSelectDestination = useCallback(
@@ -110,7 +121,8 @@ export default function ScreenTRIP02() {
     : draft.destinationCode !== null;
   const datesValid = Boolean(draft.startDate && draft.endDate);
 
-  const canSubmit = destinationValid && datesValid && draft.headcount >= 1 && draft.travelStyle !== null;
+  // 스타일은 TRIP-03 으로 옮겼으므로 여기서 요구하지 않는다.
+  const canSubmit = destinationValid && datesValid && draft.headcount >= 1;
 
   // '다음' 이 disabled 라 눌러서는 검증을 띄울 수 없다.
   // 입력칸을 건드렸다가 비운 채 벗어나는 시점에 알린다.
@@ -121,33 +133,10 @@ export default function ScreenTRIP02() {
     );
   }, [draft.destinationName]);
 
-  // ── 단계별 노출 ───────────────────────────────────────────────────────
-  //
-  // 네 항목을 한 번에 펼쳐 두면 첫 화면이 스크롤 세 배 길이가 된다.
-  // 여행지를 정해야 일정이, 일정을 정해야 스타일이 의미를 갖기도 한다.
-  //
-  //   여행지 → (정하면) 일정·인원 → (정하면) 여행 스타일
-  //
-  // ⚠️ 한 번 펼친 단계는 다시 접지 않는다.
-  //    여행지를 직접 입력으로 바꾸는 순간 아래 두 단계가 통째로 사라지면
-  //    이미 고른 날짜가 없어진 것처럼 보인다. 값은 draft 에 그대로 있다.
-  //    빠진 값은 접는 대신 '다음' 을 눌렀을 때 missingMessage 로 알린다.
-  const [scheduleRevealed, setScheduleRevealed] = useState(false);
-  const [styleRevealed, setStyleRevealed] = useState(false);
-
-  useEffect(() => {
-    if (destinationValid && !scheduleRevealed) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setScheduleRevealed(true);
-    }
-  }, [destinationValid, scheduleRevealed]);
-
-  useEffect(() => {
-    if (datesValid && !styleRevealed) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setStyleRevealed(true);
-    }
-  }, [datesValid, styleRevealed]);
+  // ⚠️ 2026-09-01 · 단계별 노출을 걷어냈다. (HTML 디자인 반영)
+  //    원래는 여행지 → 일정·인원 → 스타일 순으로 하나씩 펼쳤다. 한 번에 펼치면
+  //    첫 화면이 길어진다는 이유였다. 세 항목을 처음부터 보여주는 쪽으로 바꿨다.
+  //    빠진 값은 여전히 '다음' 을 disabled 로 막고 해당 입력칸에서 알린다.
 
   // ── 다음 단계 ─────────────────────────────────────────────────────────
   // 연타로 같은 화면이 스택에 두 번 쌓이는 것을 막는다. (NFR-005)
@@ -159,13 +148,18 @@ export default function ScreenTRIP02() {
   );
 
   const handleNext = useCallback(() => {
-    if (!canSubmit || !draft.startDate || !draft.endDate || !draft.travelStyle) return;
+    if (!canSubmit || !draft.startDate || !draft.endDate) return;
     if (navigatingRef.current) return;
     navigatingRef.current = true;
 
     const destination = trimmedName;
     if (draft.isCustomDestination) patchDraft({ destinationName: destination });
 
+    // ⚠️ travel_style 파라미터를 지우지 않는다. (CLAUDE.md 13장 로그 보호)
+    //    다만 스타일 입력이 TRIP-03 으로 가면서, 이 시점에는 사용자가 아직 고르지
+    //    않았다. 그래서 여기 실리는 값은 draft 기본값이고 "여행 조건 분포" 라는
+    //    원래 목적을 채우지 못한다. 실제로 고른 값은 trips.travel_style_json 과
+    //    budget_target_confirmed 에 남는다. L 확인 대기 중이다. (2026-09-01)
     track(EVENTS.TRIP_BASIC_INFO_SUBMITTED, {
       destination,
       duration_days: getDurationDays(draft.startDate, draft.endDate),
@@ -179,113 +173,128 @@ export default function ScreenTRIP02() {
     router.navigate('/trips/new/budget-fund');
   }, [canSubmit, draft.endDate, draft.headcount, draft.isCustomDestination, draft.startDate, draft.travelStyle, patchDraft, trimmedName]);
 
+  // 고른 날짜 요약. 왼쪽은 날짜, 오른쪽은 박·일이다. (HTML 의 picked 박스)
   const durationLabel =
     draft.startDate && draft.endDate
-      ? `${format(parseISO(draft.startDate), 'M월 d일')} → ${format(parseISO(draft.endDate), 'M월 d일')} · ${
-          getDurationDays(draft.startDate, draft.endDate) - 1
-        }박 ${getDurationDays(draft.startDate, draft.endDate)}일`
+      ? `${format(parseISO(draft.startDate), 'M.d(E)', { locale: ko })} → ${format(
+          parseISO(draft.endDate),
+          'M.d(E)',
+          { locale: ko },
+        )}`
+      : null;
+
+  const nightsLabel =
+    draft.startDate && draft.endDate
+      ? `${getDurationDays(draft.startDate, draft.endDate) - 1}박 ${getDurationDays(draft.startDate, draft.endDate)}일`
+      : null;
+
+  // 날짜를 아직 다 안 골랐을 때만 섹션 헤더에서 다음 할 일을 알려준다.
+  const scheduleHint = !draft.startDate
+    ? '가는 날을 골라주세요'
+    : !draft.endDate
+      ? '오는 날을 골라주세요'
       : null;
 
   return (
-    <ScrollView
-      className="flex-1 bg-white"
-      contentContainerClassName="px-5 pb-10 pt-6"
-      keyboardShouldPersistTaps="handled"
-    >
+    <View className="flex-1 bg-white">
       <Stack.Screen options={{ title: '여행 만들기' }} />
 
-      <StepProgress current={2} />
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-5 pb-8 pt-5"
+        keyboardShouldPersistTaps="handled"
+      >
+        <StepProgress current={2} />
 
-      <Text className="mt-6 text-2xl font-bold text-gray-900">어디로, 언제 가나요?</Text>
-      <Text className="mt-1.5 text-sm text-gray-500">
-        입력한 조건으로 예산을 추천해 드려요.
-      </Text>
-
-      {/* ── 여행지 ── */}
-      <View className="mt-7">
-        <Text className="mb-2.5 text-base font-semibold text-gray-900">
-          여행지 <Text className="text-red-500">*</Text>
+        <Text className="mt-6 text-[26px] font-bold leading-8 text-gray-900">
+          어디로 떠나나요?
         </Text>
-        <DestinationPicker
-          selectedCode={draft.destinationCode}
-          openRegion={openRegion}
-          onOpenRegion={setOpenRegion}
-          isCustom={draft.isCustomDestination}
-          customName={draft.isCustomDestination ? (draft.destinationName ?? '') : ''}
-          customRegion={draft.region}
-          onSelectDestination={handleSelectDestination}
-          onStartCustom={handleStartCustom}
-          onChangeCustomName={handleChangeCustomName}
-          onBlurCustomName={handleBlurCustomName}
-          onSelectRegion={handleSelectRegion}
-          customNameError={customNameError}
-        />
-      </View>
-
-      {/* ── 일정 ── */}
-      {scheduleRevealed ? (
-      <>
-      <View className="mt-7">
-        <Text className="mb-2.5 text-base font-semibold text-gray-900">
-          일정 <Text className="text-red-500">*</Text>
+        <Text className="mt-2 text-[13px] text-gray-500">
+          여행지와 일정에 따라 예상 여행비가 달라져요.
         </Text>
-        <DateRangeCalendar
-          startDate={draft.startDate}
-          endDate={draft.endDate}
-          onChange={handleChangeDates}
-        />
-        {durationLabel ? (
-          <Text className="mt-2 text-sm font-medium text-blue-700">{durationLabel}</Text>
+
+        {/* ── 여행지 ── */}
+        <View className="mt-7">
+          <View className="mb-2.5 flex-row items-baseline">
+            <Text className="text-[15px] font-bold text-gray-900">여행지</Text>
+            <Text className="ml-1 text-[15px] font-bold text-red-500">*</Text>
+          </View>
+          <DestinationPicker
+            selectedCode={draft.destinationCode}
+            openRegion={openRegion}
+            onOpenRegion={setOpenRegion}
+            isCustom={draft.isCustomDestination}
+            customName={draft.isCustomDestination ? (draft.destinationName ?? '') : ''}
+            customRegion={draft.region}
+            onSelectDestination={handleSelectDestination}
+            onStartCustom={handleStartCustom}
+            onChangeCustomName={handleChangeCustomName}
+            onBlurCustomName={handleBlurCustomName}
+            onSelectRegion={handleSelectRegion}
+            customNameError={customNameError}
+          />
+        </View>
+
+        {/* ── 일정 ── 남은 안내는 헤더 오른쪽에 둔다. 달력 안의 문구와 겹치지 않게 끈다 ── */}
+        <View className="mt-7">
+          <View className="mb-2.5 flex-row items-baseline">
+            <Text className="text-[15px] font-bold text-gray-900">일정</Text>
+            <Text className="ml-1 text-[15px] font-bold text-red-500">*</Text>
+            {scheduleHint ? (
+              <Text className="ml-auto text-[11px] font-medium text-gray-400">{scheduleHint}</Text>
+            ) : null}
+          </View>
+          <DateRangeCalendar
+            startDate={draft.startDate}
+            endDate={draft.endDate}
+            onChange={handleChangeDates}
+            maxMonthsAhead={18}
+            showHint={false}
+          />
+          {durationLabel ? (
+            <View className="mt-3 flex-row items-center rounded-xl bg-gray-100 px-3.5 py-3.5">
+              <Text className="text-[13px] font-bold text-gray-900">{durationLabel}</Text>
+              <Text className="ml-auto text-xs font-bold text-blue-600">{nightsLabel}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/*
+          ── 인원 ──
+          혼자 가는 여행은 1명으로 정해져 있다. 물어볼 것이 없어 섹션을 그리지 않는다.
+        */}
+        {draft.companionType !== COMPANION_TYPE.PERSONAL ? (
+          <View className="mt-7">
+            <View className="mb-2.5 flex-row items-baseline">
+              <Text className="text-[15px] font-bold text-gray-900">인원</Text>
+              <Text className="ml-1 text-[15px] font-bold text-red-500">*</Text>
+              {!headcountTouched ? (
+                <Text className="ml-auto text-[11px] font-medium text-gray-400">바꿀 수 있어요</Text>
+              ) : null}
+            </View>
+            <HeadcountStepper
+              value={draft.headcount}
+              onChange={(value) => {
+                setHeadcountTouched(true);
+                patchDraft({ headcount: value });
+              }}
+              hint={
+                !headcountTouched
+                  ? draft.companionType === COMPANION_TYPE.EXISTING_GROUP
+                    ? `모임 인원 ${draft.headcount}명으로 맞췄어요`
+                    : `동행자 수에 맞춰 ${draft.headcount}명으로 맞췄어요`
+                  : undefined
+              }
+            />
+          </View>
         ) : null}
-      </View>
-
-      {/* ── 인원 ── 일정과 함께 나타난다 */}
-      <View className="mt-7">
-        <Text className="mb-2.5 text-base font-semibold text-gray-900">인원</Text>
-        <HeadcountStepper
-          value={draft.headcount}
-          onChange={(value) => {
-            setHeadcountTouched(true);
-            patchDraft({ headcount: value });
-          }}
-          hint={
-            draft.companionType !== COMPANION_TYPE.PERSONAL && !headcountTouched
-              ? draft.companionType === COMPANION_TYPE.EXISTING_GROUP
-                ? '모임 인원에 맞춰 자동으로 채웠어요. 바꿀 수 있어요.'
-                : '동행자 수에 맞춰 자동으로 채웠어요. 바꿀 수 있어요.'
-              : undefined
-          }
-        />
-      </View>
-      </>
-      ) : null}
-
-      {/* ── 여행 스타일 ── */}
-      {styleRevealed ? (
-      <View className="mt-7">
-        <Text className="mb-1 text-base font-semibold text-gray-900">
-          여행 스타일 <Text className="text-red-500">*</Text>
-        </Text>
-        <Text className="mb-2.5 text-xs text-gray-400">
-          숙소와 식사 수준에 따라 추천 금액이 달라져요.
-        </Text>
-        <TravelStyleSelector
-          value={draft.travelStyle}
-          onChange={(value: TravelStyle) => patchDraft({ travelStyle: value })}
-        />
-      </View>
-      ) : null}
+      </ScrollView>
 
       {/*
-        마지막 단계가 펼쳐지기 전에는 '다음' 을 노출하지 않는다.
-        아직 물어볼 게 남았는데 완료 버튼이 먼저 보이면 단계 노출의 의미가 없다.
-        필수값이 비면 disabled 로 막고, 무엇이 빠졌는지는 해당 입력칸에서 알린다.
+        필수값이 비면 '다음' 을 disabled 로 막는다.
+        무엇이 빠졌는지는 하단 문구가 아니라 해당 입력칸에서 알린다.
       */}
-      {styleRevealed ? (
-        <View className="mt-8">
-          <Button label="다음" onPress={handleNext} disabled={!canSubmit} />
-        </View>
-      ) : null}
-    </ScrollView>
+      <BottomCta label="다음" onPress={handleNext} disabled={!canSubmit} />
+    </View>
   );
 }

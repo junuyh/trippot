@@ -5,7 +5,12 @@
 //   groups(신규 모임일 때) → trips → trip_members → trip_budgets
 //   → budget_categories 8행 → fund_sources
 //
+// ⚠️ 2026-09-01 · 여행 스타일 선택이 TRIP-02 에서 여기로 옮겨왔다. (HTML 디자인 반영)
+//    스타일을 바꾸면 아래 추천 금액이 바로 다시 계산된다. 같은 화면에서 보여야
+//    무엇 때문에 금액이 움직였는지 알 수 있다.
+//
 // 단계
+//   ⓪ 여행 스타일
 //   ① 예산 방식 선택 (추천 / 직접 입력)
 //   ② 예상 여행비 비교 — 두 경로 모두 여기로 수렴한다 (AC-01)
 //   ③ 카테고리 수정 → 목표 여행비 확정
@@ -20,23 +25,31 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutAnimation, Pressable, ScrollView, Text, View } from 'react-native';
 
 import {
+  BottomCta,
   BudgetCategoryList,
   BudgetMethodSelector,
   BudgetSummary,
   FundSourceSelector,
   StepProgress,
+  TravelStyleSelector,
   type EditableCategory,
 } from '@/components/trip-create';
-import { Button, CurrencyInput, ErrorState } from '@/components/ui';
+import { CurrencyInput, ErrorState } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
 import { perPerson } from '@/lib/budget/recommendation';
+import {
+  getDefaultProductIds,
+  getProductCategory,
+  sumSelectedRatio,
+} from '@/lib/constants/budgetProducts';
 import { buildBudgetRecommendation } from '@/lib/budget/recommendation';
 // TODO: 로그인 연동 시 교체
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   APPLIED_SOURCE,
   BUDGET_METHOD,
+  CATEGORY_CODE,
   BUDGET_METHOD_TO_ANALYTICS,
   COMPANION_TYPE,
   FUND_SOURCE_TYPE,
@@ -56,7 +69,7 @@ import { createTripBundle, getMyTripCount } from '@/lib/supabase/queries/trips';
 export default function ScreenTRIP03() {
   useScreenView(SCREENS.TRIP_CREATE_BUDGET);
 
-  const { draft, resetDraft } = useTripDraft();
+  const { draft, patchDraft, resetDraft } = useTripDraft();
 
   // ── 추천 계산 ─────────────────────────────────────────────────────────
   // 순수 계산이라 DB 를 타지 않는다. 앞 단계 입력이 다 있어야 성립한다.
@@ -89,6 +102,18 @@ export default function ScreenTRIP03() {
   const [categories, setCategories] = useState<EditableCategory[]>([]);
   const [editingCode, setEditingCode] = useState<CategoryCode | null>(null);
 
+  // ── 근거 상품 선택 ────────────────────────────────────────────────────
+  //
+  // 스타일의 기본 조합으로 시작한다. 이 조합의 합은 추천 금액과 정확히 같다.
+  // (lib/constants/budgetProducts.ts 의 불변식)
+  // 사용자가 상품을 빼거나 더하면 그때부터 planned_amount 가 추천과 갈라진다.
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(() =>
+    getDefaultProductIds(draft.travelStyle ?? 'standard'),
+  );
+
+  // 예비비는 상품이 아니라 비율로 정한다. null 이면 기준 금액(추천) 그대로다.
+  const [contingencyChoice, setContingencyChoice] = useState<number | null>(null);
+
   const toEditable = useCallback(
     (source: NonNullable<typeof recommendation>): EditableCategory[] =>
       source.categories.map((c) => ({
@@ -112,6 +137,8 @@ export default function ScreenTRIP03() {
       // 추천값을 planned 초기값으로 깐다. 사용자가 확정 버튼을 누르는 순간까지는
       // applied_source = 'default' 다. 고친 카테고리만 'user' 가 된다.
       setCategories(toEditable(recommendation));
+      setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
+      setContingencyChoice(null);
       setUserTotal(next === BUDGET_METHOD.USER_DEFINED ? null : recommendation.totalAmount);
 
       track(EVENTS.BUDGET_METHOD_SELECTED, {
@@ -140,6 +167,13 @@ export default function ScreenTRIP03() {
 
     setCategories(toEditable(recommendation));
     setEditingCode(null);
+
+    // 상품 선택과 예비비 비율도 함께 되돌린다.
+    // 스타일을 '보통' → '아낌없이' 로 바꿨는데 상품이 보통 조합 그대로면,
+    // 금액은 새 추천인데 아래 카드에는 옛 조합이 체크돼 있어 서로 다른 말을 한다.
+    setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
+    setContingencyChoice(null);
+
     if (method === BUDGET_METHOD.RECOMMENDED) setUserTotal(recommendation.totalAmount);
   }, [method, recommendation, toEditable]);
 
@@ -181,6 +215,113 @@ export default function ScreenTRIP03() {
       prev.map((c) => (c.categoryCode === categoryCode ? { ...c, plannedAmount: amount } : c)),
     );
   }, []);
+
+  /**
+   * 상품을 켜고 끈다. 그 카테고리 금액을 새 조합으로 다시 계산한다.
+   *
+   * 상품별로 반올림한 뒤 더하지 않는다. baseAmount 에 ratio 합을 곱해 **한 번만**
+   * 반올림한다. 상품마다 반올림하면 오차가 상품 수만큼 쌓여, 기본 조합인데도
+   * 추천 금액과 어긋나게 된다. (budgetProducts.ts 의 불변식)
+   */
+  const handleToggleProduct = useCallback(
+    (categoryCode: CategoryCode, productId: string) => {
+      const catalog = getProductCategory(categoryCode);
+      if (!catalog) return;
+
+      setSelectedProductIds((prev) => {
+        const next = new Set(prev);
+
+        if (catalog.single) {
+          // 왕복 항공권을 두 개 사지는 않는다. 같은 것을 다시 누르면 해제한다.
+          const wasSelected = next.has(productId);
+          for (const product of catalog.products) next.delete(product.id);
+          if (!wasSelected) next.add(productId);
+        } else {
+          if (next.has(productId)) next.delete(productId);
+          else next.add(productId);
+        }
+
+        setCategories((cats) =>
+          cats.map((c) =>
+            c.categoryCode === categoryCode
+              ? {
+                  ...c,
+                  plannedAmount:
+                    Math.round((c.baseAmount * sumSelectedRatio(categoryCode, next)) / 1000) * 1000,
+                }
+              : c,
+          ),
+        );
+
+        return next;
+      });
+    },
+    [],
+  );
+
+  /**
+   * 예비비 비율을 바꾼다. null 은 '추천'(기준 금액 그대로)이다.
+   *
+   * 기본값을 비율이 아니라 '추천' 으로 둔 이유: 기준 금액은 목적지마다
+   * 나머지 합계의 5% 안팎이지 정확히 5% 가 아니다. 5% 를 기본으로 깔면
+   * recommended_amount 와 다른 값이 처음부터 들어가 추천 원본의 의미가 흐려진다.
+   * (CLAUDE.md 4장)
+   */
+  const handleChangeContingency = useCallback(
+    (choice: number | null) => {
+      setContingencyChoice(choice);
+      setCategories((cats) => {
+        const others = cats
+          .filter((c) => c.categoryCode !== CATEGORY_CODE.CONTINGENCY)
+          .reduce((sum, c) => sum + c.plannedAmount, 0);
+
+        return cats.map((c) =>
+          c.categoryCode === CATEGORY_CODE.CONTINGENCY
+            ? {
+                ...c,
+                plannedAmount:
+                  choice === null
+                    ? c.recommendedAmount
+                    : Math.round((others * choice) / 100 / 1000) * 1000,
+              }
+            : c,
+        );
+      });
+    },
+    [],
+  );
+
+  /** 예비비 비율 계산의 분모이자 화면 표시값. */
+  const otherCategoriesTotal = useMemo(
+    () =>
+      categories
+        .filter((c) => c.categoryCode !== CATEGORY_CODE.CONTINGENCY)
+        .reduce((sum, c) => sum + c.plannedAmount, 0),
+    [categories],
+  );
+
+  /** 화면에 넘길 카테고리. 근거 상품을 붙여서 준다. */
+  const categoriesWithProducts = useMemo<EditableCategory[]>(
+    () =>
+      categories.map((category) => {
+        const catalog = getProductCategory(category.categoryCode);
+        if (!catalog) return category;
+
+        return {
+          ...category,
+          productHint: catalog.hint,
+          singleSelect: catalog.single,
+          products: catalog.products.map((product) => ({
+            id: product.id,
+            name: product.name,
+            emoji: product.emoji,
+            amount: Math.round((category.baseAmount * product.ratio) / 1000) * 1000,
+            selected: selectedProductIds.has(product.id),
+          })),
+        };
+      }),
+    [categories, selectedProductIds],
+  );
 
   const targetTotal = useMemo(
     () => categories.reduce((sum, c) => sum + c.plannedAmount, 0),
@@ -374,16 +515,19 @@ export default function ScreenTRIP03() {
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-white"
-      contentContainerClassName="px-5 pb-10 pt-6"
-      keyboardShouldPersistTaps="handled"
-    >
+    <View className="flex-1 bg-white">
       <Stack.Screen options={{ title: '여행 만들기' }} />
 
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-5 pb-8 pt-5"
+        keyboardShouldPersistTaps="handled"
+      >
       <StepProgress current={3} />
 
-      <Text className="mt-6 text-2xl font-bold text-gray-900">예산을 정해요</Text>
+      <Text className="mt-6 text-[26px] font-bold leading-8 text-gray-900">
+        근거를 보고{'\n'}예산을 정해요
+      </Text>
 
       {/*
         여행 조건을 눌러 앞 단계로 돌아간다.
@@ -404,6 +548,21 @@ export default function ScreenTRIP03() {
         </Text>
         <Ionicons name="pencil" size={13} color="#9ca3af" />
       </Pressable>
+
+      {/*
+        ── ⓪ 여행 스타일 ──
+        바꾸면 아래 추천 금액이 즉시 다시 계산된다. (syncedRef 효과)
+        그래서 예산 방식보다 위에 둔다. 금액을 본 뒤에 기준을 바꾸는 순서가 아니라,
+        기준을 정하고 금액을 보는 순서다.
+      */}
+      <View className="mt-7">
+        <Text className="mb-2.5 text-base font-semibold text-gray-900">여행 스타일</Text>
+        <TravelStyleSelector
+          value={draft.travelStyle}
+          onChange={(value) => patchDraft({ travelStyle: value })}
+          disabled={saving}
+        />
+      </View>
 
       {/* ── ① 예산 방식 ── */}
       <View className="mt-7">
@@ -448,13 +607,15 @@ export default function ScreenTRIP03() {
           <View className="mt-6">
             <Text className="mb-1 text-base font-semibold text-gray-900">카테고리별 예산</Text>
             <Text className="mb-2.5 text-xs text-gray-400">
-              항목을 눌러 금액을 바꿀 수 있어요.
+              항목을 눌러 근거 상품을 바꿀 수 있어요.
             </Text>
             <BudgetCategoryList
-              categories={categories}
-              // recommendation 이 있으면 travelStyle 은 반드시 채워져 있다
-              travelStyle={recommendation.basis.style}
+              categories={categoriesWithProducts}
               onChangeAmount={handleChangeCategoryAmount}
+              onToggleProduct={handleToggleProduct}
+              otherCategoriesTotal={otherCategoriesTotal}
+              contingencyChoice={contingencyChoice}
+              onChangeContingency={handleChangeContingency}
               editingCode={editingCode}
               onToggleEditing={(code) => {
                 LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -488,17 +649,21 @@ export default function ScreenTRIP03() {
       ) : null}
 
       {saveError ? <Text className="mt-5 text-sm text-red-500">{saveError}</Text> : null}
+      </ScrollView>
 
+      {/*
+        예산 방식을 고르기 전에는 확정할 것이 없어 버튼을 그리지 않는다.
+        빈 바만 남기면 눌러야 하는 것처럼 보인다.
+      */}
       {method !== null ? (
-        <View className="mt-8">
-          <Button
-            label="여행 만들기"
-            onPress={() => void handleSubmit()}
-            disabled={!canSubmit}
-            loading={saving}
-          />
-        </View>
+        <BottomCta
+          label="이 예산으로 여행 만들기"
+          onPress={() => void handleSubmit()}
+          disabled={!canSubmit}
+          loading={saving}
+          note="지금 다 정하지 않아도 돼요. 여행을 만든 뒤에도 예산은 언제든 수정할 수 있어요."
+        />
       ) : null}
-    </ScrollView>
+    </View>
   );
 }

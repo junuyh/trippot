@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import {
+  BottomCta,
   GroupPicker,
   HeaderBackButton,
   NewGroupForm,
@@ -20,7 +21,6 @@ import {
   PastDataChoice,
   StepProgress,
 } from '@/components/trip-create';
-import { Button } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
 // TODO: 로그인 연동 시 교체
@@ -28,7 +28,12 @@ import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { COMPANION_TYPE, ENTRY_POINT, type CompanionType, type EntryPoint } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { useTripDraft } from '@/lib/hooks/useTripDraft';
-import { getGroupMemberCount, getMyGroups, type Group } from '@/lib/supabase/queries/groups';
+import {
+  getGroupMemberCount,
+  getGroupMembers,
+  getMyGroups,
+  type Group,
+} from '@/lib/supabase/queries/groups';
 import { getSettledTripCount } from '@/lib/supabase/queries/personalization';
 
 /** ENTRY_POINT 에 없는 값이 param 으로 들어와도 이벤트를 오염시키지 않는다. */
@@ -87,6 +92,40 @@ export default function ScreenTRIP01() {
     }
   }, [draft.companionType, groupsLoaded, groupsLoading, loadGroups]);
 
+  // ── 고른 모임의 멤버 이름 ─────────────────────────────────────────────
+  // 인원 기본값은 getGroupMemberCount 가 따로 센다. 두 함수의 제외 조건이 달라서
+  // (탈퇴 사용자) 여기 length 로 대신하면 인원 기본값이 조용히 달라진다.
+  const [memberNames, setMemberNames] = useState<string[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+
+  const loadGroupMembers = useCallback(async (groupId: string) => {
+    setMembersLoading(true);
+    setMemberNames([]);
+    try {
+      const members = await getGroupMembers(groupId);
+      setMemberNames(members.map((member) => member.user.name));
+    } catch {
+      // 멤버 이름은 확인용이다. 못 불러와도 모임 선택과 여행 생성을 막지 않는다.
+      setMemberNames([]);
+    } finally {
+      setMembersLoading(false);
+    }
+  }, []);
+
+  // 목록과 같은 이유로, 돌아왔을 때 이미 고른 모임의 멤버를 다시 채운다.
+  const restoredGroupIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const groupId = draft.groupId;
+    if (draft.companionType !== COMPANION_TYPE.EXISTING_GROUP || !groupId) {
+      // 모임 선택이 풀리면 다음에 같은 모임을 다시 골라도 새로 불러오게 한다.
+      restoredGroupIdRef.current = null;
+      return;
+    }
+    if (restoredGroupIdRef.current === groupId) return;
+    restoredGroupIdRef.current = groupId;
+    void loadGroupMembers(groupId);
+  }, [draft.companionType, draft.groupId, loadGroupMembers]);
+
   // ── 과거 결산 완료 여행 수 ────────────────────────────────────────────
   // 개인이든 모임이든 소유 단위만 바뀔 뿐 판정은 같다.
   const [pastCountLoading, setPastCountLoading] = useState(false);
@@ -95,7 +134,7 @@ export default function ScreenTRIP01() {
     async (companionType: CompanionType, groupId: string | null) => {
       // 새 모임은 과거 데이터가 있을 수 없다. 승계하지 않는다.
       if (companionType === COMPANION_TYPE.NEW_GROUP) {
-        patchDraft({ pastTripCount: 0, applyPastData: null });
+        patchDraft({ pastTripCount: 0, applyPastData: null, pastDataInteracted: false });
         return;
       }
       if (companionType === COMPANION_TYPE.EXISTING_GROUP && !groupId) return;
@@ -108,11 +147,17 @@ export default function ScreenTRIP01() {
               { ownerType: 'PERSONAL', userId: DEV_USER_ID }
             : { ownerType: 'GROUP', groupId: groupId as string },
         );
-        patchDraft({ pastTripCount: count, applyPastData: null });
+        // 토글은 켜진 채로 뜬다. 과거 데이터가 없으면(0) 블록 자체를 그리지 않으므로
+        // null 로 둬서 '물어보지 않음' 과 구분한다.
+        patchDraft({
+          pastTripCount: count,
+          applyPastData: count > 0 ? true : null,
+          pastDataInteracted: false,
+        });
       } catch {
         // 과거 데이터 조회 실패로 여행 생성 자체를 막지 않는다.
         // 0 으로 두면 질문을 건너뛰고 기본 추천으로 진행된다.
-        patchDraft({ pastTripCount: 0, applyPastData: null });
+        patchDraft({ pastTripCount: 0, applyPastData: null, pastDataInteracted: false });
       } finally {
         setPastCountLoading(false);
       }
@@ -130,6 +175,7 @@ export default function ScreenTRIP01() {
         groupId: null,
         newGroupName: companionType === COMPANION_TYPE.NEW_GROUP ? draft.newGroupName : null,
         applyPastData: null,
+        pastDataInteracted: false,
         pastTripCount: 0,
         groupMemberCount: 0,
       });
@@ -149,7 +195,13 @@ export default function ScreenTRIP01() {
 
   const handleSelectGroup = useCallback(
     (groupId: string) => {
-      patchDraft({ groupId, applyPastData: null, pastTripCount: 0, groupMemberCount: 0 });
+      patchDraft({
+        groupId,
+        applyPastData: null,
+        pastDataInteracted: false,
+        pastTripCount: 0,
+        groupMemberCount: 0,
+      });
       void loadPastTripCount(COMPANION_TYPE.EXISTING_GROUP, groupId);
 
       // 인원 기본값. 실패해도 여행 생성을 막지 않는다.
@@ -161,15 +213,15 @@ export default function ScreenTRIP01() {
     [loadPastTripCount, patchDraft],
   );
 
+  // ⚠️ 여기서 track() 을 부르지 않는다.
+  //    토글이 기본 ON 이라 만지지 않고 넘어가는 사용자가 생기는데, 이 자리에서만
+  //    기록하면 그런 사용자가 통째로 빠져 분모가 비고 가설 5 를 못 잰다.
+  //    기록은 handleNext 가 '다음' 시점에 최종값으로 한 번 한다.
   const handleChangePastData = useCallback(
     (applied: boolean) => {
-      patchDraft({ applyPastData: applied });
-      track(EVENTS.PAST_DATA_APPLY_SELECTED, {
-        applied,
-        past_trip_count: draft.pastTripCount,
-      });
+      patchDraft({ applyPastData: applied, pastDataInteracted: true });
     },
-    [draft.pastTripCount, patchDraft],
+    [patchDraft],
   );
 
   // ── 신규 모임 입력 ────────────────────────────────────────────────────
@@ -220,15 +272,11 @@ export default function ScreenTRIP01() {
     (draft.companionType === COMPANION_TYPE.EXISTING_GROUP && Boolean(draft.groupId)) ||
     (draft.companionType === COMPANION_TYPE.NEW_GROUP && trimmedGroupName.length > 0);
 
-  // 과거 데이터 질문이 떴으면 반드시 답해야 넘어간다.
-  //
-  // 답하지 않으면 past_data_apply_selected 가 아예 기록되지 않아, 질문을 본 사람
-  // 대비 반영을 택한 비율(가설 5)을 잴 수 없다. 미선택을 '반영'으로 간주하면
-  // 사용자가 고르지 않은 값을 고른 것처럼 기록하게 되어, 검증하려던 지표가
-  // 오염된다. 그래서 기본값을 두지 않고 필수로 만든다.
-  const pastDataValid = !showPastDataChoice || draft.applyPastData !== null;
-
-  const canProceed = companionValid && pastDataValid;
+  // 과거 데이터 반영은 기본 ON 토글이라 답하지 않아도 넘어간다.
+  // 예전에는 2택 필수 선택이었다. 안 고르면 past_data_apply_selected 가 아예
+  // 남지 않아 분모가 비는 게 이유였는데, 이제 '다음' 시점에 최종값을 기록하므로
+  // 그 문제가 없다. (안 2 · 2026-09-01 L 승인)
+  const canProceed = companionValid;
 
   // 연타로 같은 화면이 스택에 두 번 쌓이는 것을 막는다. (NFR-005)
   // 이 화면으로 돌아오면 useFocusEffect 가 다시 열어 준다.
@@ -239,8 +287,34 @@ export default function ScreenTRIP01() {
     }, []),
   );
 
+  // 같은 값으로 앞뒤를 오가며 '다음' 을 여러 번 눌러도 한 번만 쏜다.
+  // 누른 횟수만큼 쌓이면 분모가 사람 수가 아니라 이동 횟수가 된다.
+  // 값을 바꿔서 다시 오면 그때는 바뀐 값으로 다시 쏜다. 분석은 흐름당 마지막
+  // 이벤트를 본다.
+  const sentPastDataRef = useRef<boolean | null>(null);
+
   const handleNext = useCallback(() => {
     if (!canProceed) return;
+
+    // 과거 데이터 반영 여부는 여기서 기록한다. (가설 5)
+    //
+    // 토글이 기본 ON 이라 만지지 않고 지나가는 사용자가 있다. onChange 에서만
+    // 기록하면 그 사람들이 빠져서, 반영을 택한 비율의 분모가 '토글을 만진 사람'
+    // 으로 좁아진다. 그래서 토글을 본 사람 전원이 남도록 이 자리로 옮겼다.
+    //
+    // interacted 는 '기본 ON 을 그대로 둠' 과 '직접 켜거나 끔' 을 나눈다.
+    // 이게 없으면 기본값 관성이 그대로 수용률로 잡혀 비율이 부풀려진다.
+    if (showPastDataChoice) {
+      const applied = draft.applyPastData !== false;
+      if (sentPastDataRef.current !== applied) {
+        sentPastDataRef.current = applied;
+        track(EVENTS.PAST_DATA_APPLY_SELECTED, {
+          applied,
+          interacted: draft.pastDataInteracted,
+          past_trip_count: draft.pastTripCount,
+        });
+      }
+    }
 
     if (draft.companionType === COMPANION_TYPE.NEW_GROUP) {
       // 빈 칸으로 남은 동행자 입력은 저장하지 않는다.
@@ -256,7 +330,17 @@ export default function ScreenTRIP01() {
     // 앞 단계를 고치러 뒤로 갔다가 다시 오면 push 는 같은 화면을 하나 더 쌓는다.
     // navigate 는 스택에 이미 있으면 그 화면으로 되돌아간다. 마법사 흐름에 맞다.
     router.navigate('/trips/new/basic');
-  }, [canProceed, draft.companionNames, draft.companionType, patchDraft, trimmedGroupName]);
+  }, [
+    canProceed,
+    draft.applyPastData,
+    draft.companionNames,
+    draft.companionType,
+    draft.pastDataInteracted,
+    draft.pastTripCount,
+    patchDraft,
+    showPastDataChoice,
+    trimmedGroupName,
+  ]);
 
   // ── 나가기 ────────────────────────────────────────────────────────────
   // TRIP-01 은 /trips/new 중첩 Stack 의 첫 화면이라 Stack 이 back 버튼을 그려 주지
@@ -276,11 +360,7 @@ export default function ScreenTRIP01() {
   }, []);
 
   return (
-    <ScrollView
-      className="flex-1 bg-white"
-      contentContainerClassName="px-5 pb-10 pt-6"
-      keyboardShouldPersistTaps="handled"
-    >
+    <View className="flex-1 bg-white">
       <Stack.Screen
         options={{
           title: '여행 만들기',
@@ -288,65 +368,84 @@ export default function ScreenTRIP01() {
         }}
       />
 
-      <StepProgress current={1} />
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-5 pb-8 pt-5"
+        keyboardShouldPersistTaps="handled"
+      >
+        <StepProgress current={1} />
 
-      <Text className="mt-6 text-2xl font-bold text-gray-900">누구와 가나요?</Text>
-      <Text className="mt-1.5 text-sm text-gray-500">
-        함께 가는 사람에 따라 예산을 나누는 방식이 달라져요.
-      </Text>
+        <Text className="mt-6 text-[26px] font-bold leading-8 text-gray-900">누구와 가나요?</Text>
+        <Text className="mt-2 text-[13px] text-gray-500">
+          함께 가는 사람에 따라 예산을 나누는 방식이 달라져요.
+        </Text>
 
-      <View className="mt-6">
-        <OwnerTypeSelector value={draft.companionType} onChange={handleSelectCompanionType} />
-      </View>
-
-      {draft.companionType === COMPANION_TYPE.EXISTING_GROUP ? (
+        {/*
+          고른 카드 안에서 이어서 입력한다. 카드 아래 별도 영역으로 내리면
+          무엇에 딸린 입력인지가 흐려진다. 자리만 넘기고 데이터는 여기서 만든다.
+        */}
         <View className="mt-5">
-          <Text className="mb-2 text-sm font-medium text-gray-700">어떤 모임인가요?</Text>
-          <GroupPicker
-            groups={groups}
-            loading={groupsLoading}
-            error={groupsError}
-            selectedGroupId={draft.groupId}
-            onSelect={handleSelectGroup}
-            onRetry={() => void loadGroups()}
-            onCreateNew={() => handleSelectCompanionType(COMPANION_TYPE.NEW_GROUP)}
+          <OwnerTypeSelector
+            value={draft.companionType}
+            onChange={handleSelectCompanionType}
+            bodies={{
+              // 혼자 가는 경우엔 물어볼 게 반영 여부뿐이다.
+              // 과거 여행이 없으면 펼칠 내용이 없어 카드가 그대로 닫혀 있다.
+              [COMPANION_TYPE.PERSONAL]: showPastDataChoice ? (
+                <PastDataChoice
+                  pastTripCount={draft.pastTripCount}
+                  value={draft.applyPastData}
+                  onChange={handleChangePastData}
+                />
+              ) : null,
+              [COMPANION_TYPE.EXISTING_GROUP]: (
+                <>
+                  <GroupPicker
+                    groups={groups}
+                    loading={groupsLoading}
+                    error={groupsError}
+                    selectedGroupId={draft.groupId}
+                    onSelect={handleSelectGroup}
+                    onRetry={() => void loadGroups()}
+                    onCreateNew={() => handleSelectCompanionType(COMPANION_TYPE.NEW_GROUP)}
+                    memberNames={memberNames}
+                    membersLoading={membersLoading}
+                  />
+                  {showPastDataChoice ? (
+                    <View className="mt-3.5 border-t border-gray-200 pt-3.5">
+                      <PastDataChoice
+                        pastTripCount={draft.pastTripCount}
+                        value={draft.applyPastData}
+                        onChange={handleChangePastData}
+                      />
+                    </View>
+                  ) : null}
+                </>
+              ),
+              [COMPANION_TYPE.NEW_GROUP]: (
+                <NewGroupForm
+                  groupName={draft.newGroupName ?? ''}
+                  onChangeGroupName={handleChangeGroupName}
+                  groupNameError={groupNameError}
+                  onBlurGroupName={handleBlurGroupName}
+                  companionNames={draft.companionNames}
+                  onChangeCompanionName={handleChangeCompanion}
+                  onAddCompanion={handleAddCompanion}
+                  onRemoveCompanion={handleRemoveCompanion}
+                />
+              ),
+            }}
           />
         </View>
-      ) : null}
 
-      {draft.companionType === COMPANION_TYPE.NEW_GROUP ? (
-        <View className="mt-5">
-          <NewGroupForm
-            groupName={draft.newGroupName ?? ''}
-            onChangeGroupName={handleChangeGroupName}
-            groupNameError={groupNameError}
-            onBlurGroupName={handleBlurGroupName}
-            companionNames={draft.companionNames}
-            onChangeCompanionName={handleChangeCompanion}
-            onAddCompanion={handleAddCompanion}
-            onRemoveCompanion={handleRemoveCompanion}
-          />
-        </View>
-      ) : null}
-
-      {showPastDataChoice ? (
-        <View className="mt-5">
-          <PastDataChoice
-            pastTripCount={draft.pastTripCount}
-            value={draft.applyPastData}
-            onChange={handleChangePastData}
-          />
-        </View>
-      ) : null}
+      </ScrollView>
 
       {/*
         필수값이 비면 '다음' 을 disabled 로 막는다.
         무엇이 빠졌는지는 하단에 문구를 따로 띄우지 않고 해당 입력칸에서 바로 알린다
         (빨간 테두리 + 칸 아래 작은 문구). 같은 말을 두 곳에서 하지 않는다.
       */}
-      <View className="mt-8">
-        <Button label="다음" onPress={handleNext} disabled={!canProceed} />
-      </View>
-    </ScrollView>
+      <BottomCta label="다음" onPress={handleNext} disabled={!canProceed} />
+    </View>
   );
 }

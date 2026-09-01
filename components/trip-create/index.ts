@@ -1,4 +1,5 @@
 // 여행 생성 흐름(TRIP-01~03) 전용 컴포넌트 진입점.
+export { BottomCta } from './BottomCta';
 export { BudgetCategoryList, type EditableCategory } from './BudgetCategoryList';
 export { BudgetMethodSelector } from './BudgetMethodSelector';
 export { BudgetSummary } from './BudgetSummary';
