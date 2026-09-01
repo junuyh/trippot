@@ -75,7 +75,11 @@ export function VaultGrid({ categories, theme, onSelect }: Props) {
               borderWidth: 1,
               borderStyle: unset ? 'dashed' : 'solid',
               borderColor: active ? theme.primary + '55' : '#e8ebef',
-              backgroundColor: active ? theme.primarySoft : unset ? '#fafbfc' : '#fff',
+              // ⚠️ 채움 표시는 **미세하게** 둔다. (스펙 10장)
+              //    8칸 중 6칸이 채워지는 일이 흔해서, 배지 수준으로 칠하면
+              //    화면 절반이 포인트 컬러로 덮여 정작 강조할 곳이 묻힌다.
+              //    시안 기준(#fff7f8)에 맞춰 포인트 컬러를 5% 만 얹는다.
+              backgroundColor: active ? theme.primary + '0D' : unset ? '#fafbfc' : '#fff',
               paddingVertical: 11,
               paddingHorizontal: 8,
               justifyContent: 'space-between',
