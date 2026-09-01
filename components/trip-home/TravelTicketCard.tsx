@@ -27,8 +27,9 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import Svg, { Line, Path } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, G, Line, Path } from 'react-native-svg';
 
+import { countryLandmark } from '@/lib/constants/countryLandmark';
 import type { CountryTheme } from '@/lib/constants/countryTheme';
 
 /** 앞면 여정 영역 높이. 절취선이 여기서 갈린다 */
@@ -49,6 +50,13 @@ const RADIUS = 18;
 const LINE = '#e5e8ec';
 const VISUAL_BG = '#f4f6f8';
 const MUTED = '#858e9c';
+
+/**
+ * 배경 실루엣 크기. 좌표계가 100 × 60 이라 높이는 폭의 0.6 배다.
+ * 앞면 오른쪽 아래에만 깔고 공항 코드 영역은 비운다.
+ */
+const DECOR_W = 150;
+const DECOR_H = DECOR_W * 0.6;
 
 /**
  * 앞면 위쪽(여정) 외곽선.
@@ -126,6 +134,8 @@ type Props = {
   destinationEn: string;
   /** 한글 도시명. 뒷면 안내 문구에 쓴다 */
   destinationKo: string;
+  /** 한글 국가명. 앞면 배경 실루엣을 고르는 데 쓴다 */
+  countryKo: string | null;
   airportCode: string;
   /** 'MM.dd'. 여행 시작일·종료일이며 **항공편 시각이 아니다** */
   departLabel: string | null;
@@ -157,6 +167,7 @@ export function TravelTicketCard({
   flag,
   destinationEn,
   destinationKo,
+  countryKo,
   airportCode,
   departLabel,
   arriveLabel,
@@ -234,6 +245,7 @@ export function TravelTicketCard({
 
   const shortage = Math.max(0, targetAmount - raisedAmount);
   const percent = Math.round(progress);
+  const landmark = countryLandmark(countryKo);
 
   // SVG 로 카드 모양을 그리려면 실제 폭이 필요하다.
   const [width, setWidth] = useState(0);
@@ -287,6 +299,42 @@ export function TravelTicketCard({
           <Svg width={width} height={CARD_HEIGHT} style={{ position: 'absolute', left: 0, top: 0 }}>
             {/* 채움과 외곽선을 나눠 그린다. 이유는 topOutline() 주석 참고 */}
             <Path d={topPath(width)} fill={VISUAL_BG} />
+
+            {/*
+              국가별 랜드마크 실루엣. (스펙 8장)
+              오른쪽 아래에만 깔고, 위쪽 영역 밖으로 넘치지 않게 잘라낸다.
+              공항 코드가 있는 위쪽은 비워 두어 글자 뒤에서 겹치지 않게 한다.
+            */}
+            <Defs>
+              <ClipPath id="ticket-visual">
+                <Path d={topPath(width)} />
+              </ClipPath>
+            </Defs>
+            <G clipPath="url(#ticket-visual)" opacity={0.05}>
+              <G
+                translateX={width - DECOR_W - 6}
+                translateY={VISUAL_HEIGHT - DECOR_H - 4}
+                scale={DECOR_W / 100}
+              >
+                {landmark.paths.map((shape, index) => (
+                  <Path
+                    key={`lm-p-${index}`}
+                    d={shape.d}
+                    fill="#111827"
+                    fillRule={shape.fillRule}
+                  />
+                ))}
+                {(landmark.circles ?? []).map((circle, index) => (
+                  <Circle
+                    key={`lm-c-${index}`}
+                    cx={circle.cx}
+                    cy={circle.cy}
+                    r={circle.r}
+                    fill="#111827"
+                  />
+                ))}
+              </G>
+            </G>
             {/*
               ⚠️ 국가 문화 배경(스펙 8장)은 넣지 않았다. 시안 v3 앞면에도 없다.
                  이전에 있던 도시명 워터마크는 STATUS 줄과 겹쳐 지웠다 —

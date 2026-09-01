@@ -419,6 +419,7 @@ export default function ScreenTripHome() {
             flag={destinationMeta?.flag ?? '🌍'}
             destinationEn={destinationMeta?.nameEn ?? (trip.destination ?? 'TRIP').toUpperCase()}
             destinationKo={trip.destination ?? '여행지'}
+            countryKo={destinationMeta?.countryKo ?? null}
             airportCode={destinationMeta?.airportCode ?? '—'}
             departLabel={trip.start_date ? format(parseISO(trip.start_date), 'MM.dd') : null}
             arriveLabel={trip.end_date ? format(parseISO(trip.end_date), 'MM.dd') : null}
