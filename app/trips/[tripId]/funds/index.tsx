@@ -15,10 +15,11 @@
 // ============================================================================
 import { format, isSameDay, parseISO } from 'date-fns';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Alert, Modal, Pressable, SectionList, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
@@ -109,6 +110,19 @@ export default function ScreenFUND01() {
   // ── 카테고리 변경 ─────────────────────────────────────────────────────
   /** 편집 중인 거래. null 이면 시트를 닫는다 */
   const [editing, setEditing] = useState<Transaction | null>(null);
+
+  /**
+   * 행별 Swipeable 참조.
+   *
+   * 수정·삭제를 누른 뒤 열린 행을 직접 닫는다. 닫지 않으면 시트를 저장하고
+   * 돌아와도 '수정 / 삭제' 버튼이 그대로 남아, 사용자가 오른쪽으로 다시
+   * 밀어야 원래 화면이 된다. 방금 끝낸 동작의 흔적이 남는 셈이다.
+   */
+  const swipeRefs = useRef(new Map<string, SwipeableMethods | null>());
+
+  const closeSwipe = useCallback((transactionId: string) => {
+    swipeRefs.current.get(transactionId)?.close();
+  }, []);
   const [busy, setBusy] = useState(false);
 
   const handleChangeCategory = useCallback(
@@ -330,13 +344,21 @@ export default function ScreenFUND01() {
 
           return (
             <Swipeable
+              ref={(node) => {
+                // 화면에서 사라진 행의 참조는 지운다. 안 지우면 계속 쌓인다.
+                if (node) swipeRefs.current.set(transaction.id, node);
+                else swipeRefs.current.delete(transaction.id);
+              }}
               overshootRight={false}
               renderRightActions={() => (
                 <View className="flex-row">
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="카테고리 변경"
-                    onPress={() => setEditing(transaction)}
+                    onPress={() => {
+                      closeSwipe(transaction.id);
+                      setEditing(transaction);
+                    }}
                     style={{ width: 72, backgroundColor: '#4b5563' }}
                     className="items-center justify-center"
                   >
@@ -348,7 +370,10 @@ export default function ScreenFUND01() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="거래 삭제"
-                    onPress={() => handleDelete(transaction)}
+                    onPress={() => {
+                      closeSwipe(transaction.id);
+                      handleDelete(transaction);
+                    }}
                     style={{ width: 72, backgroundColor: '#e1394a' }}
                     className="items-center justify-center"
                   >

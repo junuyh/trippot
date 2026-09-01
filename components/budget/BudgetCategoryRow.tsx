@@ -1,15 +1,20 @@
 // BUDGET-01 카테고리별 예산 행.
 //
-// 예상(계획) · 준비 · 실제 · 잔여 와 준비율/사용률을 보여준다. (REQ-BUDGET-004)
+// 시안(.budget-row)을 옮겼다.
+//   아이콘 · 이름 · 설정 예산 · 전체 예산 비중 · 준비율 막대 · 화살표
 //
-// 막대 두 개를 겹쳐 그린다.
-//   연한 파랑  준비율 — 이 카테고리에 자금이 얼마나 배분됐나
-//   진한 색    사용률 — 계획 대비 얼마나 썼나
-// 계획을 넘겨 쓰면 빨강으로 바뀐다.
-import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+// ⚠️ 아이콘 뒤에 카테고리별 컬러 배경을 두지 않는다. (스펙)
+//    시안은 카테고리마다 --tone 을 다르게 줬지만, 국가 포인트 컬러 하나만
+//    쓰기로 한 규칙과 충돌한다. 여덟 색이 동시에 보이면 포인트가 사라진다.
+//
+// ⚠️ 실제 지출 그래프를 넣지 않는다. 막대는 준비율(금고 배분) 하나다.
+//    지출 비교는 BUDGET-02 와 결산이 담당한다.
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, Text, View } from "react-native";
 
-import { CATEGORY_CODE_LABEL, type CategoryCode } from '@/lib/constants/status';
+import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
+import type { CountryTheme } from "@/lib/constants/countryTheme";
+import { CATEGORY_CODE_LABEL, type CategoryCode } from "@/lib/constants/status";
 
 export type BudgetCategoryRowData = {
   id: string;
@@ -21,66 +26,86 @@ export type BudgetCategoryRowData = {
 
 type Props = {
   category: BudgetCategoryRowData;
+  theme: CountryTheme;
+  /** 목표 여행비. 이 카테고리가 차지하는 비중을 내는 분모다 */
+  targetAmount: number;
   onPress: (categoryId: string) => void;
 };
 
-function won(value: number): string {
-  return `${value.toLocaleString('ko-KR')}원`;
-}
+export function BudgetCategoryRow({
+  category,
+  theme,
+  targetAmount,
+  onPress,
+}: Props) {
+  const { plannedAmount, preparedAmount } = category;
 
-export function BudgetCategoryRow({ category, onPress }: Props) {
-  const { plannedAmount, preparedAmount, actualAmount } = category;
-
-  const prepRate = plannedAmount > 0 ? Math.min(100, (preparedAmount / plannedAmount) * 100) : 0;
-  const usageRate = plannedAmount > 0 ? (actualAmount / plannedAmount) * 100 : 0;
-  const over = actualAmount > plannedAmount;
-  const remaining = plannedAmount - actualAmount;
+  const prepRate =
+    plannedAmount > 0
+      ? Math.min(100, (preparedAmount / plannedAmount) * 100)
+      : 0;
+  const share =
+    targetAmount > 0 ? Math.round((plannedAmount / targetAmount) * 100) : 0;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${CATEGORY_CODE_LABEL[category.categoryCode]} 상세`}
+      accessibilityLabel={`${CATEGORY_CODE_LABEL[category.categoryCode]} 예산 상세`}
       onPress={() => onPress(category.id)}
-      className="gap-2.5 px-4 py-4 active:bg-gray-50"
+      className="active:bg-gray-50"
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 9,
+        paddingHorizontal: 12,
+        paddingVertical: 13,
+      }}
     >
-      <View className="flex-row items-center justify-between">
-        <Text className="text-base font-medium text-gray-900">
-          {CATEGORY_CODE_LABEL[category.categoryCode]}
-        </Text>
-        <View className="flex-row items-center gap-1">
-          <Text className="text-base font-semibold text-gray-900">{won(plannedAmount)}</Text>
-          <Ionicons name="chevron-forward" size={15} color="#d1d5db" />
-        </View>
-      </View>
+      <Text style={{ fontSize: 20, width: 26 }}>
+        {CATEGORY_EMOJI[category.categoryCode]}
+      </Text>
 
-      {/* 준비(연한) 위에 사용(진한)을 겹친다 */}
-      <View className="h-2 overflow-hidden rounded-full bg-gray-100">
-        <View
-          className="absolute h-full rounded-full bg-blue-200"
-          style={{ width: `${prepRate}%` }}
-        />
-        <View
-          className={`absolute h-full rounded-full ${over ? 'bg-red-500' : 'bg-blue-600'}`}
-          style={{ width: `${Math.min(100, usageRate)}%` }}
-        />
-      </View>
-
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row gap-3">
-          <Text className="text-xs text-gray-500">
-            준비 <Text className="font-medium text-blue-600">{Math.round(prepRate)}%</Text>
+      <View style={{ flex: 1, gap: 6 }}>
+        <View className="flex-row items-center justify-between">
+          <Text style={{ fontSize: 12, fontWeight: "800", color: "#141b28" }}>
+            {CATEGORY_CODE_LABEL[category.categoryCode]}
           </Text>
-          <Text className="text-xs text-gray-500">
-            사용{' '}
-            <Text className={`font-medium ${over ? 'text-red-500' : 'text-gray-700'}`}>
-              {Math.round(usageRate)}%
+          {/* 금액을 축약하지 않는다. 174천이 아니라 174,000원이다 (스펙) */}
+          <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
+            {plannedAmount.toLocaleString("ko-KR")}원
+          </Text>
+        </View>
+
+        <View className="flex-row items-center" style={{ gap: 9 }}>
+          <View
+            style={{
+              flex: 1,
+              height: 5,
+              borderRadius: 5,
+              backgroundColor: "#eff1f3",
+              overflow: "hidden",
+            }}
+          >
+            <View
+              style={{
+                width: `${prepRate}%`,
+                height: "100%",
+                borderRadius: 5,
+                backgroundColor: theme.primary,
+              }}
+            />
+          </View>
+          <Text style={{ fontSize: 9, color: "#7c8695" }}>
+            <Text style={{ color: theme.primary, fontWeight: "800" }}>
+              {share}%
             </Text>
+            {" · "}
+            {prepRate > 0 ? `${Math.round(prepRate)}% 준비` : "준비 전"}
           </Text>
         </View>
-        <Text className={`text-xs ${over ? 'text-red-500' : 'text-gray-400'}`}>
-          {over ? `${won(-remaining)} 초과` : `${won(remaining)} 남음`}
-        </Text>
       </View>
+
+      <Ionicons name="chevron-forward" size={16} color="#a8afb9" />
     </Pressable>
   );
 }
