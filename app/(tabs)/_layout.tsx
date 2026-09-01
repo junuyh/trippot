@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+
+import { FloatingTabBar } from '@/components/navigation/FloatingTabBar';
 
 /**
  * 하단 탭 4개. (tabs) 는 route group 이라 URL 에 나타나지 않는다.
@@ -9,43 +10,40 @@ import { Tabs } from 'expo-router';
  *   app/(tabs)/me.tsx        → /me
  *
  * 상세 화면은 (tabs) 밖에 있어 탭 위로 Stack push 된다. (탭바 숨김 + 뒤로가기)
+ *
+ * ⚠️ 탭바는 components/navigation/FloatingTabBar 에서 직접 그린다.
+ *    기본 탭바는 아이템 정렬이 내부 스타일로 박혀 있어 아이콘이 알약 밖으로
+ *    밀리는 문제를 밖에서 고칠 수 없었다. 자세한 이유는 그 파일 주석에 있다.
+ *
+ * ⚠️ 탭바는 4개 탭이 하나를 공유한다. 홈만 다르게 할 수 없다.
+ *    모임·마이페이지 담당자도 이 모양을 함께 쓴다.
+ *
+ * ⚠️ 바가 떠 있어 화면 아래쪽 내용을 가린다.
+ *    각 탭의 스크롤 컨테이너가 pb-28 이상으로 여백을 준다.
+ *
+ * title 은 남긴다. 화면 제목이자 탭바가 읽는 접근성 이름이다.
  */
 export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: '#2563eb',
-        tabBarInactiveTintColor: '#9ca3af',
-      }}
-    >
+    <Tabs tabBar={(props) => <FloatingTabBar {...props} />}>
       <Tabs.Screen
         name="index"
         options={{
           title: '홈',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          // 홈은 티켓 카드가 화면을 끌고 가는 구조라 제목 줄을 두지 않는다.
+          headerShown: false,
         }}
       />
-      <Tabs.Screen
-        name="groups"
-        options={{
-          title: '모임',
-          tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="groups" options={{ title: '모임' }} />
       <Tabs.Screen
         name="community"
         options={{
           title: '커뮤니티',
-          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" size={size} color={color} />,
+          // 본문의 "커뮤니티" 제목이 화면 제목 역할을 한다.
+          headerShown: false,
         }}
       />
-      <Tabs.Screen
-        name="me"
-        options={{
-          title: '마이페이지',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="me" options={{ title: '마이페이지' }} />
     </Tabs>
   );
 }

@@ -1,8 +1,10 @@
-import { Pressable, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Text, View } from 'react-native';
 
-import { TRIP_OWNER_TYPE, TRIP_OWNER_TYPE_LABEL, TRIP_STATUS_LABEL } from '@/lib/constants/status';
+import { TRIP_OWNER_TYPE, TRIP_OWNER_TYPE_LABEL } from '@/lib/constants/status';
 
-import { calcReadyRatePercent, formatAmount, formatDateRange, formatDDay } from './format';
+import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from './format';
+import { TripCardShell } from './TripCardShell';
 import type { OngoingTripCardData } from './types';
 
 type Props = {
@@ -10,15 +12,22 @@ type Props = {
   onPress: (tripId: string) => void;
 };
 
+const NUM = { fontVariant: ['tabular-nums' as const] };
+
 /**
  * 1-1. 진행 중인 여행 카드. (docs/09_IA_v1.md §1)
  * 여행지 · 일정/D-Day · 개인/모임명 · 현재 여행자금/목표 여행비 · 준비율
  *
- * 탭하면 2-2 여행 준비 홈으로 간다. 이동만 하고 도착 화면은 관여하지 않는다.
+ * 항공권 검색 결과 카드 구조다.
+ *   윗줄   국기 뱃지 · 여행지 · 개인/모임명 | 기간
+ *   가운데 출발일 → 도착일 (가장 큰 숫자) · 공항 코드
+ *   점선 아래  D-Day | 준비율 배지 · 현재 여행자금
  */
 export function OngoingTripCard({ trip, onPress }: Props) {
   const destination = trip.destination ?? '여행지 미정';
   const dday = formatDDay(trip.startDate);
+  const dates = formatTripDates(trip.startDate, trip.endDate);
+  const nights = formatNights(trip.startDate, trip.endDate);
   const rate = calcReadyRatePercent(trip.currentAmount, trip.targetAmount);
   const ownerLabel =
     trip.ownerType === TRIP_OWNER_TYPE.GROUP
@@ -26,66 +35,114 @@ export function OngoingTripCard({ trip, onPress }: Props) {
       : TRIP_OWNER_TYPE_LABEL.PERSONAL;
 
   return (
-    <Pressable
-      accessibilityRole="button"
+    <TripCardShell
+      accentColor={trip.theme.primary}
       accessibilityLabel={`${destination} 여행 준비 홈으로 이동`}
       onPress={() => onPress(trip.tripId)}
-      className="rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"
     >
-      <View className="flex-row items-start justify-between">
-        <View className="flex-1 pr-3">
-          <Text className="text-lg font-bold text-gray-900" numberOfLines={1}>
+      {/* 윗줄 */}
+      <View className="flex-row items-center">
+
+        <View className="flex-1">
+          <Text
+            className="font-bold text-pot-ink"
+            style={{ fontSize: 17, letterSpacing: -0.3 }}
+            numberOfLines={1}
+          >
             {destination}
           </Text>
-          <Text className="mt-1 text-xs text-gray-500">
-            {formatDateRange(trip.startDate, trip.endDate)}
+          <Text className="mt-0.5 text-pot-faint" style={{ fontSize: 13 }} numberOfLines={1}>
+            {ownerLabel}
           </Text>
         </View>
 
-        <View className="items-end">
-          {dday ? (
-            <View className="rounded-full bg-pot-sun px-2.5 py-1">
-              <Text className="text-xs font-bold text-pot-ink">{dday}</Text>
-            </View>
-          ) : null}
-          <Text className="mt-1.5 text-[11px] text-gray-400">{TRIP_STATUS_LABEL[trip.status]}</Text>
-        </View>
-      </View>
-
-      <Text className="mt-2 text-xs text-gray-500" numberOfLines={1}>
-        {ownerLabel}
-      </Text>
-
-      <View className="mt-4 border-t border-gray-100 pt-3">
-        <View className="flex-row items-baseline justify-between">
-          <Text className="text-xs text-gray-500">현재 여행자금</Text>
-          <Text className="text-base font-bold text-gray-900">
-            {formatAmount(trip.currentAmount)}
-          </Text>
-        </View>
-        <View className="mt-1 flex-row items-baseline justify-between">
-          <Text className="text-xs text-gray-500">목표 여행비</Text>
-          <Text className="text-xs text-gray-500">{formatAmount(trip.targetAmount)}</Text>
-        </View>
-
-        {rate === null ? (
-          <Text className="mt-3 text-[11px] text-gray-400">
-            목표 여행비와 여행자금을 등록하면 준비율을 볼 수 있어요.
-          </Text>
-        ) : (
-          <View className="mt-3">
-            <View className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
-              <View
-                className="h-full rounded-full bg-pot-mint"
-                style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
-              />
-            </View>
-            <Text className="mt-1.5 text-right text-xs font-semibold text-gray-900">
-              준비율 {rate}%
+        {nights ? (
+          <View className="flex-row items-center">
+            <Ionicons name="time-outline" size={15} color="#9AA3AE" />
+            <Text className="ml-1 text-pot-faint" style={{ fontSize: 13 }}>
+              {nights}
             </Text>
           </View>
-        )}
+        ) : null}
       </View>
-    </Pressable>
+
+      {/* 가운데 — 출발일 → 도착일 */}
+      <View className="mt-4 flex-row items-center">
+        <View className="flex-1">
+          <Text
+            className="font-bold text-pot-ink"
+            style={{ fontSize: 30, lineHeight: 34, letterSpacing: -0.5, ...NUM }}
+          >
+            {dates.start}
+          </Text>
+          <View className="mt-1 flex-row items-center">
+            <Ionicons name="arrow-up-circle-outline" size={14} color="#2E3A47" />
+            <Text className="ml-1 text-pot-ink" style={{ fontSize: 12.5 }} numberOfLines={1}>
+              ICN (서울)
+            </Text>
+          </View>
+        </View>
+
+        <Ionicons name="airplane" size={17} color="#2E3A47" style={{ marginHorizontal: 6 }} />
+
+        <View className="flex-1 items-end">
+          <Text
+            className="font-bold text-pot-ink"
+            style={{ fontSize: 30, lineHeight: 34, letterSpacing: -0.5, ...NUM }}
+          >
+            {dates.end}
+          </Text>
+          <View className="mt-1 flex-row items-center">
+            <Ionicons name="arrow-down-circle-outline" size={14} color="#2E3A47" />
+            <Text className="ml-1 text-pot-ink" style={{ fontSize: 12.5 }} numberOfLines={1}>
+              {trip.airportCode} ({destination})
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 점선 */}
+      <View className="my-3.5 border-t border-dashed border-pot-dash" />
+
+      {/* 아랫줄 */}
+      <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center">
+          <Ionicons name="calendar-outline" size={15} color="#9AA3AE" />
+          <Text className="ml-1.5 text-pot-faint" style={{ fontSize: 13 }}>
+            {dday ?? '일정 미정'}
+          </Text>
+        </View>
+
+        <View className="flex-row items-center">
+          {rate !== null ? (
+            <View
+              className="mr-2 rounded-md px-1.5 py-0.5"
+              style={{ backgroundColor: trip.theme.primarySoft }}
+            >
+              <Text
+                className="font-bold"
+                style={{ fontSize: 12, color: trip.theme.primary, ...NUM }}
+              >
+                {rate}%
+              </Text>
+            </View>
+          ) : null}
+          <Text
+            className="font-bold text-pot-ink"
+            style={{ fontSize: 17, letterSpacing: -0.3, ...NUM }}
+          >
+            {trip.currentAmount === null
+              ? '—'
+              : `${trip.currentAmount.toLocaleString('ko-KR')}원`}
+          </Text>
+        </View>
+      </View>
+
+      {rate === null ? (
+        <Text className="mt-2 text-pot-faint" style={{ fontSize: 11, lineHeight: 15 }}>
+          목표 여행비와 여행자금을 등록하면 준비율을 볼 수 있어요.
+        </Text>
+      ) : null}
+    </TripCardShell>
   );
 }

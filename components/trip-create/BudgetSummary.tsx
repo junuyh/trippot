@@ -15,6 +15,13 @@ type Props = {
   targetTotal: number;
   headcount: number;
   perPersonAmount: number;
+  /**
+   * 지난 여행을 반영한 추천 총액. 반영이 없으면 null.
+   *
+   * ⚠️ recommendedTotal 을 대체하지 않는다. 둘 다 있어야 기본 추천 대비 개인화
+   *    추천이 얼마나 정확했는지 나중에 설명할 수 있다. (CLAUDE.md 4장)
+   */
+  personalizedTotal?: number | null;
   /** 기준 시점 'YYYY-MM-DD' */
   baselineUpdatedAt: string;
   /** 지역 평균을 쓴 경우의 안내 문구. 있으면 그대로 노출한다 */
@@ -60,6 +67,7 @@ export function BudgetSummary({
   targetTotal,
   headcount,
   perPersonAmount,
+  personalizedTotal = null,
   baselineUpdatedAt,
   estimateNotice,
   variant = 'full',
@@ -68,7 +76,13 @@ export function BudgetSummary({
   onToggleAllPast,
   onPressPastDetail,
 }: Props) {
-  const diff = targetTotal - recommendedTotal;
+  /*
+    ⚠️ 사용자에게 제시한 값이 비교 기준이다. 개인화가 붙었으면 그쪽이다.
+       기본 추천과 비교하면 손대지도 않았는데 '+29,000' 이 뜬다.
+       그건 사용자가 고친 게 아니라 지난 여행 반영분이다.
+  */
+  const baseline = personalizedTotal ?? recommendedTotal;
+  const diff = targetTotal - baseline;
   const compact = variant === 'compact';
   // 하나라도 반영 중이면 '반영됨' 으로 본다. 전부 빼면 꺼진 상태다.
   const pastOn = Boolean(pastApplied && pastApplied.appliedCount > 0);
@@ -127,21 +141,47 @@ export function BudgetSummary({
       <View className="flex-row items-center justify-between">
         <Text className="text-sm text-gray-500">추천 예산</Text>
         <View className="flex-row items-center gap-2">
-          <Text className="text-sm text-gray-700">
+          <Text
+            className={`text-sm ${
+              personalizedTotal !== null ? 'text-gray-400 line-through' : 'text-gray-700'
+            }`}
+          >
             {recommendedTotal.toLocaleString('ko-KR')}원
           </Text>
-          {diff !== 0 ? (
+          {personalizedTotal === null && diff !== 0 ? (
             <Text
               className={`text-sm font-semibold ${diff > 0 ? 'text-red-500' : 'text-blue-600'}`}
             >
               {diff > 0 ? '+' : ''}
               {diff.toLocaleString('ko-KR')}
             </Text>
-          ) : (
+          ) : personalizedTotal === null ? (
             <Text className="text-sm font-medium text-gray-400">그대로</Text>
-          )}
+          ) : null}
         </View>
       </View>
+
+      {/* 반영이 붙었으면 그 총액이 실제 비교 기준이다 */}
+      {personalizedTotal !== null ? (
+        <View className="-mt-1 flex-row items-center justify-between">
+          <Text className="text-sm font-semibold text-emerald-700">지난 여행 반영</Text>
+          <View className="flex-row items-center gap-2">
+            <Text className="text-sm font-semibold text-emerald-700">
+              {personalizedTotal.toLocaleString('ko-KR')}원
+            </Text>
+            {diff !== 0 ? (
+              <Text
+                className={`text-sm font-semibold ${diff > 0 ? 'text-red-500' : 'text-blue-600'}`}
+              >
+                {diff > 0 ? '+' : ''}
+                {diff.toLocaleString('ko-KR')}
+              </Text>
+            ) : (
+              <Text className="text-sm font-medium text-gray-400">그대로</Text>
+            )}
+          </View>
+        </View>
+      ) : null}
 
       {/* ── 지난 여행 반영 ── 전부 빼거나 전부 되돌린다 ── */}
       {pastApplied ? (

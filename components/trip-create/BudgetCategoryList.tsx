@@ -69,6 +69,13 @@ export type EditableCategory = {
   adjustmentAmount?: number;
   /** 사용자가 이 카테고리만 반영에서 뺐는가 */
   adjustmentDropped?: boolean;
+  /**
+   * 지난 여행을 반영한 금액. 반영 대상이 아니거나 사용자가 뺐으면 null.
+   *
+   * ⚠️ recommendedAmount 를 덮어쓰지 않는다. 사용자에게 제시한 값이 비교 기준이
+   *    되어야 하는데, 기본 추천과 비교하면 손대지도 않았는데 차이가 뜬다.
+   */
+  personalizedAmount?: number | null;
 
   /**
    * 금액을 직접 정하는 중인가.
@@ -189,7 +196,9 @@ export function BudgetCategoryList({
     <View className="overflow-hidden rounded-2xl border border-gray-200">
       {categories.map((category, index) => {
         const open = editingCode === category.categoryCode;
-        const diff = category.plannedAmount - category.recommendedAmount;
+        // 사용자에게 제시한 값이 비교 기준이다. 반영이 붙었으면 그쪽이다.
+        const baseline = category.personalizedAmount ?? category.recommendedAmount;
+        const diff = category.plannedAmount - baseline;
         const isContingency = category.categoryCode === CATEGORY_CODE.CONTINGENCY;
 
         return (

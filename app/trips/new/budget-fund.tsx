@@ -117,6 +117,7 @@ export default function ScreenTRIP03() {
     if (draft.applyPastData === false || draft.pastTripCount === 0) {
       setPastProfile(null);
       setPastProfileTripCount(0);
+      setPastLoading(false);
       return;
     }
 
@@ -135,7 +136,8 @@ export default function ScreenTRIP03() {
         // 과거 데이터 조회 실패로 여행 생성을 막지 않는다. 기본 추천으로 간다.
         setPastProfile(null);
         setPastProfileTripCount(0);
-      });
+      })
+      .finally(() => setPastLoading(false));
   }, [draft.applyPastData, draft.companionType, draft.groupId, draft.pastTripCount]);
 
   // ── ① 예산 방식 ───────────────────────────────────────────────────────
@@ -173,6 +175,13 @@ export default function ScreenTRIP03() {
   // getSpendingProfile 은 tripId 가 필요 없어서 여행을 만들기 전에도 부를 수 있다.
   const [pastProfile, setPastProfile] = useState<SpendingProfile | null>(null);
   const [pastProfileTripCount, setPastProfileTripCount] = useState(0);
+  /*
+    ⚠️ 조회가 끝나기 전에는 예산 방식 선택을 열지 않는다.
+       사용자가 '추천으로 할게요' 를 누른 뒤 금액이 조용히 바뀌면 안 된다. (develop)
+  */
+  const [pastLoading, setPastLoading] = useState(
+    draft.applyPastData === true && draft.pastTripCount > 0,
+  );
 
   // 사용자가 개별로 뺀 카테고리. '빼기' 를 누른 것만 들어간다.
   const [droppedCategories, setDroppedCategories] = useState<Set<CategoryCode>>(new Set());
@@ -394,9 +403,11 @@ export default function ScreenTRIP03() {
     offeredRef.current = true;
 
     const top = pastAdjustments[0];
+    // 여행이 아직 없어 trip_id 를 실을 수 없다. source 로 구분한다. (develop 과 동일)
     track(EVENTS.PERSONALIZATION_OFFERED, {
+      source: 'trip_create',
       based_on_trip_count: pastProfileTripCount,
-      top_category: top.categoryCode,
+      top_category: CATEGORY_CODE_TO_ANALYTICS[top.categoryCode],
       deviation_rate: top.rawBp,
     });
   }, [pastAdjustments, pastProfileTripCount]);
@@ -596,6 +607,22 @@ export default function ScreenTRIP03() {
     [],
   );
 
+  /**
+   * 지난 여행을 반영한 추천 총액. 반영 중인 게 하나도 없으면 null.
+   *
+   * 요약 카드의 비교 기준이다. 기본 추천과 비교하면 사용자가 손대지도 않았는데
+   * 차이가 뜬다. 그건 사용자가 고친 게 아니라 반영분이다.
+   */
+  const personalizedTotal = useMemo(() => {
+    const applied = pastAdjustments.filter((a) => !droppedCategories.has(a.categoryCode));
+    if (applied.length === 0) return null;
+
+    return categories.reduce((sum, category) => {
+      const adjustment = applied.find((a) => a.categoryCode === category.categoryCode);
+      return sum + (adjustment?.personalizedAmount ?? category.recommendedAmount);
+    }, 0);
+  }, [categories, droppedCategories, pastAdjustments]);
+
   /** 예비비 비율 계산의 분모이자 화면 표시값. */
   const otherCategoriesTotal = useMemo(
     () =>
@@ -639,6 +666,8 @@ export default function ScreenTRIP03() {
                 (adjustment.appliedBp > 0 ? 1 : -1) * bpToPercent(adjustment.appliedBp),
               adjustmentAmount: applyBp(adjustmentBase, adjustment.appliedBp) - adjustmentBase,
               adjustmentDropped: dropped,
+              // 뺐으면 비교 기준은 다시 기본 추천이다
+              personalizedAmount: dropped ? null : adjustment.personalizedAmount,
             }
           : {};
 
@@ -949,7 +978,15 @@ export default function ScreenTRIP03() {
         <Text className="mb-2.5 text-base font-semibold text-gray-900">
           예산 설정 방식 <Text className="text-red-500">*</Text>
         </Text>
-        <BudgetMethodSelector value={method} onChange={handleSelectMethod} disabled={saving} />
+        {pastLoading ? (
+          // 지난 여행 조회가 끝나기 전에는 고르게 하지 않는다.
+          // '추천으로 할게요' 를 누른 뒤 금액이 조용히 바뀌면 안 된다.
+          <View className="items-center rounded-2xl border border-gray-200 py-8">
+            <Text className="text-sm text-gray-400">지난 여행 기록을 확인하는 중…</Text>
+          </View>
+        ) : (
+          <BudgetMethodSelector value={method} onChange={handleSelectMethod} disabled={saving} />
+        )}
       </View>
 
       {/*
@@ -997,6 +1034,7 @@ export default function ScreenTRIP03() {
               perPersonAmount={perPerson(targetTotal, draft.headcount)}
               baselineUpdatedAt={recommendation.updatedAt}
               estimateNotice={recommendation.notice}
+              personalizedTotal={personalizedTotal}
               productCount={selectedProductIds.size}
               pastApplied={
                 pastAdjustments.length > 0
