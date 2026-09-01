@@ -37,6 +37,7 @@ import {
 import { CurrencyInput, ErrorState } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
+import { buildPastAdjustments, bpToPercent, applyBp, type PastAdjustment } from '@/lib/budget/pastAdjustment';
 import { perPerson } from '@/lib/budget/recommendation';
 import {
   getDefaultProductIds,
@@ -64,6 +65,10 @@ import { useScreenView } from '@/lib/hooks/useScreenView';
 import { useTripDraft } from '@/lib/hooks/useTripDraft';
 import { createGroup } from '@/lib/supabase/queries/groups';
 import { getGroupAccounts, type FinancialAccount } from '@/lib/supabase/queries/funds';
+import {
+  getSpendingProfile,
+  type SpendingProfile,
+} from '@/lib/supabase/queries/personalization';
 import { createTripBundle, getMyTripCount } from '@/lib/supabase/queries/trips';
 
 export default function ScreenTRIP03() {
@@ -96,6 +101,32 @@ export default function ScreenTRIP03() {
     draft.travelStyle,
   ]);
 
+  // 과거 결산 집계를 불러온다. TRIP-01 에서 토글을 끄고 왔으면 부르지 않는다.
+  useEffect(() => {
+    if (draft.applyPastData === false || draft.pastTripCount === 0) {
+      setPastProfile(null);
+      setPastProfileTripCount(0);
+      return;
+    }
+
+    const scope =
+      draft.companionType === COMPANION_TYPE.EXISTING_GROUP && draft.groupId
+        ? ({ ownerType: 'GROUP', groupId: draft.groupId } as const)
+        : // TODO: 로그인 연동 시 교체
+          ({ ownerType: 'PERSONAL', userId: DEV_USER_ID } as const);
+
+    getSpendingProfile(scope)
+      .then((profile) => {
+        setPastProfile(profile);
+        setPastProfileTripCount(profile?.basedOnTripCount ?? 0);
+      })
+      .catch(() => {
+        // 과거 데이터 조회 실패로 여행 생성을 막지 않는다. 기본 추천으로 간다.
+        setPastProfile(null);
+        setPastProfileTripCount(0);
+      });
+  }, [draft.applyPastData, draft.companionType, draft.groupId, draft.pastTripCount]);
+
   // ── ① 예산 방식 ───────────────────────────────────────────────────────
   const [method, setMethod] = useState<BudgetMethod | null>(null);
   const [userTotal, setUserTotal] = useState<number | null>(null);
@@ -113,6 +144,16 @@ export default function ScreenTRIP03() {
 
   // 예비비는 상품이 아니라 비율로 정한다. null 이면 기준 금액(추천) 그대로다.
   const [contingencyChoice, setContingencyChoice] = useState<number | null>(null);
+
+  // ── 지난 여행 반영 ────────────────────────────────────────────────────
+  //
+  // TRIP-01 에서 토글을 켠 채로 넘어왔고 과거 결산이 있으면 편차를 얹는다.
+  // getSpendingProfile 은 tripId 가 필요 없어서 여행을 만들기 전에도 부를 수 있다.
+  const [pastProfile, setPastProfile] = useState<SpendingProfile | null>(null);
+  const [pastProfileTripCount, setPastProfileTripCount] = useState(0);
+
+  // 사용자가 개별로 뺀 카테고리. '빼기' 를 누른 것만 들어간다.
+  const [droppedCategories, setDroppedCategories] = useState<Set<CategoryCode>>(new Set());
 
   const toEditable = useCallback(
     (source: NonNullable<typeof recommendation>): EditableCategory[] =>
@@ -217,6 +258,121 @@ export default function ScreenTRIP03() {
   }, []);
 
   /**
+   * 카테고리별 지난 여행 편차. 프로필이 없거나 토글을 껐으면 빈 배열이다.
+   * 계산 규칙은 lib/budget/pastAdjustment.ts 가 갖는다.
+   */
+  const pastAdjustments = useMemo<PastAdjustment[]>(() => {
+    if (!recommendation || !pastProfile || draft.applyPastData === false) return [];
+    return buildPastAdjustments(
+      recommendation.categories.map((c) => ({
+        categoryCode: c.categoryCode,
+        recommendedAmount: c.recommendedAmount,
+      })),
+      pastProfile,
+    );
+  }, [draft.applyPastData, pastProfile, recommendation]);
+
+  const adjustmentByCode = useMemo(
+    () => new Map(pastAdjustments.map((a) => [a.categoryCode, a])),
+    [pastAdjustments],
+  );
+
+  /**
+   * 한 카테고리의 금액을 다시 계산한다.
+   *
+   *   선택 상품 합계 → 지난 여행 편차 적용 → 최종 금액
+   *
+   * 편차는 상품 합계에 얹는다. 사용자가 상품을 바꾸지 않았다면 상품 합계는
+   * 추천 원본과 같으므로(budgetProducts.ts 의 불변식) 결과도
+   * personalizedAmount 와 일치한다. 상품을 바꿨다면 바꾼 기준 위에 얹는 게 맞다.
+   */
+  const computeAmount = useCallback(
+    (
+      category: EditableCategory,
+      ids: Set<string>,
+      dropped: Set<CategoryCode>,
+      adjustments: Map<CategoryCode, PastAdjustment>,
+    ): number => {
+      const adjustment = adjustments.get(category.categoryCode);
+      const catalog = getProductCategory(category.categoryCode);
+
+      // 예비비는 상품이 없다. 기준 금액에 바로 편차를 얹는다.
+      //
+      // 사용자가 비율을 직접 골랐으면(contingencyChoice !== null) 그게 사용자 의도이므로
+      // 그 위에 편차를 또 얹지 않는다. 고른 값을 그대로 둔다.
+      if (!catalog) {
+        if (contingencyChoice !== null) return category.plannedAmount;
+        if (!adjustment || dropped.has(category.categoryCode)) return category.recommendedAmount;
+        return applyBp(category.recommendedAmount, adjustment.appliedBp);
+      }
+
+      const fromProducts =
+        Math.round((category.baseAmount * sumSelectedRatio(category.categoryCode, ids)) / 1000) *
+        1000;
+
+      if (!adjustment || dropped.has(category.categoryCode)) return fromProducts;
+      return applyBp(fromProducts, adjustment.appliedBp);
+    },
+    [contingencyChoice],
+  );
+
+  /**
+   * 반영 대상이 바뀌면 금액을 다시 깐다.
+   * 과거 프로필을 늦게 받아오거나 사용자가 개별로 빼면 여기서 반영된다.
+   */
+  const adjustSyncRef = useRef('');
+  useEffect(() => {
+    if (method === null) return;
+    const key = `${pastAdjustments.map((a) => `${a.categoryCode}:${a.appliedBp}`).join(',')}|${[...droppedCategories].sort().join(',')}|${contingencyChoice}`;
+    if (adjustSyncRef.current === key) return;
+    adjustSyncRef.current = key;
+
+    setCategories((cats) =>
+      cats.map((c) => ({
+        ...c,
+        plannedAmount: computeAmount(c, selectedProductIds, droppedCategories, adjustmentByCode),
+      })),
+    );
+  }, [
+    adjustmentByCode,
+    computeAmount,
+    contingencyChoice,
+    droppedCategories,
+    method,
+    pastAdjustments,
+    selectedProductIds,
+  ]);
+
+  /**
+   * 개인화 제안 노출. 흐름당 1회다.
+   *
+   * 카테고리를 펼칠 때마다 쏘면 노출 모수가 사람 수가 아니라 조회 횟수가 된다.
+   * 대표 항목은 금액 영향이 가장 큰 것이다. (pastAdjustments 가 그 순서로 정렬돼 있다)
+   */
+  const offeredRef = useRef(false);
+  useEffect(() => {
+    if (offeredRef.current || pastAdjustments.length === 0) return;
+    offeredRef.current = true;
+
+    const top = pastAdjustments[0];
+    track(EVENTS.PERSONALIZATION_OFFERED, {
+      based_on_trip_count: pastProfileTripCount,
+      top_category: top.categoryCode,
+      deviation_rate: top.rawBp,
+    });
+  }, [pastAdjustments, pastProfileTripCount]);
+
+  /** 카테고리 하나의 지난 여행 반영을 빼거나 되돌린다. */
+  const handleToggleDrop = useCallback((categoryCode: CategoryCode) => {
+    setDroppedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryCode)) next.delete(categoryCode);
+      else next.add(categoryCode);
+      return next;
+    });
+  }, []);
+
+  /**
    * 상품을 켜고 끈다. 그 카테고리 금액을 새 조합으로 다시 계산한다.
    *
    * 상품별로 반올림한 뒤 더하지 않는다. baseAmount 에 ratio 합을 곱해 **한 번만**
@@ -244,11 +400,7 @@ export default function ScreenTRIP03() {
         setCategories((cats) =>
           cats.map((c) =>
             c.categoryCode === categoryCode
-              ? {
-                  ...c,
-                  plannedAmount:
-                    Math.round((c.baseAmount * sumSelectedRatio(categoryCode, next)) / 1000) * 1000,
-                }
+              ? { ...c, plannedAmount: computeAmount(c, next, droppedCategories, adjustmentByCode) }
               : c,
           ),
         );
@@ -256,7 +408,7 @@ export default function ScreenTRIP03() {
         return next;
       });
     },
-    [],
+    [adjustmentByCode, computeAmount, droppedCategories],
   );
 
   /**
@@ -304,11 +456,26 @@ export default function ScreenTRIP03() {
   const categoriesWithProducts = useMemo<EditableCategory[]>(
     () =>
       categories.map((category) => {
+        const adjustment = adjustmentByCode.get(category.categoryCode);
+        const dropped = droppedCategories.has(category.categoryCode);
+
+        // 반영으로 늘거나 줄어든 금액. 뺀 상태면 0 이 아니라 '제외됨' 으로 표시되므로
+        // 여기서는 부호만 맞춰 두고 화면이 판단한다.
+        const adjustmentFields = adjustment
+          ? {
+              adjustmentPercent:
+                (adjustment.appliedBp > 0 ? 1 : -1) * bpToPercent(adjustment.appliedBp),
+              adjustmentAmount: adjustment.personalizedAmount - adjustment.recommendedAmount,
+              adjustmentDropped: dropped,
+            }
+          : {};
+
         const catalog = getProductCategory(category.categoryCode);
-        if (!catalog) return category;
+        if (!catalog) return { ...category, ...adjustmentFields };
 
         return {
           ...category,
+          ...adjustmentFields,
           productHint: catalog.hint,
           singleSelect: catalog.single,
           products: catalog.products.map((product) => ({
@@ -320,7 +487,7 @@ export default function ScreenTRIP03() {
           })),
         };
       }),
-    [categories, selectedProductIds],
+    [adjustmentByCode, categories, droppedCategories, selectedProductIds],
   );
 
   const targetTotal = useMemo(
@@ -421,17 +588,37 @@ export default function ScreenTRIP03() {
           recommendation_basis_json: recommendation.basis,
           confirmed_at: new Date().toISOString(),
         },
-        categories: categories.map((c, index) => ({
-          category_code: c.categoryCode,
-          // 불변 원본. 사용자가 뭘 고쳤는지는 이 값과의 차이로만 알 수 있다.
-          recommended_amount: c.recommendedAmount,
-          planned_amount: c.plannedAmount,
-          applied_source:
-            c.plannedAmount === c.recommendedAmount ? APPLIED_SOURCE.DEFAULT : APPLIED_SOURCE.USER,
-          // 가상 금고 배분은 BUDGET-01 에서 한다. (docs/README.md §5 #8)
-          prepared_amount: 0,
-          sort_order: index + 1,
-        })),
+        categories: categories.map((c, index) => {
+          const adjustment = adjustmentByCode.get(c.categoryCode);
+          const dropped = droppedCategories.has(c.categoryCode);
+
+          // ⚠️ 뺀 카테고리도 personalized_amount 는 남긴다.
+          //    "개인화 추천이 얼마였는데 사용자가 안 썼다" 를 재려면 제안값이 있어야 한다.
+          //    쓴 것과 안 쓴 것의 구분은 applied_source 가 한다. (CLAUDE.md 4장)
+          const personalizedAmount = adjustment?.personalizedAmount ?? null;
+
+          // default      추천 그대로
+          // personalized 개인화 추천을 그대로 받아들임
+          // user         둘 중 어느 것도 아닌 값 (상품을 바꿨거나 금액을 직접 고침)
+          const appliedSource =
+            c.plannedAmount === c.recommendedAmount
+              ? APPLIED_SOURCE.DEFAULT
+              : !dropped && personalizedAmount !== null && c.plannedAmount === personalizedAmount
+                ? APPLIED_SOURCE.PERSONALIZED
+                : APPLIED_SOURCE.USER;
+
+          return {
+            category_code: c.categoryCode,
+            // 불변 원본. 사용자가 뭘 고쳤는지는 이 값과의 차이로만 알 수 있다.
+            recommended_amount: c.recommendedAmount,
+            personalized_amount: personalizedAmount,
+            planned_amount: c.plannedAmount,
+            applied_source: appliedSource,
+            // 가상 금고 배분은 BUDGET-01 에서 한다. (docs/README.md §5 #8)
+            prepared_amount: 0,
+            sort_order: index + 1,
+          };
+        }),
         fund: {
           source_type: fundType,
           current_amount: currentAmount,
@@ -450,6 +637,19 @@ export default function ScreenTRIP03() {
         per_person_amount: perPersonAmount,
         edited_category_count: editedCount,
       });
+      // 지난 여행 반영을 실제로 썼는지. 가설 4 의 핵심 지표다. (docs/06 §7-6)
+      // 제안이 뜬 경우에만 쏜다. 뜨지도 않은 사람이 '미반영' 으로 잡히면
+      // 반영 비율의 분모가 부풀어 오른다.
+      if (pastAdjustments.length > 0) {
+        const appliedCount = pastAdjustments.filter(
+          (adjustment) => !droppedCategories.has(adjustment.categoryCode),
+        ).length;
+        track(EVENTS.PERSONALIZATION_APPLIED, {
+          trip_id: trip.id,
+          applied: appliedCount > 0,
+        });
+      }
+
       track(EVENTS.TRAVEL_FUND_REGISTERED, {
         trip_id: trip.id,
         fund_type: FUND_SOURCE_TYPE_TO_ANALYTICS[fundType],
@@ -487,12 +687,15 @@ export default function ScreenTRIP03() {
     }
   }, [
     accountId,
+    adjustmentByCode,
     categories,
     draft,
+    droppedCategories,
     editedCount,
     fundType,
     manualAmount,
     method,
+    pastAdjustments,
     recommendation,
     resetDraft,
     saving,
@@ -613,6 +816,7 @@ export default function ScreenTRIP03() {
               categories={categoriesWithProducts}
               onChangeAmount={handleChangeCategoryAmount}
               onToggleProduct={handleToggleProduct}
+              onToggleDrop={handleToggleDrop}
               otherCategoriesTotal={otherCategoriesTotal}
               contingencyChoice={contingencyChoice}
               onChangeContingency={handleChangeContingency}

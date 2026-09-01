@@ -53,6 +53,15 @@ export type EditableCategory = {
   productHint?: string;
   /** true 면 상품을 하나만 고를 수 있다 */
   singleSelect?: boolean;
+
+  // ── 지난 여행 반영 ───────────────────────────────────────────────────
+  // 편차가 ±5% 미만인 카테고리에는 아예 붙지 않는다. 노이즈다.
+  /** 부호 있는 퍼센트. +22 / -11 */
+  adjustmentPercent?: number;
+  /** 반영으로 늘거나 줄어든 금액. 부호를 갖는다 */
+  adjustmentAmount?: number;
+  /** 사용자가 이 카테고리만 반영에서 뺐는가 */
+  adjustmentDropped?: boolean;
 };
 
 /** 예비비 비율 선택지. null 은 '추천'(기준 금액 그대로)이다. */
@@ -62,6 +71,8 @@ type Props = {
   categories: EditableCategory[];
   onChangeAmount: (categoryCode: CategoryCode, amount: number) => void;
   onToggleProduct: (categoryCode: CategoryCode, productId: string) => void;
+  /** 카테고리 하나의 지난 여행 반영을 빼거나 되돌린다 */
+  onToggleDrop: (categoryCode: CategoryCode) => void;
 
   /** 예비비를 뺀 나머지 합계. 비율 계산의 분모다 */
   otherCategoriesTotal: number;
@@ -147,6 +158,7 @@ export function BudgetCategoryList({
   categories,
   onChangeAmount,
   onToggleProduct,
+  onToggleDrop,
   otherCategoriesTotal,
   contingencyChoice,
   onChangeContingency,
@@ -181,6 +193,32 @@ export function BudgetCategoryList({
               </Text>
 
               <View className="flex-row items-center gap-1.5">
+                {/* 지난 여행 반영 배지. 뺀 카테고리는 회색으로 남겨 뺐다는 걸 보여준다 */}
+                {category.adjustmentPercent ? (
+                  <View
+                    className={`rounded-md px-1.5 py-0.5 ${
+                      category.adjustmentDropped
+                        ? 'bg-gray-100'
+                        : category.adjustmentPercent > 0
+                          ? 'bg-red-50'
+                          : 'bg-emerald-50'
+                    }`}
+                  >
+                    <Text
+                      className={`text-[10px] font-black ${
+                        category.adjustmentDropped
+                          ? 'text-gray-400'
+                          : category.adjustmentPercent > 0
+                            ? 'text-red-600'
+                            : 'text-emerald-700'
+                      }`}
+                    >
+                      {category.adjustmentPercent > 0 ? '+' : '−'}
+                      {Math.abs(category.adjustmentPercent)}%
+                    </Text>
+                  </View>
+                ) : null}
+
                 <Text className="text-base font-semibold text-gray-900">
                   {won(category.plannedAmount)}
                 </Text>
@@ -268,6 +306,49 @@ export function BudgetCategoryList({
                       {won(isContingency ? otherCategoriesTotal : category.baseAmount)}
                     </Text>
                   </View>
+
+                  {/* ── 지난 여행 반영 ── 뺄 수 있고 되돌릴 수 있다 ── */}
+                  {category.adjustmentPercent ? (
+                    <View className="flex-row items-center justify-between gap-2">
+                      <Text
+                        className={`flex-1 text-xs ${
+                          category.adjustmentDropped ? 'text-gray-400' : 'text-gray-500'
+                        }`}
+                        numberOfLines={1}
+                      >
+                        지난 여행 반영 {category.adjustmentPercent > 0 ? '+' : '−'}
+                        {Math.abs(category.adjustmentPercent)}%
+                      </Text>
+
+                      <Text
+                        className={`text-xs font-medium ${
+                          category.adjustmentDropped ? 'text-gray-400' : 'text-gray-700'
+                        }`}
+                      >
+                        {category.adjustmentDropped
+                          ? '제외됨'
+                          : `${(category.adjustmentAmount ?? 0) > 0 ? '+' : '−'}${Math.abs(
+                              category.adjustmentAmount ?? 0,
+                            ).toLocaleString('ko-KR')}원`}
+                      </Text>
+
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          category.adjustmentDropped
+                            ? '지난 여행 반영 되돌리기'
+                            : '지난 여행 반영 빼기'
+                        }
+                        disabled={disabled}
+                        onPress={() => onToggleDrop(category.categoryCode)}
+                        className="rounded-lg border border-gray-200 px-2 py-1 active:bg-gray-100"
+                      >
+                        <Text className="text-[10px] font-bold text-gray-600">
+                          {category.adjustmentDropped ? '되돌리기' : '빼기'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
 
                   <View className="mt-0.5 flex-row items-center justify-between border-t border-gray-100 pt-1.5">
                     <Text className="text-xs font-semibold text-gray-700">추천 금액</Text>
