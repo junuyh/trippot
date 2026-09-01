@@ -39,6 +39,7 @@ import { findDestinationByName } from "@/lib/constants/destinations";
 import {
   CATEGORY_CODE_LABEL,
   CATEGORY_METHOD,
+  TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
   type CategoryCode,
 } from "@/lib/constants/status";
@@ -70,7 +71,16 @@ type FundsData = {
 };
 
 /** 목록 필터 */
-type FundFilter = "ALL" | "DEPOSIT" | "WITHDRAWAL" | "REVIEW";
+type FundFilter = "ALL" | "REVIEW" | "REFUND";
+
+/**
+ * 정렬은 필터와 **다른 축**이다.
+ *
+ * ⚠️ 시안은 '큰 금액순' 을 필터 칩에 넣었는데, 그러면 '확인 필요' 를 보면서
+ *    금액순으로 볼 수 없다. 확인할 거래 중 금액 큰 것부터 보는 건 자연스러운
+ *    요구라 축을 갈랐다.
+ */
+type FundSort = "RECENT" | "AMOUNT_DESC" | "AMOUNT_ASC";
 
 export default function ScreenFUND01() {
   const { tripId, categoryId, transactionId } = useLocalSearchParams<{
@@ -140,6 +150,7 @@ export default function ScreenFUND01() {
    *    사용자는 무엇을 고쳐야 할지 알 수 없다.
    */
   const [filter, setFilter] = useState<FundFilter>("ALL");
+  const [sort, setSort] = useState<FundSort>("RECENT");
 
   /** 거래 상세 시트에 띄울 거래 */
   const [detail, setDetail] = useState<Transaction | null>(null);
@@ -243,18 +254,18 @@ export default function ScreenFUND01() {
   }, [data, transactionId]);
 
   const visibleTransactions = useMemo(() => {
-    const all = data?.transactions ?? [];
-    if (filter === "DEPOSIT") {
-      return all.filter((t) => t.transaction_type === TRANSACTION_TYPE.DEPOSIT);
-    }
-    if (filter === "WITHDRAWAL") {
-      return all.filter(
-        (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
-      );
-    }
-    if (filter === "REVIEW") return all.filter((t) => reviewReason(t) !== null);
-    return all;
-  }, [data?.transactions, filter]);
+    // 이 화면은 '전체 지출 내역' 이다. 입금은 FUND-01 허브에서 본다.
+    let rows = (data?.transactions ?? []).filter(
+      (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
+    );
+    if (filter === "REVIEW") rows = rows.filter((t) => reviewReason(t) !== null);
+    // TODO: 환불 필터 — transactions.refund_status 마이그레이션 적용 후 연결한다
+    if (filter === "REFUND") rows = [];
+
+    if (sort === "AMOUNT_DESC") rows = [...rows].sort((a, b) => b.amount - a.amount);
+    if (sort === "AMOUNT_ASC") rows = [...rows].sort((a, b) => a.amount - b.amount);
+    return rows;
+  }, [data?.transactions, filter, sort]);
 
   /** '확인 필요' 배지에 쓸 건수 */
   const reviewCount = useMemo(
@@ -403,26 +414,22 @@ export default function ScreenFUND01() {
         </View>
       ) : null}
 
-      {/* 밀어서 수정·삭제 */}
-      {/* ── 필터 ── 지금 판정할 수 있는 것만 둔다 (IA v2 §2-4-2) ── */}
+      {/*
+        ── 필터와 정렬 ──
+        두 줄로 나눈다. 한 줄에 섞으면 '확인 필요' 를 금액순으로 볼 수 없다.
+      */}
       <View
         className="flex-row"
-        style={{
-          gap: 7,
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 4,
-        }}
+        style={{ gap: 7, paddingHorizontal: 16, paddingTop: 12 }}
       >
         {(
           [
             { key: "ALL", label: "전체" },
-            { key: "DEPOSIT", label: "입금" },
-            { key: "WITHDRAWAL", label: "출금" },
             {
               key: "REVIEW",
               label: reviewCount > 0 ? `확인 필요 ${reviewCount}` : "확인 필요",
             },
+            { key: "REFUND", label: "환불" },
           ] as const
         ).map((chip) => {
           const active = filter === chip.key;
@@ -455,11 +462,37 @@ export default function ScreenFUND01() {
         })}
       </View>
 
-      <View style={{ paddingHorizontal: 16, paddingTop: 6 }}>
+      <View
+        className="flex-row items-center justify-between"
+        style={{ paddingHorizontal: 16, paddingTop: 10 }}
+      >
         <Text style={{ fontSize: 10, color: "#a3a9b3" }}>
-          내역을 누르면 상세를 볼 수 있어요. 왼쪽으로 밀면 카테고리
-          변경·삭제예요.
+          내역을 누르면 상세를 볼 수 있어요
         </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="정렬 바꾸기"
+          onPress={() =>
+            setSort((prev) =>
+              prev === "RECENT"
+                ? "AMOUNT_DESC"
+                : prev === "AMOUNT_DESC"
+                  ? "AMOUNT_ASC"
+                  : "RECENT",
+            )
+          }
+          className="flex-row items-center active:opacity-60"
+          style={{ gap: 3 }}
+        >
+          <Ionicons name="swap-vertical" size={13} color="#687281" />
+          <Text style={{ fontSize: 10, fontWeight: "700", color: "#687281" }}>
+            {sort === "RECENT"
+              ? "최신순"
+              : sort === "AMOUNT_DESC"
+                ? "금액 큰 순"
+                : "금액 작은 순"}
+          </Text>
+        </Pressable>
       </View>
 
       <SectionList
@@ -600,7 +633,11 @@ export default function ScreenFUND01() {
                       categoryCode
                         ? CATEGORY_CODE_LABEL[categoryCode]
                         : "미분류",
-                      auto ? "자동 분류" : "직접 입력",
+                      // ⚠️ 시안의 '민지 개인카드' 처럼 사람 이름은 붙일 수 없다.
+                    //    거래와 사람을 잇는 연결이 스키마에 없다.
+                    transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL
+                      ? "직접 입력"
+                      : "연결 계좌",
                     ].join(" · ")}
                   </Text>
                   {/* 왜 확인이 필요한지 이유를 적는다. 배지만 달면 뭘 고칠지 모른다 */}

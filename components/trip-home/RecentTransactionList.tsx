@@ -66,7 +66,14 @@ export function RecentTransactionList({ transactions, onSelect }: Props) {
                 <Text className="text-xs text-gray-400">
                   {format(parseISO(transaction.occurredAt), 'M.d')}
                 </Text>
-                {transaction.categoryCode ? (
+                {/*
+                  ⚠️ 입금에는 카테고리를 붙이지 않는다. '미분류' 배지도 달지 않는다.
+                     입금은 자금이 들어온 것이지 예산을 쓴 게 아니라,
+                     분류를 요구하면 사용자는 없는 할 일을 만든다.
+                */}
+                {deposit ? (
+                  <Text className="text-xs text-gray-400">· 자금 입금</Text>
+                ) : transaction.categoryCode ? (
                   <Text className="text-xs text-gray-400">
                     · {CATEGORY_CODE_LABEL[transaction.categoryCode]}
                   </Text>

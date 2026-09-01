@@ -48,7 +48,11 @@ import {
 } from '@/lib/supabase/queries/budgets';
 import { getTravelFund, type FundSource } from '@/lib/supabase/queries/funds';
 import { getGroupById } from '@/lib/supabase/queries/groups';
-import { getTransactions, type Transaction } from '@/lib/supabase/queries/transactions';
+import {
+  getFundTotals,
+  getTransactions,
+  type Transaction,
+} from '@/lib/supabase/queries/transactions';
 import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
 
 /** 준비 홈에 보여줄 최근 내역 건수. 전체는 FUND-01(고도화)이 담당한다 */
@@ -62,6 +66,8 @@ type TripHomeData = {
   categories: BudgetCategory[];
   fund: FundSource | null;
   transactions: Transaction[];
+  /** 입금 거래 합계. 누적 모금액 계산에 쓴다 */
+  depositTotal: number;
   groupName: string | null;
 };
 
@@ -94,14 +100,23 @@ export default function ScreenTripHome() {
 
       // 여행을 찾은 뒤에야 나머지를 붙인다. 예산·자금이 없어도 화면은 떠야 한다.
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, fund, transactions, group] = await Promise.all([
+      const [categories, fund, transactions, totals, group] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         getTravelFund(trip.id),
         getTransactions(trip.id, { limit: RECENT_LIMIT }),
+        getFundTotals(trip.id),
         trip.group_id ? getGroupById(trip.group_id) : Promise.resolve(null),
       ]);
 
-      setData({ trip, budget, categories, fund, transactions, groupName: group?.name ?? null });
+      setData({
+        trip,
+        budget,
+        categories,
+        fund,
+        transactions,
+        depositTotal: totals.depositTotal,
+        groupName: group?.name ?? null,
+      });
     } catch {
       setError(true);
     } finally {
@@ -131,7 +146,7 @@ export default function ScreenTripHome() {
     if (!data || syncedRef.current) return;
 
     const allocations = allocateVault(
-      data.fund?.current_amount ?? 0,
+      (data.fund?.current_amount ?? 0) + data.depositTotal,
       data.categories.map((category) => ({
         categoryCode: category.category_code as CategoryCode,
         plannedAmount: category.planned_amount,
@@ -195,14 +210,14 @@ export default function ScreenTripHome() {
   const stages = useMemo(
     () =>
       journeyStages(
-        data?.fund?.current_amount ?? 0,
+        (data?.fund?.current_amount ?? 0) + (data?.depositTotal ?? 0),
         (data?.categories ?? []).map((category) => ({
           categoryCode: category.category_code as CategoryCode,
           plannedAmount: category.planned_amount,
         })),
         data?.trip.destination,
       ),
-    [data?.categories, data?.fund?.current_amount, data?.trip.destination],
+    [data?.categories, data?.depositTotal, data?.fund?.current_amount, data?.trip.destination],
   );
 
   const recentTransactions: RecentTransaction[] = useMemo(() => {
