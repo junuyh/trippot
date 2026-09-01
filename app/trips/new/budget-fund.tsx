@@ -269,6 +269,10 @@ export default function ScreenTRIP03() {
    */
   const pastAdjustments = useMemo<PastAdjustment[]>(() => {
     if (!recommendation || !pastProfile || draft.applyPastData === false) return [];
+    // ⚠️ 추천 경로에서만 얹는다.
+    //    "정해둔 예산이 있어요" 는 사용자가 총액을 이미 정했다는 뜻이다. 그 위에
+    //    과거 편차를 얹으면 넣은 숫자가 이유 없이 달라지고, 총액 배분도 덮인다.
+    if (method !== BUDGET_METHOD.RECOMMENDED) return [];
     return buildPastAdjustments(
       recommendation.categories.map((c) => ({
         categoryCode: c.categoryCode,
@@ -276,7 +280,7 @@ export default function ScreenTRIP03() {
       })),
       pastProfile,
     );
-  }, [draft.applyPastData, pastProfile, recommendation]);
+  }, [draft.applyPastData, method, pastProfile, recommendation]);
 
   const adjustmentByCode = useMemo(
     () => new Map(pastAdjustments.map((a) => [a.categoryCode, a])),
@@ -367,6 +371,17 @@ export default function ScreenTRIP03() {
       deviation_rate: top.rawBp,
     });
   }, [pastAdjustments, pastProfileTripCount]);
+
+  /**
+   * 지난 여행 반영을 전부 빼거나 전부 되돌린다.
+   * 하나라도 반영 중이면 '모두 해제', 전부 빠져 있으면 '다시 반영' 이다.
+   */
+  const handleToggleAllPast = useCallback(() => {
+    setDroppedCategories((prev) => {
+      const allDropped = pastAdjustments.every((a) => prev.has(a.categoryCode));
+      return allDropped ? new Set() : new Set(pastAdjustments.map((a) => a.categoryCode));
+    });
+  }, [pastAdjustments]);
 
   /** 카테고리 하나의 지난 여행 반영을 빼거나 되돌린다. */
   const handleToggleDrop = useCallback((categoryCode: CategoryCode) => {
@@ -823,6 +838,21 @@ export default function ScreenTRIP03() {
               perPersonAmount={perPerson(targetTotal, draft.headcount)}
               baselineUpdatedAt={recommendation.updatedAt}
               estimateNotice={recommendation.notice}
+              productCount={selectedProductIds.size}
+              pastApplied={
+                pastAdjustments.length > 0
+                  ? {
+                      tripCount: pastProfileTripCount,
+                      appliedCount: pastAdjustments.filter(
+                        (a) => !droppedCategories.has(a.categoryCode),
+                      ).length,
+                      droppedCount: pastAdjustments.filter((a) =>
+                        droppedCategories.has(a.categoryCode),
+                      ).length,
+                    }
+                  : null
+              }
+              onToggleAllPast={handleToggleAllPast}
               // 총액을 이미 정해 온 사람에게 자기가 넣은 숫자를 크게 되돌려
               // 보여줄 이유가 없다. 비교만 한 줄로 남긴다.
               variant={method === BUDGET_METHOD.USER_DEFINED ? 'compact' : 'full'}
