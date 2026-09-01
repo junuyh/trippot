@@ -200,7 +200,97 @@ export const PERSONALIZATION_MIN_BP = 500;
 export const PERSONALIZATION_MAX_BP = 5000;
 
 /**
- * 개인화 예산 추천 생성.
+ * 개인화 계산에 넣을 카테고리 한 건.
+ *
+ * DB 에 이미 저장된 예산이든, 아직 저장 전인 생성 중 추천이든 이 모양이면 된다.
+ * TRIP-03(생성)과 BUDGET-01(예산 상세)이 **같은 계산**을 써야
+ * "만들 때 본 금액" 과 "나중에 제안받는 금액" 이 어긋나지 않는다.
+ */
+export type PersonalizationTarget = {
+  /** 결과를 되돌려 붙일 식별자. 저장 후면 budget_categories.id, 생성 중이면 category_code */
+  key: string;
+  categoryCode: string;
+  /** 편차를 적용할 기준. 반드시 recommended_amount 다 (아래 이유 참고) */
+  recommendedAmount: number;
+};
+
+export type PersonalizedAmount = {
+  key: string;
+  categoryCode: string;
+  personalizedAmount: number;
+  /** 왜 이 금액인지. 화면에 그대로 보여준다 */
+  basis: Json;
+};
+
+/**
+ * 과거 소비 패턴을 추천 금액에 반영한다. **순수 계산이다. DB 를 타지 않는다.**
+ *
+ * 여행 생성(TRIP-03)에는 아직 budget_categories 행이 없다. 그래도 개인화된
+ * 추천을 처음부터 보여줘야 하므로, 계산을 조회에서 떼어냈다.
+ *
+ * 반환 순서는 **금액 영향이 큰 순서**다. 비율이 아니다.
+ *   비율로 줄 세우면 예비비(-97%)가 맨 위로 온다. 예비비는 원래 안 쓰는 게
+ *   정상이라 사용자에게 알려줄 게 없는데, 정작 중요한 식비(+20% · 17만원)가
+ *   아래로 밀린다. 대표 항목은 배너 첫 줄에 노출되므로 순서가 곧 메시지다.
+ */
+export function personalizeFromProfile(
+  profile: SpendingProfile,
+  targets: PersonalizationTarget[],
+): PersonalizedAmount[] {
+  // 과거 결산이 없으면 개인화할 근거가 없다.
+  // 새 모임의 첫 여행이 여기에 해당한다. (docs/06 §7-6)
+  if (profile.basedOnTripCount === 0) return [];
+
+  const pastByCode = new Map(profile.categories.map((c) => [c.category_code, c]));
+  const results: PersonalizedAmount[] = [];
+
+  for (const target of targets) {
+    const past = pastByCode.get(target.categoryCode);
+    // 과거에 쓴 적 없는 카테고리는 참고할 게 없다
+    if (!past || past.planned_amount <= 0) continue;
+
+    const rawBp = deviationBp(past.planned_amount, past.actual_amount);
+    // 편차가 작으면 제안하지 않는다. 노이즈다.
+    if (Math.abs(rawBp) < PERSONALIZATION_MIN_BP) continue;
+
+    // 이상치가 다음 예산을 통째로 흔들지 않게 상한을 둔다
+    const clampedBp = Math.max(-PERSONALIZATION_MAX_BP, Math.min(PERSONALIZATION_MAX_BP, rawBp));
+
+    // ⚠️ **기본 추천(recommended_amount)** 에 편차를 적용한다.
+    //    planned_amount 에 적용하면 사용자가 이미 손댄 값 위에 또 얹는 꼴이 된다.
+    //    recommended 는 불변이라 몇 번을 다시 계산해도 같은 값이 나온다. (CLAUDE.md 4장)
+    const personalized =
+      Math.round((target.recommendedAmount * (1 + clampedBp / 10000)) / 1000) * 1000;
+
+    results.push({
+      key: target.key,
+      categoryCode: target.categoryCode,
+      personalizedAmount: personalized,
+      // 화면에 그대로 보여주는 근거. "왜 이 금액인가" 에 답해야 한다.
+      basis: {
+        basedOnTripCount: profile.basedOnTripCount,
+        deviationBp: rawBp,
+        appliedBp: clampedBp,
+        clamped: rawBp !== clampedBp,
+        pastPlannedAmount: past.planned_amount,
+        pastActualAmount: past.actual_amount,
+        recommendedAmount: target.recommendedAmount,
+      },
+    });
+  }
+
+  return results.sort(
+    (a, b) =>
+      Math.abs(b.personalizedAmount - (b.basis as { recommendedAmount: number }).recommendedAmount) -
+      Math.abs(a.personalizedAmount - (a.basis as { recommendedAmount: number }).recommendedAmount),
+  );
+}
+
+/**
+ * 개인화 예산 추천 생성. **이미 저장된 여행**의 예산에 대해 계산한다.
+ *
+ * 생성 중(TRIP-03)에는 budget_categories 행이 없으므로
+ * getSpendingProfile() + personalizeFromProfile() 을 직접 쓴다.
  *
  * ⚠️ 이 함수는 **personalized_amount 생성까지만** 담당한다. (CLAUDE.md 1장/4장)
  *    planned_amount 를 직접 쓰지 않는다. recommended_amount 도 덮어쓰지 않는다.
@@ -215,8 +305,6 @@ export async function getPersonalizedBudget(
   scope: PersonalizationScope,
 ): Promise<PersonalizedBudgetSuggestion[]> {
   const profile = await getSpendingProfile(scope);
-  // 과거 결산이 없으면 개인화를 노출하지 않는다.
-  // 새 모임의 첫 여행이 여기에 해당한다. (docs/06 §7-6)
   if (!profile || profile.basedOnTripCount === 0) return [];
 
   const { data: budget, error: budgetError } = await supabase
@@ -234,60 +322,20 @@ export async function getPersonalizedBudget(
     .eq('enabled', true);
   if (categoryError) throw categoryError;
 
-  const pastByCode = new Map(profile.categories.map((c) => [c.category_code, c]));
-
-  const suggestions: PersonalizedBudgetSuggestion[] = [];
-
-  for (const category of categories ?? []) {
-    const past = pastByCode.get(category.category_code);
-    // 과거에 쓴 적 없는 카테고리는 참고할 게 없다
-    if (!past || past.planned_amount <= 0) continue;
-
-    const rawBp = deviationBp(past.planned_amount, past.actual_amount);
-    // 편차가 작으면 제안하지 않는다. 노이즈다.
-    if (Math.abs(rawBp) < PERSONALIZATION_MIN_BP) continue;
-
-    // 이상치가 다음 예산을 통째로 흔들지 않게 상한을 둔다
-    const clampedBp = Math.max(
-      -PERSONALIZATION_MAX_BP,
-      Math.min(PERSONALIZATION_MAX_BP, rawBp),
-    );
-
-    // ⚠️ **기본 추천(recommended_amount)** 에 편차를 적용한다.
-    //    planned_amount 에 적용하면 사용자가 이미 손댄 값 위에 또 얹는 꼴이 된다.
-    //    recommended 는 불변이라 몇 번을 다시 계산해도 같은 값이 나온다. (CLAUDE.md 4장)
-    const personalized =
-      Math.round((category.recommended_amount * (1 + clampedBp / 10000)) / 1000) * 1000;
-
-    suggestions.push({
-      id: category.id,
-      category_code: category.category_code,
-      personalized_amount: personalized,
-      // 화면에 그대로 보여주는 근거. "왜 이 금액인가" 에 답해야 한다.
-      basis: {
-        basedOnTripCount: profile.basedOnTripCount,
-        deviationBp: rawBp,
-        appliedBp: clampedBp,
-        clamped: rawBp !== clampedBp,
-        pastPlannedAmount: past.planned_amount,
-        pastActualAmount: past.actual_amount,
-        recommendedAmount: category.recommended_amount,
-      },
-    });
-  }
-
-  // ⚠️ 비율이 아니라 **금액 영향이 큰 순서**로 정렬한다.
-  //
-  //    비율로 줄 세우면 예비비(-97%)가 맨 위로 온다. 예비비는 원래 안 쓰는 게
-  //    정상이라 사용자에게 알려줄 게 없는데, 정작 중요한 식비(+20% · 17만원)가
-  //    아래로 밀린다. 대표 항목은 배너 첫 줄에 노출되므로 순서가 곧 메시지다.
-  return suggestions.sort((a, b) => {
-    const impact = (sg: PersonalizedBudgetSuggestion) => {
-      const basis = sg.basis as { recommendedAmount: number };
-      return Math.abs((sg.personalized_amount ?? 0) - basis.recommendedAmount);
-    };
-    return impact(b) - impact(a);
-  });
+  // key 로 budget_categories.id 를 그대로 쓴다. 화면이 id 로 되돌려 붙인다.
+  return personalizeFromProfile(
+    profile,
+    (categories ?? []).map((category) => ({
+      key: category.id,
+      categoryCode: category.category_code,
+      recommendedAmount: category.recommended_amount,
+    })),
+  ).map((result) => ({
+    id: result.key,
+    category_code: result.categoryCode,
+    personalized_amount: result.personalizedAmount,
+    basis: result.basis,
+  }));
 }
 
 /**
