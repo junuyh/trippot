@@ -22,8 +22,13 @@ import {
 import { CATEGORY_CODE_LABEL } from "@/lib/constants/status";
 import { supabase } from "@/lib/supabase/client";
 
-/** 이보다 오래 걸리면 기다리지 않는다. 추천 하나 보려고 화면이 멈추면 안 된다 */
-const TIMEOUT_MS = 9000;
+/**
+ * 이보다 오래 걸리면 기다리지 않는다. 추천 하나 보려고 화면이 멈추면 안 된다.
+ *
+ * ⚠️ Edge Function 쪽 제한(25초)보다 넉넉해야 한다. 앱이 먼저 끊으면
+ *    함수가 무엇 때문에 실패했는지 로그에도 남지 않는다.
+ */
+const TIMEOUT_MS = 28000;
 
 export type PlanSuggestionResult = {
   suggestions: PlanSuggestion[];

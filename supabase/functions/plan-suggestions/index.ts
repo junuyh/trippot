@@ -49,7 +49,12 @@ function fail(reason: string, detail?: unknown): void {
 /** OpenAI 호환 엔드포인트. 끝의 / 는 붙이지 않는다 */
 const BASE_URL = (Deno.env.get("LLM_BASE_URL") ?? "https://api.openai.com/v1").replace(/\/+$/, "");
 const MODEL = Deno.env.get("LLM_MODEL") ?? "gpt-4o-mini";
-const TIMEOUT_MS = 8000;
+/**
+ * ⚠️ 8초로는 부족하다. 실측에서 Gemini 무료 등급이 이 제한에 자주 걸려
+ *    "The signal has been aborted" 로 끊겼고, 앱은 조용히 카탈로그로
+ *    되돌아가 AI 추천이 한 번도 안 보였다.
+ */
+const TIMEOUT_MS = 25000;
 
 type Body = {
   destination?: string | null;
