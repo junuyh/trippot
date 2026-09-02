@@ -27,7 +27,7 @@ import { useState } from 'react';
 import { PostWriteForm } from '@/components/community';
 import { MAX_IMAGES, usePostImages } from '@/components/community/usePostImages';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
-import { POST_TYPE, POST_TYPE_LABEL } from '@/lib/constants/status';
+import { POST_TYPE } from '@/lib/constants/status';
 import {
   createPost,
   WRITABLE_POST_TYPES,
@@ -41,6 +41,18 @@ const TYPE_OPTIONS = WRITABLE_POST_TYPES.map((value) => ({
   value,
   label: value === POST_TYPE.FREE_TIP ? '여행 팁' : '자유',
 }));
+
+/**
+ * 상단바 제목. 고른 유형에 따라 바뀐다.
+ *
+ * POST_TYPE_LABEL 을 쓰지 않는다. 그건 DB 열거값 라벨('무료 팁'·'게시글')이라
+ * 유료 팁이 있던 시절의 이름이 남아 있다. 목록 필터는 '여행 팁'·'자유'로 부르고 있어
+ * 화면에서 부르는 이름을 여기서 맞춘다.
+ */
+const WRITE_TITLE: Record<(typeof WRITABLE_POST_TYPES)[number], string> = {
+  [POST_TYPE.FREE_TIP]: '새로운 여행 팁',
+  [POST_TYPE.POST]: '새로운 게시글',
+};
 
 export default function ScreenCOMM04() {
   const router = useRouter();
@@ -104,7 +116,7 @@ export default function ScreenCOMM04() {
 
   return (
     <>
-      <Stack.Screen options={{ title: `${POST_TYPE_LABEL[postType]} 쓰기` }} />
+      <Stack.Screen options={{ title: WRITE_TITLE[postType] }} />
       <PostWriteForm
         typeOptions={TYPE_OPTIONS}
         postType={postType}
