@@ -148,14 +148,30 @@ export function PostCard({ post, onPress }: Props) {
         </Text>
 
         <Ionicons
+          name={post.dislikedByMe ? 'thumbs-down' : 'thumbs-down-outline'}
+          size={15}
+          color={post.dislikedByMe ? '#111827' : '#8B94A2'}
+          style={{ marginLeft: 14 }}
+        />
+        <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
+          {post.dislikeCount}
+        </Text>
+
+        <Ionicons
           name="chatbubble-outline"
           size={15}
           color="#8B94A2"
-          style={{ marginLeft: 16 }}
+          style={{ marginLeft: 14 }}
         />
         <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
           {post.commentCount}
         </Text>
+
+        <View className="flex-1" />
+
+        {/* 찜 표시. 목록에서는 보여주기만 한다 — 누르면 글로 들어간다.
+            카드 전체가 이미 누르는 자리라 그 안에 또 누를 곳을 만들지 않는다. */}
+        {post.bookmarkedByMe ? <Ionicons name="bookmark" size={15} color="#111827" /> : null}
       </View>
     </Pressable>
   );

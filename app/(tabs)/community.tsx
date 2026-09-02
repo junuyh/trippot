@@ -110,6 +110,9 @@ export default function ScreenCOMM01() {
     contentPreview: post.content,
     likeCount: post.likeCount,
     likedByMe: post.likedByMe,
+    dislikeCount: post.dislikeCount,
+    dislikedByMe: post.dislikedByMe,
+    bookmarkedByMe: post.bookmarkedByMe,
     commentCount: post.commentCount,
     accent: toAccent(post.destination),
     // TODO: 사진 스키마가 생기면 post.imageUrls 로 바꾼다. [임시]

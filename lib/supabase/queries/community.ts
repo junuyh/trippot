@@ -31,6 +31,7 @@ import {
   POST_TYPE,
   REACTION_TYPE,
   type PostType,
+  type ReactionType,
 } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Tables } from '@/types/database';
@@ -65,6 +66,10 @@ export type PostListItem = {
   likeCount: number;
   /** 내가 좋아요를 눌렀는가. */
   likedByMe: boolean;
+  dislikeCount: number;
+  dislikedByMe: boolean;
+  /** 내가 찜했는가. 찜은 개수를 공개하지 않는다. */
+  bookmarkedByMe: boolean;
   commentCount: number;
 };
 
@@ -114,6 +119,9 @@ export async function getPosts(
     content: row.content,
     likeCount: reactions.get(row.id)?.likeCount ?? 0,
     likedByMe: reactions.get(row.id)?.likedByMe ?? false,
+    dislikeCount: reactions.get(row.id)?.dislikeCount ?? 0,
+    dislikedByMe: reactions.get(row.id)?.dislikedByMe ?? false,
+    bookmarkedByMe: reactions.get(row.id)?.bookmarkedByMe ?? false,
     commentCount: commentCounts.get(row.id) ?? 0,
   }));
 }
@@ -152,6 +160,9 @@ export async function getPostById(postId: string, userId: string): Promise<PostD
     content: data.content,
     likeCount: reactions.get(data.id)?.likeCount ?? 0,
     likedByMe: reactions.get(data.id)?.likedByMe ?? false,
+    dislikeCount: reactions.get(data.id)?.dislikeCount ?? 0,
+    dislikedByMe: reactions.get(data.id)?.dislikedByMe ?? false,
+    bookmarkedByMe: reactions.get(data.id)?.bookmarkedByMe ?? false,
     commentCount: commentCounts.get(data.id) ?? 0,
   };
 }
@@ -195,16 +206,31 @@ export async function createPost(input: CreatePostInput): Promise<CommunityPost>
 // reactions 는 복합 PK (post_id, user_id, reaction_type) 라
 // 한 사람이 한 글에 두 번 누르는 것을 DB 가 막아준다.
 //
-// ⚠️ 찜(북마크)·싫어요도 여기 들어와야 하지만 아직 못 만든다.
-//    reaction_type 이 check (…in ('LIKE')) 라 다른 값은 DB 가 거부한다.
-//    CHECK 를 넓히는 마이그레이션이 필요하고, 그건 DB 담당자만 한다. (CLAUDE.md 1장)
+// 좋아요 · 싫어요 · 찜이 모두 이 표를 쓴다. reaction_type 만 다르다.
+// (2026-09-02 마이그레이션으로 CHECK 가 넓어졌다)
 
-/** 글 목록·상세에 붙는 좋아요 정보. */
-type ReactionInfo = { likeCount: number; likedByMe: boolean };
+/** 글 목록·상세에 붙는 반응 정보. */
+type ReactionInfo = {
+  likeCount: number;
+  likedByMe: boolean;
+  dislikeCount: number;
+  dislikedByMe: boolean;
+  /** 찜은 개수를 세지 않는다. 남이 몇 명 찜했는지는 보여주지 않는다. */
+  bookmarkedByMe: boolean;
+};
+
+const EMPTY_REACTION: ReactionInfo = {
+  likeCount: 0,
+  likedByMe: false,
+  dislikeCount: 0,
+  dislikedByMe: false,
+  bookmarkedByMe: false,
+};
 
 /**
- * 여러 글의 좋아요를 한 번에 모아 온다.
+ * 여러 글의 반응을 한 번에 모아 온다.
  *
+ * 종류별로 나눠 묻지 않는다. 한 번에 읽고 reaction_type 으로 갈라 담는다.
  * 글마다 따로 세면 글 수에 비례해 쿼리가 늘어난다(N+1).
  * postIds 는 이미 조회한 목록에서 나온 값이라 이 함수를 밖으로 열지 않는다.
  */
@@ -217,44 +243,74 @@ async function getReactionMap(
 
   const { data, error } = await supabase
     .from('reactions')
-    .select('post_id, user_id')
-    .eq('reaction_type', REACTION_TYPE.LIKE)
+    .select('post_id, user_id, reaction_type')
     .in('post_id', postIds);
 
   if (error) throw error;
 
   for (const row of data ?? []) {
-    const prev = map.get(row.post_id) ?? { likeCount: 0, likedByMe: false };
-    map.set(row.post_id, {
-      likeCount: prev.likeCount + 1,
-      likedByMe: prev.likedByMe || row.user_id === userId,
-    });
+    const prev = map.get(row.post_id) ?? EMPTY_REACTION;
+    const mine = row.user_id === userId;
+
+    if (row.reaction_type === REACTION_TYPE.LIKE) {
+      map.set(row.post_id, {
+        ...prev,
+        likeCount: prev.likeCount + 1,
+        likedByMe: prev.likedByMe || mine,
+      });
+    } else if (row.reaction_type === REACTION_TYPE.DISLIKE) {
+      map.set(row.post_id, {
+        ...prev,
+        dislikeCount: prev.dislikeCount + 1,
+        dislikedByMe: prev.dislikedByMe || mine,
+      });
+    } else if (row.reaction_type === REACTION_TYPE.BOOKMARK && mine) {
+      map.set(row.post_id, { ...prev, bookmarkedByMe: true });
+    }
   }
   return map;
 }
 
-/** 좋아요를 누른다. 이미 눌렀으면 아무 일도 하지 않는다. */
-export async function addLike(postId: string, userId: string): Promise<void> {
+/** 반응을 남긴다. 이미 같은 반응을 눌렀으면 아무 일도 하지 않는다. */
+export async function addReaction(
+  postId: string,
+  userId: string,
+  reactionType: ReactionType,
+): Promise<void> {
   const { error } = await supabase
     .from('reactions')
     .upsert(
-      { post_id: postId, user_id: userId, reaction_type: REACTION_TYPE.LIKE },
+      { post_id: postId, user_id: userId, reaction_type: reactionType },
       { onConflict: 'post_id,user_id,reaction_type', ignoreDuplicates: true },
     );
 
   if (error) throw error;
 }
 
-/** 좋아요를 취소한다. 누른 적 없으면 아무 일도 하지 않는다. */
-export async function removeLike(postId: string, userId: string): Promise<void> {
+/** 반응을 거둔다. 누른 적 없으면 아무 일도 하지 않는다. */
+export async function removeReaction(
+  postId: string,
+  userId: string,
+  reactionType: ReactionType,
+): Promise<void> {
   const { error } = await supabase
     .from('reactions')
     .delete()
     .eq('post_id', postId)
     .eq('user_id', userId)
-    .eq('reaction_type', REACTION_TYPE.LIKE);
+    .eq('reaction_type', reactionType);
 
   if (error) throw error;
+}
+
+/** 좋아요를 누른다. 이미 눌렀으면 아무 일도 하지 않는다. */
+export async function addLike(postId: string, userId: string): Promise<void> {
+  return addReaction(postId, userId, REACTION_TYPE.LIKE);
+}
+
+/** 좋아요를 취소한다. 누른 적 없으면 아무 일도 하지 않는다. */
+export async function removeLike(postId: string, userId: string): Promise<void> {
+  return removeReaction(postId, userId, REACTION_TYPE.LIKE);
 }
 
 // ── 댓글 ───────────────────────────────────────────────────────────────────

@@ -35,15 +35,15 @@ import { SCREENS } from '@/lib/analytics/events';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { findDestinationByName } from '@/lib/constants/destinations';
-import { POST_TYPE_LABEL } from '@/lib/constants/status';
+import { POST_TYPE_LABEL, REACTION_TYPE } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import {
-  addLike,
+  addReaction,
   createComment,
   deleteComment,
   getComments,
   getPostById,
-  removeLike,
+  removeReaction,
   type PostComment,
   type PostDetail,
 } from '@/lib/supabase/queries/community';
@@ -70,6 +70,8 @@ export default function ScreenCOMM02() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [post, setPost] = useState<PostDetail | null>(null);
   const [likeBusy, setLikeBusy] = useState(false);
+  const [dislikeBusy, setDislikeBusy] = useState(false);
+  const [bookmarkBusy, setBookmarkBusy] = useState(false);
 
   const [comments, setComments] = useState<PostComment[]>([]);
   const [draft, setDraft] = useState('');
@@ -107,29 +109,73 @@ export default function ScreenCOMM02() {
     void load();
   }, [load]);
 
-  async function handleToggleLike() {
-    // 중복 요청 방지. 연타하면 좋아요 수가 어긋난다.
-    if (!post || likeBusy) return;
+  /**
+   * 좋아요 / 싫어요 토글.
+   *
+   * 둘은 함께 켜지지 않는다. 싫어요를 누르면 눌려 있던 좋아요를 거둔다.
+   * 같은 글에 찬성과 반대를 동시에 남기는 건 말이 되지 않는다.
+   * (DB 는 둘 다 허용한다 — 복합 PK 라 종류가 다르면 다른 행이다. 정책은 여기서 정한다)
+   *
+   * 먼저 화면을 바꾸고 저장한다. 실패하면 원래대로 되돌린다.
+   */
+  async function handleToggleOpinion(kind: 'like' | 'dislike') {
+    // 중복 요청 방지. 연타하면 개수가 어긋난다.
+    if (!post || likeBusy || dislikeBusy) return;
 
-    const next = !post.likedByMe;
-    setLikeBusy(true);
-    // 먼저 화면을 바꾸고 저장한다. 실패하면 되돌린다.
+    const liking = kind === 'like';
+    const next = liking ? !post.likedByMe : !post.dislikedByMe;
+    // 켜는 경우에만 반대쪽을 거둔다. 끄는 중이라면 건드릴 게 없다.
+    const dropOther = next && (liking ? post.dislikedByMe : post.likedByMe);
+
+    const before = post;
+    if (liking) setLikeBusy(true);
+    else setDislikeBusy(true);
+
     setPost({
       ...post,
-      likedByMe: next,
-      likeCount: post.likeCount + (next ? 1 : -1),
+      likedByMe: liking ? next : dropOther ? false : post.likedByMe,
+      likeCount:
+        post.likeCount + (liking ? (next ? 1 : -1) : dropOther ? -1 : 0),
+      dislikedByMe: liking ? (dropOther ? false : post.dislikedByMe) : next,
+      dislikeCount:
+        post.dislikeCount + (liking ? (dropOther ? -1 : 0) : next ? 1 : -1),
     });
 
     try {
       // TODO: 로그인 연동 시 교체
-      if (next) await addLike(post.postId, DEV_USER_ID);
-      else await removeLike(post.postId, DEV_USER_ID);
+      const mine = liking ? REACTION_TYPE.LIKE : REACTION_TYPE.DISLIKE;
+      const other = liking ? REACTION_TYPE.DISLIKE : REACTION_TYPE.LIKE;
+
+      if (next) await addReaction(post.postId, DEV_USER_ID, mine);
+      else await removeReaction(post.postId, DEV_USER_ID, mine);
+      if (dropOther) await removeReaction(post.postId, DEV_USER_ID, other);
       // ⚠️ TIP_REACTED 는 고도화 블록 + ADVANCED_EVENT_NAMES 라 부르지 않는다.
       //    TODO: 고도화 착수 시 붙인다. (docs/06 §7-8)
     } catch {
-      setPost(post);
+      setPost(before);
     } finally {
-      setLikeBusy(false);
+      if (liking) setLikeBusy(false);
+      else setDislikeBusy(false);
+    }
+  }
+
+  /** 찜 토글. 좋아요·싫어요와 별개라 서로 건드리지 않는다. */
+  async function handleToggleBookmark() {
+    if (!post || bookmarkBusy) return;
+
+    const next = !post.bookmarkedByMe;
+    const before = post;
+    setBookmarkBusy(true);
+    setPost({ ...post, bookmarkedByMe: next });
+
+    try {
+      // TODO: 로그인 연동 시 교체
+      if (next) await addReaction(post.postId, DEV_USER_ID, REACTION_TYPE.BOOKMARK);
+      else await removeReaction(post.postId, DEV_USER_ID, REACTION_TYPE.BOOKMARK);
+    } catch {
+      setPost(before);
+    } finally {
+      setBookmarkBusy(false);
     }
   }
 
@@ -220,6 +266,9 @@ export default function ScreenCOMM02() {
     content: post.content,
     likeCount: post.likeCount,
     likedByMe: post.likedByMe,
+    dislikeCount: post.dislikeCount,
+    dislikedByMe: post.dislikedByMe,
+    bookmarkedByMe: post.bookmarkedByMe,
     commentCount: post.commentCount,
     accent: toAccent(post.destination),
     // TODO: 사진 스키마가 생기면 post.imageUrls 로 바꾼다. [임시]
@@ -247,7 +296,11 @@ export default function ScreenCOMM02() {
       <PostDetailView
         post={data}
         likeBusy={likeBusy}
-        onToggleLike={() => void handleToggleLike()}
+        onToggleLike={() => void handleToggleOpinion('like')}
+        dislikeBusy={dislikeBusy}
+        onToggleDislike={() => void handleToggleOpinion('dislike')}
+        bookmarkBusy={bookmarkBusy}
+        onToggleBookmark={() => void handleToggleBookmark()}
         commentSection={
           <CommentSection
             comments={commentItems}

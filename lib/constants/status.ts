@@ -197,9 +197,18 @@ export const COMMENT_STATUS = {
 } as const;
 export type CommentStatus = (typeof COMMENT_STATUS)[keyof typeof COMMENT_STATUS];
 
-/** v1 은 LIKE 하나뿐이다. */
+/**
+ * 글에 남기는 반응.
+ *
+ * DB 의 check (reaction_type in ('LIKE','DISLIKE','BOOKMARK')) 와 같아야 한다.
+ * (supabase/migrations/20260902000001_reaction_types.sql)
+ *
+ * BOOKMARK(찜)는 개수를 공개하지 않는다. 내가 눌렀는지만 화면에 쓴다.
+ */
 export const REACTION_TYPE = {
   LIKE: 'LIKE',
+  DISLIKE: 'DISLIKE',
+  BOOKMARK: 'BOOKMARK',
 } as const;
 export type ReactionType = (typeof REACTION_TYPE)[keyof typeof REACTION_TYPE];
 

@@ -9,6 +9,12 @@ type Props = {
   /** 좋아요 토글. 저장 중이면 잠근다. */
   onToggleLike: () => void;
   likeBusy: boolean;
+  /** 싫어요 토글. 좋아요와 함께 누를 수 없다 — 화면 파일이 정리한다. */
+  onToggleDislike: () => void;
+  dislikeBusy: boolean;
+  /** 찜 토글. 좋아요·싫어요와 별개다. 같이 눌러도 된다. */
+  onToggleBookmark: () => void;
+  bookmarkBusy: boolean;
   /**
    * 댓글 영역. 화면 파일이 <CommentSection> 을 만들어 넣는다.
    *
@@ -31,12 +37,23 @@ const PHOTO_WIDTH_MULTI = Math.round(SCREEN_WIDTH * 0.72);
  * 4-6 "여행 결과 공유 게시글" 도 이 화면이 그린다. post_type 으로만 구분한다.
  * 목록 글과 같은 구조를 그대로 크게 편다. 커버 사진을 따로 두지 않는다.
  *
- * ⚠️ 유료·구매·댓글은 2026-08-31 팀 결정으로 뺐다.
- * ⚠️ 찜은 저장할 테이블이 없어 못 만든다. reactions 는 LIKE 만 허용한다.
+ * ⚠️ 유료·구매는 2026-08-31 팀 결정으로 뺐다. 댓글은 9/02 에 다시 넣었다.
+ *
+ * 반응은 좋아요 · 싫어요 · 찜 셋이다. 모두 reactions 한 표에 들어간다.
+ * 싫어요는 개수를 공개하고, 찜은 내가 눌렀는지만 보여준다.
  *
  * 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
  */
-export function PostDetailView({ post, onToggleLike, likeBusy, commentSection }: Props) {
+export function PostDetailView({
+  post,
+  onToggleLike,
+  likeBusy,
+  onToggleDislike,
+  dislikeBusy,
+  onToggleBookmark,
+  bookmarkBusy,
+  commentSection,
+}: Props) {
   const single = post.imageUrls.length === 1;
 
   return (
@@ -137,6 +154,30 @@ export function PostDetailView({ post, onToggleLike, likeBusy, commentSection }:
           ) : null}
         </Pressable>
 
+        {/* 싫어요 — 좋아요와 같은 방식으로 개수를 보여준다. 색은 회색이다.
+            빨강으로 칠하면 오류 표시처럼 읽힌다. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: post.dislikedByMe, busy: dislikeBusy }}
+          accessibilityLabel={post.dislikedByMe ? '싫어요 취소' : '싫어요'}
+          disabled={dislikeBusy}
+          onPress={onToggleDislike}
+          hitSlop={10}
+          className="ml-5 flex-row items-center active:opacity-60"
+          style={{ opacity: dislikeBusy ? 0.5 : 1 }}
+        >
+          <Ionicons
+            name={post.dislikedByMe ? 'thumbs-down' : 'thumbs-down-outline'}
+            size={20}
+            color={post.dislikedByMe ? '#111827' : '#747B88'}
+          />
+          {post.dislikeCount > 0 ? (
+            <Text className="ml-2 text-pot-mute" style={{ fontSize: 14, ...NUM }}>
+              {post.dislikeCount}
+            </Text>
+          ) : null}
+        </Pressable>
+
         <Ionicons
           name="chatbubble-outline"
           size={21}
@@ -148,6 +189,26 @@ export function PostDetailView({ post, onToggleLike, likeBusy, commentSection }:
             {post.commentCount}
           </Text>
         ) : null}
+
+        <View className="flex-1" />
+
+        {/* 찜 — 오른쪽 끝. 개수를 보여주지 않는다. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: post.bookmarkedByMe, busy: bookmarkBusy }}
+          accessibilityLabel={post.bookmarkedByMe ? '찜 해제' : '찜하기'}
+          disabled={bookmarkBusy}
+          onPress={onToggleBookmark}
+          hitSlop={10}
+          className="active:opacity-60"
+          style={{ opacity: bookmarkBusy ? 0.5 : 1 }}
+        >
+          <Ionicons
+            name={post.bookmarkedByMe ? 'bookmark' : 'bookmark-outline'}
+            size={21}
+            color="#111827"
+          />
+        </Pressable>
       </View>
 
       {commentSection}

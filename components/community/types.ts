@@ -42,6 +42,10 @@ export type PostCardData = {
   likeCount: number;
   /** 내가 좋아요를 눌렀는가. */
   likedByMe: boolean;
+  dislikeCount: number;
+  dislikedByMe: boolean;
+  /** 내가 찜했는가. 찜은 개수를 보여주지 않는다 — 남의 찜 수는 의미가 없다. */
+  bookmarkedByMe: boolean;
   commentCount: number;
   accent: PostAccent;
   /** 사진 주소 목록. 첫 장이 카드 커버다. [임시] 지금은 더미다. (cover.ts) */
