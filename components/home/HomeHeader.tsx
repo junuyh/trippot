@@ -6,9 +6,8 @@
 // ⚠️ 지금은 워드마크다. assets/icon.png 는 Expo 기본 플레이스홀더(회색 동심원)라
 //    로고로 쓸 수 없다. 로고 이미지가 나오면 이 파일의 마크만 <Image> 로 바꾼다.
 //
-// ⚠️ 알림 아이콘은 그림만 있고 눌리지 않는다.
-//    docs/04_화면목록_v3.md 에 알림 화면이 없어서 갈 곳이 없다.
-//    화면이 정해지면 onPressNotifications 를 넘겨 Pressable 로 바꾼다.
+// ⚠️ 알림 아이콘은 두지 않는다. docs/04_화면목록_v3.md 에 알림 화면이 없어
+//    눌러도 갈 곳이 없다. 화면이 정해지면 프로필 아이콘 왼쪽에 넣는다.
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,10 +44,6 @@ export function HomeHeader({
         >
           TripPot
         </Text>
-
-        <View className="mr-1 h-8 w-8 items-center justify-center">
-          <Ionicons name="notifications-outline" size={19} color="#111827" />
-        </View>
 
         <Pressable
           accessibilityRole="button"
