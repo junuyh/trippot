@@ -39,14 +39,16 @@ import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { perPerson } from "@/lib/budget/recommendation";
-import { allocateVault } from "@/lib/budget/vault";
+import { allocateVault, journeyStages } from "@/lib/budget/vault";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
   APPLIED_SOURCE,
   CATEGORY_CODE_TO_ANALYTICS,
   TRIP_OWNER_TYPE,
+  TRIP_STATUS,
   type CategoryCode,
+  type TripStatus,
 } from "@/lib/constants/status";
 // TODO: 로그인 연동 시 교체
 import { DEV_USER_ID } from "@/lib/constants/devUser";
@@ -129,7 +131,13 @@ export default function ScreenBUDGET01() {
         getFundTotals(trip.id),
       ]);
 
-      setData({ trip, budget, categories, fund, depositTotal: totals.depositTotal });
+      setData({
+        trip,
+        budget,
+        categories,
+        fund,
+        depositTotal: totals.depositTotal,
+      });
     } catch {
       setError(true);
     } finally {
@@ -393,8 +401,37 @@ export default function ScreenBUDGET01() {
         plannedAmount: category.planned_amount,
         preparedAmount: category.prepared_amount,
         actualAmount: category.actual_amount,
+        /**
+         * 지난 여행 분석 추천이 적용된 카테고리만 조정액을 적는다.
+         *
+         * ⚠️ recommended_amount 는 불변이라(CLAUDE.md 4장) 확정값과의 차이가
+         *    곧 "추천 대비 얼마나 움직였는가" 다. 사용자가 직접 고친 경우
+         *    (applied_source = user)는 추천 반영이 아니므로 적지 않는다.
+         */
+        adjustment:
+          category.applied_source === APPLIED_SOURCE.PERSONALIZED
+            ? category.planned_amount - category.recommended_amount
+            : null,
       })),
     [data?.categories],
+  );
+
+  /**
+   * 여행자금 준비 단계 4개. (시안 v3)
+   *
+   * ⚠️ **누적 모금액 기준**이다. 잔액이 아니다. 항공권을 결제하면 잔액은
+   *    줄지만 이미 지나온 단계가 되돌아가면 안 된다.
+   */
+  const stages = useMemo(
+    () =>
+      journeyStages(
+        (data?.fund?.current_amount ?? 0) + (data?.depositTotal ?? 0),
+        (data?.categories ?? []).map((category) => ({
+          categoryCode: category.category_code as CategoryCode,
+          plannedAmount: category.planned_amount,
+        })),
+      ),
+    [data?.categories, data?.depositTotal, data?.fund?.current_amount],
   );
 
   const insightItems: InsightItem[] = useMemo(() => {
@@ -473,6 +510,19 @@ export default function ScreenBUDGET01() {
   const confirmed = data.budget.target_amount > 0;
 
   /**
+
+   * 결산 상태에서는 예산을 고칠 수 없다. (IA v2 §2-6-3)
+
+   * 화면을 새로 만들지 않고 권한만 바꾼다.
+
+   */
+
+  const tripStatus = data.trip.status as TripStatus;
+
+  const closingOrSettled =
+    tripStatus === TRIP_STATUS.ENDED || tripStatus === TRIP_STATUS.SETTLED;
+
+  /**
    * 누적 모금액. 지금까지 실제로 모은 총금액이다. (스펙 데이터 정의)
    *
    * ⚠️ 모임통장에서 결제해도 이 값은 줄지 않는다. 결제로 줄어드는 것은
@@ -503,7 +553,10 @@ export default function ScreenBUDGET01() {
             targetAmount={data.budget.target_amount}
             raisedAmount={raisedAmount}
             progress={progress}
-            destinationKo={data.trip.destination ?? "여행지"}
+            stages={stages}
+            onPressFund={() => router.push(`/trips/${data.trip.id}/funds`)}
+            /* 자금을 모으러 가는 줄이다. 예산이 아니라 FUND-01 로 보낸다 */
+            onPressNextGoal={() => router.push(`/trips/${data.trip.id}/funds`)}
           />
         ) : (
           // 아직 확정하지 않은 예산. 추천값은 이미 계산돼 있다.
@@ -538,7 +591,10 @@ export default function ScreenBUDGET01() {
         지난 여행 지출 분석. 본문에 펼치지 않고 눌러서 바텀시트로 연다. (스펙)
         본문의 주인공은 카테고리별 예산이다.
       */}
-        <BudgetInsightButton items={insightItems} onPress={handleOpenSheet} />
+        {/* 결산 중·완료에는 예산 조정을 제안하지 않는다. 비교 대상이 움직이면 안 된다 */}
+        {closingOrSettled ? null : (
+          <BudgetInsightButton items={insightItems} onPress={handleOpenSheet} />
+        )}
 
         <View className="gap-2.5">
           <View className="flex-row items-end justify-between">
@@ -550,7 +606,7 @@ export default function ScreenBUDGET01() {
                 카테고리별 예산
               </Text>
               <Text className="mt-1 text-[10px] text-gray-400">
-                금액과 전체 예산 비중을 함께 확인해요.
+                계획한 금액과 조정 필요 여부를 확인해요.
               </Text>
             </View>
             <Text className="text-[10px] text-gray-400">
@@ -567,7 +623,6 @@ export default function ScreenBUDGET01() {
                 <BudgetCategoryRow
                   category={row}
                   theme={theme}
-                  targetAmount={data.budget.target_amount}
                   onPress={(categoryId) =>
                     router.push(`/trips/${data.trip.id}/budget/${categoryId}`)
                   }
@@ -576,9 +631,25 @@ export default function ScreenBUDGET01() {
             ))}
           </View>
 
+          {/*
+            ⚠️ 이 문구를 지우지 않는다. 준비 단계는 계좌에서 돈을 나눈 값이
+               아니라 가상 배분이다. 실제로 떼어져 있다고 믿으면 사용자는
+               그 돈을 다른 데 써 버린다. (시안 v3 적용 조건)
+          */}
           {confirmed ? (
-            <Text className="px-1 text-[10px] leading-4 text-gray-400">
-              결제 시점이 빠른 항공·숙소 예산부터 먼저 채워져요.
+            <Text
+              style={{
+                marginTop: 3,
+                padding: 10,
+                borderRadius: 10,
+                backgroundColor: "#f5f6f8",
+                fontSize: 10,
+                lineHeight: 16,
+                color: "#8d96a4",
+              }}
+            >
+              준비 단계는 실제 계좌에서 카테고리별로 돈을 나눈 값이 아니라, 결제
+              예정 순서에 따라 여행자금을 가상 배분한 안내예요.
             </Text>
           ) : null}
         </View>

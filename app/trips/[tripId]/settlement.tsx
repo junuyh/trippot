@@ -14,43 +14,61 @@
 //
 // 이 파일은 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/settlement/.
 // ============================================================================
-import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
+import {
+  Stack,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import {
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 
 import {
   CategoryComparisonList,
   SettlementSummaryCard,
   type CategoryComparison,
-} from '@/components/settlement';
-import { Button, EmptyState, ErrorState, Loading } from '@/components/ui';
-import { EVENTS } from '@/lib/analytics/events';
-import { track } from '@/lib/analytics/track';
+} from "@/components/settlement";
+import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
+import { EVENTS } from "@/lib/analytics/events";
+import { track } from "@/lib/analytics/track";
 import {
   SETTLEMENT_TRIGGER,
   TRIP_STATUS,
   type CategoryCode,
   type TripStatus,
-} from '@/lib/constants/status';
+} from "@/lib/constants/status";
 import {
   getBudgetByTripId,
   getBudgetCategories,
   type BudgetCategory,
   type TripBudget,
-} from '@/lib/supabase/queries/budgets';
+} from "@/lib/supabase/queries/budgets";
 import {
   createSettlement,
   differenceRateBp,
   getSettlement,
   type Settlement,
-} from '@/lib/supabase/queries/settlements';
-import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
+} from "@/lib/supabase/queries/settlements";
+import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import {
+  getSettlementChecklist,
+  type SettlementChecklist,
+} from "@/lib/supabase/queries/transactions";
 
 type SettlementData = {
   trip: Trip;
   budget: TripBudget | null;
   categories: BudgetCategory[];
   settlement: Settlement | null;
+  /** 결산 전에 정리해야 할 것들 (IA v2 §2-6-1) */
+  checklist: SettlementChecklist;
 };
 
 /** category_snapshot_json 에 저장하는 모양. 확정 시점의 값이다. */
@@ -88,12 +106,13 @@ export default function ScreenSETTLE01() {
         return;
       }
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, settlement] = await Promise.all([
+      const [categories, settlement, checklist] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         getSettlement(trip.id),
+        getSettlementChecklist(trip.id, budget?.id ?? null),
       ]);
 
-      setData({ trip, budget, categories, settlement });
+      setData({ trip, budget, categories, settlement, checklist });
     } catch {
       setError(true);
     } finally {
@@ -118,14 +137,15 @@ export default function ScreenSETTLE01() {
   // 확정 후에는 **스냅샷**을 쓴다. 지금 예산을 다시 읽으면 확정 뒤에 예산을
   // 고쳤을 때 결산 결과가 따라 바뀐다. 결산은 그 시점의 기록이어야 한다.
   const settled = data?.settlement != null;
+  const checklist = data?.checklist ?? { reviewCount: 0, unlinkedPlans: [] };
 
   const comparisons: CategoryComparison[] = useMemo(() => {
     if (!data) return [];
 
     if (data.settlement) {
-      const snapshot = data.settlement.category_snapshot_json as
-        | { categories?: CategorySnapshot[] }
-        | null;
+      const snapshot = data.settlement.category_snapshot_json as {
+        categories?: CategorySnapshot[];
+      } | null;
       const rows = snapshot?.categories ?? [];
       if (rows.length > 0) {
         return rows.map((row) => ({
@@ -144,11 +164,14 @@ export default function ScreenSETTLE01() {
     }));
   }, [data]);
 
-  const targetAmount = data?.settlement?.target_amount ?? data?.budget?.target_amount ?? 0;
+  const targetAmount =
+    data?.settlement?.target_amount ?? data?.budget?.target_amount ?? 0;
   const actualAmount =
     data?.settlement?.actual_amount ??
     (data?.categories ?? []).reduce((sum, c) => sum + c.actual_amount, 0);
-  const rateBp = data?.settlement?.difference_rate_bp ?? differenceRateBp(targetAmount, actualAmount);
+  const rateBp =
+    data?.settlement?.difference_rate_bp ??
+    differenceRateBp(targetAmount, actualAmount);
 
   // ── 결산 유도 로그 ────────────────────────────────────────────────────
   //
@@ -205,11 +228,15 @@ export default function ScreenSETTLE01() {
   // NFR-003 — 결산 확정은 사전 확인한다. 되돌릴 수 없다.
   const handleConfirmPress = useCallback(() => {
     Alert.alert(
-      '결산을 확정할까요?',
-      '확정하면 지금의 예산과 지출이 그대로 기록돼요. 나중에 예산을 고쳐도 결산 결과는 바뀌지 않아요.',
+      "결산을 확정할까요?",
+      "확정하면 지금의 예산과 지출이 그대로 기록돼요. 나중에 예산을 고쳐도 결산 결과는 바뀌지 않아요.",
       [
-        { text: '취소', style: 'cancel' },
-        { text: '확정하기', style: 'default', onPress: () => void confirmSettlement() },
+        { text: "취소", style: "cancel" },
+        {
+          text: "확정하기",
+          style: "default",
+          onPress: () => void confirmSettlement(),
+        },
       ],
     );
   }, [confirmSettlement]);
@@ -218,7 +245,7 @@ export default function ScreenSETTLE01() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: '결산' }} />
+        <Stack.Screen options={{ title: "결산" }} />
         <Loading message="결산을 불러오는 중…" />
       </View>
     );
@@ -227,13 +254,13 @@ export default function ScreenSETTLE01() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: '결산' }} />
+        <Stack.Screen options={{ title: "결산" }} />
         <EmptyState
           icon="receipt-outline"
           title="여행을 찾을 수 없어요"
           description="삭제되었거나 접근할 수 없는 여행이에요."
           actionLabel="홈으로"
-          onAction={() => router.replace('/')}
+          onAction={() => router.replace("/")}
         />
       </View>
     );
@@ -242,8 +269,11 @@ export default function ScreenSETTLE01() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: '결산' }} />
-        <ErrorState message="결산을 불러오지 못했어요." onRetry={() => void load()} />
+        <Stack.Screen options={{ title: "결산" }} />
+        <ErrorState
+          message="결산을 불러오지 못했어요."
+          onRetry={() => void load()}
+        />
       </View>
     );
   }
@@ -256,7 +286,7 @@ export default function ScreenSETTLE01() {
   if (tooEarly) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: '결산' }} />
+        <Stack.Screen options={{ title: "결산" }} />
         <EmptyState
           icon="hourglass-outline"
           title="아직 결산할 때가 아니에요"
@@ -272,9 +302,13 @@ export default function ScreenSETTLE01() {
     <ScrollView
       className="flex-1 bg-gray-50"
       contentContainerClassName="px-5 pb-10 pt-4 gap-6"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
     >
-      <Stack.Screen options={{ title: `${data.trip.destination ?? '여행'} 결산` }} />
+      <Stack.Screen
+        options={{ title: `${data.trip.destination ?? "여행"} 결산` }}
+      />
 
       <SettlementSummaryCard
         targetAmount={targetAmount}
@@ -285,7 +319,9 @@ export default function ScreenSETTLE01() {
 
       <View className="gap-2.5">
         <View className="flex-row items-end justify-between">
-          <Text className="text-base font-semibold text-gray-900">카테고리별 비교</Text>
+          <Text className="text-base font-semibold text-gray-900">
+            카테고리별 비교
+          </Text>
           <Text className="text-xs text-gray-400">차이가 큰 순서</Text>
         </View>
         {comparisons.length > 0 ? (
@@ -296,6 +332,78 @@ export default function ScreenSETTLE01() {
           </View>
         )}
       </View>
+
+      {/*
+        ── 결산 중 확인 목록 ── (IA v2 §2-6-1)
+
+        ⚠️ 확인할 거래와 지출 미연결 계획을 **따로** 센다. 가는 곳이 다르다.
+           미분류 거래는 카테고리가 없어 '어느 BUDGET-02 인가' 에 답할 수 없다.
+           반대로 미연결 계획은 이미 카테고리가 정해져 있다.
+      */}
+      {!settled &&
+      (checklist.reviewCount > 0 || checklist.unlinkedPlans.length > 0) ? (
+        <View className="gap-2.5">
+          <Text className="text-base font-semibold text-gray-900">
+            확정 전에 확인해요
+          </Text>
+
+          {checklist.reviewCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`확인할 거래 ${checklist.reviewCount}건 보기`}
+              onPress={() =>
+                router.push(
+                  `/trips/${data.trip.id}/funds/transactions?filter=review`,
+                )
+              }
+              className="flex-row items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"
+            >
+              <Text style={{ fontSize: 20 }}>🔎</Text>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-gray-900">
+                  확인할 거래 {checklist.reviewCount}건
+                </Text>
+                <Text className="mt-1 text-xs text-gray-500">
+                  카테고리를 정하거나 자동 분류가 맞는지 확인해 주세요.
+                </Text>
+              </View>
+              <Text className="text-base text-gray-300">›</Text>
+            </Pressable>
+          ) : null}
+
+          {checklist.unlinkedPlans.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`지출이 연결되지 않은 계획 ${checklist.unlinkedPlans.length}건 보기`}
+              onPress={() =>
+                router.push(
+                  `/trips/${data.trip.id}/budget/${checklist.unlinkedPlans[0].categoryId}`,
+                )
+              }
+              className="flex-row items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"
+            >
+              <Text style={{ fontSize: 20 }}>📄</Text>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-gray-900">
+                  지출이 연결되지 않은 계획 {checklist.unlinkedPlans.length}건
+                </Text>
+                {/*
+                  ⚠️ '지출이 누락됐다' 고 단정하지 않는다. 계좌가 연결돼 있지 않으면
+                     시스템은 실제 결제가 있었는지 알 수 없다. (스펙 6장)
+                */}
+                <Text className="mt-1 text-xs text-gray-500">
+                  {checklist.unlinkedPlans[0].name}
+                  {checklist.unlinkedPlans.length > 1
+                    ? ` 외 ${checklist.unlinkedPlans.length - 1}건`
+                    : ""}
+                  {" · 결제하지 않았다면 그대로 두어도 괜찮아요."}
+                </Text>
+              </View>
+              <Text className="text-base text-gray-300">›</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {settled ? (
         <View className="gap-2.5">
@@ -313,10 +421,31 @@ export default function ScreenSETTLE01() {
       ) : (
         <View className="gap-2.5">
           <Text className="px-1 text-xs leading-4 text-gray-500">
-            확정하면 지금의 예산과 지출이 그대로 기록돼요. 이 기록이 다음 여행 예산 추천의
-            근거가 됩니다.
+            확정하면 지금의 예산과 지출이 그대로 기록돼요. 이 기록이 다음 여행
+            예산 추천의 근거가 됩니다.
           </Text>
-          <Button label="결산 확정하기" onPress={handleConfirmPress} loading={confirming} />
+          {/*
+            ⚠️ 분류가 안 끝난 거래가 있으면 확정을 막는다.
+               미분류 거래는 어느 카테고리에도 잡히지 않아 결산 스냅샷에서 빠지고,
+               그 스냅샷이 다음 여행 개인화의 입력이라 한 번 틀리면 계속 틀린다.
+
+               반대로 '지출 미연결 계획' 으로는 막지 않는다. 계좌가 연결돼 있지 않으면
+               결제가 실제로 있었는지 알 수 없어, 사용자가 안 썼을 수도 있다.
+          */}
+          {checklist.reviewCount > 0 ? (
+            <View className="rounded-xl bg-amber-50 px-3 py-2.5">
+              <Text className="text-xs leading-4 text-amber-800">
+                확인할 거래 {checklist.reviewCount}건을 먼저 정리해 주세요.
+                분류되지 않은 지출은 결산에 잡히지 않아요.
+              </Text>
+            </View>
+          ) : null}
+          <Button
+            label="결산 확정하기"
+            onPress={handleConfirmPress}
+            loading={confirming}
+            disabled={checklist.reviewCount > 0}
+          />
         </View>
       )}
     </ScrollView>

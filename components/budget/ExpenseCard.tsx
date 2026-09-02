@@ -37,8 +37,8 @@ export type ExpenseDraft = {
 type Props = {
   expenses: ExpenseItem[];
   theme: CountryTheme;
-  /** 지출 직접 입력 바텀시트를 연다 */
-  onStartAdd: () => void;
+  /** 지출 직접 입력 바텀시트를 연다. 없으면 버튼을 감춘다 (결산 완료) */
+  onStartAdd?: () => void;
   /** 지출 항목 상세 보기. 연결 계좌와 거래 정보는 거기서 확인한다 */
   onPressDetail?: () => void;
   /** 더 있는 거래가 있으면 전체 내역으로 보낸다 */
@@ -144,29 +144,31 @@ export function ExpenseCard({
         </Pressable>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="지출 직접 입력"
-        onPress={onStartAdd}
-        style={{
-          padding: 13,
-          borderTopWidth: 1,
-          borderColor: "#e7e9ed",
-          backgroundColor: "#fff",
-        }}
-        className="active:bg-gray-50"
-      >
-        <Text
+      {onStartAdd ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="지출 직접 입력"
+          onPress={onStartAdd}
           style={{
-            fontSize: 11,
-            fontWeight: "900",
-            color: theme.primary,
-            textAlign: "center",
+            padding: 13,
+            borderTopWidth: 1,
+            borderColor: "#e7e9ed",
+            backgroundColor: "#fff",
           }}
+          className="active:bg-gray-50"
         >
-          ＋ 지출 직접 입력
-        </Text>
-      </Pressable>
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "900",
+              color: theme.primary,
+              textAlign: "center",
+            }}
+          >
+            ＋ 지출 직접 입력
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

@@ -6,6 +6,7 @@
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
 import {
+  BUDGET_PLAN_ITEM_STATUS,
   CATEGORY_METHOD,
   REFUND_STATUS,
   TRANSACTION_TYPE,
@@ -309,4 +310,74 @@ export function reviewReason(transaction: Transaction): ReviewReason | null {
 /** 환불 필터 대상인가. 예정·완료·취소를 모두 보여준다 */
 export function isRefundRelated(transaction: Transaction): boolean {
   return transaction.refund_status !== REFUND_STATUS.NONE;
+}
+
+/**
+ * 결산 전에 정리해야 할 것들. (IA v2 §2-6-1)
+ *
+ * ⚠️ **두 가지를 갈라서 센다.** 가는 곳이 다르다.
+ *
+ *   확인할 거래      카테고리가 없거나 자동 분류가 미덥다 → FUND-01 확인 필요 필터
+ *   지출 미연결 계획  계획은 세웠는데 실제 지출이 안 붙었다 → 해당 BUDGET-02
+ *
+ *   미분류 거래는 카테고리가 없어 '어느 BUDGET-02 인가' 에 답할 수 없다.
+ *   반대로 미연결 계획은 이미 카테고리가 정해져 있어 그 화면으로 보낼 수 있다.
+ *
+ * ⚠️ 계획에 지출이 안 붙었다는 이유만으로 **'지출이 누락됐다' 고 단정하지 않는다.**
+ *    계좌가 연결돼 있지 않으면 시스템은 실제 결제가 있었는지 알 수 없다.
+ *    사용자가 결제하지 않았을 수도 있다. (스펙 6장)
+ */
+export type SettlementChecklist = {
+  /** 분류·확인이 필요한 거래 수 */
+  reviewCount: number;
+  /** 실제 지출이 연결되지 않은 계획 */
+  unlinkedPlans: {
+    id: string;
+    name: string;
+    expectedAmount: number;
+    categoryId: string;
+  }[];
+};
+
+export async function getSettlementChecklist(
+  tripId: string,
+  budgetId: string | null,
+): Promise<SettlementChecklist> {
+  const transactions = await getTransactions(tripId);
+  const reviewCount = transactions.filter(
+    (row) => reviewReason(row) !== null,
+  ).length;
+
+  if (!budgetId) return { reviewCount, unlinkedPlans: [] };
+
+  const { data: categories, error: categoryError } = await supabase
+    .from("budget_categories")
+    .select("id")
+    .eq("trip_budget_id", budgetId)
+    .eq("enabled", true);
+  if (categoryError) throw categoryError;
+
+  const categoryIds = (categories ?? []).map((category) => category.id);
+  if (categoryIds.length === 0) return { reviewCount, unlinkedPlans: [] };
+
+  const { data: items, error: itemError } = await supabase
+    .from("budget_plan_items")
+    .select(
+      "id, name, expected_amount, actual_amount, status, budget_category_id",
+    )
+    .in("budget_category_id", categoryIds);
+  if (itemError) throw itemError;
+
+  const unlinkedPlans = (items ?? [])
+    // 사용자가 계획에서 뺀 항목은 셀 이유가 없다
+    .filter((item) => item.status !== BUDGET_PLAN_ITEM_STATUS.CANCELED)
+    .filter((item) => item.actual_amount === 0)
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      expectedAmount: item.expected_amount,
+      categoryId: item.budget_category_id,
+    }));
+
+  return { reviewCount, unlinkedPlans };
 }

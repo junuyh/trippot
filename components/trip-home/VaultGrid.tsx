@@ -3,12 +3,16 @@
 //   박스  104px · radius 13 · border #e8ebef · padding 11/8
 //   활성  테두리·배경을 국가 포인트 컬러의 옅은 톤으로
 //   미설정 점선 테두리
-import { useState } from 'react';
-import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useState } from "react";
+import { Pressable, Text, View, type LayoutChangeEvent } from "react-native";
 
-import { CATEGORY_EMOJI } from '@/lib/constants/categoryEmoji';
-import type { CountryTheme } from '@/lib/constants/countryTheme';
-import { CATEGORY_CODE, CATEGORY_CODE_LABEL, type CategoryCode } from '@/lib/constants/status';
+import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
+import type { CountryTheme } from "@/lib/constants/countryTheme";
+import {
+  CATEGORY_CODE,
+  CATEGORY_CODE_LABEL,
+  type CategoryCode,
+} from "@/lib/constants/status";
 
 export type VaultCategory = {
   id: string;
@@ -51,13 +55,22 @@ export function VaultGrid({ categories, theme, onSelect }: Props) {
   };
 
   return (
-    <View className="flex-row flex-wrap" style={{ gap: GAP }} onLayout={handleLayout}>
+    <View
+      className="flex-row flex-wrap"
+      style={{ gap: GAP }}
+      onLayout={handleLayout}
+    >
       {DISPLAY_ORDER.map((code) => {
         const category = byCode.get(code);
         const unset = !category || category.plannedAmount <= 0;
         const rate =
           category && category.plannedAmount > 0
-            ? Math.min(100, Math.round((category.preparedAmount / category.plannedAmount) * 100))
+            ? Math.min(
+                100,
+                Math.round(
+                  (category.preparedAmount / category.plannedAmount) * 100,
+                ),
+              )
             : 0;
         const active = rate > 0;
 
@@ -73,21 +86,28 @@ export function VaultGrid({ categories, theme, onSelect }: Props) {
               height: 104,
               borderRadius: 13,
               borderWidth: 1,
-              borderStyle: unset ? 'dashed' : 'solid',
-              borderColor: active ? theme.primary + '55' : '#e8ebef',
+              borderStyle: unset ? "dashed" : "solid",
+              borderColor: active ? theme.primary + "55" : "#e8ebef",
               // ⚠️ 채움 표시는 **미세하게** 둔다. (스펙 10장)
               //    8칸 중 6칸이 채워지는 일이 흔해서, 배지 수준으로 칠하면
               //    화면 절반이 포인트 컬러로 덮여 정작 강조할 곳이 묻힌다.
               //    시안 기준(#fff7f8)에 맞춰 포인트 컬러를 5% 만 얹는다.
-              backgroundColor: active ? theme.primary + '0D' : unset ? '#fafbfc' : '#fff',
+              backgroundColor: active
+                ? theme.primary + "0D"
+                : unset
+                  ? "#fafbfc"
+                  : "#fff",
               paddingVertical: 11,
               paddingHorizontal: 8,
-              justifyContent: 'space-between',
+              justifyContent: "space-between",
             }}
           >
             <Text style={{ fontSize: 21 }}>{CATEGORY_EMOJI[code]}</Text>
             <View>
-              <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#111827' }}>
+              <Text
+                numberOfLines={1}
+                style={{ fontSize: 11, fontWeight: "800", color: "#111827" }}
+              >
                 {CATEGORY_CODE_LABEL[code]}
               </Text>
               <Text
@@ -96,11 +116,11 @@ export function VaultGrid({ categories, theme, onSelect }: Props) {
                   fontSize: 9,
                   letterSpacing: -0.2,
                   marginTop: 2,
-                  color: active ? theme.primary : '#969da8',
-                  fontWeight: active ? '800' : '400',
+                  color: active ? theme.primary : "#969da8",
+                  fontWeight: active ? "800" : "400",
                 }}
               >
-                {unset ? '설정 전' : `${rate}% 채움`}
+                {unset ? "설정 전" : `${rate}% 채움`}
               </Text>
             </View>
           </Pressable>

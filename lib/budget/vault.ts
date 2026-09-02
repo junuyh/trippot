@@ -161,18 +161,26 @@ export function vaultMilestones(
 }
 
 // ============================================================================
-// 출발까지의 여정 — 5단계
+// 여행자금 준비 단계 — 4단계
 //
 // 카테고리 8개를 그대로 늘어놓으면 정거장이 너무 많아 "어디까지 왔나" 가 안 읽힌다.
-// 여행자가 실제로 체감하는 순서로 묶는다.
+// **결제 예정 순서**로 묶는다.
 //
-//   짐 싸기 → 항공 → 숙소 → 현지생활 → 도착
+//   항공 → 숙소 → 현지생활 → 여행 완료
 //
 // 금고를 채우는 순서(VAULT_FILL_ORDER)와 어긋나지 않는다.
-// 각 단계의 문턱은 그 단계까지의 **누적 계획액**이다.
+// 각 단계의 문턱은 그 단계까지의 **누적 계획액**이고,
+// 마지막 단계의 문턱은 목표 여행비와 같아진다.
+//
+// ⚠️ 2026-09-02 · 시안 v3 로 5단계에서 4단계가 됐다.
+//    첫 단계였던 '짐 싸기' 는 문턱이 0원이라 항상 도달 상태였다.
+//    아무것도 하지 않아도 켜져 있는 정거장은 진행을 말해주지 않는다.
+//
+// ⚠️ **실제 자금 분리가 아니다.** 계좌에서 카테고리별로 돈을 나눈 값이 아니라
+//    결제 예정 순서에 따른 가상 배분이다. 화면이 이 사실을 함께 적어야 한다.
 // ============================================================================
 
-export type JourneyStageKey = 'PACK' | 'FLIGHT' | 'STAY' | 'LOCAL' | 'ARRIVE';
+export type JourneyStageKey = 'FLIGHT' | 'STAY' | 'LOCAL' | 'DONE';
 
 export type JourneyStage = {
   key: JourneyStageKey;
@@ -185,7 +193,6 @@ export type JourneyStage = {
 
 /** 단계별로 어떤 카테고리를 누적하는가. 순서가 곧 여정 순서다. */
 const STAGE_CATEGORIES: { key: JourneyStageKey; label: string; emoji: string; codes: CategoryCode[] }[] = [
-  { key: 'PACK', label: '짐 싸기', emoji: '🧳', codes: [] },
   { key: 'FLIGHT', label: '항공', emoji: '✈️', codes: [CATEGORY_CODE.AIRFARE] },
   { key: 'STAY', label: '숙소', emoji: '🏨', codes: [CATEGORY_CODE.LODGING] },
   {
@@ -196,20 +203,17 @@ const STAGE_CATEGORIES: { key: JourneyStageKey; label: string; emoji: string; co
   },
   // 마지막 단계는 남은 카테고리 전부다. 목표 금액과 같아진다.
   {
-    key: 'ARRIVE',
-    label: '도착',
-    emoji: '🏯',
+    key: 'DONE',
+    label: '여행 완료',
+    emoji: '🏁',
     codes: [CATEGORY_CODE.SHOPPING, CATEGORY_CODE.INSURANCE, CATEGORY_CODE.CONTINGENCY],
   },
 ];
 
 /**
- * 여정 5단계와 도달 여부.
+ * 준비 단계 4개와 도달 여부.
  *
- * @param destinationLabel 마지막 단계 이름에 쓸 여행지명. 없으면 '도착'
- *
- * ⚠️ 첫 단계(짐 싸기)의 문턱은 0 이다. 자금이 0원이어도 여정은 시작된 것으로 본다.
- *    "아직 아무것도 안 했다" 보다 "이제 막 시작했다" 가 맞다.
+ * @param destinationLabel 마지막 단계 이름을 여행지명으로 바꾸고 싶을 때. 기본은 '여행 완료'
  */
 export function journeyStages(
   currentAmount: number,
@@ -224,7 +228,7 @@ export function journeyStages(
     for (const code of stage.codes) cumulative += plannedByCode.get(code) ?? 0;
     return {
       key: stage.key,
-      label: stage.key === 'ARRIVE' ? (destinationLabel ?? stage.label) : stage.label,
+      label: stage.key === 'DONE' ? (destinationLabel ?? stage.label) : stage.label,
       emoji: stage.emoji,
       threshold: cumulative,
       reached: funds >= cumulative,
