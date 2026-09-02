@@ -49,9 +49,19 @@ export function PostListView({
 
   return (
     <View className="flex-1 bg-pot-visual">
-      {/* 상단바 — 검색 + 글쓰기 */}
+      {/* 상단바 — 제목만. 가운데 정렬이라 양옆에 아무것도 두지 않는다. */}
       <View className="bg-white px-4 pb-3" style={{ paddingTop: insets.top + 10 }}>
-        <View className="flex-row items-center">
+        <View className="h-9 items-center justify-center">
+          <Text
+            className="font-black text-pot-ink"
+            style={{ fontSize: 17, lineHeight: 22, letterSpacing: -0.5 }}
+          >
+            커뮤니티
+          </Text>
+        </View>
+
+        {/* 검색 + 글쓰기 */}
+        <View className="mt-2 flex-row items-center">
           <View className="mr-2 flex-1 flex-row items-center rounded-full bg-pot-visual px-3.5 py-2.5">
             <Ionicons name="search" size={16} color="#9AA3AE" />
             <TextInput
