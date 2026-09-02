@@ -15,13 +15,18 @@
 //       나눌 때 추천 비율을 쓰고 그 비율이 스타일마다 다르다. 다만 그 배분은 아래
 //       카테고리에서 직접 고칠 수 있어서, 묻지 않고 draft 값(기본 '보통')으로 나눈다.
 //
+// ⚠️ 2026-09-02 · 화면을 '추천 결과 먼저' 로 바꿨다. (HTML 시안 반영)
+//    예산 방식을 먼저 고르게 하지 않는다. 들어오면 추천 총액이 이미 나와 있고,
+//    직접 정하고 싶은 사람만 히어로의 액션으로 입력칸을 연다.
+//    카테고리 상세도 기본은 접혀 있고 '수정' 을 눌러야 열린다.
+//
 // 단계
-//   ① 예산 방식 선택 (추천 / 직접 입력)
-//      └ 추천을 고르면 여기서 여행 스타일을 묻는다
-//   ② 예상 여행비 비교 — 두 경로 모두 여기로 수렴한다 (AC-01)
-//   ③ 카테고리 수정 → 목표 여행비 확정
-//   ④ 현재 여행자금 등록
-//   ⑤ 저장 → 준비 홈으로 이동
+//   ① 추천 결과 (BudgetResultHero) — 직접 입력 전환도 여기서 한다
+//      └ 추천 상태에서만 여행 스타일을 묻는다
+//   ② 예산 구성 — 요약(BudgetPreviewList) ↔ 수정(BudgetCategoryList)
+//      └ 지난 여행 소비 패턴 카드로 전체 반영을 켜고 끈다
+//   ③ 현재 준비한 여행자금 (선택)
+//   ④ 저장 → 준비 홈으로 이동
 //
 // 이 파일은 데이터 조회 · 상태 관리 · 로그 기록만 한다. UI 는 components/trip-create/.
 // ============================================================================
@@ -33,16 +38,17 @@ import { LayoutAnimation, Pressable, ScrollView, Text, View } from 'react-native
 import {
   BottomCta,
   BudgetCategoryList,
-  BudgetMethodSelector,
-  BudgetSummary,
+  BudgetPreviewList,
+  BudgetResultHero,
   FundSourceSelector,
+  PastPatternCard,
   PastTripSheet,
   StepProgress,
   TravelStyleSelector,
   type EditableCategory,
   type PastTripRow,
 } from '@/components/trip-create';
-import { CurrencyInput, ErrorState } from '@/components/ui';
+import { ErrorState } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
 import { buildPastAdjustments, bpToPercent, applyBp, type PastAdjustment } from '@/lib/budget/pastAdjustment';
@@ -60,11 +66,13 @@ import {
   BUDGET_METHOD,
   BUDGET_METHOD_TO_ANALYTICS,
   CATEGORY_CODE,
+  CATEGORY_CODE_LABEL,
   CATEGORY_CODE_TO_ANALYTICS,
   COMPANION_TYPE,
   FUND_SOURCE_TYPE,
   FUND_SOURCE_TYPE_TO_ANALYTICS,
   OWNER_TYPE_TO_ANALYTICS,
+  TRAVEL_STYLE_LABEL,
   TRIP_OWNER_TYPE,
   type BudgetMethod,
   type CategoryCode,
@@ -141,10 +149,23 @@ export default function ScreenTRIP03() {
   }, [draft.applyPastData, draft.companionType, draft.groupId, draft.pastTripCount]);
 
   // ── ① 예산 방식 ───────────────────────────────────────────────────────
-  const [method, setMethod] = useState<BudgetMethod | null>(null);
+  //
+  // ⚠️ 추천이 기본값이다. 고르는 화면이 아니라 결과를 보여주는 화면이 됐다.
+  const [method, setMethod] = useState<BudgetMethod>(BUDGET_METHOD.RECOMMENDED);
+  /** 사용자가 '이 금액으로 적용' 으로 확정한 총액 */
   const [userTotal, setUserTotal] = useState<number | null>(null);
+  /**
+   * 입력 중인 총액.
+   *
+   * ⚠️ 입력 중에는 총액도 카테고리도 바꾸지 않는다. 한 글자 지울 때마다 아래
+   *    예산 구성이 통째로 다시 계산되면 무엇을 고치는 중인지 알 수 없다.
+   *    '이 금액으로 적용' 을 눌렀을 때만 userTotal 로 옮긴다.
+   */
+  const [userTotalDraft, setUserTotalDraft] = useState<number | null>(null);
   const [categories, setCategories] = useState<EditableCategory[]>([]);
   const [editingCode, setEditingCode] = useState<CategoryCode | null>(null);
+  /** 예산 구성 수정 모드. 켜면 같은 자리에서 카테고리 목록으로 바뀐다 */
+  const [detailOpen, setDetailOpen] = useState(false);
 
   // ── 근거 상품 선택 ────────────────────────────────────────────────────
   //
@@ -176,8 +197,9 @@ export default function ScreenTRIP03() {
   const [pastProfile, setPastProfile] = useState<SpendingProfile | null>(null);
   const [pastProfileTripCount, setPastProfileTripCount] = useState(0);
   /*
-    ⚠️ 조회가 끝나기 전에는 예산 방식 선택을 열지 않는다.
-       사용자가 '추천으로 할게요' 를 누른 뒤 금액이 조용히 바뀌면 안 된다. (develop)
+    ⚠️ 조회가 끝나기 전에는 추천 금액을 보여주지 않는다.
+       추천이 기본값이 되면서 사용자는 들어오자마자 큰 숫자를 본다. 그 숫자가
+       과거 집계가 도착한 뒤 조용히 달라지면 안 된다. 로딩 자리를 대신 보여준다.
   */
   const [pastLoading, setPastLoading] = useState(
     draft.applyPastData === true && draft.pastTripCount > 0,
@@ -199,57 +221,6 @@ export default function ScreenTRIP03() {
       })),
     [],
   );
-
-  const handleSelectMethod = useCallback(
-    (next: BudgetMethod) => {
-      if (!recommendation) return;
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setMethod(next);
-
-      // 추천값을 planned 초기값으로 깐다. 사용자가 확정 버튼을 누르는 순간까지는
-      // applied_source = 'default' 다. 고친 카테고리만 'user' 가 된다.
-      setCategories(toEditable(recommendation));
-      setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
-      setContingencyChoice(null);
-      setManualCategories(new Set());
-      setUserTotal(next === BUDGET_METHOD.USER_DEFINED ? null : recommendation.totalAmount);
-
-      track(EVENTS.BUDGET_METHOD_SELECTED, {
-        method: BUDGET_METHOD_TO_ANALYTICS[next],
-      });
-    },
-    [recommendation, toEditable],
-  );
-
-  /**
-   * 앞 단계 조건이 바뀌면 카테고리를 새 추천으로 다시 깐다.
-   *
-   * 상단의 '홍콩 · 3박 4일 · 4명' 을 눌러 일정이나 스타일을 고치고 돌아오면
-   * recommendation 은 다시 계산되지만 categories 는 예산 방식을 고른 시점에
-   * 만들어진 그대로다. 그대로 두면 '아낌없이' 로 바꿨는데 화면에는 '보통'
-   * 금액이 남고, 근거(계산식·배수)와 금액이 서로 다른 말을 하게 된다.
-   *
-   * 사용자가 고쳐둔 금액도 함께 사라지지만, 조건이 바뀌면 그 금액의 근거도
-   * 사라진 것이라 남겨두는 편이 더 위험하다.
-   */
-  const syncedRef = useRef(recommendation);
-  useEffect(() => {
-    if (syncedRef.current === recommendation) return;
-    syncedRef.current = recommendation;
-    if (!recommendation || method === null) return;
-
-    setCategories(toEditable(recommendation));
-    setEditingCode(null);
-
-    // 상품 선택과 예비비 비율도 함께 되돌린다.
-    // 스타일을 '보통' → '아낌없이' 로 바꿨는데 상품이 보통 조합 그대로면,
-    // 금액은 새 추천인데 아래 카드에는 옛 조합이 체크돼 있어 서로 다른 말을 한다.
-    setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
-    setContingencyChoice(null);
-    setManualCategories(new Set());
-
-    if (method === BUDGET_METHOD.RECOMMENDED) setUserTotal(recommendation.totalAmount);
-  }, [method, recommendation, toEditable]);
 
   /**
    * 직접 입력 총액을 카테고리에 비례 배분한다.
@@ -283,6 +254,99 @@ export default function ScreenTRIP03() {
     },
     [recommendation],
   );
+
+  /**
+   * 추천 ↔ 직접 입력 전환. 히어로의 한 줄 액션이 이걸 부른다.
+   *
+   * 직접 입력으로 갈 때는 지금 보고 있는 총액을 그대로 출발점으로 둔다.
+   * 0 에서 시작하게 하면 방금 본 숫자가 사라져 무엇을 고치는지 알 수 없다.
+   * 추천으로 돌아올 때는 스타일 기본 조합으로 다시 계산한다.
+   *
+   * ⚠️ 전환할 때마다 BUDGET_METHOD_SELECTED 를 쏜다. 진입 시 1회(recommended)와
+   *    합쳐 **흐름당 마지막 이벤트가 최종 방식**이 된다. 아래 진입 로그 주석 참조.
+   */
+  const handleToggleMethod = useCallback(() => {
+    if (!recommendation) return;
+    const next =
+      method === BUDGET_METHOD.USER_DEFINED
+        ? BUDGET_METHOD.RECOMMENDED
+        : BUDGET_METHOD.USER_DEFINED;
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setMethod(next);
+    setDetailOpen(false);
+    setEditingCode(null);
+    setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
+    setContingencyChoice(null);
+    setManualCategories(new Set());
+
+    if (next === BUDGET_METHOD.USER_DEFINED) {
+      // 지금 화면의 총액을 그대로 이어받는다. 입력칸도 그 값으로 채워 둔다.
+      const current = categories.reduce((sum, c) => sum + c.plannedAmount, 0);
+      setUserTotal(current);
+      setUserTotalDraft(current);
+      applyUserTotal(current);
+    } else {
+      setUserTotal(recommendation.totalAmount);
+      setUserTotalDraft(null);
+      setCategories(toEditable(recommendation));
+    }
+
+    track(EVENTS.BUDGET_METHOD_SELECTED, {
+      method: BUDGET_METHOD_TO_ANALYTICS[next],
+    });
+  }, [applyUserTotal, categories, method, recommendation, toEditable]);
+
+  /**
+   * '이 금액으로 적용'. **여기서만** 입력값이 예산에 반영된다.
+   *
+   * 직접 고쳐둔 카테고리 금액은 이 시점에 함께 정리한다. 총액을 새로 정한
+   * 이상 옛 총액에 맞춰 고쳐둔 금액만 남겨 두면 합이 맞지 않는다.
+   */
+  const handleApplyUserTotal = useCallback(() => {
+    if (userTotalDraft === null || userTotalDraft <= 0) return;
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setUserTotal(userTotalDraft);
+    setManualCategories(new Set());
+    applyUserTotal(userTotalDraft);
+  }, [applyUserTotal, userTotalDraft]);
+
+  /**
+   * 앞 단계 조건이 바뀌면 카테고리를 새 추천으로 다시 깐다.
+   *
+   * 상단의 '홍콩 · 3박 4일 · 4명' 을 눌러 일정이나 스타일을 고치고 돌아오면
+   * recommendation 은 다시 계산되지만 categories 는 예전 그대로다. 그대로 두면
+   * '아낌없이' 로 바꿨는데 화면에는 '보통' 금액이 남고, 근거(계산식·배수)와
+   * 금액이 서로 다른 말을 하게 된다.
+   *
+   * ⚠️ ref 초깃값이 null 이라 **첫 렌더에서도 한 번 돈다.** 추천이 기본값이
+   *    되면서 카테고리를 깔아 줄 사람이 사라졌기 때문이다. 예전에는 예산 방식을
+   *    고르는 순간 handleSelectMethod 가 깔았다.
+   */
+  const syncedRef = useRef<typeof recommendation>(null);
+  useEffect(() => {
+    if (syncedRef.current === recommendation) return;
+    syncedRef.current = recommendation;
+    if (!recommendation) return;
+
+    setCategories(toEditable(recommendation));
+    setEditingCode(null);
+    setDetailOpen(false);
+
+    // 상품 선택과 예비비 비율도 함께 되돌린다.
+    // 스타일을 '보통' → '아낌없이' 로 바꿨는데 상품이 보통 조합 그대로면,
+    // 금액은 새 추천인데 아래 카드에는 옛 조합이 체크돼 있어 서로 다른 말을 한다.
+    setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
+    setContingencyChoice(null);
+    setManualCategories(new Set());
+
+    if (method === BUDGET_METHOD.USER_DEFINED && userTotal !== null) {
+      // 사용자가 정한 총액은 조건이 바뀌어도 그대로다. 새 추천 비율로 다시 나눈다.
+      applyUserTotal(userTotal);
+    } else {
+      setUserTotal(recommendation.totalAmount);
+    }
+  }, [applyUserTotal, method, recommendation, toEditable, userTotal]);
 
   const handleChangeCategoryAmount = useCallback((categoryCode: CategoryCode, amount: number) => {
     setCategories((prev) =>
@@ -359,8 +423,19 @@ export default function ScreenTRIP03() {
    */
   const adjustSyncRef = useRef('');
   useEffect(() => {
-    if (method === null) return;
-    const key = `${pastAdjustments.map((a) => `${a.categoryCode}:${a.appliedBp}`).join(',')}|${[...droppedCategories].sort().join(',')}|${contingencyChoice}`;
+    /*
+      ⚠️ 직접 입력 경로에서는 돌지 않는다. 여기서 상품 기준으로 다시 계산하면
+         '이 금액으로 적용' 으로 나눈 배분이 통째로 덮인다. 그 경로의 상품·예비비
+         변경은 각 핸들러가 해당 카테고리만 직접 고친다.
+    */
+    if (method === BUDGET_METHOD.USER_DEFINED) {
+      // ⚠️ 기억해 둔 키를 비운다. 비우지 않으면 추천으로 돌아왔을 때 키가 예전과
+      //    같아서 이 효과가 그냥 넘어가고, 지난 여행 반영이 다시 얹히지 않는다.
+      //    (히어로에는 '지난 여행 반영' 배지가 뜨는데 금액은 기본 추천인 상태)
+      adjustSyncRef.current = '';
+      return;
+    }
+    const key = `${method}|${pastAdjustments.map((a) => `${a.categoryCode}:${a.appliedBp}`).join(',')}|${[...droppedCategories].sort().join(',')}|${contingencyChoice}`;
     if (adjustSyncRef.current === key) return;
     adjustSyncRef.current = key;
 
@@ -390,6 +465,38 @@ export default function ScreenTRIP03() {
     pastAdjustments,
     selectedProductIds,
   ]);
+
+  /**
+   * 예산 방식 노출. 흐름당 1회다.
+   *
+   * ⚠️ 2026-09-02 · 예산 방식 선택 카드가 사라지고 **추천이 기본값**이 되면서,
+   *    누르는 시점에만 기록하면 그냥 추천을 받아들인 사람이 통째로 빠진다.
+   *    분모가 '방식을 바꿔 본 사람' 으로 좁아져 가설 1 을 잴 수 없다.
+   *
+   *    docs/06 §7 이 `past_data_apply_selected` 에서 똑같은 문제(기본 ON 토글)를
+   *    "선택이 아니라 최종값으로 1회" 로 풀었다. 여기도 같은 규칙을 따른다.
+   *      진입 시 1회(recommended) + 전환할 때마다 1회
+   *      → 분석은 **흐름당 마지막 이벤트**를 본다.
+   *
+   *    ⚠️ 지난 여행 조회가 끝나 추천 금액을 실제로 보여준 뒤에 쏜다. 로딩 중에
+   *       쏘면 아무 금액도 못 본 사람이 '추천을 받았다' 로 잡힌다.
+   *
+   *    ⚠️ 이벤트도 파라미터도 새로 만들지 않았다. 기록 시점만 옮겼다.
+   *       정의서 갱신은 L 에게 요청해 뒀다. (.handoff/L-전달사항.md)
+   */
+  const methodLoggedRef = useRef(false);
+  useEffect(() => {
+    if (methodLoggedRef.current) return;
+    if (!recommendation || pastLoading) return;
+    methodLoggedRef.current = true;
+
+    track(EVENTS.BUDGET_METHOD_SELECTED, {
+      method: BUDGET_METHOD_TO_ANALYTICS[method],
+    });
+    // method 는 진입 시점 값(기본 recommended)만 필요하다. 이후 변경은
+    // handleToggleMethod 가 따로 쏜다. 여기서 다시 돌면 중복이라 deps 에 넣지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pastLoading, recommendation]);
 
   /**
    * 개인화 제안 노출. 흐름당 1회다.
@@ -461,6 +568,32 @@ export default function ScreenTRIP03() {
       ];
     });
   }, [adjustmentByCode, pastProfile]);
+
+  /** 하나라도 반영 중인가. 전부 빼면 꺼진 상태다. */
+  const pastOn = useMemo(
+    () => pastAdjustments.some((a) => !droppedCategories.has(a.categoryCode)),
+    [droppedCategories, pastAdjustments],
+  );
+
+  /**
+   * 카드 문구에 쓸 '더 쓴 항목' · '덜 쓴 항목'.
+   * 사용자가 뺀 카테고리는 빼고 센다. 안 그러면 껐는데도 반영됐다고 읽힌다.
+   */
+  const pastIncreasedLabels = useMemo(
+    () =>
+      pastAdjustments
+        .filter((a) => a.appliedBp > 0 && !droppedCategories.has(a.categoryCode))
+        .map((a) => CATEGORY_CODE_LABEL[a.categoryCode]),
+    [droppedCategories, pastAdjustments],
+  );
+
+  const pastDecreasedLabels = useMemo(
+    () =>
+      pastAdjustments
+        .filter((a) => a.appliedBp < 0 && !droppedCategories.has(a.categoryCode))
+        .map((a) => CATEGORY_CODE_LABEL[a.categoryCode]),
+    [droppedCategories, pastAdjustments],
+  );
 
   /**
    * 지난 여행 반영을 전부 빼거나 전부 되돌린다.
@@ -607,22 +740,6 @@ export default function ScreenTRIP03() {
     [],
   );
 
-  /**
-   * 지난 여행을 반영한 추천 총액. 반영 중인 게 하나도 없으면 null.
-   *
-   * 요약 카드의 비교 기준이다. 기본 추천과 비교하면 사용자가 손대지도 않았는데
-   * 차이가 뜬다. 그건 사용자가 고친 게 아니라 반영분이다.
-   */
-  const personalizedTotal = useMemo(() => {
-    const applied = pastAdjustments.filter((a) => !droppedCategories.has(a.categoryCode));
-    if (applied.length === 0) return null;
-
-    return categories.reduce((sum, category) => {
-      const adjustment = applied.find((a) => a.categoryCode === category.categoryCode);
-      return sum + (adjustment?.personalizedAmount ?? category.recommendedAmount);
-    }, 0);
-  }, [categories, droppedCategories, pastAdjustments]);
-
   /** 예비비 비율 계산의 분모이자 화면 표시값. */
   const otherCategoriesTotal = useMemo(
     () =>
@@ -709,7 +826,8 @@ export default function ScreenTRIP03() {
   );
 
   // ── ④ 여행자금 ────────────────────────────────────────────────────────
-  const [fundType, setFundType] = useState<FundSourceType | null>(null);
+  // ⚠️ 여행자금은 선택사항이다. 기본값은 0원이고, 이것 때문에 CTA 가 막히지 않는다.
+  const [fundType, setFundType] = useState<FundSourceType>(FUND_SOURCE_TYPE.ZERO);
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -727,32 +845,38 @@ export default function ScreenTRIP03() {
 
   const selectedAccount = accounts.find((a) => a.id === accountId) ?? null;
 
+  /**
+   * '이 계좌 사용'. 소스 전환과 계좌 선택이 한 동작이다.
+   *
+   * ⚠️ 여기서 신규 계좌 연결을 열지 않는다. 이미 연결된 모임통장만 후보다.
+   *    새 연결은 여행을 만든 뒤 준비 홈에서 한다.
+   */
+  const handleUseAccount = useCallback((id: string) => {
+    setAccountId(id);
+    setFundType(FUND_SOURCE_TYPE.MOCK);
+  }, []);
+
   // ── ⑤ 저장 ────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const savedRef = useRef(false);
 
-  const fundValid =
-    fundType === FUND_SOURCE_TYPE.ZERO ||
-    (fundType === FUND_SOURCE_TYPE.MANUAL && manualAmount !== null && manualAmount >= 0) ||
-    (fundType === FUND_SOURCE_TYPE.MOCK && Boolean(selectedAccount));
-
   /**
-   * 예산 상세(요약 · 카테고리)를 열지.
+   * 예산 블록(히어로 · 예산 구성)을 열지.
    *
-   * 직접 입력은 금액을 넣기 전까지 열지 않는다. 안 그러면 아무것도 입력하지
-   * 않았는데 목표 여행비가 추천값으로 채워져 보인다. "정해둔 예산이 있어요" 를
-   * 고른 사람에게 시스템이 먼저 답을 내놓는 꼴이다.
+   * 과거 집계를 기다리는 동안에는 열지 않는다. 금액이 조용히 달라지면 안 된다.
    */
-  const showBudgetDetail =
-    categories.length > 0 &&
-    (method === BUDGET_METHOD.RECOMMENDED ||
-      (method === BUDGET_METHOD.USER_DEFINED && userTotal !== null && userTotal > 0));
+  const showBudgetDetail = !pastLoading && categories.length > 0;
 
-  const canSubmit = Boolean(recommendation) && showBudgetDetail && targetTotal > 0 && fundValid;
+  /*
+    ⚠️ 여행자금 때문에 CTA 를 막지 않는다.
+       여행자금은 선택사항이고 기본값이 0원이라 언제나 유효하다.
+       유효한 예산만 있으면 여행을 만들 수 있다.
+  */
+  const canSubmit = Boolean(recommendation) && showBudgetDetail && targetTotal > 0;
 
   const handleSubmit = useCallback(async () => {
-    if (!recommendation || !method || !draft.travelStyle || !fundType) return;
+    if (!recommendation || !draft.travelStyle) return;
     // 중복 제출 방지. 두 번 눌러 여행이 두 개 생기면 되돌릴 방법이 없다. (NFR-005)
     if (saving || savedRef.current) return;
 
@@ -949,8 +1073,8 @@ export default function ScreenTRIP03() {
       >
       <StepProgress current={3} />
 
-      <Text className="mt-6 text-[26px] font-bold leading-8 text-gray-900">
-        근거를 보고{'\n'}예산을 정해요
+      <Text className="mt-[22px] text-[25px] font-bold leading-8 text-gray-900">
+        예상 여행비를{'\n'}준비했어요
       </Text>
 
       {/*
@@ -973,141 +1097,149 @@ export default function ScreenTRIP03() {
         <Ionicons name="pencil" size={13} color="#9ca3af" />
       </Pressable>
 
-      {/* ── ① 예산 방식 ── 무엇부터 정할지가 여기서 갈린다 ── */}
-      <View className="mt-7">
-        <Text className="mb-2.5 text-base font-semibold text-gray-900">
-          예산 설정 방식 <Text className="text-red-500">*</Text>
-        </Text>
-        {pastLoading ? (
-          // 지난 여행 조회가 끝나기 전에는 고르게 하지 않는다.
-          // '추천으로 할게요' 를 누른 뒤 금액이 조용히 바뀌면 안 된다.
-          <View className="items-center rounded-2xl border border-gray-200 py-8">
-            <Text className="text-sm text-gray-400">지난 여행 기록을 확인하는 중…</Text>
-          </View>
-        ) : (
-          <BudgetMethodSelector value={method} onChange={handleSelectMethod} disabled={saving} />
-        )}
-      </View>
+      {/* ── ① 추천 결과 ── 고르기 전에 답을 먼저 준다 ── */}
+      {pastLoading ? (
+        <View className="mt-5 items-center rounded-2xl border border-gray-200 py-8">
+          <Text className="text-sm text-gray-400">지난 여행 기록을 확인하는 중…</Text>
+        </View>
+      ) : (
+        <BudgetResultHero
+          method={method}
+          totalAmount={targetTotal}
+          headcount={draft.headcount}
+          perPersonAmount={perPerson(targetTotal, draft.headcount)}
+          styleLabel={TRAVEL_STYLE_LABEL[recommendation.basis.style]}
+          pastApplied={pastOn}
+          onToggleMethod={handleToggleMethod}
+          userTotalDraft={userTotalDraft}
+          onChangeUserTotalDraft={setUserTotalDraft}
+          onApplyUserTotal={handleApplyUserTotal}
+          disabled={saving}
+        />
+      )}
 
       {/*
-        ── 여행 스타일 ── 추천을 고른 경우에만 묻는다 ──
+        ── 여행 스타일 ── 추천 상태에서만 묻는다 ──
         총액을 이미 정한 사람에게 "아낄지 말지" 를 묻는 건 순서가 맞지 않는다.
-        직접 입력 경로에서는 draft 의 값(기본 '보통')으로 카테고리를 배분한다.
-        배분 비율은 아래 카테고리에서 직접 고칠 수 있다.
+        직접 입력 경로에서는 draft 의 값으로 카테고리를 배분하고, 그 배분은
+        아래 예산 구성에서 직접 고칠 수 있다.
       */}
-      {method === BUDGET_METHOD.RECOMMENDED ? (
+      {showBudgetDetail && method === BUDGET_METHOD.RECOMMENDED ? (
         <View className="mt-6">
-          <Text className="mb-2.5 text-base font-semibold text-gray-900">여행 스타일</Text>
-          <TravelStyleSelector
-            value={draft.travelStyle}
-            onChange={handleChangeTravelStyle}
-            disabled={saving}
-          />
-        </View>
-      ) : null}
-
-      {/* ── 직접 입력 총액 ── */}
-      {method === BUDGET_METHOD.USER_DEFINED ? (
-        <View className="mt-5">
-          <CurrencyInput
-            label="생각한 총 예산"
-            required
-            value={userTotal}
-            onChangeValue={(value) => {
-              setUserTotal(value);
-              if (value !== null) applyUserTotal(value);
-            }}
-            editable={!saving}
-            hint="추천 비율에 맞춰 카테고리로 나눠 드려요. 아래에서 고칠 수 있어요."
-          />
-        </View>
-      ) : null}
-
-      {/* ── ② 예상 여행비 비교 ── 두 경로 모두 여기로 수렴한다 (AC-01) ── */}
-      {showBudgetDetail ? (
-        <>
-          <View className="mt-6">
-            <BudgetSummary
-              recommendedTotal={recommendation.totalAmount}
-              targetTotal={targetTotal}
-              headcount={draft.headcount}
-              perPersonAmount={perPerson(targetTotal, draft.headcount)}
-              baselineUpdatedAt={recommendation.updatedAt}
-              estimateNotice={recommendation.notice}
-              personalizedTotal={personalizedTotal}
-              productCount={selectedProductIds.size}
-              pastApplied={
-                pastAdjustments.length > 0
-                  ? {
-                      tripCount: pastProfileTripCount,
-                      appliedCount: pastAdjustments.filter(
-                        (a) => !droppedCategories.has(a.categoryCode),
-                      ).length,
-                      droppedCount: pastAdjustments.filter((a) =>
-                        droppedCategories.has(a.categoryCode),
-                      ).length,
-                    }
-                  : null
-              }
-              onToggleAllPast={handleToggleAllPast}
-              onPressPastDetail={() => setPastSheetOpen(true)}
-              // 총액을 이미 정해 온 사람에게 자기가 넣은 숫자를 크게 되돌려
-              // 보여줄 이유가 없다. 비교만 한 줄로 남긴다.
-              variant={method === BUDGET_METHOD.USER_DEFINED ? 'compact' : 'full'}
-            />
-          </View>
-
-          {/* ── ③ 카테고리 수정 ── */}
-          <View className="mt-6">
-            <Text className="mb-1 text-base font-semibold text-gray-900">카테고리별 예산</Text>
-            <Text className="mb-2.5 text-xs text-gray-400">
-              항목을 눌러 근거 상품을 바꿀 수 있어요.
-            </Text>
-            <BudgetCategoryList
-              categories={categoriesWithProducts}
-              onChangeAmount={handleChangeCategoryAmount}
-              onToggleProduct={handleToggleProduct}
-              onToggleDrop={handleToggleDrop}
-              onToggleManual={handleToggleManual}
-              otherCategoriesTotal={otherCategoriesTotal}
-              contingencyChoice={contingencyChoice}
-              onChangeContingency={handleChangeContingency}
-              editingCode={editingCode}
-              onToggleEditing={(code) => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setEditingCode((prev) => (prev === code ? null : code));
-              }}
+          <Text className="mb-2.5 text-base font-semibold text-gray-900">
+            어떤 여행을 원하세요?
+          </Text>
+          <View className="rounded-2xl border border-gray-200 bg-white p-3.5">
+            <TravelStyleSelector
+              value={draft.travelStyle}
+              onChange={handleChangeTravelStyle}
               disabled={saving}
             />
           </View>
-        </>
+        </View>
+      ) : null}
+
+      {/* ── ② 예산 구성 ── 요약 ↔ 수정이 같은 자리에서 바뀐다 ── */}
+      {showBudgetDetail ? (
+        <View className="mt-6">
+          <View className="mb-2 flex-row items-center">
+            <Text className="text-base font-semibold text-gray-900">예산 구성</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={detailOpen ? '예산 수정 완료' : '예산 수정'}
+              accessibilityState={{ expanded: detailOpen }}
+              disabled={saving}
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                const next = !detailOpen;
+                setDetailOpen(next);
+                if (!next) setEditingCode(null);
+              }}
+              className={`ml-auto flex-row items-center gap-1 rounded-lg px-2 py-1.5 ${
+                detailOpen ? 'bg-blue-50' : 'active:bg-gray-100'
+              }`}
+            >
+              <Ionicons
+                name={detailOpen ? 'checkmark' : 'create-outline'}
+                size={15}
+                color={detailOpen ? '#2563eb' : '#6b7280'}
+              />
+              <Text
+                className={`text-xs font-bold ${
+                  detailOpen ? 'text-blue-600' : 'text-gray-500'
+                }`}
+              >
+                {detailOpen ? '완료' : '수정'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {detailOpen ? (
+            <>
+              <Text className="mx-0.5 mb-2 text-[11px] text-gray-400">
+                항목을 눌러 추천 근거와 금액을 조정할 수 있어요.
+              </Text>
+              <BudgetCategoryList
+                categories={categoriesWithProducts}
+                onChangeAmount={handleChangeCategoryAmount}
+                onToggleProduct={handleToggleProduct}
+                onToggleDrop={handleToggleDrop}
+                onToggleManual={handleToggleManual}
+                otherCategoriesTotal={otherCategoriesTotal}
+                contingencyChoice={contingencyChoice}
+                onChangeContingency={handleChangeContingency}
+                editingCode={editingCode}
+                onToggleEditing={(code) => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setEditingCode((prev) => (prev === code ? null : code));
+                }}
+                disabled={saving}
+              />
+            </>
+          ) : (
+            <BudgetPreviewList categories={categories} />
+          )}
+
+          {/* 전체 반영은 이 카드가, 카테고리별 제외는 수정 모드가 담당한다 */}
+          {pastAdjustments.length > 0 ? (
+            <PastPatternCard
+              applied={pastOn}
+              increasedLabels={pastIncreasedLabels}
+              decreasedLabels={pastDecreasedLabels}
+              onToggleAll={handleToggleAllPast}
+              onPressDetail={() => setPastSheetOpen(true)}
+              disabled={saving}
+            />
+          ) : null}
+        </View>
       ) : null}
 
       {/*
-        ── ④ 여행자금 ──
-        예산 방식을 고르기 전에도 보여준다.
-        정할 게 둘(예산 · 자금)이라는 걸 처음부터 알려야 한다. 예산 블록이 열리고
-        카테고리를 펼치기 시작하면 화면이 길어져서, 아래에 이런 항목이 남아 있다는
-        걸 알아채기 어렵다.
+        ── ③ 현재 준비한 여행자금 ── 선택사항이다 ──
+        고르지 않아도 여행을 만들 수 있고, 그때 0원으로 저장된다.
       */}
       <View className="mt-7">
-        <Text className="mb-1 text-base font-semibold text-gray-900">
-          지금 모은 여행자금 <Text className="text-red-500">*</Text>
+        <View className="flex-row items-baseline">
+          <Text className="text-base font-semibold text-gray-900">현재 준비한 여행자금</Text>
+          <Text className="ml-auto text-[11px] font-medium text-gray-400">선택</Text>
+        </View>
+        <Text className="mb-2.5 mt-1 text-xs text-gray-400">
+          {accounts.length > 0
+            ? '이미 연결된 계좌를 사용하거나, 계좌 없이 시작할 수 있어요.'
+            : '연결된 계좌가 없어도 0원으로 바로 여행을 만들 수 있어요.'}
         </Text>
-        <Text className="mb-2.5 text-xs text-gray-400">계좌를 연결하지 않아도 괜찮아요.</Text>
         <FundSourceSelector
           value={fundType}
           onChange={setFundType}
           accounts={accounts}
           accountsLoading={accountsLoading}
           selectedAccountId={accountId}
-          onSelectAccount={setAccountId}
+          onUseAccount={handleUseAccount}
           manualAmount={manualAmount}
           onChangeManualAmount={setManualAmount}
           disabled={saving}
         />
       </View>
-
       {saveError ? <Text className="mt-5 text-sm text-red-500">{saveError}</Text> : null}
       </ScrollView>
 
