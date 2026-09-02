@@ -222,7 +222,12 @@ export default function ScreenCOMM02() {
     commentCount: post.commentCount,
     accent: toAccent(post.destination),
     // TODO: 사진 스키마가 생기면 post.imageUrls 로 바꾼다. [임시]
-    imageUrls: toCoverUrls(post.postId),
+    imageUrls: toCoverUrls({
+      postId: post.postId,
+      title: post.title,
+      content: post.content,
+      destination: post.destination,
+    }),
   };
 
   const commentItems: PostCommentItem[] = comments.map((comment) => ({
