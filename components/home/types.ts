@@ -70,3 +70,56 @@ export type HomeGroupItem = {
  *    보여줄 문구를 고르는 데 더 맞는 기준이라고 봤다.
  */
 export type HomeEmptyVariant = 'first' | 'return';
+
+// ============================================================================
+// 대표 홈 대시보드 (2026-09-02 개편)
+//
+// 대표 홈은 "여러 여행 중 지금 무슨 일이 일어나고 있는가" 를 본다.
+// 카테고리별 예산 같은 여행 상세(TRIP-HOME-01)의 정보를 반복하지 않는다.
+//
+// 아래 타입은 모두 **이미 계산이 끝난 값**이다.
+// 컴포넌트가 금액을 계산하거나 라우트를 만들지 않는다. (CLAUDE.md 9장)
+// ============================================================================
+
+/** 출발이 가장 가까운 여행 하나. 메인 카드가 쓴다. */
+export type NextTripCardData = OngoingTripCardData & {
+  /** 참여 인원(ACTIVE 멤버 수). 모르면 null 이고 카드가 인원을 그리지 않는다. */
+  memberCount: number | null;
+};
+
+/** '지금 챙겨야 할 것' 한 줄. */
+export type HomeActionItem = {
+  /** 눌렀을 때 어디로 갈지 화면 파일이 이 값으로 찾는다. */
+  id: string;
+  emoji: string;
+  /** 이미 완성된 한 문장. */
+  message: string;
+  /** 아이콘 뒤 옅은 배경색. 목적지 국가 테마의 primarySoft. */
+  tintSoft: string;
+};
+
+/** 여행자금 현황의 여행별 준비율 막대 하나. */
+export type HomeFundTripBar = {
+  tripId: string;
+  destination: string | null;
+  /** 목표를 정하지 않았으면 null. */
+  ratePercent: number | null;
+  /** 막대 색. 목적지 국가 테마의 primary. */
+  color: string;
+};
+
+export type HomeFundSummaryData = {
+  currentTotal: number;
+  monthlyDeposit: number;
+  trips: HomeFundTripBar[];
+};
+
+/** 지난 여행 인사이트 한 건. 확정된 결산이 없으면 화면이 null 을 넘긴다. */
+export type HomePastInsightData = {
+  tripId: string;
+  destination: string | null;
+  categoryLabel: string;
+  emoji: string;
+  /** 계획보다 더 쓴 금액. 원 단위 정수. */
+  overAmount: number;
+};
