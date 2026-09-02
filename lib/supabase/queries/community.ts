@@ -48,15 +48,15 @@ export type PostListItem = {
   /** 이 글이 나온 여행의 목적지. 연결된 여행이 없으면 null. */
   destination: string | null;
   publishedAt: string | null;
+  /** 목록에서 본문 앞부분을 보여준다. */
+  content: string | null;
   likeCount: number;
   /** 내가 좋아요를 눌렀는가. */
   likedByMe: boolean;
 };
 
-/** 상세. (COMM-02) */
-export type PostDetail = PostListItem & {
-  content: string | null;
-};
+/** 상세. (COMM-02) — 목록과 같은 모양이다. 본문 전체가 들어 있다. */
+export type PostDetail = PostListItem;
 
 // users 는 작성자 FK 와 reactions 경유 두 갈래가 있어 모호하다. FK 를 명시한다.
 const AUTHOR = 'users!community_posts_author_user_id_fkey(name)';
@@ -75,7 +75,7 @@ export async function getPosts(
 
   const { data, error } = await supabase
     .from('community_posts')
-    .select(`id, title, post_type, published_at, ${AUTHOR}, trips(destination)`)
+    .select(`id, title, content, post_type, published_at, ${AUTHOR}, trips(destination)`)
     .eq('status', POST_STATUS.PUBLISHED)
     .in('post_type', types)
     .order('published_at', { ascending: false })
@@ -93,6 +93,7 @@ export async function getPosts(
     authorName: row.users?.name ?? null,
     destination: row.trips?.destination ?? null,
     publishedAt: row.published_at,
+    content: row.content,
     likeCount: reactions.get(row.id)?.likeCount ?? 0,
     likedByMe: reactions.get(row.id)?.likedByMe ?? false,
   }));

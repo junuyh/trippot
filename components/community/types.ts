@@ -35,6 +35,8 @@ export type PostCardData = {
   destination: string | null;
   /** 'N일 전' 처럼 이미 사람이 읽을 문자열로 바꿔서 넘긴다. */
   publishedLabel: string | null;
+  /** 본문 앞부분. 목록에서 두 줄까지 보여준다. */
+  contentPreview: string | null;
   likeCount: number;
   /** 내가 좋아요를 눌렀는가. */
   likedByMe: boolean;

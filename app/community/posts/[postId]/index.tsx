@@ -145,6 +145,7 @@ export default function ScreenCOMM02() {
     authorName: post.authorName,
     destination: post.destination,
     publishedLabel: formatPublished(post.publishedAt),
+    contentPreview: post.content,
     content: post.content,
     likeCount: post.likeCount,
     likedByMe: post.likedByMe,

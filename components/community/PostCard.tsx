@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { PostCardData } from './types';
 
@@ -9,129 +9,121 @@ type Props = {
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
-const COVER_HEIGHT = 116;
+const AVATAR = 36;
+const THUMB = 128;
 
 /**
- * 목록 카드 한 장. (docs/09_IA_v1.md §4-1)
+ * 목록 글 하나. (docs/09_IA_v1.md §4-1)
  *
- * 윗면은 색면 + 제목, 아랫줄은 목적지·작성자·좋아요다.
- * ⚠️ 커버 사진은 [임시] 더미다. community_posts 에 이미지 컬럼이 없어
- *    글 id 로 만든 placeholder 를 쓴다. (components/community/cover.ts)
- *    여러 장이면 첫 장을 커버로 쓰고 오른쪽 위에 장수를 표시한다.
- *    사진이 없으면 목적지 국가 색면으로 대체한다.
+ * 카드가 아니라 구분선으로 나뉜 평평한 글이다.
+ * 왼쪽에 아바타, 오른쪽에 작성자 · 제목 · 본문 · 사진 · 좋아요를 세로로 쌓는다.
+ *
+ * ⚠️ 아바타는 이름 첫 글자다. users.profile_image_url 이 비어 있다.
+ *    사진이 채워지면 여기에 <Image> 를 끼운다.
  *
  * 탭하면 COMM-02 상세로 간다.
  */
 export function PostCard({ post, onPress }: Props) {
-  const cover = post.imageUrls[0] ?? null;
-
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${post.title} 자세히 보기`}
       onPress={() => onPress(post.postId)}
-      className="overflow-hidden rounded-[20px] bg-white active:opacity-80"
-      style={{
-        shadowColor: '#111827',
-        shadowOpacity: 0.08,
-        shadowRadius: 18,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 3,
-      }}
+      className="flex-row px-5 py-4 active:opacity-70"
     >
-      {/* 윗면 — 사진 자리 */}
-      <View style={{ height: COVER_HEIGHT, backgroundColor: post.accent.background }}>
-        {cover ? (
-          <>
-            <Image
-              source={{ uri: cover }}
-              style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
-              resizeMode="cover"
-            />
-            {/* 사진 위 흰 글씨가 묻히지 않게 어둠막을 깐다. */}
-            <View
-              style={{
-                position: 'absolute',
-                left: 0, top: 0, right: 0, bottom: 0,
-                backgroundColor: 'rgba(17,24,39,0.38)',
-              }}
-            />
-          </>
-        ) : null}
-        <View className="flex-1 justify-between p-3.5">
-        <View className="flex-row items-start justify-between">
-          {/* 날짜 배지 */}
-          {post.publishedLabel ? (
-            <View className="flex-row items-center rounded-full bg-black/30 px-2.5 py-1.5">
-              <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
-              <Text className="ml-1.5 font-bold text-white" style={{ fontSize: 11 }}>
-                {post.publishedLabel}
-              </Text>
-            </View>
-          ) : (
-            <View />
-          )}
+      {/* 아바타 */}
+      <View
+        className="items-center justify-center rounded-full"
+        style={{
+          width: AVATAR,
+          height: AVATAR,
+          backgroundColor: post.accent.background,
+        }}
+      >
+        <Text className="font-bold" style={{ fontSize: 14, color: post.accent.foreground }}>
+          {(post.authorName ?? '?').slice(0, 1)}
+        </Text>
+      </View>
 
-          <View className="flex-row items-center">
-            {/* 사진이 여러 장이면 장수 */}
-            {post.imageUrls.length > 1 ? (
-              <View className="mr-1.5 flex-row items-center rounded-full bg-black/30 px-2.5 py-1.5">
-                <Ionicons name="images-outline" size={12} color="#FFFFFF" />
-                <Text className="ml-1 font-bold text-white" style={{ fontSize: 11 }}>
-                  {post.imageUrls.length}
-                </Text>
-              </View>
-            ) : null}
-            {/* 유형 */}
-            <View className="rounded-full bg-black/30 px-2.5 py-1.5">
-              <Text className="font-bold text-white" style={{ fontSize: 11 }}>
-                {post.postTypeLabel}
-              </Text>
-            </View>
+      <View className="ml-3 flex-1">
+        {/* 작성자 · 시간 */}
+        <View className="flex-row items-center">
+          <Text className="font-bold text-pot-ink" style={{ fontSize: 14 }} numberOfLines={1}>
+            {post.authorName ?? '알 수 없음'}
+          </Text>
+          {post.publishedLabel ? (
+            <Text className="ml-2 text-pot-faint" style={{ fontSize: 12.5 }}>
+              {post.publishedLabel}
+            </Text>
+          ) : null}
+          <View className="flex-1" />
+          <View className="rounded-md bg-pot-visual px-1.5 py-0.5">
+            <Text className="font-bold text-pot-mute" style={{ fontSize: 10 }}>
+              {post.postTypeLabel}
+            </Text>
           </View>
         </View>
 
+        {/* 제목 */}
         <Text
-          className="font-black text-white"
-          style={{ fontSize: 17, lineHeight: 22, letterSpacing: -0.4 }}
-          numberOfLines={2}
+          className="mt-1 font-bold text-pot-ink"
+          style={{ fontSize: 15, lineHeight: 21, letterSpacing: -0.2 }}
         >
           {post.title}
         </Text>
-        </View>
-      </View>
 
-      {/* 아랫줄 */}
-      <View className="flex-row items-center justify-between px-4 py-2.5">
-        <View className="flex-1 flex-row items-center pr-3">
+        {/* 본문 미리보기 */}
+        {post.contentPreview ? (
+          <Text
+            className="mt-0.5 text-pot-mute"
+            style={{ fontSize: 14, lineHeight: 20 }}
+            numberOfLines={2}
+          >
+            {post.contentPreview}
+          </Text>
+        ) : null}
+
+        {/* 사진 */}
+        {post.imageUrls.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mt-2.5"
+            contentContainerClassName="gap-1.5"
+          >
+            {post.imageUrls.map((uri) => (
+              <Image
+                key={uri}
+                source={{ uri }}
+                style={{ width: THUMB, height: THUMB, borderRadius: 12 }}
+                resizeMode="cover"
+              />
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {/* 좋아요 · 목적지 */}
+        <View className="mt-2.5 flex-row items-center">
+          <Ionicons
+            name={post.likedByMe ? 'heart' : 'heart-outline'}
+            size={17}
+            color={post.likedByMe ? '#EE3524' : '#747B88'}
+          />
+          {post.likeCount > 0 ? (
+            <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12.5, ...NUM }}>
+              {post.likeCount}
+            </Text>
+          ) : null}
+
           {post.destination ? (
             <>
-              <Ionicons name="location-outline" size={14} color="#9AA3AE" />
-              <Text className="ml-1 text-pot-faint" style={{ fontSize: 11.5 }} numberOfLines={1}>
+              <View className="flex-1" />
+              <Ionicons name="location-outline" size={13} color="#9AA3AE" />
+              <Text className="ml-1 text-pot-faint" style={{ fontSize: 12 }} numberOfLines={1}>
                 {post.destination}
-              </Text>
-              <Text className="mx-1.5 text-pot-line" style={{ fontSize: 11.5 }}>
-                ·
               </Text>
             </>
           ) : null}
-          <Text className="text-pot-faint" style={{ fontSize: 11.5 }} numberOfLines={1}>
-            {post.authorName ?? '알 수 없음'}
-          </Text>
-        </View>
-
-        <View className="flex-row items-center">
-          <Ionicons
-            name={post.likedByMe ? 'heart' : 'heart-outline'}
-            size={15}
-            color={post.likedByMe ? '#EE3524' : '#9AA3AE'}
-          />
-          <Text
-            className="ml-1 font-bold text-pot-mute"
-            style={{ fontSize: 11.5, ...NUM }}
-          >
-            {post.likeCount}
-          </Text>
         </View>
       </View>
     </Pressable>

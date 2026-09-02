@@ -37,7 +37,7 @@ export function PostListView({
   const insets = useSafeAreaInsets();
 
   return (
-    <View className="flex-1 bg-pot-visual">
+    <View className="flex-1 bg-white">
       <View className="px-5 pb-6" style={{ paddingTop: insets.top + 36 }}>
         {/* 제목 */}
         <Text
@@ -77,7 +77,7 @@ export function PostListView({
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 onPress={() => onChangeFilter(filter.value)}
-                className={`rounded-full px-3.5 py-2 ${active ? 'bg-pot-ink' : 'bg-white'}`}
+                className={`rounded-full px-3.5 py-2 ${active ? 'bg-pot-ink' : 'bg-pot-visual'}`}
               >
                 <Text
                   className={`font-bold ${active ? 'text-white' : 'text-pot-mute'}`}
@@ -91,15 +91,23 @@ export function PostListView({
         </ScrollView>
       </View>
 
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-24 pt-1">
+      <View style={{ height: 1, backgroundColor: '#EFF1F4' }} />
+
+      <ScrollView className="flex-1" contentContainerClassName="pb-28">
         {posts.length === 0 ? (
           <Text className="mt-8 text-center text-pot-faint" style={{ fontSize: 14 }}>
             이 유형의 글이 아직 없어요.
           </Text>
         ) : (
-          <View className="gap-2.5">
-            {posts.map((post) => (
-              <PostCard key={post.postId} post={post} onPress={onPressPost} />
+          <View>
+            {posts.map((post, index) => (
+              <View key={post.postId}>
+                {/* 글 사이를 카드가 아니라 얇은 선으로 나눈다. */}
+                {index > 0 ? (
+                  <View style={{ height: 1, backgroundColor: '#EFF1F4' }} />
+                ) : null}
+                <PostCard post={post} onPress={onPressPost} />
+              </View>
             ))}
           </View>
         )}

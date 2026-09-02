@@ -102,6 +102,7 @@ export default function ScreenCOMM01() {
     authorName: post.authorName,
     destination: post.destination,
     publishedLabel: formatPublished(post.publishedAt),
+    contentPreview: post.content,
     likeCount: post.likeCount,
     likedByMe: post.likedByMe,
     accent: toAccent(post.destination),
