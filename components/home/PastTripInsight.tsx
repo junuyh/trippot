@@ -24,28 +24,28 @@ const NUM = { fontVariant: ['tabular-nums' as const] };
  */
 export function PastTripInsight({ insight, onPress }: Props) {
   return (
-    <View className="rounded-3xl px-5 py-5" style={{ backgroundColor: HOME_CREAM }}>
-      <Text className="font-black text-pot-ink" style={{ fontSize: 16, letterSpacing: -0.5 }}>
+    <View className="rounded-3xl px-4 py-4" style={{ backgroundColor: HOME_CREAM }}>
+      <Text className="font-black text-pot-ink" style={{ fontSize: 15, letterSpacing: -0.5 }}>
         지난 여행에서 발견했어요
       </Text>
 
       {insight === null ? (
-        <Text className="mt-2.5 text-pot-mute" style={{ fontSize: 13.5, lineHeight: 20 }}>
+        <Text className="mt-2 text-pot-mute" style={{ fontSize: 12.5, lineHeight: 18 }}>
           여행을 기록할수록 다음 여행 예산이 더 정확해져요.
         </Text>
       ) : (
         <View className="mt-3 flex-row items-center">
-          <View className="h-12 w-12 items-center justify-center rounded-2xl bg-white/70">
-            <Text style={{ fontSize: 22 }}>{insight.emoji}</Text>
+          <View className="h-10 w-10 items-center justify-center rounded-xl bg-white/70">
+            <Text style={{ fontSize: 18 }}>{insight.emoji}</Text>
           </View>
 
           <View className="ml-3 flex-1">
-            <Text className="text-pot-mute" style={{ fontSize: 12 }} numberOfLines={1}>
+            <Text className="text-pot-mute" style={{ fontSize: 11 }} numberOfLines={1}>
               {insight.destination ?? '지난 여행'}
             </Text>
             <Text
               className="mt-0.5 text-pot-ink"
-              style={{ fontSize: 14, lineHeight: 20, letterSpacing: -0.3 }}
+              style={{ fontSize: 12.5, lineHeight: 18, letterSpacing: -0.3 }}
             >
               {insight.categoryLabel}를 예상보다{' '}
               <Text className="font-black" style={{ color: HOME_DANGER, ...NUM }}>
@@ -53,7 +53,7 @@ export function PastTripInsight({ insight, onPress }: Props) {
               </Text>{' '}
               더 썼어요
             </Text>
-            <Text className="mt-0.5 text-pot-mute" style={{ fontSize: 12 }}>
+            <Text className="mt-0.5 text-pot-mute" style={{ fontSize: 11 }}>
               다음 여행 예산에 반영해 보세요!
             </Text>
           </View>
@@ -62,9 +62,9 @@ export function PastTripInsight({ insight, onPress }: Props) {
             accessibilityRole="button"
             accessibilityLabel={`${insight.destination ?? '지난 여행'} 결산 자세히 보기`}
             onPress={() => onPress(insight.tripId)}
-            className="ml-2 flex-row items-center rounded-full bg-white px-3 py-2.5 active:opacity-70"
+            className="ml-2 flex-row items-center rounded-full bg-white px-2.5 py-2 active:opacity-70"
           >
-            <Text className="font-bold text-pot-ink" style={{ fontSize: 12 }}>
+            <Text className="font-bold text-pot-ink" style={{ fontSize: 11.5 }}>
               자세히
             </Text>
             <Ionicons name="chevron-forward" size={12} color="#111827" />

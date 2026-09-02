@@ -9,8 +9,8 @@ type Props = {
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
-const DONUT = 116;
-const RING = 15;
+const DONUT = 100;
+const RING = 13;
 const RADIUS = (DONUT - RING) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 /** 준비된 금액이 하나도 없을 때 도넛 바탕. */
@@ -33,22 +33,22 @@ export function TravelFundSummary({ fund }: Props) {
   const total = fund.trips.reduce((sum, trip) => sum + trip.currentAmount, 0);
 
   return (
-    <View className="rounded-3xl px-5 py-5" style={{ backgroundColor: HOME_ACCENT_SOFT }}>
+    <View className="rounded-3xl px-4 py-4" style={{ backgroundColor: HOME_ACCENT_SOFT }}>
       <Text
         className="font-black text-pot-ink"
-        style={{ fontSize: 16, letterSpacing: -0.5 }}
+        style={{ fontSize: 15, letterSpacing: -0.5 }}
       >
         내 여행자금 현황
       </Text>
 
       <View className="mt-3 flex-row items-center">
         <View className="flex-1 pr-2">
-          <Text className="text-pot-mute" style={{ fontSize: 11.5 }}>
+          <Text className="text-pot-mute" style={{ fontSize: 10.5 }}>
             지금까지 준비한 여행자금
           </Text>
           <Text
             className="mt-1 font-black text-pot-ink"
-            style={{ fontSize: 22, letterSpacing: -0.8, ...NUM }}
+            style={{ fontSize: 19, letterSpacing: -0.7, ...NUM }}
           >
             {fund.currentTotal.toLocaleString('ko-KR')}원
           </Text>
@@ -59,7 +59,7 @@ export function TravelFundSummary({ fund }: Props) {
                 이번 달
               </Text>
             </View>
-            <Text className="ml-1.5 font-bold text-pot-ink" style={{ fontSize: 12.5, ...NUM }}>
+            <Text className="ml-1.5 font-bold text-pot-ink" style={{ fontSize: 11.5, ...NUM }}>
               {fund.monthlyDeposit > 0
                 ? `+${fund.monthlyDeposit.toLocaleString('ko-KR')}원 적립`
                 : '적립 내역 없음'}
@@ -71,7 +71,7 @@ export function TravelFundSummary({ fund }: Props) {
       </View>
 
       {fund.trips.length > 0 ? (
-        <View className="mt-4 gap-2">
+        <View className="mt-3 gap-1.5">
           {fund.trips.map((trip) => (
             <View key={trip.tripId} className="flex-row items-center">
               <View
@@ -80,17 +80,17 @@ export function TravelFundSummary({ fund }: Props) {
               />
               <Text
                 className="ml-2 flex-1 text-pot-ink"
-                style={{ fontSize: 12.5 }}
+                style={{ fontSize: 11.5 }}
                 numberOfLines={1}
               >
                 {trip.destination ?? '여행지 미정'}
               </Text>
-              <Text className="text-pot-mute" style={{ fontSize: 11.5, ...NUM }}>
+              <Text className="text-pot-mute" style={{ fontSize: 10.5, ...NUM }}>
                 {trip.currentAmount.toLocaleString('ko-KR')}원
               </Text>
               <Text
                 className="ml-2.5 font-black text-pot-ink"
-                style={{ fontSize: 12.5, width: 40, textAlign: 'right', ...NUM }}
+                style={{ fontSize: 11.5, width: 38, textAlign: 'right', ...NUM }}
               >
                 {trip.ratePercent === null ? '—' : `${trip.ratePercent}%`}
               </Text>
@@ -159,12 +159,12 @@ function Donut({
       </Svg>
 
       <View className="absolute inset-0 items-center justify-center">
-        <Text className="text-pot-mute" style={{ fontSize: 10 }}>
+        <Text className="text-pot-mute" style={{ fontSize: 9 }}>
           전체 준비율
         </Text>
         <Text
           className="font-black"
-          style={{ fontSize: 20, color: HOME_ACCENT, letterSpacing: -0.5, ...NUM }}
+          style={{ fontSize: 17, color: HOME_ACCENT, letterSpacing: -0.4, ...NUM }}
         >
           {centerLabel === null ? '—' : `${centerLabel}%`}
         </Text>

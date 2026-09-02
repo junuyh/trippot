@@ -15,10 +15,10 @@ type Props = {
  */
 export function SectionHeader({ title, actionLabel, onPressAction }: Props) {
   return (
-    <View className="mb-3 flex-row items-center justify-between">
+    <View className="mb-2.5 flex-row items-center justify-between">
       <Text
         className="font-black text-pot-ink"
-        style={{ fontSize: 17, lineHeight: 22, letterSpacing: -0.5 }}
+        style={{ fontSize: 15.5, lineHeight: 20, letterSpacing: -0.5 }}
       >
         {title}
       </Text>
@@ -31,7 +31,7 @@ export function SectionHeader({ title, actionLabel, onPressAction }: Props) {
           hitSlop={8}
           className="flex-row items-center active:opacity-60"
         >
-          <Text className="text-pot-mute" style={{ fontSize: 13 }}>
+          <Text className="text-pot-mute" style={{ fontSize: 12 }}>
             {actionLabel}
           </Text>
           <Ionicons name="chevron-forward" size={13} color="#747B88" />

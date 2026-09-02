@@ -23,10 +23,10 @@ type Props = {
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
-const CARD_WIDTH = 236;
-const CARD_GAP = 12;
+const CARD_WIDTH = 176;
+const CARD_GAP = 10;
 /** 카드 왼쪽 색 띠 두께. 어느 나라 여행인지 여기서만 알린다. */
-const STRIPE = 5;
+const STRIPE = 4;
 
 /**
  * 진행 중인 여행 — 가로 스크롤.
@@ -61,7 +61,7 @@ export function OngoingTripCarousel({
           accessibilityRole="button"
           accessibilityLabel="새 여행 만들기"
           onPress={onPressCreateTrip}
-          className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-6 active:opacity-70"
+          className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-5 active:opacity-70"
         >
           <Text className="text-pot-mute" style={{ fontSize: 13, lineHeight: 19 }}>
             {emptyVariant === 'first'
@@ -80,7 +80,7 @@ export function OngoingTripCarousel({
             onScroll={handleScroll}
             scrollEventThrottle={16}
             // 카드 그림자가 잘리지 않게 위아래로 여유를 준다.
-            contentContainerStyle={{ gap: CARD_GAP, paddingRight: 20, paddingVertical: 3 }}
+            contentContainerStyle={{ gap: CARD_GAP, paddingRight: 16, paddingVertical: 3 }}
           >
             {trips.map((trip) => (
               <MiniTripCard key={trip.tripId} trip={trip} onPress={onPressTrip} />
@@ -89,13 +89,13 @@ export function OngoingTripCarousel({
 
           {/* 몇 장이 더 있는지 알리는 점. 카드가 두 장 이상일 때만 그린다. */}
           {trips.length > 1 ? (
-            <View className="mt-3 flex-row justify-center">
+            <View className="mt-2.5 flex-row justify-center">
               {trips.map((trip, index) => (
                 <View
                   key={trip.tripId}
-                  className="mx-0.5 h-1.5 rounded-full"
+                  className="mx-0.5 h-1 rounded-full"
                   style={{
-                    width: index === page ? 14 : 6,
+                    width: index === page ? 12 : 5,
                     backgroundColor: index === page ? HOME_ACCENT : '#D9DDE4',
                   }}
                 />
@@ -141,23 +141,23 @@ function MiniTripCard({
     >
       <View style={{ width: STRIPE, backgroundColor: trip.theme.primary }} />
 
-      <View className="flex-1 px-3.5 py-3">
+      <View className="flex-1 px-3 py-2.5">
         <View className="flex-row items-center">
           <Text
             className="flex-1 font-black text-pot-ink"
-            style={{ fontSize: 14.5, letterSpacing: -0.3 }}
+            style={{ fontSize: 13, letterSpacing: -0.3 }}
             numberOfLines={1}
           >
             {destination} {trip.flag}
           </Text>
           {dday ? (
             <View
-              className="ml-1.5 rounded-full px-2 py-0.5"
+              className="ml-1 rounded-full px-1.5 py-0.5"
               style={{ backgroundColor: trip.theme.primarySoft }}
             >
               <Text
                 className="font-black"
-                style={{ fontSize: 10, color: trip.theme.primary, ...NUM }}
+                style={{ fontSize: 9.5, color: trip.theme.primary, ...NUM }}
               >
                 {dday}
               </Text>
@@ -165,21 +165,21 @@ function MiniTripCard({
           ) : null}
         </View>
 
-        <Text className="mt-1 text-pot-faint" style={{ fontSize: 11, ...NUM }}>
+        <Text className="mt-1 text-pot-faint" style={{ fontSize: 10, ...NUM }} numberOfLines={1}>
           {`${dates.start} – ${dates.end}${nights ? `  ·  ${nights}` : ''}`}
         </Text>
 
-        <Text className="mt-3 text-pot-faint" style={{ fontSize: 10.5 }}>
+        <Text className="mt-2.5 text-pot-faint" style={{ fontSize: 9.5 }}>
           준비 금액
         </Text>
-        <Text className="mt-0.5 text-pot-ink" style={{ fontSize: 12.5, ...NUM }}>
+        <Text className="mt-0.5 text-pot-ink" style={{ fontSize: 11.5, ...NUM }} numberOfLines={1}>
           <Text className="font-black">{current}원</Text>
           <Text className="text-pot-faint"> / {target}원</Text>
         </Text>
 
         <View className="mt-2 flex-row items-center">
           <View
-            className="h-1.5 flex-1 overflow-hidden rounded-full"
+            className="h-1 flex-1 overflow-hidden rounded-full"
             style={{ backgroundColor: HOME_TRACK }}
           >
             <View
@@ -192,7 +192,7 @@ function MiniTripCard({
           </View>
           <Text
             className="ml-2 font-black"
-            style={{ fontSize: 11, color: rate === null ? '#8B94A2' : trip.theme.primary, ...NUM }}
+            style={{ fontSize: 10.5, color: rate === null ? '#8B94A2' : trip.theme.primary, ...NUM }}
           >
             {rate === null ? '미설정' : `${rate}%`}
           </Text>

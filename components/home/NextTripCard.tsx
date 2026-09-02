@@ -18,10 +18,10 @@ type Props = {
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
 /** 왼쪽 가장자리에 파인 반원. 티켓처럼 보이게 하는 장치다. */
-const NOTCH = 12;
+const NOTCH = 10;
 const NOTCH_COUNT = 4;
 /** 오른쪽 일러스트 크기. 이 값만큼 위쪽 글자에 오른쪽 여백을 준다. */
-const ART = 132;
+const ART = 112;
 
 /**
  * 대표 홈 메인 카드 — 출발이 가장 가까운 여행 하나.
@@ -58,7 +58,7 @@ export function NextTripCard({ trip, onPress }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`${destination} 보기`}
       onPress={() => onPress(trip.tripId)}
-      className="rounded-3xl bg-white px-5 pb-4 pt-5 active:opacity-90"
+      className="rounded-3xl bg-white px-4 pb-3.5 pt-4 active:opacity-90"
       style={{
         shadowColor: '#111827',
         shadowOpacity: 0.07,
@@ -85,50 +85,50 @@ export function NextTripCard({ trip, onPress }: Props) {
       {/* 오른쪽 일러스트. 글자를 가리지 않게 위쪽 줄에 오른쪽 여백을 준다. */}
       <Image
         source={require('@/assets/home/next-trip.png')}
-        style={{ position: 'absolute', right: 2, top: 30, width: ART, height: ART }}
+        style={{ position: 'absolute', right: 0, top: 24, width: ART, height: ART }}
         resizeMode="contain"
         // 장식이다. 화면 낭독기가 읽을 내용이 없다.
         accessible={false}
       />
 
       <View className="flex-row items-start justify-between">
-        <Text style={{ fontSize: 11, fontWeight: '900', letterSpacing: 1.4, color: HOME_DANGER }}>
+        <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1.3, color: HOME_DANGER }}>
           NEXT TRIP
         </Text>
         {dday ? (
-          <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: HOME_DANGER_SOFT }}>
-            <Text className="font-black" style={{ fontSize: 11, color: HOME_DANGER, ...NUM }}>
+          <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: HOME_DANGER_SOFT }}>
+            <Text className="font-black" style={{ fontSize: 10, color: HOME_DANGER, ...NUM }}>
               {dday}
             </Text>
           </View>
         ) : null}
       </View>
 
-      <View className="mt-2 flex-row items-center" style={{ paddingRight: ART - 24 }}>
+      <View className="mt-1.5 flex-row items-center" style={{ paddingRight: ART - 22 }}>
         <Text
           className="font-black text-pot-ink"
-          style={{ fontSize: 21, letterSpacing: -0.7 }}
+          style={{ fontSize: 18.5, letterSpacing: -0.6 }}
           numberOfLines={1}
         >
           {destination}
         </Text>
-        <Text className="ml-1.5" style={{ fontSize: 17 }}>
+        <Text className="ml-1.5" style={{ fontSize: 15 }}>
           {trip.flag}
         </Text>
       </View>
 
       <Text
         className="mt-1 text-pot-mute"
-        style={{ fontSize: 12.5, paddingRight: ART - 24, ...NUM }}
+        style={{ fontSize: 11.5, paddingRight: ART - 22, ...NUM }}
         numberOfLines={1}
       >
         {meta.join('  ·  ')}
       </Text>
 
       {/* 금액 두 칸 */}
-      <View className="mt-5 flex-row" style={{ paddingRight: ART - 44 }}>
+      <View className="mt-3.5 flex-row" style={{ paddingRight: ART - 40 }}>
         <View className="flex-1">
-          <Text className="text-pot-faint" style={{ fontSize: 11.5 }}>
+          <Text className="text-pot-faint" style={{ fontSize: 10.5 }}>
             준비된 금액
           </Text>
           <Text
@@ -141,10 +141,10 @@ export function NextTripCard({ trip, onPress }: Props) {
           </Text>
         </View>
 
-        <View className="mx-4 w-px self-stretch bg-pot-line" />
+        <View className="mx-3 w-px self-stretch bg-pot-line" />
 
         <View className="flex-1">
-          <Text className="text-pot-faint" style={{ fontSize: 11.5 }}>
+          <Text className="text-pot-faint" style={{ fontSize: 10.5 }}>
             목표 금액
           </Text>
           <Text
@@ -157,9 +157,9 @@ export function NextTripCard({ trip, onPress }: Props) {
       </View>
 
       {/* 진행률 */}
-      <View className="mt-4 flex-row items-center">
+      <View className="mt-3.5 flex-row items-center">
         <View
-          className="h-2 flex-1 overflow-hidden rounded-full"
+          className="h-1.5 flex-1 overflow-hidden rounded-full"
           style={{ backgroundColor: HOME_TRACK }}
         >
           <View
@@ -172,7 +172,7 @@ export function NextTripCard({ trip, onPress }: Props) {
         </View>
         <Text
           className="ml-3 font-black"
-          style={{ fontSize: 13, color: rate === null ? '#8B94A2' : HOME_ACCENT, ...NUM }}
+          style={{ fontSize: 12, color: rate === null ? '#8B94A2' : HOME_ACCENT, ...NUM }}
         >
           {rate === null ? '목표 미설정' : `${rate}%`}
         </Text>
@@ -180,12 +180,12 @@ export function NextTripCard({ trip, onPress }: Props) {
 
       {/* 부족 금액 + CTA */}
       <View
-        className="mt-4 flex-row items-center justify-between rounded-2xl py-2 pl-4 pr-2"
+        className="mt-3 flex-row items-center justify-between rounded-2xl py-1.5 pl-3.5 pr-1.5"
         style={{ backgroundColor: HOME_ACCENT_SOFT }}
       >
         <Text
           className="flex-1 pr-2 font-bold"
-          style={{ fontSize: 12.5, color: HOME_ACCENT, ...NUM }}
+          style={{ fontSize: 11.5, color: HOME_ACCENT, ...NUM }}
           numberOfLines={1}
         >
           {shortage === null
@@ -195,8 +195,8 @@ export function NextTripCard({ trip, onPress }: Props) {
               : `${shortage.toLocaleString('ko-KR')}원 더 준비하면 돼요!`}
         </Text>
 
-        <View className="flex-row items-center rounded-full bg-pot-ink px-3.5 py-2.5">
-          <Text className="font-bold text-white" style={{ fontSize: 12.5 }} numberOfLines={1}>
+        <View className="flex-row items-center rounded-full bg-pot-ink px-3 py-2">
+          <Text className="font-bold text-white" style={{ fontSize: 11.5 }} numberOfLines={1}>
             {`${destination} 보기`}
           </Text>
           <Ionicons name="chevron-forward" size={12} color="#FFFFFF" style={{ marginLeft: 2 }} />

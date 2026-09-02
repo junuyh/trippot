@@ -32,8 +32,8 @@ export function ActionRequiredSection({ actions, onPressAction, onPressSeeAll }:
       />
 
       {actions.length === 0 ? (
-        <View className="rounded-2xl bg-white px-4 py-5">
-          <Text className="text-center text-pot-mute" style={{ fontSize: 13, lineHeight: 19 }}>
+        <View className="rounded-2xl bg-white px-4 py-4">
+          <Text className="text-center text-pot-mute" style={{ fontSize: 12.5, lineHeight: 18 }}>
             지금 챙길 일이 없어요. 준비가 잘 되고 있어요 👍
           </Text>
         </View>
@@ -54,18 +54,18 @@ export function ActionRequiredSection({ actions, onPressAction, onPressSeeAll }:
               accessibilityRole="button"
               accessibilityLabel={`${action.textBefore}${action.highlight ?? ''}${action.textAfter}`}
               onPress={() => onPressAction(action.id)}
-              className="flex-row items-center px-4 py-3.5 active:bg-pot-visual"
+              className="flex-row items-center px-3.5 py-2.5 active:bg-pot-visual"
               style={index > 0 ? { borderTopWidth: 1, borderTopColor: '#F1F3F6' } : undefined}
             >
               <View
-                className="h-10 w-10 items-center justify-center rounded-2xl"
+                className="h-9 w-9 items-center justify-center rounded-xl"
                 style={{ backgroundColor: action.tint }}
               >
-                <Ionicons name={action.icon as never} size={18} color="#4B5563" />
+                <Ionicons name={action.icon as never} size={16} color="#4B5563" />
               </View>
 
               <View className="ml-3 flex-1">
-                <Text className="text-pot-ink" style={{ fontSize: 13.5, lineHeight: 19 }}>
+                <Text className="text-pot-ink" style={{ fontSize: 12.5, lineHeight: 17 }}>
                   {action.textBefore}
                   {action.highlight ? (
                     <Text className="font-black" style={{ color: HOME_DANGER, ...NUM }}>
@@ -74,12 +74,12 @@ export function ActionRequiredSection({ actions, onPressAction, onPressSeeAll }:
                   ) : null}
                   {action.textAfter}
                 </Text>
-                <Text className="mt-0.5 text-pot-faint" style={{ fontSize: 11.5 }} numberOfLines={1}>
+                <Text className="mt-0.5 text-pot-faint" style={{ fontSize: 10.5 }} numberOfLines={1}>
                   {action.subtitle}
                 </Text>
               </View>
 
-              <Ionicons name="chevron-forward" size={15} color="#C3C9D2" />
+              <Ionicons name="chevron-forward" size={14} color="#C3C9D2" />
             </Pressable>
           ))}
         </View>

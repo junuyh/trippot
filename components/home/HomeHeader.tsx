@@ -34,20 +34,20 @@ export function HomeHeader({
   const greeting = userName ? `안녕하세요, ${userName}님 👋` : '안녕하세요 👋';
 
   return (
-    <View className="bg-pot-visual px-5 pb-4" style={{ paddingTop: insets.top + 14 }}>
+    <View className="bg-pot-visual px-4 pb-3" style={{ paddingTop: insets.top + 12 }}>
       <View className="flex-row items-center">
-        <View className="h-9 w-9 items-center justify-center rounded-xl bg-pot-ink">
-          <Ionicons name="airplane" size={18} color="#FFFFFF" />
+        <View className="h-8 w-8 items-center justify-center rounded-[10px] bg-pot-ink">
+          <Ionicons name="airplane" size={16} color="#FFFFFF" />
         </View>
         <Text
           className="ml-2.5 flex-1 font-black text-pot-ink"
-          style={{ fontSize: 21, letterSpacing: -0.6 }}
+          style={{ fontSize: 18, letterSpacing: -0.5 }}
         >
           TripPot
         </Text>
 
-        <View className="mr-2 h-9 w-9 items-center justify-center">
-          <Ionicons name="notifications-outline" size={22} color="#111827" />
+        <View className="mr-1 h-8 w-8 items-center justify-center">
+          <Ionicons name="notifications-outline" size={19} color="#111827" />
         </View>
 
         <Pressable
@@ -55,9 +55,9 @@ export function HomeHeader({
           accessibilityLabel="마이페이지"
           onPress={onPressProfile}
           hitSlop={8}
-          className="h-9 w-9 items-center justify-center active:opacity-60"
+          className="h-8 w-8 items-center justify-center active:opacity-60"
         >
-          <Ionicons name="person-circle-outline" size={26} color="#111827" />
+          <Ionicons name="person-circle-outline" size={23} color="#111827" />
         </Pressable>
       </View>
 
@@ -65,11 +65,11 @@ export function HomeHeader({
         <View className="flex-1 pr-3">
           <Text
             className="font-black text-pot-ink"
-            style={{ fontSize: 20, lineHeight: 26, letterSpacing: -0.6 }}
+            style={{ fontSize: 17.5, lineHeight: 23, letterSpacing: -0.6 }}
           >
             {greeting}
           </Text>
-          <Text className="mt-1 text-pot-mute" style={{ fontSize: 13, ...NUM }}>
+          <Text className="mt-0.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
             {daysToNextTrip === null
               ? '새 여행을 계획해보세요.'
               : daysToNextTrip === 0
@@ -82,10 +82,10 @@ export function HomeHeader({
           accessibilityRole="button"
           accessibilityLabel="새 여행 만들기"
           onPress={onPressCreateTrip}
-          className="flex-row items-center rounded-full bg-pot-ink px-4 py-3 active:opacity-80"
+          className="flex-row items-center rounded-full bg-pot-ink px-3.5 py-2.5 active:opacity-80"
         >
-          <Ionicons name="add" size={16} color="#FFFFFF" />
-          <Text className="ml-1 font-bold text-white" style={{ fontSize: 13 }}>
+          <Ionicons name="add" size={15} color="#FFFFFF" />
+          <Text className="ml-1 font-bold text-white" style={{ fontSize: 12.5 }}>
             여행 만들기
           </Text>
         </Pressable>

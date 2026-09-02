@@ -91,15 +91,15 @@ export function HomeView({
         onPressCreateTrip={onPressCreateTrip}
       />
 
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-28 pt-1">
+      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-1">
         {nextTrip ? <NextTripCard trip={nextTrip} onPress={onPressTrip} /> : null}
 
-        <View className="mt-7">
+        <View className="mt-6">
           <ActionRequiredSection actions={actions} onPressAction={onPressAction} />
         </View>
 
         {showCarousel ? (
-          <View className="mt-7">
+          <View className="mt-6">
             <OngoingTripCarousel
               trips={otherTrips}
               emptyVariant={emptyVariant}
@@ -110,17 +110,17 @@ export function HomeView({
           </View>
         ) : null}
 
-        <View className="mt-7">
+        <View className="mt-6">
           <TravelFundSummary fund={fund} />
         </View>
 
-        <View className="mt-7">
+        <View className="mt-6">
           <PastTripInsight insight={insight} onPress={onPressInsight} />
         </View>
 
         {/* 모임 바로가기 — docs/09_IA §1-3. 어디서 눌러도 같은 모임 상세로 간다. */}
         {groups.length > 0 ? (
-          <View className="mt-7">
+          <View className="mt-6">
             <SectionHeader title="모임 바로가기" />
             <GroupShortcutList groups={groups} onPress={onPressGroup} />
           </View>
