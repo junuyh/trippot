@@ -136,6 +136,8 @@ export function PostDetailView({
           accessibilityRole="button"
           accessibilityState={{ selected: post.likedByMe, busy: likeBusy }}
           accessibilityLabel={post.likedByMe ? '좋아요 취소' : '좋아요'}
+          // 좋아요·싫어요를 같은 모양(엄지)으로 맞춘다. 하트와 엄지를 섞으면
+          // 두 버튼이 다른 종류의 행동처럼 보인다.
           disabled={likeBusy}
           onPress={onToggleLike}
           hitSlop={10}
@@ -143,9 +145,9 @@ export function PostDetailView({
           style={{ opacity: likeBusy ? 0.5 : 1 }}
         >
           <Ionicons
-            name={post.likedByMe ? 'heart' : 'heart-outline'}
-            size={22}
-            color={post.likedByMe ? '#EE3524' : '#111827'}
+            name={post.likedByMe ? 'thumbs-up' : 'thumbs-up-outline'}
+            size={20}
+            color={post.likedByMe ? '#111827' : '#747B88'}
           />
           {post.likeCount > 0 ? (
             <Text className="ml-2 text-pot-mute" style={{ fontSize: 14, ...NUM }}>

@@ -139,9 +139,9 @@ export function PostCard({ post, onPress }: Props) {
       {/* 반응 */}
       <View className="mt-3 flex-row items-center">
         <Ionicons
-          name={post.likedByMe ? 'heart' : 'heart-outline'}
-          size={17}
-          color={post.likedByMe ? '#EE3524' : '#8B94A2'}
+          name={post.likedByMe ? 'thumbs-up' : 'thumbs-up-outline'}
+          size={15}
+          color={post.likedByMe ? '#111827' : '#8B94A2'}
         />
         <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
           {post.likeCount}
