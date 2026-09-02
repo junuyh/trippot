@@ -40,6 +40,17 @@ type Props = {
   /** 과거 날짜 선택을 막는다. 기본 true */
   disablePast?: boolean;
   /**
+   * 오늘로부터 몇 달 뒤까지 고를 수 있는지. 넘기지 않으면 제한이 없다.
+   * 여행 생성은 18 을 준다. 3년 뒤 날짜를 고를 수 있어 봐야 기준 금액이 무의미하고,
+   * 다음 달 버튼을 잘못 눌러 엉뚱한 해로 넘어간 것을 못 알아채는 쪽이 더 흔하다.
+   */
+  maxMonthsAhead?: number;
+  /**
+   * 달력 아래 안내 문구를 그릴지. 기본 true.
+   * 화면이 섹션 헤더에 같은 안내를 두는 경우에만 false 로 끈다.
+   */
+  showHint?: boolean;
+  /**
    * 'range'  가는 날~오는 날 (기본)
    * 'single' 하루만 고른다. 지출 날짜처럼 한 날짜만 필요할 때 쓴다.
    *          이때 startDate 와 endDate 에 같은 날이 담긴다.
@@ -54,6 +65,8 @@ export function DateRangeCalendar({
   endDate,
   onChange,
   disablePast = true,
+  maxMonthsAhead,
+  showHint = true,
   mode = 'range',
 }: Props) {
   const today = useMemo(() => startOfDay(new Date()), []);
@@ -107,6 +120,12 @@ export function DateRangeCalendar({
     ? true
     : !isBefore(startOfMonth(subMonths(visibleMonth, 1)), startOfMonth(today));
 
+  // 상한. maxMonthsAhead 를 안 주면 제한이 없다.
+  const lastMonth =
+    maxMonthsAhead === undefined ? null : startOfMonth(addMonths(today, maxMonthsAhead));
+  const canGoNext = lastMonth === null || isBefore(startOfMonth(addMonths(visibleMonth, 1)), addMonths(lastMonth, 1));
+  const canGoNextYear = lastMonth === null || isBefore(startOfYear(addYears(visibleMonth, 1)), addMonths(lastMonth, 1));
+
   // 월 선택 모드에서는 해 단위로 옮긴다. 올해보다 이전으로는 못 간다.
   const canGoPrevYear = !disablePast
     ? true
@@ -154,10 +173,13 @@ export function DateRangeCalendar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={monthPickerOpen ? '다음 해' : '다음 달'}
+          disabled={monthPickerOpen ? !canGoNextYear : !canGoNext}
           onPress={() =>
             setVisibleMonth((m) => (monthPickerOpen ? addYears(m, 1) : addMonths(m, 1)))
           }
-          className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
+          className={`h-9 w-9 items-center justify-center rounded-full active:bg-gray-100 ${
+            (monthPickerOpen ? canGoNextYear : canGoNext) ? '' : 'opacity-30'
+          }`}
         >
           <Ionicons name="chevron-forward" size={20} color="#374151" />
         </Pressable>
@@ -168,7 +190,9 @@ export function DateRangeCalendar({
         <View className="flex-row flex-wrap py-1">
           {MONTHS.map((month) => {
             const monthDate = startOfMonth(setMonth(visibleMonth, month - 1));
-            const disabled = disablePast && isBefore(monthDate, startOfMonth(today));
+            const disabled =
+              (disablePast && isBefore(monthDate, startOfMonth(today))) ||
+              (lastMonth !== null && isBefore(lastMonth, monthDate));
             const selected = isSameMonth(monthDate, visibleMonth);
             return (
               <View key={month} className="w-1/4 p-1">
@@ -224,7 +248,8 @@ export function DateRangeCalendar({
         {days.map((day) => {
           const outside = !isSameMonth(day, visibleMonth);
           const past = disablePast && isBefore(day, today);
-          const disabled = past;
+          const tooFar = lastMonth !== null && isBefore(endOfMonth(lastMonth), day);
+          const disabled = past || tooFar;
 
           const isStart = start ? isSameDay(day, start) : false;
           const isEnd = end ? isSameDay(day, end) : false;
@@ -269,6 +294,7 @@ export function DateRangeCalendar({
       )}
 
       {/* ── 안내 ── */}
+      {showHint ? (
       <Text className="mt-2 px-1 text-xs text-gray-400">
         {mode === 'single'
           ? '날짜를 눌러 바꿀 수 있어요.'
@@ -278,6 +304,7 @@ export function DateRangeCalendar({
               ? '오는 날을 선택해 주세요.'
               : '날짜를 다시 누르면 새로 선택할 수 있어요.'}
       </Text>
+      ) : null}
     </View>
   );
 }

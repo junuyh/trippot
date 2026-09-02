@@ -40,25 +40,35 @@ export function NewGroupForm({
   disabled = false,
 }: Props) {
   return (
-    <View className="gap-5">
+    <View className="gap-4">
       <Input
         label="모임 이름"
         required
         value={groupName}
         onChangeText={onChangeGroupName}
         onBlur={onBlurGroupName}
-        placeholder="예: 대학 동기 모임"
+        placeholder="예) 대학동기, 등산모임"
         error={groupNameError}
         editable={!disabled}
-        maxLength={30}
+        maxLength={20}
         returnKeyType="done"
       />
 
       <View className="gap-2">
-        <Text className="text-sm font-medium text-gray-700">함께 가는 사람</Text>
-        <Text className="-mt-1 text-xs text-gray-400">
-          이름만 적어두면 돼요. 초대는 나중에 할 수 있어요.
-        </Text>
+        <View className="flex-row items-baseline">
+          <Text className="text-[13px] font-bold text-gray-900">함께 가는 사람</Text>
+          <Text className="ml-auto text-[11px] text-gray-400">지금 안 넣어도 괜찮아요</Text>
+        </View>
+
+        {/*
+          본인은 지울 수 없는 고정 행이다.
+          입력칸으로 두면 이름을 비우거나 다른 사람으로 바꿀 수 있게 되는데,
+          trip_members 의 OWNER 는 로그인한 사용자로 고정이라 화면과 저장값이 어긋난다.
+        */}
+        <View className="h-12 flex-row items-center gap-2 rounded-xl bg-gray-100 px-3.5">
+          <Ionicons name="person" size={15} color="#6b7280" />
+          <Text className="text-sm font-bold text-gray-700">나</Text>
+        </View>
 
         {companionNames.map((name, index) => (
           <View key={index} className="flex-row items-center gap-2">
@@ -66,7 +76,7 @@ export function NewGroupForm({
               <Input
                 value={name}
                 onChangeText={(value) => onChangeCompanionName(index, value)}
-                placeholder={`동행자 ${index + 1}`}
+                placeholder="이름"
                 editable={!disabled}
                 maxLength={20}
                 accessibilityLabel={`동행자 ${index + 1} 이름`}
@@ -77,9 +87,9 @@ export function NewGroupForm({
               accessibilityLabel={`동행자 ${index + 1} 삭제`}
               disabled={disabled}
               onPress={() => onRemoveCompanion(index)}
-              className="h-11 w-11 items-center justify-center rounded-xl bg-gray-100 active:bg-gray-200"
+              className="h-12 w-11 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 active:bg-gray-200"
             >
-              <Ionicons name="close" size={18} color="#6b7280" />
+              <Ionicons name="close" size={16} color="#96a0ae" />
             </Pressable>
           </View>
         ))}
@@ -89,13 +99,17 @@ export function NewGroupForm({
           accessibilityLabel="동행자 추가"
           disabled={disabled}
           onPress={onAddCompanion}
-          className={`flex-row items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 py-3 active:bg-gray-50 ${
+          className={`h-12 flex-row items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 active:bg-gray-50 ${
             disabled ? 'opacity-40' : ''
           }`}
         >
-          <Ionicons name="add" size={18} color="#6b7280" />
-          <Text className="text-sm font-medium text-gray-600">동행자 추가</Text>
+          <Ionicons name="add" size={17} color="#5c6675" />
+          <Text className="text-[13px] font-bold text-gray-600">동행자 추가</Text>
         </Pressable>
+
+        <Text className="text-[11px] leading-5 text-gray-400">
+          이름만 적어두면 돼요. 초대는 나중에 할 수 있어요.
+        </Text>
       </View>
     </View>
   );

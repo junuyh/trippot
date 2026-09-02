@@ -210,7 +210,10 @@ export default function ScreenMY01() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-14">
+    // ⚠️ pb-28 은 하단 탭바 자리다. FloatingTabBar 가 화면 위에 떠 있어(absolute)
+    //    내용을 가린다. 바 높이 64 + 안전영역(최소 18)을 덮는 값이다.
+    //    홈·커뮤니티도 같은 값을 쓴다. (app/(tabs)/_layout.tsx 주석)
+    <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
       {/* 상단 — 배경색으로 하단과 구분한다 */}
       <View className="bg-pot-visual px-5 pb-7 pt-6">
         <ProfileSection

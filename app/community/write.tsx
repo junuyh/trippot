@@ -12,6 +12,12 @@
 //
 // ⚠️ 유료 팁은 2026-08-31 팀 결정으로 뺐다. 유형 선택지에 없다.
 //
+// ⚠️ 사진은 고르고 미리보기까지만 된다. 저장하지 않는다.
+//    여러 장이라 컬럼 하나로는 안 되고 post_images 테이블이나 text[] 가 필요하다.
+//    Storage 버킷도 아직 없다.
+//    둘 다 DB 담당자에게 요청해 둔 상태다. (CLAUDE.md 1장 — 마이그레이션은 담당자만)
+//    TODO: 준비되면 업로드 후 URL 을 createPost 에 넘긴다.
+//
 // 이 파일은 데이터 조회·상태 관리·로그 기록만 한다.
 // 실제로 보이는 UI 는 components/community/ 에 있다. (CLAUDE.md 9장)
 // ============================================================================
@@ -19,6 +25,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 
 import { PostWriteForm } from '@/components/community';
+import { MAX_IMAGES, usePostImages } from '@/components/community/usePostImages';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { POST_TYPE, POST_TYPE_LABEL } from '@/lib/constants/status';
 import {
@@ -46,6 +53,7 @@ export default function ScreenCOMM04() {
   const [contentError, setContentError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const photos = usePostImages();
 
   function validate(): boolean {
     const t = title.trim();
@@ -114,6 +122,12 @@ export default function ScreenCOMM04() {
         titleError={titleError}
         contentError={contentError}
         submitError={submitError}
+        imageUris={photos.images.map((image) => image.uri)}
+        maxImages={MAX_IMAGES}
+        imageError={photos.error}
+        imagePicking={photos.picking}
+        onPickImages={() => void photos.pick()}
+        onRemoveImage={photos.removeAt}
         submitting={submitting}
         onSubmit={() => void handleSubmit()}
       />

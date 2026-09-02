@@ -426,7 +426,6 @@ export const TRAVEL_STYLE = {
   BUDGET: 'budget',
   STANDARD: 'standard',
   COMFORT: 'comfort',
-  LUXURY: 'luxury',
 } as const;
 export type TravelStyle = (typeof TRAVEL_STYLE)[keyof typeof TRAVEL_STYLE];
 
@@ -729,23 +728,28 @@ export const INSURANCE_REFERRAL_STATUS_LABEL: Record<InsuranceReferralStatus, st
  *    낮은 등급을 고르기 부끄러워하는 선택이 된다.
  *    소비 성향 표현이지 등급이 아니므로 서술형으로 바꿨다.
  *
- * 단계는 4개를 유지한다. 5단계로 늘리지 않는다.
+ * 단계는 3개를 유지한다. 늘리지 않는다.
  *   · 사용자가 인접 단계를 구분하지 못한다
  *   · 각 단계의 배수를 정할 근거가 없다
  *   · 선택지가 늘수록 여행 생성 이탈이 늘어난다
  * 대신 TRAVEL_STYLE_DESCRIPTION 으로 각 단계가 무슨 뜻인지 명확히 한다.
+ *
+ * ⚠️ 2026-09-01 · 4단계(budget/standard/comfort/luxury) → 3단계로 줄였다. (L 승인)
+ *    빠진 값은 luxury 다. comfort 를 빼지 않은 이유는 supabase/seed.sql 의
+ *    오사카 여행이 comfort 를 쓰고 있어서다. seed.sql 은 DB 담당 소유라 고칠 수 없다.
+ *    최상위 라벨은 comfort 가 이어받아 '아낌없이' 가 됐다.
+ *    → 이미 luxury 로 저장된 여행이 있으면 라벨과 배수가 조회되지 않는다.
  */
 export const TRAVEL_STYLE_LABEL: Record<TravelStyle, string> = {
   budget: '아끼는 편',
   standard: '보통',
-  comfort: '편하게',
-  luxury: '아낌없이',
+  comfort: '아낌없이',
 };
 
 /**
  * 스타일 선택지의 보조 설명. 라벨 아래에 함께 노출한다.
  *
- * 라벨만으로는 '편하게' 와 '아낌없이' 의 차이가 금액으로 얼마나 벌어지는지
+ * 라벨만으로는 '보통' 과 '아낌없이' 의 차이가 금액으로 얼마나 벌어지는지
  * 알 수 없다. 숙소·식사라는 구체적인 기준을 주어야 사용자가 고를 수 있다.
  * 실제 배수도 숙소·식비에서 가장 크게 갈린다.
  * (lib/constants/budgetMultiplier.ts)
@@ -754,7 +758,6 @@ export const TRAVEL_STYLE_DESCRIPTION: Record<TravelStyle, string> = {
   budget: '가성비 위주, 게스트하우스·현지식',
   standard: '무난한 호텔, 적당한 외식',
   comfort: '좋은 호텔, 맛집 위주',
-  luxury: '고급 숙소, 파인다이닝',
 };
 
 /** 결산 후 소비 유형 결과 화면에 표시한다. */
