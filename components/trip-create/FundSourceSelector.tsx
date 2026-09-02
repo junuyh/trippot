@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import { CurrencyInput } from '@/components/ui';
+import { institutionName } from '@/lib/constants/bank';
 import { FUND_SOURCE_TYPE, type FundSourceType } from '@/lib/constants/status';
 import type { FinancialAccount } from '@/lib/supabase/queries/funds';
 
@@ -93,11 +94,9 @@ export function FundSourceSelector({
       {hasAccounts ? (
         <>
           {/*
-            ⚠️ 계좌를 가리키는 이름은 financial_accounts 에 있는 값만 쓴다.
-               시안의 '카카오뱅크 모임통장' 같은 은행명은 만들지 않는다.
-               institution_code 를 은행명으로 바꾸는 매핑이 프로젝트에 없어서
-               지어내면 DB 와 화면이 다른 말을 하게 된다.
-               (components/groups/types.ts 와 같은 판단)
+            기관명은 lib/constants/bank.ts 의 institutionName() 으로 만든다.
+            FUND-02(계좌 연결)와 같은 함수를 써야 한다. 같은 계좌가 화면마다
+            다른 이름으로 보이면 사용자는 다른 계좌라고 읽는다.
 
             ⚠️ NFR-002 — masked_account_number 는 DB 에 이미 마스킹된 값이다.
                그대로 쓰고, 원본 계좌번호는 어디에도 두지 않는다.
@@ -120,12 +119,12 @@ export function FundSourceSelector({
                 </View>
 
                 <View className="min-w-0 flex-1">
-                  {/* 계좌를 알아보는 단서는 마스킹된 번호뿐이다. 그게 제목이다 */}
                   <Text numberOfLines={1} className="text-[13px] font-extrabold text-gray-900">
-                    {account.masked_account_number ?? '연결된 계좌'}
+                    {institutionName(account.institution_code)}
                   </Text>
                   <Text numberOfLines={1} className="mt-0.5 text-[11px] text-gray-500">
-                    잔액 {account.current_balance.toLocaleString('ko-KR')}원
+                    {account.masked_account_number ?? '계좌'} · 잔액{' '}
+                    {account.current_balance.toLocaleString('ko-KR')}원
                   </Text>
                 </View>
 
