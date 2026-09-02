@@ -475,12 +475,22 @@ export default function ScreenTripHome() {
                     여행자금을 모을수록 다음 장면이 열려요
                   </Text>
                 </View>
+                {/*
+                  ⚠️ 이 행은 **예산이 아니라 모으는 행동**에 대한 안내다.
+                     "숙소까지 1,400,000원 · 하루 219,000원씩 모으면 딱 맞아요"
+                     를 읽고 사용자가 하려는 건 자금을 넣는 것이지
+                     카테고리별 예산을 들여다보는 게 아니다.
+                     그래서 여기만 여행자금 관리(FUND-01)로 보낸다.
+
+                     예산을 보는 두 곳 — 보딩패스 뒷면 · 금고 우측 — 은
+                     그대로 BUDGET-01 이다.
+                */}
                 <JourneySteps
                   stages={stages}
                   theme={theme}
                   nextTitle={nextTitle}
                   nextDesc={nextDesc}
-                  onPressNext={() => router.push(`/trips/${trip.id}/budget`)}
+                  onPressNext={() => router.push(`/trips/${trip.id}/funds`)}
                 />
               </View>
 
