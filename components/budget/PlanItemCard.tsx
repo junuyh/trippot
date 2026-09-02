@@ -62,11 +62,13 @@ type Props = {
   theme: CountryTheme;
   /** 설정 예산 − 선택된 계획 합계. 0 이면 행을 그리지 않는다 */
   reserveAmount: number;
-  onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
+  /** 없으면 체크·삭제를 막는다 (결산 중·완료) */
+  onToggle?: (id: string) => void;
+  onDelete?: (id: string) => void;
   /** 연결된 항목을 누르면 지출 상세로 간다 */
   onOpenLinked: (id: string) => void;
-  onStartAdd: () => void;
+  /** 없으면 '계획 항목 추가' 를 감춘다 (결산 중·완료) */
+  onStartAdd?: () => void;
 };
 
 function won(value: number): string {
@@ -95,7 +97,7 @@ export function PlanItemCard({
   return (
     <View style={{ gap: 9 }}>
       {items.map((item) =>
-        item.locked ? (
+        item.locked || !onToggle ? (
           // ── 실제 지출과 연결된 계획 ──────────────────────────────────
           <Pressable
             key={item.id}
@@ -206,7 +208,7 @@ export function PlanItemCard({
                 accessibilityLabel={`${item.name} 삭제`}
                 onPress={() => {
                   swipeRefs.current.get(item.id)?.close();
-                  onDelete(item.id);
+                  onDelete?.(item.id);
                 }}
                 style={{
                   width: 74,
@@ -292,7 +294,7 @@ export function PlanItemCard({
                   accessibilityRole="checkbox"
                   accessibilityLabel={`${item.name} 계획에 포함`}
                   accessibilityState={{ checked: item.selected }}
-                  onPress={() => onToggle(item.id)}
+                  onPress={() => onToggle?.(item.id)}
                   hitSlop={8}
                   style={{
                     width: 23,
@@ -361,27 +363,29 @@ export function PlanItemCard({
         </View>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="계획 항목 추가"
-        onPress={onStartAdd}
-        className="active:bg-gray-50"
-        style={{
-          marginTop: 1,
-          borderWidth: 1,
-          borderStyle: "dashed",
-          borderColor: "#cfd5dc",
-          borderRadius: 13,
-          backgroundColor: "#fff",
-          paddingVertical: 14,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ fontSize: 11, fontWeight: "800", color: "#576170" }}>
-          <Text style={{ color: theme.primary }}>＋ </Text>
-          계획 항목 추가
-        </Text>
-      </Pressable>
+      {onStartAdd ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="계획 항목 추가"
+          onPress={onStartAdd}
+          className="active:bg-gray-50"
+          style={{
+            marginTop: 1,
+            borderWidth: 1,
+            borderStyle: "dashed",
+            borderColor: "#cfd5dc",
+            borderRadius: 13,
+            backgroundColor: "#fff",
+            paddingVertical: 14,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ fontSize: 11, fontWeight: "800", color: "#576170" }}>
+            <Text style={{ color: theme.primary }}>＋ </Text>
+            계획 항목 추가
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

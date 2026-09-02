@@ -46,7 +46,9 @@ import {
   APPLIED_SOURCE,
   CATEGORY_CODE_TO_ANALYTICS,
   TRIP_OWNER_TYPE,
+  TRIP_STATUS,
   type CategoryCode,
+  type TripStatus,
 } from "@/lib/constants/status";
 // TODO: 로그인 연동 시 교체
 import { DEV_USER_ID } from "@/lib/constants/devUser";
@@ -472,6 +474,21 @@ export default function ScreenBUDGET01() {
 
   const confirmed = data.budget.target_amount > 0;
 
+
+  /**
+
+   * 결산 상태에서는 예산을 고칠 수 없다. (IA v2 §2-6-3)
+
+   * 화면을 새로 만들지 않고 권한만 바꾼다.
+
+   */
+
+  const tripStatus = data.trip.status as TripStatus;
+
+  const closingOrSettled =
+
+    tripStatus === TRIP_STATUS.ENDED || tripStatus === TRIP_STATUS.SETTLED;
+
   /**
    * 누적 모금액. 지금까지 실제로 모은 총금액이다. (스펙 데이터 정의)
    *
@@ -538,7 +555,10 @@ export default function ScreenBUDGET01() {
         지난 여행 지출 분석. 본문에 펼치지 않고 눌러서 바텀시트로 연다. (스펙)
         본문의 주인공은 카테고리별 예산이다.
       */}
+        {/* 결산 중·완료에는 예산 조정을 제안하지 않는다. 비교 대상이 움직이면 안 된다 */}
+      {closingOrSettled ? null : (
         <BudgetInsightButton items={insightItems} onPress={handleOpenSheet} />
+      )}
 
         <View className="gap-2.5">
           <View className="flex-row items-end justify-between">

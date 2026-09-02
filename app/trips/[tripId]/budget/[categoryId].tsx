@@ -62,10 +62,12 @@ import {
   CATEGORY_CODE_TO_ANALYTICS,
   CATEGORY_METHOD,
   PLAN_DISPLAY_MODE,
+  TRIP_STATUS,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
   type CategoryCode,
   type PlanDisplayMode,
+  type TripStatus,
 } from "@/lib/constants/status";
 import {
   createBudgetPlanItem,
@@ -670,6 +672,25 @@ export default function ScreenBUDGET02() {
     0,
     (data?.category.planned_amount ?? 0) - plannedTotal,
   );
+  /**
+   * 여행 상태에 따른 수정 권한. (IA v2 §2-6-3)
+   *
+   * 화면을 새로 만들지 않는다. 같은 화면에서 데이터와 권한만 바꾼다.
+   *
+   *   ENDED(결산 중)  예산·계획을 잠근다. 지출 확인·분류만 연다
+   *   SETTLED(완료)   전부 읽기 전용
+   *
+   * ⚠️ 결산 중에 계획을 고치면 이미 일어난 지출과 계획이 어긋난다.
+   *    결산은 '무엇을 계획했고 얼마를 썼나' 를 비교하는 자리라
+   *    비교 대상이 뒤에서 움직이면 안 된다.
+   */
+  const tripStatus = data?.trip.status as TripStatus | undefined;
+  const settled = tripStatus === TRIP_STATUS.SETTLED;
+  const closing = tripStatus === TRIP_STATUS.ENDED;
+  /** 예산·계획을 고칠 수 있는가 */
+  const canEditPlan = !settled && !closing;
+  /** 실제 지출을 넣거나 분류할 수 있는가. 결산 중에도 열어 둔다 */
+  const canEditSpending = !settled;
   const spentTotal = useMemo(
     () => expenses.reduce((sum, expense) => sum + expense.amount, 0),
     [expenses],
@@ -779,10 +800,14 @@ export default function ScreenBUDGET02() {
           spentTotal={spentTotal}
           preparedAmount={data.category.prepared_amount}
           recommendedAmount={data.category.recommended_amount}
-          onStartEdit={() => {
-            setDraftAmount(data.category.planned_amount);
-            setEditingBudget(true);
-          }}
+          onStartEdit={
+            canEditPlan
+              ? () => {
+                  setDraftAmount(data.category.planned_amount);
+                  setEditingBudget(true);
+                }
+              : undefined
+          }
         />
 
         {/*
@@ -790,7 +815,7 @@ export default function ScreenBUDGET02() {
           토글을 바꾸면 이 카테고리 설정 예산에 즉시 반영한다.
           별도의 적용 버튼을 두지 않는다. (스펙)
         */}
-        {insight ? (
+        {insight && canEditPlan ? (
           <View
             style={{
               marginTop: 12,
@@ -863,6 +888,30 @@ export default function ScreenBUDGET02() {
           </View>
         ) : null}
 
+        {/* 결산 상태 안내. 왜 못 고치는지 알려주지 않으면 고장으로 읽힌다 */}
+        {closing || settled ? (
+          <View
+            style={{
+              marginTop: 12,
+              borderRadius: 12,
+              backgroundColor: settled ? "#eef2f8" : "#fff7e7",
+              padding: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                lineHeight: 16,
+                color: settled ? "#5d6674" : "#76643f",
+              }}
+            >
+              {settled
+                ? "결산이 확정돼 예산과 지출을 고칠 수 없어요. 기록을 보는 화면이에요."
+                : "결산 중이라 예산과 계획은 고칠 수 없어요. 실제 지출 확인과 분류는 그대로 할 수 있어요."}
+            </Text>
+          </View>
+        ) : null}
+
         {/* 세부 계획 */}
         <View style={{ marginTop: 27 }}>
           <View
@@ -881,10 +930,10 @@ export default function ScreenBUDGET02() {
             headcount={data.trip.headcount}
             theme={theme}
             reserveAmount={reserveAmount}
-            onToggle={handleTogglePlan}
-            onDelete={handleDeletePlan}
+            onToggle={canEditPlan ? handleTogglePlan : undefined}
+            onDelete={canEditPlan ? handleDeletePlan : undefined}
             onOpenLinked={handleOpenLinkedPlan}
-            onStartAdd={() => setAddingPlan(true)}
+            onStartAdd={canEditPlan ? () => setAddingPlan(true) : undefined}
           />
         </View>
 
@@ -913,7 +962,9 @@ export default function ScreenBUDGET02() {
           <ExpenseCard
             expenses={expenses}
             theme={theme}
-            onStartAdd={() => setAddingExpense(true)}
+            onStartAdd={
+              canEditSpending ? () => setAddingExpense(true) : undefined
+            }
             onPressMore={
               hasMoreExpenses
                 ? () =>

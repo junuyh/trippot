@@ -27,7 +27,8 @@ type Props = {
   preparedAmount: number;
   recommendedAmount: number;
 
-  onStartEdit: () => void;
+  /** 없으면 예산 수정 버튼을 감춘다 (결산 중·완료) */
+  onStartEdit?: () => void;
 };
 
 function won(value: number): string {
