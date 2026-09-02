@@ -429,7 +429,7 @@ export default function ScreenFUND01() {
             }))}
             onSelect={(transactionId) =>
               router.push(
-                `/trips/${data.trip.id}/funds/transactions?transactionId=${transactionId}`,
+                `/trips/${data.trip.id}/funds/transactions/${transactionId}`,
               )
             }
           />
