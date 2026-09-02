@@ -118,6 +118,9 @@ export default function ScreenCOMM04() {
     <>
       <Stack.Screen options={{ title: WRITE_TITLE[postType], headerTitleAlign: 'center' }} />
       <PostWriteForm
+        // 제목·내용이 최소 길이를 넘겨야 버튼이 검게 켜진다.
+        // 켜진 버튼을 눌렀는데 오류가 나는 일이 없도록 저장 조건과 같은 기준을 쓴다.
+        canSubmit={title.trim().length >= TITLE_MIN && content.trim().length >= CONTENT_MIN}
         typeOptions={TYPE_OPTIONS}
         postType={postType}
         onChangeType={(value) => setPostType(value as WritablePostType)}

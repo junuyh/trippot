@@ -43,6 +43,13 @@ type Props = {
 
   /** 저장 중이면 버튼이 잠기고 스피너가 뜬다. (중복 제출 방지) */
   submitting: boolean;
+  /**
+   * 지금 올릴 수 있는 상태인가.
+   *
+   * 아니면 버튼이 연회색으로 잠긴다. 길이 기준은 화면 파일이 갖고 있어
+   * 판단도 거기서 하고 결과만 받는다. (CLAUDE.md 9장)
+   */
+  canSubmit: boolean;
   onSubmit: () => void;
 };
 
@@ -76,6 +83,7 @@ export function PostWriteForm({
   onPickImages,
   onRemoveImage,
   submitting,
+  canSubmit,
   onSubmit,
 }: Props) {
   return (
@@ -214,17 +222,21 @@ export function PostWriteForm({
       <View className="mt-7">
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: submitting, busy: submitting }}
-          disabled={submitting}
+          accessibilityState={{ disabled: !canSubmit || submitting, busy: submitting }}
+          disabled={!canSubmit || submitting}
           onPress={onSubmit}
-          className={`w-full flex-row items-center justify-center rounded-xl bg-pot-ink px-5 py-3.5 active:bg-black ${
-            submitting ? 'opacity-40' : ''
-          }`}
+          className={`w-full flex-row items-center justify-center rounded-xl px-5 py-3.5 ${
+            canSubmit ? 'bg-pot-ink active:bg-black' : 'bg-pot-visual'
+          } ${submitting ? 'opacity-40' : ''}`}
         >
           {submitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text className="text-base font-semibold text-white">게시하기</Text>
+            <Text
+              className={`text-base font-semibold ${canSubmit ? 'text-white' : 'text-pot-faint'}`}
+            >
+              게시하기
+            </Text>
           )}
         </Pressable>
       </View>
