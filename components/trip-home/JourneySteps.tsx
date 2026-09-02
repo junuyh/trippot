@@ -3,10 +3,10 @@
 //   카드  padding 18/12/14 · border #edf0f2 · radius 14
 //   dot   41px · 지나온 단계는 잉크 채움 · 현재 단계는 포인트 컬러 테두리 + 링
 //   아직 먼 단계는 흑백 처리
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from "react-native";
 
-import type { JourneyStage } from '@/lib/budget/vault';
-import type { CountryTheme } from '@/lib/constants/countryTheme';
+import type { JourneyStage } from "@/lib/budget/vault";
+import type { CountryTheme } from "@/lib/constants/countryTheme";
 
 type Props = {
   stages: JourneyStage[];
@@ -19,8 +19,9 @@ type Props = {
 };
 
 function shortWon(value: number): string {
-  if (value >= 10000) return `${Math.round(value / 10000).toLocaleString('ko-KR')}만`;
-  return value.toLocaleString('ko-KR');
+  if (value >= 10000)
+    return `${Math.round(value / 10000).toLocaleString("ko-KR")}만`;
+  return value.toLocaleString("ko-KR");
 }
 
 export function JourneySteps({
@@ -32,14 +33,14 @@ export function JourneySteps({
 }: Props) {
   const nextIndex = stages.findIndex((stage) => !stage.reached);
   // 다음 단계의 이모지를 안내 행에 그대로 쓴다. 어디로 향하는지가 한눈에 보인다.
-  const nextEmoji = nextIndex >= 0 ? stages[nextIndex].emoji : '🎉';
+  const nextEmoji = nextIndex >= 0 ? stages[nextIndex].emoji : "🎉";
 
   return (
     <View
       style={{
-        backgroundColor: '#fff',
+        backgroundColor: "#fff",
         borderWidth: 1,
-        borderColor: '#edf0f2',
+        borderColor: "#edf0f2",
         borderRadius: 14,
         paddingTop: 18,
         paddingHorizontal: 12,
@@ -50,12 +51,12 @@ export function JourneySteps({
         {/* 단계를 잇는 선. HTML 은 left/right 10% 에 걸친 한 줄이다 */}
         <View
           style={{
-            position: 'absolute',
-            left: '10%',
-            right: '10%',
+            position: "absolute",
+            left: "10%",
+            right: "10%",
             top: 20,
             height: 1,
-            backgroundColor: '#dfe2e6',
+            backgroundColor: "#dfe2e6",
           }}
         />
 
@@ -71,14 +72,18 @@ export function JourneySteps({
                   width: 41,
                   height: 41,
                   borderRadius: 20.5,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: done ? '#111827' : '#f1f2f3',
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: done ? "#111827" : "#f1f2f3",
                   borderWidth: current ? 2 : 1,
-                  borderColor: done ? '#111827' : current ? theme.primary : '#e0e3e6',
+                  borderColor: done
+                    ? "#111827"
+                    : current
+                      ? theme.primary
+                      : "#e0e3e6",
                   ...(current
                     ? {
-                        backgroundColor: '#fff',
+                        backgroundColor: "#fff",
                         // HTML 의 box-shadow 0 0 0 4px rgba(...,.1) 링
                         shadowColor: theme.primary,
                         shadowOpacity: 0.28,
@@ -89,21 +94,25 @@ export function JourneySteps({
                     : null),
                 }}
               >
-                <Text style={{ fontSize: 20, opacity: dim ? 0.45 : 1 }}>{stage.emoji}</Text>
+                <Text style={{ fontSize: 20, opacity: dim ? 0.45 : 1 }}>
+                  {stage.emoji}
+                </Text>
               </View>
 
               <Text
                 numberOfLines={1}
                 style={{
                   fontSize: 10,
-                  fontWeight: '800',
+                  fontWeight: "800",
                   marginTop: 8,
-                  color: dim ? '#a1a7b1' : '#111827',
+                  color: dim ? "#a1a7b1" : "#111827",
                 }}
               >
                 {stage.label}
               </Text>
-              <Text style={{ fontSize: 8, color: '#9299a5' }}>{shortWon(stage.threshold)}</Text>
+              <Text style={{ fontSize: 8, color: "#9299a5" }}>
+                {shortWon(stage.threshold)}
+              </Text>
             </View>
           );
         })}
@@ -115,8 +124,10 @@ export function JourneySteps({
       */}
       {nextTitle ? (
         <Pressable
-          accessibilityRole={onPressNext ? 'button' : undefined}
-          accessibilityLabel={onPressNext ? `${nextTitle}. 예산 전체 보기` : undefined}
+          accessibilityRole={onPressNext ? "button" : undefined}
+          accessibilityLabel={
+            onPressNext ? `${nextTitle}. 예산 전체 보기` : undefined
+          }
           disabled={!onPressNext}
           onPress={onPressNext}
           style={{
@@ -124,13 +135,13 @@ export function JourneySteps({
             paddingTop: 14,
             paddingBottom: 2,
             borderTopWidth: 1,
-            borderColor: '#edf0f2',
-            flexDirection: 'row',
-            alignItems: 'center',
+            borderColor: "#edf0f2",
+            flexDirection: "row",
+            alignItems: "center",
             gap: 9,
             minHeight: 48,
           }}
-          className={onPressNext ? 'active:opacity-60' : undefined}
+          className={onPressNext ? "active:opacity-60" : undefined}
         >
           <View
             style={{
@@ -138,16 +149,20 @@ export function JourneySteps({
               height: 32,
               borderRadius: 10,
               backgroundColor: theme.primarySoft,
-              alignItems: 'center',
-              justifyContent: 'center',
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             <Text style={{ fontSize: 17 }}>{nextEmoji}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontWeight: '800', color: '#111827' }}>{nextTitle}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: "#111827" }}>
+              {nextTitle}
+            </Text>
             {nextDesc ? (
-              <Text style={{ fontSize: 11, color: '#858e9c', marginTop: 3 }}>{nextDesc}</Text>
+              <Text style={{ fontSize: 11, color: "#858e9c", marginTop: 3 }}>
+                {nextDesc}
+              </Text>
             ) : null}
           </View>
           {onPressNext ? (

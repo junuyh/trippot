@@ -19,7 +19,7 @@
 // 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/fund/.
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   Stack,
   router,
@@ -40,6 +40,7 @@ import {
   RecentFundList,
   type FundDraft,
 } from "@/components/fund";
+import { DateRangeCalendar } from "@/components/trip-create";
 import {
   BottomSheet,
   Button,
@@ -140,11 +141,19 @@ export default function ScreenFUND01() {
   // ── 자금 추가 / 차감 ──────────────────────────────────────────────────
   const [sheetType, setSheetType] = useState<TransactionType | null>(null);
   const [draft, setDraft] = useState<FundDraft>({ name: "", amount: null });
+  /** 거래 날짜 'yyyy-MM-dd'. 오늘로 시작한다 */
+  const [occurredOn, setOccurredOn] = useState(() =>
+    format(new Date(), "yyyy-MM-dd"),
+  );
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  /** 최근 입출금 필터. 전체 / 입금 / 지출 */
+  const [listFilter, setListFilter] = useState<"ALL" | "IN" | "OUT">("ALL");
+
   const openSheet = useCallback((type: TransactionType) => {
     setDraft({ name: "", amount: null });
+    setOccurredOn(format(new Date(), "yyyy-MM-dd"));
     setNameError(null);
     setSheetType(type);
   }, []);
@@ -168,12 +177,17 @@ export default function ScreenFUND01() {
         // 직접 입력한 자금 이동이다. 계좌에서 불러온 거래가 아니다.
         source_type: TRANSACTION_SOURCE_TYPE.MANUAL,
         transaction_type: sheetType,
-        occurred_at: new Date().toISOString(),
+        // 사용자가 고른 날짜다. DB 는 UTC 로 저장하고 화면에서 KST 로 읽는다.
+        occurred_at: parseISO(occurredOn).toISOString(),
         name,
         amount: draft.amount,
-        // ⚠️ 예산 카테고리에 붙이지 않는다.
-        //    입금은 자금 유입이라 지출이 아니고, 자금 차감도 여행 지출이 아니다.
-        //    카테고리를 붙이면 그 카테고리의 실제 사용액이 부풀려진다.
+        /**
+         * ⚠️ 카테고리 없이 남긴다.
+         *    여기서 임의로 카테고리를 고르면 그 카테고리의 실제 사용액이
+         *    사용자가 정하지도 않은 근거로 부풀려진다.
+         *    지출은 '확인 필요(미분류)' 로 남고, 사용자가 거래 상세에서
+         *    카테고리를 지정하면 그때 예산 실제 사용액에 반영된다.
+         */
         budget_category_id: null,
       });
       setSheetType(null);
@@ -186,6 +200,16 @@ export default function ScreenFUND01() {
   }, [data, draft, load, saving, sheetType]);
 
   // ── 파생값 ────────────────────────────────────────────────────────────
+  const visibleTransactions = useMemo(() => {
+    const rows = data?.transactions ?? [];
+    if (listFilter === "ALL") return rows;
+    const wanted =
+      listFilter === "IN"
+        ? TRANSACTION_TYPE.DEPOSIT
+        : TRANSACTION_TYPE.WITHDRAWAL;
+    return rows.filter((row) => row.transaction_type === wanted);
+  }, [data?.transactions, listFilter]);
+
   const theme = useMemo(
     () =>
       countryTheme(findDestinationByName(data?.trip.destination)?.countryKo),
@@ -266,11 +290,43 @@ export default function ScreenFUND01() {
           balanceAmount={balance}
           targetAmount={targetAmount}
           spentAmount={data.withdrawalTotal}
-          onAdd={() => openSheet(TRANSACTION_TYPE.DEPOSIT)}
-          onSubtract={() => openSheet(TRANSACTION_TYPE.WITHDRAWAL)}
+          onRecordDeposit={() => openSheet(TRANSACTION_TYPE.DEPOSIT)}
+          onRecordExpense={() => openSheet(TRANSACTION_TYPE.WITHDRAWAL)}
         />
 
-        {/* ── 계좌 연결 / 전환 ── */}
+        {/*
+          ── 계좌 연결 / 전환 ──
+          ⚠️ 계좌를 연결하지 않은 사용자에게는 **지금 무엇으로 관리 중인지**를
+             먼저 말한다. 연결 버튼만 두면 직접 입력이 임시 상태처럼 읽히는데,
+             직접 입력 사용자도 동일한 핵심 기능을 쓴다. (CLAUDE.md 3장)
+        */}
+        {connected ? null : (
+          <View
+            style={{
+              marginTop: 12,
+              padding: 13,
+              borderRadius: 12,
+              backgroundColor: theme.primarySoft,
+            }}
+          >
+            <Text
+              style={{ fontSize: 11, fontWeight: "800", color: theme.primary }}
+            >
+              지금은 직접 입력으로 관리 중이에요
+            </Text>
+            <Text
+              style={{
+                marginTop: 5,
+                fontSize: 10,
+                lineHeight: 16,
+                color: "#687281",
+              }}
+            >
+              입금과 지출을 직접 기록하고 있어요. 계좌를 연결하면 거래가
+              자동으로 들어와요.
+            </Text>
+          </View>
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={connected ? "연결 계좌 관리" : "계좌 연결하기"}
@@ -321,9 +377,49 @@ export default function ScreenFUND01() {
             </Text>
           </View>
 
+          {/* 전체 / 입금 / 지출. 정렬이 아니라 종류를 고르는 축이다 */}
+          <View className="flex-row" style={{ gap: 7, marginBottom: 11 }}>
+            {(
+              [
+                { key: "ALL", label: "전체" },
+                { key: "IN", label: "입금" },
+                { key: "OUT", label: "지출" },
+              ] as const
+            ).map((chip) => {
+              const active = listFilter === chip.key;
+              return (
+                <Pressable
+                  key={chip.key}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setListFilter(chip.key)}
+                  className="active:opacity-70"
+                  style={{
+                    paddingHorizontal: 13,
+                    paddingVertical: 7,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: active ? theme.primary : "#e8eaee",
+                    backgroundColor: active ? theme.primarySoft : "#fff",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: active ? "800" : "500",
+                      color: active ? theme.primary : "#7c8695",
+                    }}
+                  >
+                    {chip.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <RecentFundList
             theme={theme}
-            transactions={data.transactions.map((transaction) => ({
+            transactions={visibleTransactions.map((transaction) => ({
               id: transaction.id,
               name: transaction.name,
               amount: transaction.amount,
@@ -343,11 +439,11 @@ export default function ScreenFUND01() {
       {/* ── 자금 추가 / 차감 ── */}
       <BottomSheet
         visible={sheetType !== null}
-        title={deposit ? "여행자금 추가" : "여행자금 차감"}
+        title={deposit ? "입금 기록" : "지출 기록"}
         description={
           deposit
-            ? "모은 금액을 기록해요. 오늘 날짜로 입금 내역이 남아요."
-            : "여행자금에서 뺀 금액이에요. 모은 금액은 줄지 않고 잔액만 줄어요."
+            ? "모은 금액을 기록해요. 누적 입금이 늘어나요."
+            : "여행에서 쓴 금액이에요. 누적 입금은 줄지 않고 쓸 수 있는 자금만 줄어요."
         }
         onClose={() => setSheetType(null)}
         footer={
@@ -362,7 +458,7 @@ export default function ScreenFUND01() {
             </View>
             <View style={{ flex: 2 }}>
               <Button
-                label={deposit ? "추가" : "차감"}
+                label="기록하기"
                 loading={saving}
                 onPress={() => void handleSubmit()}
               />
@@ -372,14 +468,16 @@ export default function ScreenFUND01() {
       >
         <View style={{ gap: 13, paddingTop: 13 }}>
           <Input
-            label="내용"
+            label="거래명"
             required
             value={draft.name}
             onChangeText={(name) => {
               setDraft({ ...draft, name });
               if (nameError) setNameError(null);
             }}
-            placeholder={deposit ? "예: 9월 적금" : "예: 여행자금에서 인출"}
+            placeholder={
+              deposit ? "예: 9월 여행적금" : "예: 간사이 왕복 항공권"
+            }
             error={nameError}
             maxLength={30}
           />
@@ -389,6 +487,28 @@ export default function ScreenFUND01() {
             value={draft.amount}
             onChangeValue={(amount) => setDraft({ ...draft, amount })}
           />
+
+          <View style={{ gap: 7 }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#141b28" }}>
+              날짜
+            </Text>
+            {/*
+              ⚠️ 오늘로 고정하지 않는다. 어제 넣은 돈을 오늘 기록하는 일이
+                 흔하고, 날짜가 틀리면 "하루 얼마씩 모으면 되는지" 도 틀어진다.
+            */}
+            <DateRangeCalendar
+              mode="single"
+              startDate={occurredOn}
+              endDate={occurredOn}
+              onChange={(next) => {
+                if (next.startDate) setOccurredOn(next.startDate);
+              }}
+              // 이미 지나간 입금·지출을 기록한다. 과거를 막으면 안 된다.
+              disablePast={false}
+              showHint={false}
+            />
+          </View>
+
           <View
             style={{
               borderRadius: 11,
@@ -397,11 +517,11 @@ export default function ScreenFUND01() {
             }}
           >
             <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }}>
-              {format(new Date(), "M월 d일")} 자로 기록돼요.
+              {format(parseISO(occurredOn), "M월 d일")} 자로 기록돼요.
               {"\n"}
               {deposit
                 ? "잘못 넣었다면 입출금 전체 내역에서 지울 수 있어요."
-                : "여행 지출이 아니라 자금 이동이에요. 예산 사용액에는 넣지 않아요."}
+                : "카테고리는 비어 있어요. 거래 상세에서 지정하면 그 카테고리의 실제 사용액에 반영돼요."}
             </Text>
           </View>
         </View>
