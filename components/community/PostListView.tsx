@@ -38,35 +38,39 @@ export function PostListView({
 
   return (
     <View className="flex-1 bg-white">
-      <View className="px-5 pb-6" style={{ paddingTop: insets.top + 36 }}>
-        {/* 제목 */}
-        <Text
-          className="font-black text-pot-ink"
-          style={{ fontSize: 20, lineHeight: 24, letterSpacing: -0.6 }}
-        >
-          커뮤니티
-        </Text>
-
-        {/* 글쓰기 — 제목 아래 오른쪽 */}
-        <View className="mt-4 flex-row justify-end">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="글 쓰기"
-            onPress={onPressWrite}
-            className="flex-row items-center rounded-full bg-pot-ink px-3.5 py-2 active:opacity-80"
+      {/* 상단바 — 제목은 가운데, 글쓰기는 오른쪽 */}
+      <View className="px-5 pb-3" style={{ paddingTop: insets.top + 10 }}>
+        <View className="h-9 items-center justify-center">
+          <Text
+            className="font-black text-pot-ink"
+            style={{ fontSize: 17, lineHeight: 22, letterSpacing: -0.5 }}
           >
-            <Ionicons name="create-outline" size={15} color="#FFFFFF" />
-            <Text className="ml-1.5 font-bold text-white" style={{ fontSize: 13 }}>
-              글쓰기
-            </Text>
-          </Pressable>
-        </View>
+            커뮤니티
+          </Text>
 
-        {/* 유형 필터 (IA 4-2) */}
+          {/* 제목을 화면 가운데 그대로 두려고 글쓰기를 흐름 밖에 둔다.
+              같은 줄에 나란히 놓으면 버튼 폭만큼 제목이 왼쪽으로 밀린다. */}
+          <View className="absolute right-0 top-0 h-9 justify-center">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="글 쓰기"
+              onPress={onPressWrite}
+              className="flex-row items-center rounded-full bg-pot-ink px-3.5 py-2 active:opacity-80"
+            >
+              <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+              <Text className="ml-1.5 font-bold text-white" style={{ fontSize: 12.5 }}>
+                글쓰기
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      {/* 유형 필터 (IA 4-2) */}
+      <View className="px-5 pb-3 pt-3">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="mt-4"
           contentContainerClassName="gap-2 pr-5"
         >
           {filters.map((filter) => {
