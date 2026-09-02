@@ -21,3 +21,4 @@ export {
   type PersonalizationItem,
 } from "./PersonalizationBanner";
 export { PlanItemCard, type PlanDraft, type PlanItem } from "./PlanItemCard";
+export { PlanSuggestionBox } from "./PlanSuggestionBox";

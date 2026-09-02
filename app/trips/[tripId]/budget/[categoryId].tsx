@@ -34,6 +34,7 @@ import {
   CategoryHeroCard,
   ExpenseCard,
   PlanItemCard,
+  PlanSuggestionBox,
   type ExpenseDraft,
   type ExpenseItem,
   type PlanDraft,
@@ -52,6 +53,8 @@ import { DateRangeCalendar } from "@/components/trip-create";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { perPerson } from "@/lib/budget/recommendation";
+import type { PlanSuggestion } from "@/lib/budget/planSuggestions";
+import { getPlanSuggestions } from "@/lib/supabase/queries/planSuggestions";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
@@ -185,20 +188,26 @@ export default function ScreenBUDGET02() {
         maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
       });
       setPlans(
-        items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          expectedAmount: item.expected_amount,
-          actualAmount: item.actual_amount,
-          // CANCELED 는 사용자가 계획에서 뺀 항목이다
-          selected: item.status !== BUDGET_PLAN_ITEM_STATUS.CANCELED,
-          emoji: CATEGORY_EMOJI[category.category_code as CategoryCode],
-          displayMode: item.display_mode as PlanDisplayMode,
-          // 실제 지출이 붙은 항목은 빼거나 지울 수 없다.
-          // 이미 쓴 돈이 달린 계획을 없애면 '계획에 없는 지출' 이 생겨
-          // 계획 대비 실제 비교가 성립하지 않는다.
-          locked: item.actual_amount > 0,
-        })),
+        items
+          /**
+           * ⚠️ CANCELED 는 이제 목록에 그리지 않는다. (시안 v3)
+           *    체크 기능을 없앴으므로 화면에 남아 있는 항목은 전부 계획에
+           *    포함된다. 꺼진 항목을 계속 그리면 세부 계획 합계와 목록이
+           *    맞지 않는다. 예전에 체크를 꺼 둔 행은 삭제와 같게 취급한다.
+           */
+          .filter((item) => item.status !== BUDGET_PLAN_ITEM_STATUS.CANCELED)
+          .map((item) => ({
+            id: item.id,
+            name: item.name,
+            expectedAmount: item.expected_amount,
+            actualAmount: item.actual_amount,
+            emoji: CATEGORY_EMOJI[category.category_code as CategoryCode],
+            displayMode: item.display_mode as PlanDisplayMode,
+            // 실제 지출이 붙은 항목은 빼거나 지울 수 없다.
+            // 이미 쓴 돈이 달린 계획을 없애면 '계획에 없는 지출' 이 생겨
+            // 계획 대비 실제 비교가 성립하지 않는다.
+            locked: item.actual_amount > 0,
+          })),
       );
     } catch {
       setError(true);
@@ -390,6 +399,14 @@ export default function ScreenBUDGET02() {
 
   // ── 계획 항목 (로컬) ──────────────────────────────────────────────────
   const [addingPlan, setAddingPlan] = useState(false);
+  /** 수정 중인 계획 항목 id. null 이면 새로 추가하는 중이다 (시안 v3) */
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  /** AI 추천 영역이 열려 있는지. 열리면 '계획 항목 추가' 버튼을 감춘다 */
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<PlanSuggestion[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  /** 추가 중인 추천 key. 그 카드만 잠근다 */
+  const [suggestBusyKey, setSuggestBusyKey] = useState<string | null>(null);
   const [planDraft, setPlanDraft] = useState<PlanDraft>({
     name: "",
     amount: null,
@@ -416,13 +433,12 @@ export default function ScreenBUDGET02() {
       const spent = data.transactions.reduce((sum, t) => sum + t.amount, 0);
       if (spent > 0) return;
 
-      const before = plans
-        .filter((item) => item.selected)
-        .reduce((sum, item) => sum + item.expectedAmount, 0);
+      const before = plans.reduce((sum, item) => sum + item.expectedAmount, 0);
       const reserve = Math.max(0, data.category.planned_amount - before);
-      const after = nextPlans
-        .filter((item) => item.selected)
-        .reduce((sum, item) => sum + item.expectedAmount, 0);
+      const after = nextPlans.reduce(
+        (sum, item) => sum + item.expectedAmount,
+        0,
+      );
       const nextBudget = after + reserve;
       if (nextBudget === data.category.planned_amount) return;
 
@@ -448,47 +464,32 @@ export default function ScreenBUDGET02() {
     [data, load, plans],
   );
 
-  // ⚠️ 체크 해제는 **즉시 반영**한다. 따로 저장을 누르지 않아도 예산에 적용된다.
-  //    화면 수치를 먼저 바꾸고 저장은 뒤에서 돌린다. 실패하면 되돌린다.
-  const handleTogglePlan = useCallback(
+  /**
+   * 수정 시작. 기존 값을 그대로 담은 바텀시트를 연다. (시안 v3)
+   *
+   * ⚠️ 실제 지출이 연결된 항목은 열지 않는다. 예상 금액을 나중에 고치면
+   *    "계획보다 얼마나 더 썼나" 가 사후에 조작 가능해진다.
+   */
+  const closePlanSheet = useCallback(() => {
+    setAddingPlan(false);
+    setEditingPlanId(null);
+    setPlanNameError(null);
+  }, []);
+
+  const handleStartEditPlan = useCallback(
     (id: string) => {
       const target = plans.find((item) => item.id === id);
       if (!target || target.locked) return;
-
-      const nextSelected = !target.selected;
-      const nextPlans = plans.map((item) =>
-        item.id === id ? { ...item, selected: nextSelected } : item,
-      );
-      setPlans(nextPlans);
-      syncBudgetFromPlans(nextPlans);
-
-      void updateBudgetPlanItem(id, {
-        status: nextSelected
-          ? BUDGET_PLAN_ITEM_STATUS.PLANNED
-          : BUDGET_PLAN_ITEM_STATUS.CANCELED,
-      })
-        .then(() => {
-          if (!data) return;
-          track(EVENTS.BUDGET_PLAN_ITEM_EDITED, {
-            trip_id: data.trip.id,
-            category:
-              CATEGORY_CODE_TO_ANALYTICS[
-                data.category.category_code as CategoryCode
-              ],
-            item_id: id,
-          });
-        })
-        .catch(() => {
-          // 저장이 실패하면 화면도 되돌린다. 안 그러면 새로고침 때 값이 튄다
-          setPlans((prev) =>
-            prev.map((item) =>
-              item.id === id ? { ...item, selected: target.selected } : item,
-            ),
-          );
-          setToast("변경을 저장하지 못했어요");
-        });
+      setEditingPlanId(id);
+      setPlanDraft({
+        name: target.name,
+        amount: target.expectedAmount,
+        displayMode: target.displayMode,
+      });
+      setPlanNameError(null);
+      setAddingPlan(true);
     },
-    [data, plans, syncBudgetFromPlans],
+    [plans],
   );
 
   const handleDeletePlan = useCallback(
@@ -521,6 +522,119 @@ export default function ScreenBUDGET02() {
     [data, plans, syncBudgetFromPlans],
   );
 
+  /**
+   * 추천을 불러온다. Edge Function 이 실패하면 규칙 기반 카탈로그가 온다.
+   * (lib/supabase/queries/planSuggestions.ts)
+   *
+   * ⚠️ 화면에 들어오자마자 부르지 않는다. 사용자가 '계획 항목 추가' 를
+   *    누른 뒤에만 부른다. 안 그러면 여덟 카테고리를 훑기만 해도
+   *    쓰지도 않을 추천 호출이 여덟 번 나간다.
+   */
+  const loadSuggestions = useCallback(async () => {
+    if (!data) return;
+    setSuggestLoading(true);
+    try {
+      const nightCount =
+        data.trip.start_date && data.trip.end_date
+          ? Math.max(
+              0,
+              Math.round(
+                (new Date(data.trip.end_date).getTime() -
+                  new Date(data.trip.start_date).getTime()) /
+                  86400000,
+              ),
+            )
+          : 0;
+      const result = await getPlanSuggestions({
+        destination: data.trip.destination,
+        days: nightCount + 1,
+        nights: nightCount,
+        headcount: data.trip.headcount,
+        categoryCode: data.category.category_code as CategoryCode,
+        // ⚠️ 지금 화면의 계획을 그대로 넘긴다. 이미 있는 항목이 다시
+        //    추천되면 추천이 화면을 안 보고 만들어졌다는 게 드러난다.
+        existingNames: plans.map((plan) => plan.name),
+      });
+      setSuggestions(result.suggestions);
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setSuggestLoading(false);
+    }
+  }, [data, plans]);
+
+  const handleOpenSuggestions = useCallback(() => {
+    setSuggestOpen(true);
+    void loadSuggestions();
+  }, [loadSuggestions]);
+
+  /**
+   * 추천 카드를 눌렀을 때. 세부 계획에 **즉시** 반영한다. (시안 v3)
+   *
+   * ⚠️ 추천을 미리 넣어 두지 않는다. 여기 들어오는 건 사용자가 누른 결과다.
+   *    (CLAUDE.md 3장 — 추천이 사용자 대신 확정하지 않는다)
+   */
+  const handleAddSuggestion = useCallback(
+    async (suggestion: PlanSuggestion) => {
+      if (!data || suggestBusyKey) return;
+      setSuggestBusyKey(suggestion.key);
+      try {
+        const created = await createBudgetPlanItem({
+          budget_category_id: data.category.id,
+          name: suggestion.name,
+          expected_amount: suggestion.amount,
+          display_mode: PLAN_DISPLAY_MODE.TOTAL,
+          status: BUDGET_PLAN_ITEM_STATUS.PLANNED,
+          sort_order: plans.length + 1,
+        });
+        /**
+         * ⚠️ 추천에서 왔다는 것을 따로 기록하지 못하고 있다.
+         *    events.ts 에 그 속성도, 전용 이벤트도 없고 공유 파일이라
+         *    임의로 추가하지 않는다. (CLAUDE.md 8장)
+         *    이게 없으면 "AI 추천이 계획 항목 수를 늘렸는가" 를 잴 수 없다.
+         */
+        track(EVENTS.BUDGET_PLAN_ITEM_ADDED, {
+          trip_id: data.trip.id,
+          category:
+            CATEGORY_CODE_TO_ANALYTICS[
+              data.category.category_code as CategoryCode
+            ],
+          planned_amount: suggestion.amount,
+          item_id: created.id,
+        });
+
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        const nextPlans: PlanItem[] = [
+          ...plans,
+          {
+            id: created.id,
+            name: created.name,
+            expectedAmount: created.expected_amount,
+            actualAmount: 0,
+            emoji: suggestion.emoji,
+            displayMode: PLAN_DISPLAY_MODE.TOTAL,
+            locked: false,
+          },
+        ];
+        setPlans(nextPlans);
+        syncBudgetFromPlans(nextPlans);
+        // 추가한 항목은 목록에서 뺀다. 같은 걸 두 번 넣을 이유가 없다.
+        setSuggestions((prev) =>
+          prev.filter((row) => row.key !== suggestion.key),
+        );
+      } catch {
+        setToast("추가하지 못했어요");
+      } finally {
+        setSuggestBusyKey(null);
+      }
+    },
+    [data, plans, suggestBusyKey, syncBudgetFromPlans],
+  );
+
+  /**
+   * 계획 항목 추가 · 수정을 한 함수가 맡는다.
+   * editingPlanId 가 있으면 수정, 없으면 추가다.
+   */
   const handleConfirmAddPlan = useCallback(async () => {
     if (!data) return;
     const name = planDraft.name.trim();
@@ -528,14 +642,71 @@ export default function ScreenBUDGET02() {
       setPlanNameError("항목 이름을 입력해 주세요.");
       return;
     }
+    const amount = planDraft.amount ?? 0;
 
+    const resetDraft = () => {
+      setPlanDraft({
+        name: "",
+        amount: null,
+        displayMode: PLAN_DISPLAY_MODE.TOTAL,
+      });
+      setPlanNameError(null);
+      setAddingPlan(false);
+      setEditingPlanId(null);
+    };
+
+    // ── 수정 ────────────────────────────────────────────────────────────
+    if (editingPlanId) {
+      const target = plans.find((item) => item.id === editingPlanId);
+      // 잠긴 항목은 애초에 열리지 않지만, 열려 있는 동안 지출이 붙었을 수 있다.
+      if (!target || target.locked) {
+        resetDraft();
+        return;
+      }
+      try {
+        await updateBudgetPlanItem(editingPlanId, {
+          name,
+          expected_amount: amount,
+          display_mode: planDraft.displayMode,
+        });
+        track(EVENTS.BUDGET_PLAN_ITEM_EDITED, {
+          trip_id: data.trip.id,
+          category:
+            CATEGORY_CODE_TO_ANALYTICS[
+              data.category.category_code as CategoryCode
+            ],
+          item_id: editingPlanId,
+        });
+
+        const nextPlans = plans.map((item) =>
+          item.id === editingPlanId
+            ? {
+                ...item,
+                name,
+                expectedAmount: amount,
+                displayMode: planDraft.displayMode,
+              }
+            : item,
+        );
+        setPlans(nextPlans);
+        // 금액이 바뀌면 설정 예산도 따라간다. 여유 예산은 그대로 유지된다.
+        syncBudgetFromPlans(nextPlans);
+        resetDraft();
+        setToast("계획 항목을 수정했어요");
+      } catch {
+        setToast("수정하지 못했어요");
+      }
+      return;
+    }
+
+    // ── 추가 ────────────────────────────────────────────────────────────
     try {
       const created = await createBudgetPlanItem({
         budget_category_id: data.category.id,
         name,
         // ⚠️ 저장하는 값은 언제나 총액이다. display_mode 는 보여주는 방식일 뿐
         //    금액을 바꾸지 않는다. (BUDGET-02 v2 스펙)
-        expected_amount: planDraft.amount ?? 0,
+        expected_amount: amount,
         display_mode: planDraft.displayMode,
         status: BUDGET_PLAN_ITEM_STATUS.PLANNED,
         sort_order: plans.length + 1,
@@ -546,7 +717,7 @@ export default function ScreenBUDGET02() {
           CATEGORY_CODE_TO_ANALYTICS[
             data.category.category_code as CategoryCode
           ],
-        planned_amount: planDraft.amount ?? 0,
+        planned_amount: amount,
         item_id: created.id,
       });
 
@@ -558,7 +729,6 @@ export default function ScreenBUDGET02() {
           name: created.name,
           expectedAmount: created.expected_amount,
           actualAmount: 0,
-          selected: true,
           emoji: CATEGORY_EMOJI[data.category.category_code as CategoryCode],
           displayMode: planDraft.displayMode,
           locked: false,
@@ -567,17 +737,11 @@ export default function ScreenBUDGET02() {
       setPlans(nextPlans);
       // 계획이 늘면 설정 예산도 그만큼 늘린다. 여유 예산은 그대로 유지된다.
       syncBudgetFromPlans(nextPlans);
-      setPlanDraft({
-        name: "",
-        amount: null,
-        displayMode: PLAN_DISPLAY_MODE.TOTAL,
-      });
-      setPlanNameError(null);
-      setAddingPlan(false);
+      resetDraft();
     } catch {
       setToast("추가하지 못했어요");
     }
-  }, [data, planDraft, plans, syncBudgetFromPlans]);
+  }, [data, editingPlanId, planDraft, plans, syncBudgetFromPlans]);
 
   // ── 지출 직접 입력 (로컬) ─────────────────────────────────────────────
   const [addingExpense, setAddingExpense] = useState(false);
@@ -653,11 +817,9 @@ export default function ScreenBUDGET02() {
     [data?.transactions],
   );
 
+  // 목록에 있는 항목은 전부 계획에 포함된다. (시안 v3 · 체크 제거)
   const plannedTotal = useMemo(
-    () =>
-      plans
-        .filter((plan) => plan.selected)
-        .reduce((sum, plan) => sum + plan.expectedAmount, 0),
+    () => plans.reduce((sum, plan) => sum + plan.expectedAmount, 0),
     [plans],
   );
 
@@ -798,8 +960,6 @@ export default function ScreenBUDGET02() {
           budgetAmount={data.category.planned_amount}
           plannedTotal={plannedTotal}
           spentTotal={spentTotal}
-          preparedAmount={data.category.prepared_amount}
-          recommendedAmount={data.category.recommended_amount}
           onStartEdit={
             canEditPlan
               ? () => {
@@ -922,7 +1082,7 @@ export default function ScreenBUDGET02() {
               세부 계획
             </Text>
             <Text style={{ fontSize: 10, color: "#7d8797" }}>
-              {plans.filter((plan) => plan.selected).length}개 선택됨
+              {plans.length}개
             </Text>
           </View>
           <PlanItemCard
@@ -930,11 +1090,44 @@ export default function ScreenBUDGET02() {
             headcount={data.trip.headcount}
             theme={theme}
             reserveAmount={reserveAmount}
-            onToggle={canEditPlan ? handleTogglePlan : undefined}
+            onEdit={canEditPlan ? handleStartEditPlan : undefined}
             onDelete={canEditPlan ? handleDeletePlan : undefined}
             onOpenLinked={handleOpenLinkedPlan}
-            onStartAdd={canEditPlan ? () => setAddingPlan(true) : undefined}
+            /*
+              ⚠️ '계획 항목 추가' 는 이제 바텀시트를 바로 열지 않는다.
+                 먼저 추천 영역을 펼치고, 거기서 직접 추가를 고를 수 있다.
+                 추천이 열려 있는 동안에는 이 버튼을 감춘다. (시안 v3)
+            */
+            onStartAdd={
+              canEditPlan && !suggestOpen ? handleOpenSuggestions : undefined
+            }
           />
+
+          {/*
+            ⚠️ 추천 영역이 열려 있는 동안에는 위의 '계획 항목 추가' 버튼이
+               사라진다(onStartAdd 를 넘기지 않는다). 같은 일을 하는 버튼이
+               둘 보이면 어느 쪽이 지금 열려 있는 것인지 알 수 없다. (시안 v3)
+          */}
+          {suggestOpen && canEditPlan ? (
+            <PlanSuggestionBox
+              theme={theme}
+              suggestions={suggestions}
+              loading={suggestLoading}
+              busyKey={suggestBusyKey}
+              onAdd={(suggestion) => void handleAddSuggestion(suggestion)}
+              onDirectAdd={() => {
+                setEditingPlanId(null);
+                setPlanDraft({
+                  name: "",
+                  amount: null,
+                  displayMode: PLAN_DISPLAY_MODE.TOTAL,
+                });
+                setPlanNameError(null);
+                setAddingPlan(true);
+              }}
+              onClose={() => setSuggestOpen(false)}
+            />
+          ) : null}
         </View>
 
         {/* 실제 지출 */}
@@ -980,27 +1173,21 @@ export default function ScreenBUDGET02() {
       {/* ── 계획 항목 추가 ── */}
       <BottomSheet
         visible={addingPlan}
-        title="계획 항목 추가"
+        title={editingPlanId ? "계획 항목 수정" : "계획 항목 추가"}
         description="총액은 그대로 두고, 화면에 보일 금액 기준만 고를 수 있어요."
-        onClose={() => {
-          setAddingPlan(false);
-          setPlanNameError(null);
-        }}
+        onClose={closePlanSheet}
         footer={
           <View className="flex-row gap-2">
             <View style={{ flex: 1 }}>
               <Button
                 label="취소"
                 variant="secondary"
-                onPress={() => {
-                  setAddingPlan(false);
-                  setPlanNameError(null);
-                }}
+                onPress={closePlanSheet}
               />
             </View>
             <View style={{ flex: 2 }}>
               <Button
-                label="추가"
+                label={editingPlanId ? "수정 완료" : "추가"}
                 onPress={() => void handleConfirmAddPlan()}
               />
             </View>
@@ -1110,7 +1297,7 @@ export default function ScreenBUDGET02() {
                     <Text style={{ color: "#111827", fontWeight: "700" }}>
                       {(planDraft.amount ?? 0).toLocaleString("ko-KR")}원
                     </Text>
-                    으로 추가돼요.
+                    으로 {editingPlanId ? "저장돼요" : "추가돼요"}.
                   </>
                 )}
               </Text>

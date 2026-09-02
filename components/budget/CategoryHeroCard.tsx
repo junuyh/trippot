@@ -1,17 +1,23 @@
-// BUDGET-02 상단 예산 요약.
-// HTML 시안(.hero)의 치수를 옮겼다. radius 17 · padding 19 · budget 34px
+// ============================================================================
+// BUDGET-02 상단 예산 요약 (시안 v3)
+//
+//   설정 예산 (큰 숫자) · 세부 계획 · 미계획 예산 · 실제 사용
+//
+// ⚠️ 2026-09-02 · 시안 v3 · **계획·지출 막대를 걷어냈다.**
+//    한 막대에 계획 비율과 지출 비율을 겹쳐 놓으면, 둘을 더해서 읽어야 하는지
+//    따로 읽어야 하는지가 안 보인다. 네 숫자를 나란히 두는 쪽이 정확하다.
 //
 // ⚠️ 계획과 지출을 **중복 차감하지 않는다.** (스펙 11장)
-//      계획 비율 = 선택된 계획 합계 ÷ 설정 예산
-//      지출 비율 = 실제 지출 합계 ÷ 설정 예산
-//      남은 금액 = 설정 예산 - 실제 지출 합계      ← 계획은 빼지 않는다
-//
 //    계획은 "쓰기로 한 것", 지출은 "실제로 쓴 것"이다. 둘을 함께 빼면
 //    같은 돈을 두 번 차감하게 된다.
+//      미계획 예산 = 설정 예산 − 세부 계획 합계   ← 지출은 빼지 않는다
+//
+// ⚠️ '금고 배분' 칸을 뺐다. 금고 배분은 결제 예정 순서에 따른 가상 배분이라
+//    이 카테고리에 실제로 떼어 둔 돈이 아니다. 네 숫자 사이에 섞이면
+//    "이 카테고리에 62만원이 있다" 로 잘못 읽힌다. (BUDGET-01 준비 단계 참고)
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
-import { Button, CurrencyInput } from "@/components/ui";
 import type { CountryTheme } from "@/lib/constants/countryTheme";
 
 type Props = {
@@ -23,9 +29,6 @@ type Props = {
   plannedTotal: number;
   /** 실제 지출 합계 */
   spentTotal: number;
-  /** 금고 배분액 */
-  preparedAmount: number;
-  recommendedAmount: number;
 
   /** 없으면 예산 수정 버튼을 감춘다 (결산 중·완료) */
   onStartEdit?: () => void;
@@ -41,15 +44,10 @@ export function CategoryHeroCard({
   budgetAmount,
   plannedTotal,
   spentTotal,
-  preparedAmount,
-  recommendedAmount,
   onStartEdit,
 }: Props) {
-  const planRate =
-    budgetAmount > 0 ? Math.round((plannedTotal / budgetAmount) * 100) : 0;
-  const spendRate =
-    budgetAmount > 0 ? Math.round((spentTotal / budgetAmount) * 100) : 0;
-  const remaining = budgetAmount - spentTotal;
+  // 미계획 예산 = 아직 어디에 쓸지 정하지 않은 금액. 음수가 될 수 없다.
+  const unplanned = Math.max(0, budgetAmount - plannedTotal);
 
   return (
     <View
@@ -110,61 +108,12 @@ export function CategoryHeroCard({
       </View>
 
       {/* 설정 예산 수정은 바텀시트에서 한다 (스펙: 별도 적용 버튼 없음) */}
-      {/* 계획 비율 막대 */}
-      <View
-        style={{
-          height: 7,
-          borderRadius: 8,
-          backgroundColor: "#edf0f2",
-          marginTop: 18,
-          marginBottom: 8,
-          overflow: "hidden",
-        }}
-      >
-        <View
-          style={{
-            height: "100%",
-            borderRadius: 8,
-            width: `${Math.min(100, planRate)}%`,
-            backgroundColor: theme.primary,
-          }}
-        />
-      </View>
 
-      <View className="flex-row justify-between">
-        <Text style={{ fontSize: 10, color: "#7d8797" }}>
-          계획{" "}
-          <Text style={{ color: theme.primary, fontWeight: "700" }}>
-            {planRate}%
-          </Text>
-          {"  ·  "}지출{" "}
-          <Text style={{ color: theme.primary, fontWeight: "700" }}>
-            {spendRate}%
-          </Text>
-        </Text>
-        <Text
-          style={{
-            fontSize: 10,
-            color: remaining < 0 ? theme.primary : "#7d8797",
-          }}
-        >
-          {remaining < 0 ? `${won(-remaining)} 초과` : `${won(remaining)} 남음`}
-        </Text>
-      </View>
-
-      {/* 금고 배분 / 세부 계획 / 실제 사용 */}
-      <View
-        className="flex-row"
-        style={{
-          marginTop: 17,
-          paddingTop: 15,
-          borderTopWidth: 1,
-          borderColor: "#e7e9ed",
-        }}
-      >
+      {/* 세부 계획 / 미계획 예산 / 실제 사용 */}
+      <View className="flex-row" style={{ marginTop: 15 }}>
         {[
-          { label: "금고 배분", value: preparedAmount, danger: false },
           { label: "세부 계획", value: plannedTotal, danger: false },
+          { label: "미계획 예산", value: unplanned, danger: false },
           {
             label: "실제 사용",
             value: spentTotal,

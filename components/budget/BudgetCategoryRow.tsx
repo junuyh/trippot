@@ -1,14 +1,19 @@
-// BUDGET-01 카테고리별 예산 행.
+// ============================================================================
+// BUDGET-01 카테고리별 예산 행 (시안 v3)
 //
-// 시안(.budget-row)을 옮겼다.
-//   아이콘 · 이름 · 설정 예산 · 전체 예산 비중 · 준비율 막대 · 화살표
+//   아이콘 · 이름 · 조정 상태 · 설정 예산 · 화살표
+//
+// ⚠️ 2026-09-02 · 시안 v3 · **막대와 예산 비율을 걷어냈다.**
+//    여덟 행에 같은 막대가 반복되면 하나하나가 아니라 무늬로 읽힌다.
+//    비율(share)도 마찬가지다 — 목표 대비 몇 퍼센트인지는 이 화면에서
+//    사용자가 할 행동을 바꾸지 않는다. 준비 상태는 위쪽 준비 단계가 말한다.
+//
+// ⚠️ 대신 **지난 여행 분석에 따른 조정 금액**을 적는다.
+//    이게 이 행에서 사용자가 판단해야 하는 유일한 정보다.
 //
 // ⚠️ 아이콘 뒤에 카테고리별 컬러 배경을 두지 않는다. (스펙)
-//    시안은 카테고리마다 --tone 을 다르게 줬지만, 국가 포인트 컬러 하나만
-//    쓰기로 한 규칙과 충돌한다. 여덟 색이 동시에 보이면 포인트가 사라진다.
-//
-// ⚠️ 실제 지출 그래프를 넣지 않는다. 막대는 준비율(금고 배분) 하나다.
-//    지출 비교는 BUDGET-02 와 결산이 담당한다.
+//    국가 포인트 컬러 하나만 쓴다. 여덟 색이 동시에 보이면 포인트가 사라진다.
+// ============================================================================
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
@@ -22,30 +27,28 @@ export type BudgetCategoryRowData = {
   plannedAmount: number;
   preparedAmount: number;
   actualAmount: number;
+  /**
+   * 지난 여행 분석 추천이 적용돼 있으면 기본 추천 대비 조정액.
+   * 적용돼 있지 않으면 null — '조정 없음' 으로 적는다.
+   *
+   * ⚠️ 여기 쓰는 값은 planned_amount − recommended_amount 다.
+   *    recommended_amount 는 불변이라 이 차이가 곧 "얼마나 손댔는가" 다.
+   *    (CLAUDE.md 4장)
+   */
+  adjustment: number | null;
 };
+
+const GREEN = "#16805d";
 
 type Props = {
   category: BudgetCategoryRowData;
   theme: CountryTheme;
-  /** 목표 여행비. 이 카테고리가 차지하는 비중을 내는 분모다 */
-  targetAmount: number;
   onPress: (categoryId: string) => void;
 };
 
-export function BudgetCategoryRow({
-  category,
-  theme,
-  targetAmount,
-  onPress,
-}: Props) {
-  const { plannedAmount, preparedAmount } = category;
-
-  const prepRate =
-    plannedAmount > 0
-      ? Math.min(100, (preparedAmount / plannedAmount) * 100)
-      : 0;
-  const share =
-    targetAmount > 0 ? Math.round((plannedAmount / targetAmount) * 100) : 0;
+export function BudgetCategoryRow({ category, theme, onPress }: Props) {
+  const { adjustment } = category;
+  const adjusted = adjustment !== null && adjustment !== 0;
 
   return (
     <Pressable
@@ -65,45 +68,31 @@ export function BudgetCategoryRow({
         {CATEGORY_EMOJI[category.categoryCode]}
       </Text>
 
-      <View style={{ flex: 1, gap: 6 }}>
-        <View className="flex-row items-center justify-between">
-          <Text style={{ fontSize: 12, fontWeight: "800", color: "#141b28" }}>
-            {CATEGORY_CODE_LABEL[category.categoryCode]}
-          </Text>
-          {/* 금액을 축약하지 않는다. 174천이 아니라 174,000원이다 (스펙) */}
-          <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
-            {plannedAmount.toLocaleString("ko-KR")}원
-          </Text>
-        </View>
-
-        <View className="flex-row items-center" style={{ gap: 9 }}>
-          <View
-            style={{
-              flex: 1,
-              height: 5,
-              borderRadius: 5,
-              backgroundColor: "#eff1f3",
-              overflow: "hidden",
-            }}
-          >
-            <View
-              style={{
-                width: `${prepRate}%`,
-                height: "100%",
-                borderRadius: 5,
-                backgroundColor: theme.primary,
-              }}
-            />
-          </View>
-          <Text style={{ fontSize: 9, color: "#7c8695" }}>
-            <Text style={{ color: theme.primary, fontWeight: "800" }}>
-              {share}%
-            </Text>
-            {" · "}
-            {prepRate > 0 ? `${Math.round(prepRate)}% 준비` : "준비 전"}
-          </Text>
-        </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 12, fontWeight: "800", color: "#141b28" }}>
+          {CATEGORY_CODE_LABEL[category.categoryCode]}
+        </Text>
+        <Text
+          style={{
+            marginTop: 5,
+            fontSize: 9,
+            color: adjusted
+              ? adjustment > 0
+                ? theme.primary
+                : GREEN
+              : "#7c8695",
+          }}
+        >
+          {adjusted
+            ? `추천 반영 · ${adjustment > 0 ? "+" : "-"}${Math.abs(adjustment).toLocaleString("ko-KR")}원`
+            : "조정 없음"}
+        </Text>
       </View>
+
+      {/* 금액을 축약하지 않는다. 174천이 아니라 174,000원이다 (스펙) */}
+      <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
+        {category.plannedAmount.toLocaleString("ko-KR")}원
+      </Text>
 
       <Ionicons name="chevron-forward" size={16} color="#a8afb9" />
     </Pressable>
