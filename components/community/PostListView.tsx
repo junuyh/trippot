@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Header } from '@/components/ui';
 import type { PostType } from '@/lib/constants/status';
 
 import { PostCard } from './PostCard';
@@ -49,19 +50,16 @@ export function PostListView({
 
   return (
     <View className="flex-1 bg-pot-visual">
-      {/* 상단바 — 제목만. 가운데 정렬이라 양옆에 아무것도 두지 않는다. */}
-      <View className="bg-white px-4 pb-3" style={{ paddingTop: insets.top + 10 }}>
-        <View className="h-9 items-center justify-center">
-          <Text
-            className="font-black text-pot-ink"
-            style={{ fontSize: 17, lineHeight: 22, letterSpacing: -0.5 }}
-          >
-            커뮤니티
-          </Text>
-        </View>
+      {/* 상단바 — 다른 화면과 같은 공통 Header 를 쓴다. 제목은 가운데다.
+          커뮤니티는 탭 첫 화면이라 뒤로가기가 없다.
+          탭 헤더를 끈 상태라 상태바 높이만큼은 여기서 띄운다. */}
+      <View className="bg-white" style={{ paddingTop: insets.top }}>
+        <Header title="커뮤니티" showBack={false} />
+      </View>
 
+      <View className="bg-white px-4 pb-3 pt-3">
         {/* 검색 + 글쓰기 */}
-        <View className="mt-2 flex-row items-center">
+        <View className="flex-row items-center">
           <View className="mr-2 flex-1 flex-row items-center rounded-full bg-pot-visual px-3.5 py-2.5">
             <Ionicons name="search" size={16} color="#9AA3AE" />
             <TextInput
