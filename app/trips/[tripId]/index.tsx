@@ -40,11 +40,13 @@ import {
 } from "@/components/trip-home";
 import { TravelTypeCard, TripReceiptCard } from "@/components/trip-type";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
-import { SCREENS } from "@/lib/analytics/events";
+import { EVENTS, SCREENS } from "@/lib/analytics/events";
+import { track } from "@/lib/analytics/track";
 import { allocateVault, journeyStages } from "@/lib/budget/vault";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
+  SETTLEMENT_TRIGGER,
   TRIP_STATUS,
   type CategoryCode,
   type TransactionType,
@@ -65,7 +67,11 @@ import {
   getTransactions,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
-import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import {
+  closeTripIfEnded,
+  getTripById,
+  type Trip,
+} from "@/lib/supabase/queries/trips";
 import {
   ensureTripTypeResult,
   type TripTypeResult,
@@ -124,11 +130,23 @@ export default function ScreenTripHome() {
     setNotFound(false);
 
     try {
-      const trip = await getTripById(tripId);
-      if (!trip) {
+      const found = await getTripById(tripId);
+      if (!found) {
         setNotFound(true);
         return;
       }
+
+      /**
+       * 여행 기간이 끝났으면 상태를 올린다. (CLAUDE.md 3장)
+       *
+       * ⚠️ 사용자가 아무것도 하지 않아도 결산으로 이어져야 한다.
+       *    지금까지는 여행이 끝나도 PLANNING 인 채로 남아, 결산 화면 주소를
+       *    아는 사람만 결산을 할 수 있었다. 결산은 개인화의 입력이라
+       *    여기서 끊기면 다음 여행 추천이 영영 만들어지지 않는다.
+       *
+       * ⚠️ ENDED 까지만 올린다. 확정은 사용자가 한다.
+       */
+      const trip = await closeTripIfEnded(found).catch(() => found);
 
       // 여행을 찾은 뒤에야 나머지를 붙인다. 예산·자금이 없어도 화면은 떠야 한다.
       const budget = await getBudgetByTripId(trip.id);
@@ -239,6 +257,24 @@ export default function ScreenTripHome() {
       .then(setTypeResult)
       // 유형은 부가 정보다. 실패해도 결산 영수증은 그대로 보여준다.
       .catch(() => undefined);
+  }, [data]);
+
+  /**
+   * 결산 유도 노출 로그.
+   *
+   * ⚠️ **여기가 자동 유도의 노출 지점이다.** SETTLE-01 에서 쏘는 것은
+   *    사용자가 이미 결산 화면까지 간 뒤라 'manual' 이다.
+   *    둘을 구분해야 "자동 유도가 결산 도달률을 얼마나 끌어올렸나" 를 잴 수 있다.
+   */
+  const settlementPromptedRef = useRef(false);
+  useEffect(() => {
+    if (!data || settlementPromptedRef.current) return;
+    if (data.trip.status !== TRIP_STATUS.ENDED) return;
+    settlementPromptedRef.current = true;
+    track(EVENTS.SETTLEMENT_PROMPTED, {
+      trip_id: data.trip.id,
+      trigger: SETTLEMENT_TRIGGER.AUTO,
+    });
   }, [data]);
 
   useScreenView(
@@ -492,6 +528,40 @@ export default function ScreenTripHome() {
             결산 중에는 거래 분류가 남아 있어 카테고리별 실제가 계속 바뀐다.
             그 위에서 뽑은 유형을 확정 결과처럼 보여주면 안 된다.
           */}
+          {/*
+            ── 결산 유도 ── (CLAUDE.md 3장)
+            여행이 끝났는데 결산을 안 했으면 여기서 붙잡는다.
+            확정은 사용자가 하되, 할 일이 남았다는 건 먼저 알려준다.
+          */}
+          {status === TRIP_STATUS.ENDED ? (
+            <View
+              style={{
+                borderRadius: 16,
+                backgroundColor: theme.primarySoft,
+                padding: 16,
+                gap: 10,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "800",
+                  color: theme.neutral,
+                }}
+              >
+                여행이 끝났어요. 결산할 차례예요
+              </Text>
+              <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
+                지출을 확인하고 결산을 확정하면 이번 여행이 어떤 여행이었는지
+                알려드리고, 다음 여행 예산도 여기에 맞춰 추천해요.
+              </Text>
+              <Button
+                label="여행비 결산 시작하기"
+                onPress={() => router.push(`/trips/${trip.id}/settlement`)}
+              />
+            </View>
+          ) : null}
+
           {typeResult ? (
             <TravelTypeCard
               theme={theme}
