@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 
+import { NotificationBellButton } from '@/components/mypage';
+
 /**
  * 하단 탭 4개. (tabs) 는 route group 이라 URL 에 나타나지 않는다.
  *   app/(tabs)/index.tsx     → /
@@ -72,6 +74,15 @@ function TabIcon({
 const ACTIVE = '#111827';
 const INACTIVE = '#9AA3AE';
 
+/**
+ * 헤더 알림 아이콘(MY-01)을 눌렀을 때.
+ *
+ * ⚠️ TODO: 갈 화면이 아직 없다. 프로젝트 전체에 알림 목록 화면·route·query·테이블이
+ *    하나도 없어서 임의 route 를 만들지 않았다. 목적지가 확정되면 여기만 채운다.
+ *    (설정 > 알림 = 수신 여부 설정, 이 버튼 = 받은 알림 목록. 서로 다른 화면이다)
+ */
+function handlePressNotifications() {}
+
 export default function TabsLayout() {
   return (
     <Tabs
@@ -133,10 +144,25 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/*
+        ⚠️ 아래 헤더 설정은 마이페이지 탭에만 적용된다. 다른 탭 세 개는 건드리지 않는다.
+           (홈·커뮤니티는 headerShown: false, 모임은 기본 헤더 그대로)
+      */}
       <Tabs.Screen
         name="me"
         options={{
           title: '마이페이지',
+          // ⚠️ react-navigation 의 headerTitleAlign 기본값은 iOS 만 'center' 이고
+          //    Android·Web 은 'left' 다. 그래서 시뮬레이터에서는 가운데였는데
+          //    웹에서만 제목이 왼쪽에 붙었다. 플랫폼과 무관하게 중앙으로 고정한다.
+          //
+          //    'center' 를 주면 헤더의 좌/우 컨테이너가 같은 비율로 늘어나므로,
+          //    오른쪽에 알림 아이콘이 있어도 제목은 화면 기준 중앙을 유지한다.
+          headerTitleAlign: 'center',
+          // 디자인 문서에 헤더 전용 font 값이 없다. 정책("중앙 · Bold 계열")만 따르고
+          // 크기는 화면 안 섹션 제목(18)과 같은 단을 쓴다. 색은 pot.ink 다.
+          headerTitleStyle: { fontSize: 18, fontWeight: '700', color: ACTIVE },
+          headerRight: () => <NotificationBellButton onPress={handlePressNotifications} />,
           tabBarIcon: ({ focused, color }) => (
             <TabIcon name="person" focused={focused} color={color} />
           ),
