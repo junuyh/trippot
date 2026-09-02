@@ -1,32 +1,113 @@
-// TRIP-HOME-02 여행 영수증.
+// ============================================================================
+// TRIP-HOME-02 여행 영수증 (시안 v3)
 //
-// 시안의 receipt 를 옮겼다. 목표 vs 실제, 가장 큰 초과·절약, 남은 금액.
+// **진짜 영수증처럼 보이게** 만든다. 카드가 아니라 종이다.
+//   · 위아래 톱니로 찢은 자국
+//   · 본문보다 좁은 폭 (종이는 화면 끝까지 닿지 않는다)
+//   · 가운데 정렬한 머리글 · 자간 넓은 대문자
+//   · 등폭 숫자 — 금액 자릿수가 줄마다 흔들리면 영수증으로 안 읽힌다
+//   · 합계 앞 점선 구분선
 //
-// ⚠️ '여행비 결산 자세히 보기' 는 영수증 안의 작은 링크가 아니라
-//    영수증 **아래에 분리된 주요 CTA** 다. (스펙 4장)
-//    결산은 이 화면에서 사용자가 할 수 있는 가장 중요한 행동이다.
-import { Text, View } from "react-native";
+// ⚠️ 톱니는 SVG path 로 그린다. RN 에는 CSS linear-gradient 반복 배경이 없다.
+//
+// ⚠️ 금액을 축약하지 않는다. 영수증은 정확한 숫자가 있는 자리다.
+// ============================================================================
+import { Text, View, type LayoutChangeEvent } from "react-native";
+import { useState } from "react";
+import Svg, { Path } from "react-native-svg";
 
 import type { CountryTheme } from "@/lib/constants/countryTheme";
 import { CATEGORY_CODE_LABEL, type CategoryCode } from "@/lib/constants/status";
 
 const GREEN = "#19865f";
+/**
+ * 영수증 종이색.
+ *
+ * ⚠️ 순백으로 두지 않는다. TRIP-HOME 의 배경이 흰색이라 톱니가 배경에
+ *    묻혀 안 보인다. 살짝 따뜻하게 틀어야 종이 한 장이 얹힌 것으로 읽힌다.
+ */
+const PAPER = "#fffdf6";
+const LINE = "#ece7db";
+/** 톱니 한 칸의 폭·높이 */
+const TOOTH = 12;
+const TOOTH_H = 7;
+/** 등폭 숫자. 자릿수가 줄마다 흔들리지 않게 한다 */
+const NUM = { fontVariant: ["tabular-nums" as const] };
+
+type Diff = { categoryCode: CategoryCode; diff: number } | null;
 
 type Props = {
   theme: CountryTheme;
   destinationEn: string;
+  /** '28 AUG — 31 AUG' */
   periodLabel: string;
   headcount: number;
   targetAmount: number;
   actualAmount: number;
-  /** 가장 크게 초과한 카테고리. 없으면 null */
-  topOver: { categoryCode: CategoryCode; diff: number } | null;
-  /** 가장 크게 절약한 카테고리. 없으면 null */
-  topSaved: { categoryCode: CategoryCode; diff: number } | null;
+  topOver: Diff;
+  topSaved: Diff;
+  /** 영수증 맨 아래 링크. 누르면 SETTLE-01 로 간다 */
+  onPressDetail?: () => void;
 };
 
 function won(value: number): string {
   return `${Math.abs(value).toLocaleString("ko-KR")}원`;
+}
+
+/**
+ * 톱니 한 줄.
+ * @param up true 면 위로 솟은 톱니(영수증 윗변), false 면 아래로 처진 톱니(아랫변)
+ */
+function toothPath(width: number, up: boolean): string {
+  const count = Math.ceil(width / TOOTH);
+  const parts: string[] = [];
+  if (up) {
+    // 위쪽: 종이 안쪽(아래)을 채우고 윗변만 톱니로 판다
+    parts.push(`M 0,${TOOTH_H}`);
+    for (let i = 0; i < count; i += 1) {
+      parts.push(`L ${i * TOOTH + TOOTH / 2},0`);
+      parts.push(`L ${(i + 1) * TOOTH},${TOOTH_H}`);
+    }
+    parts.push(`L ${count * TOOTH},${TOOTH_H} L 0,${TOOTH_H} Z`);
+  } else {
+    parts.push(`M 0,0`);
+    for (let i = 0; i < count; i += 1) {
+      parts.push(`L ${i * TOOTH + TOOTH / 2},${TOOTH_H}`);
+      parts.push(`L ${(i + 1) * TOOTH},0`);
+    }
+    parts.push(`L ${count * TOOTH},0 L 0,0 Z`);
+  }
+  return parts.join(" ");
+}
+
+/** 영수증 한 줄. 이름은 왼쪽, 금액은 오른쪽 */
+function Line({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+}) {
+  return (
+    <View
+      className="flex-row items-baseline justify-between"
+      style={{ marginTop: 11 }}
+    >
+      <Text style={{ fontSize: 10, color: "#858e9c" }}>{label}</Text>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "800",
+          color: tone ?? "#141b28",
+          ...NUM,
+        }}
+      >
+        {value}
+      </Text>
+    </View>
+  );
 }
 
 export function TripReceiptCard({
@@ -38,125 +119,164 @@ export function TripReceiptCard({
   actualAmount,
   topOver,
   topSaved,
+  onPressDetail,
 }: Props) {
+  const [width, setWidth] = useState(0);
   const remaining = targetAmount - actualAmount;
   const withinBudget = remaining >= 0;
 
+  const handleLayout = (event: LayoutChangeEvent) =>
+    setWidth(event.nativeEvent.layout.width);
+
   return (
-    <View
-      style={{
-        borderWidth: 1,
-        borderColor: "#e8eaee",
-        borderRadius: 17,
-        backgroundColor: "#fff",
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-      }}
-    >
-      <Text
-        style={{
-          fontSize: 10,
-          fontWeight: "900",
-          letterSpacing: 1.4,
-          color: "#141b28",
-        }}
-      >
-        {destinationEn} TRIP RECEIPT
-      </Text>
-      <Text
-        style={{
-          marginTop: 5,
-          fontSize: 9,
-          letterSpacing: 0.6,
-          color: "#a8afb9",
-        }}
-      >
-        {periodLabel} · {headcount} TRAVELERS
-      </Text>
+    // 본문보다 좁게 둔다. 종이는 화면 끝까지 닿지 않는다.
+    <View style={{ width: "94%", alignSelf: "center" }} onLayout={handleLayout}>
+      {/* 찢어낸 윗변 */}
+      {width > 0 ? (
+        <Svg width={width} height={TOOTH_H}>
+          <Path
+            d={toothPath(width, true)}
+            fill={PAPER}
+            stroke={LINE}
+            strokeWidth={1}
+          />
+        </Svg>
+      ) : null}
 
       <View
         style={{
-          marginTop: 16,
-          paddingTop: 15,
-          borderTopWidth: 1,
-          borderStyle: "dashed",
-          borderColor: "#d9dde3",
-          gap: 11,
+          backgroundColor: PAPER,
+          borderLeftWidth: 1,
+          borderRightWidth: 1,
+          borderColor: LINE,
+          paddingHorizontal: 17,
+          paddingTop: 16,
+          paddingBottom: 16,
+          // 종이가 살짝 떠 보이게
+          shadowColor: "#111827",
+          shadowOpacity: 0.08,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 2,
         }}
       >
-        {[
-          ["목표 여행비", won(targetAmount), "#141b28"],
-          ["실제 여행비", won(actualAmount), "#141b28"],
-        ].map(([label, value, color]) => (
-          <View key={label} className="flex-row items-center justify-between">
-            <Text style={{ fontSize: 11, color: "#7c8695" }}>{label}</Text>
-            <Text style={{ fontSize: 13, fontWeight: "800", color }}>
-              {value}
-            </Text>
-          </View>
-        ))}
-
-        {topOver ? (
-          <View className="flex-row items-center justify-between">
-            <Text style={{ fontSize: 11, color: "#7c8695" }}>
-              가장 큰 초과 · {CATEGORY_CODE_LABEL[topOver.categoryCode]}
-            </Text>
-            <Text
-              style={{ fontSize: 13, fontWeight: "800", color: theme.primary }}
-            >
-              +{won(topOver.diff)}
-            </Text>
-          </View>
-        ) : null}
-
-        {topSaved ? (
-          <View className="flex-row items-center justify-between">
-            <Text style={{ fontSize: 11, color: "#7c8695" }}>
-              가장 큰 절약 · {CATEGORY_CODE_LABEL[topSaved.categoryCode]}
-            </Text>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: GREEN }}>
-              −{won(topSaved.diff)}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      <View
-        style={{
-          marginTop: 15,
-          paddingTop: 14,
-          borderTopWidth: 1,
-          borderStyle: "dashed",
-          borderColor: "#d9dde3",
-        }}
-        className="flex-row items-center justify-between"
-      >
-        <Text style={{ fontSize: 11, color: "#7c8695" }}>
-          {withinBudget ? "남은 금액" : "초과 금액"}
+        <Text
+          style={{
+            textAlign: "center",
+            fontSize: 10,
+            fontWeight: "900",
+            letterSpacing: 1.6,
+            color: "#141b28",
+          }}
+        >
+          {destinationEn} TRIP RECEIPT
         </Text>
         <Text
           style={{
-            fontSize: 17,
+            textAlign: "center",
+            marginTop: 4,
+            fontSize: 8,
+            letterSpacing: 0.6,
+            color: "#a8afb9",
+            ...NUM,
+          }}
+        >
+          {periodLabel} · {headcount} TRAVELERS
+        </Text>
+
+        {/* 머리글과 본문을 가르는 점선 */}
+        <View
+          style={{
+            marginTop: 13,
+            borderTopWidth: 1,
+            borderStyle: "dashed",
+            borderColor: "#d6dbe1",
+          }}
+        />
+
+        <Line label="목표 여행비" value={won(targetAmount)} />
+        <Line label="실제 여행비" value={won(actualAmount)} />
+        {topOver ? (
+          <Line
+            label={`가장 큰 초과 · ${CATEGORY_CODE_LABEL[topOver.categoryCode]}`}
+            value={`+${won(topOver.diff)}`}
+            tone={theme.primary}
+          />
+        ) : null}
+        {topSaved ? (
+          <Line
+            label={`가장 큰 절약 · ${CATEGORY_CODE_LABEL[topSaved.categoryCode]}`}
+            value={`−${won(topSaved.diff)}`}
+            tone={GREEN}
+          />
+        ) : null}
+
+        {/* 합계 */}
+        <View
+          className="flex-row items-baseline justify-between"
+          style={{
+            marginTop: 15,
+            paddingTop: 13,
+            borderTopWidth: 1,
+            borderStyle: "dashed",
+            borderColor: "#bcc3cc",
+          }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "900", color: "#141b28" }}>
+            {withinBudget ? "남은 금액" : "초과 금액"}
+          </Text>
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: "900",
+              color: withinBudget ? "#141b28" : theme.primary,
+              ...NUM,
+            }}
+          >
+            {won(remaining)}
+          </Text>
+        </View>
+
+        <Text
+          style={{
+            textAlign: "right",
+            marginTop: 8,
+            fontSize: 9,
             fontWeight: "900",
             color: withinBudget ? GREEN : theme.primary,
           }}
         >
-          {won(remaining)}
-        </Text>
-      </View>
-
-      {targetAmount > 0 ? (
-        <Text
-          style={{
-            marginTop: 10,
-            fontSize: 10,
-            textAlign: "center",
-            color: withinBudget ? GREEN : theme.primary,
-            fontWeight: "700",
-          }}
-        >
           {withinBudget ? "예산 안에서 여행 완료 ✓" : "예산을 넘겼어요"}
         </Text>
+
+        {onPressDetail ? (
+          <Text
+            accessibilityRole="button"
+            accessibilityLabel="여행비 결산 자세히 보기"
+            onPress={onPressDetail}
+            style={{
+              textAlign: "right",
+              marginTop: 12,
+              fontSize: 9,
+              fontWeight: "900",
+              color: theme.primary,
+            }}
+          >
+            여행비 결산 자세히 보기 ›
+          </Text>
+        ) : null}
+      </View>
+
+      {/* 찢어낸 아랫변 */}
+      {width > 0 ? (
+        <Svg width={width} height={TOOTH_H}>
+          <Path
+            d={toothPath(width, false)}
+            fill={PAPER}
+            stroke={LINE}
+            strokeWidth={1}
+          />
+        </Svg>
       ) : null}
     </View>
   );

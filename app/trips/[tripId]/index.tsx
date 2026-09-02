@@ -643,12 +643,12 @@ export default function ScreenTripHome() {
             actualAmount={actualTotal}
             topOver={topOver}
             topSaved={topSaved}
-          />
-
-          {/* 영수증 안의 작은 링크가 아니라 분리된 주요 CTA 다 (스펙 4장) */}
-          <Button
-            label="여행비 결산 자세히 보기"
-            onPress={() => router.push(`/trips/${trip.id}/settlement`)}
+            /*
+              ⚠️ 2026-09-03 · 시안 v3 · 링크를 영수증 안으로 되돌렸다.
+                 영수증 아래에 같은 곳으로 가는 큰 버튼을 또 두면 종이 한 장이
+                 끝나는 자리가 흐려지고, 진입점도 둘이 된다.
+            */
+            onPressDetail={() => router.push(`/trips/${trip.id}/settlement`)}
           />
 
           {/*
@@ -704,9 +704,14 @@ export default function ScreenTripHome() {
                 >
                   {trip.destination ?? "여행"} 여행, 이렇게 다녀왔어요
                 </Text>
-                <Text className="text-[10px] text-gray-400">카테고리별 결산</Text>
+                <Text className="text-[10px] text-gray-400">
+                  카테고리별 결산
+                </Text>
               </View>
-              <SettlementVaultGrid theme={theme} categories={settlementVaults} />
+              <SettlementVaultGrid
+                theme={theme}
+                categories={settlementVaults}
+              />
             </View>
           ) : null}
 
