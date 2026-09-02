@@ -32,14 +32,20 @@ import {
 
 import {
   CategoryComparisonList,
+  MajorExpenseList,
+  RemainingFundCard,
+  type MajorExpense,
   SettlementSummaryCard,
   type CategoryComparison,
 } from "@/components/settlement";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
+import { countryTheme } from "@/lib/constants/countryTheme";
+import { findDestinationByName } from "@/lib/constants/destinations";
 import { track } from "@/lib/analytics/track";
 import {
   SETTLEMENT_TRIGGER,
+  FUND_SOURCE_TYPE,
   TRIP_STATUS,
   type CategoryCode,
   type TripStatus,
@@ -57,8 +63,12 @@ import {
   type Settlement,
 } from "@/lib/supabase/queries/settlements";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
 import {
+  getFundTotals,
   getSettlementChecklist,
+  getSettlementFunds,
+  type SettlementFunds,
   type SettlementChecklist,
 } from "@/lib/supabase/queries/transactions";
 
@@ -69,6 +79,10 @@ type SettlementData = {
   settlement: Settlement | null;
   /** 결산 전에 정리해야 할 것들 (IA v2 §2-6-1) */
   checklist: SettlementChecklist;
+  fund: FundSource | null;
+  /** 입금 거래 합계. 누적 모금액 계산에 쓴다 */
+  depositTotal: number;
+  funds: SettlementFunds;
 };
 
 /** category_snapshot_json 에 저장하는 모양. 확정 시점의 값이다. */
@@ -106,13 +120,26 @@ export default function ScreenSETTLE01() {
         return;
       }
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, settlement, checklist] = await Promise.all([
-        budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
-        getSettlement(trip.id),
-        getSettlementChecklist(trip.id, budget?.id ?? null),
-      ]);
+      const [categories, settlement, checklist, fund, totals, funds] =
+        await Promise.all([
+          budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
+          getSettlement(trip.id),
+          getSettlementChecklist(trip.id, budget?.id ?? null),
+          getTravelFund(trip.id),
+          getFundTotals(trip.id),
+          getSettlementFunds(trip.id),
+        ]);
 
-      setData({ trip, budget, categories, settlement, checklist });
+      setData({
+        trip,
+        budget,
+        categories,
+        settlement,
+        checklist,
+        fund,
+        depositTotal: totals.depositTotal,
+        funds,
+      });
     } catch {
       setError(true);
     } finally {
@@ -139,6 +166,13 @@ export default function ScreenSETTLE01() {
   const settled = data?.settlement != null;
   const checklist = data?.checklist ?? { reviewCount: 0, unlinkedPlans: [] };
 
+  // 국가 포인트 컬러. 초과·절약을 가르는 데만 쓴다
+  const theme = useMemo(
+    () =>
+      countryTheme(findDestinationByName(data?.trip.destination)?.countryKo),
+    [data?.trip.destination],
+  );
+
   const comparisons: CategoryComparison[] = useMemo(() => {
     if (!data) return [];
 
@@ -149,6 +183,9 @@ export default function ScreenSETTLE01() {
       const rows = snapshot?.categories ?? [];
       if (rows.length > 0) {
         return rows.map((row) => ({
+          // ⚠️ 스냅샷에는 카테고리 id 가 없다. 그래서 확정 후에는 눌리지 않는다.
+          //    지금 예산으로 이어 주면 확정 시점의 기록과 다른 화면이 열린다.
+          categoryId: null,
           categoryCode: row.category_code as CategoryCode,
           plannedAmount: row.planned_amount,
           actualAmount: row.actual_amount,
@@ -158,17 +195,56 @@ export default function ScreenSETTLE01() {
     }
 
     return data.categories.map((category) => ({
+      categoryId: category.id,
       categoryCode: category.category_code as CategoryCode,
       plannedAmount: category.planned_amount,
       actualAmount: category.actual_amount,
     }));
   }, [data]);
 
+  /**
+   * 주요 지출. 카테고리 코드를 붙여서 넘긴다.
+   *
+   * ⚠️ 거래에는 카테고리 id 만 있어서 화면이 코드로 바꿔 준다.
+   *    컴포넌트가 예산 테이블을 다시 읽게 하지 않는다. (CLAUDE.md 9장)
+   */
+  const majorExpenses: MajorExpense[] = useMemo(() => {
+    const byId = new Map(
+      (data?.categories ?? []).map((category) => [
+        category.id,
+        category.category_code as CategoryCode,
+      ]),
+    );
+    return (data?.funds.major ?? []).map((row) => ({
+      id: row.id,
+      name: row.name ?? "이름 없는 지출",
+      amount: row.amount,
+      occurredAt: row.occurred_at,
+      categoryCode: row.budget_category_id
+        ? (byId.get(row.budget_category_id) ?? null)
+        : null,
+      linked: row.budget_plan_item_id !== null,
+    }));
+  }, [data?.categories, data?.funds.major]);
+
+  /**
+   * 누적 모금액 = 등록 금액 + 입금 합계. (IA v2 §2-4-1)
+   * ⚠️ 결제로 줄지 않는다. 잔액과 혼용하지 않는다.
+   */
+  const raisedAmount =
+    (data?.fund?.current_amount ?? 0) + (data?.depositTotal ?? 0);
+  const fundSourceLabel =
+    data?.fund?.source_type === FUND_SOURCE_TYPE.MANUAL || !data?.fund
+      ? "직접 입력"
+      : "모임통장";
+
   const targetAmount =
     data?.settlement?.target_amount ?? data?.budget?.target_amount ?? 0;
   const actualAmount =
     data?.settlement?.actual_amount ??
     (data?.categories ?? []).reduce((sum, c) => sum + c.actual_amount, 0);
+  /** 현재 남은 금액 = 누적 모금액 − 실제 사용액. 음수로 내려가지 않게 둔다 */
+  const remainingAmount = Math.max(0, raisedAmount - actualAmount);
   const rateBp =
     data?.settlement?.difference_rate_bp ??
     differenceRateBp(targetAmount, actualAmount);
@@ -317,20 +393,91 @@ export default function ScreenSETTLE01() {
         headcount={data.trip.headcount}
       />
 
+      {/*
+        ── 남은 여행자금 ── (시안 v2)
+        결산에서 마지막으로 확인하는 건 "그래서 얼마 남았나" 다.
+      */}
       <View className="gap-2.5">
         <View className="flex-row items-end justify-between">
           <Text className="text-base font-semibold text-gray-900">
-            카테고리별 비교
+            남은 여행자금
           </Text>
-          <Text className="text-xs text-gray-400">차이가 큰 순서</Text>
+          <Text className="text-xs text-gray-400">{fundSourceLabel} 기준</Text>
+        </View>
+        <RemainingFundCard
+          theme={theme}
+          remainingAmount={remainingAmount}
+          raisedAmount={raisedAmount}
+          actualAmount={actualAmount}
+          pendingAmount={data.funds.pendingAmount}
+          refundPendingAmount={data.funds.refundPendingAmount}
+          closing={!settled}
+          sourceLabel={fundSourceLabel}
+        />
+      </View>
+
+      <View className="gap-2.5">
+        <View className="flex-row items-end justify-between">
+          <Text className="text-base font-semibold text-gray-900">
+            카테고리별 결산
+          </Text>
+          <Text
+            accessibilityRole="button"
+            onPress={() =>
+              router.push(`/trips/${data.trip.id}/funds/transactions`)
+            }
+            className="text-xs font-semibold"
+            style={{ color: theme.primary }}
+          >
+            전체 지출 {data.funds.confirmedCount}건 ›
+          </Text>
         </View>
         {comparisons.length > 0 ? (
-          <CategoryComparisonList categories={comparisons} />
+          <CategoryComparisonList
+            theme={theme}
+            categories={comparisons}
+            /* 확정 후 스냅샷에는 카테고리 id 가 없어 눌리지 않는다 */
+            onSelect={(categoryId) =>
+              router.push(`/trips/${data.trip.id}/budget/${categoryId}`)
+            }
+          />
         ) : (
           <View className="items-center rounded-2xl border border-gray-200 bg-white px-4 py-8">
             <Text className="text-sm text-gray-500">비교할 예산이 없어요.</Text>
           </View>
         )}
+      </View>
+
+      {/*
+        ── 주요 지출 ── (시안 v2)
+        "어디에 제일 많이 썼나" 는 카테고리 합계가 아니라 거래 한 건으로 기억된다.
+      */}
+      <View className="gap-2.5">
+        <View className="flex-row items-end justify-between">
+          <Text className="text-base font-semibold text-gray-900">
+            주요 지출
+          </Text>
+          <Text
+            accessibilityRole="button"
+            onPress={() =>
+              router.push(
+                `/trips/${data.trip.id}/funds/transactions?sort=amount`,
+              )
+            }
+            className="text-xs font-semibold"
+            style={{ color: theme.primary }}
+          >
+            큰 금액순으로 보기 ›
+          </Text>
+        </View>
+        <MajorExpenseList
+          expenses={majorExpenses}
+          onSelect={(transactionId) =>
+            router.push(
+              `/trips/${data.trip.id}/funds/transactions?transactionId=${transactionId}`,
+            )
+          }
+        />
       </View>
 
       {/*

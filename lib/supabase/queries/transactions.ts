@@ -381,3 +381,70 @@ export async function getSettlementChecklist(
 
   return { reviewCount, unlinkedPlans };
 }
+
+// ============================================================================
+// 결산 화면이 쓰는 자금 현황 (SETTLE-01 시안 v2)
+// ============================================================================
+
+export type SettlementFunds = {
+  /** 확정 지출 건수. 확인 필요·환불 완료는 빼고 센다 */
+  confirmedCount: number;
+  /** 아직 확인이 안 끝난 지출 합계. 결산 중에만 0 이 아니다 */
+  pendingAmount: number;
+  /** 환불 예정 금액. 돌려받기로 했지만 아직 안 들어온 돈 */
+  refundPendingAmount: number;
+  /** 큰 금액순 상위 지출 */
+  major: Transaction[];
+};
+
+/**
+ * 결산 화면의 '남은 여행자금' · '주요 지출' 에 필요한 값을 한 번에 모은다.
+ *
+ * ⚠️ 세 값을 각각 조회하지 않는다. 같은 거래 목록에서 나오는 값이라
+ *    따로 읽으면 조회 사이에 거래가 바뀌었을 때 서로 안 맞는 숫자가 나온다.
+ *
+ * ⚠️ **환불 완료·결제 취소는 지출이 아니다.** 나간 돈이 아니라서 건수에도
+ *    금액에도 넣지 않는다. (getFundTotals 와 같은 기준)
+ *    환불 '예정' 은 아직 돈이 나가 있는 상태라 지출로 세되,
+ *    돌려받을 금액을 따로 알려 준다.
+ */
+export async function getSettlementFunds(
+  tripId: string,
+  majorLimit = 3,
+): Promise<SettlementFunds> {
+  const rows = await getTransactions(tripId, {
+    transactionType: TRANSACTION_TYPE.WITHDRAWAL,
+  });
+
+  let confirmedCount = 0;
+  let pendingAmount = 0;
+  let refundPendingAmount = 0;
+  const spent: Transaction[] = [];
+
+  for (const row of rows) {
+    if (
+      row.refund_status === REFUND_STATUS.REFUNDED ||
+      row.refund_status === REFUND_STATUS.CANCELED
+    ) {
+      continue;
+    }
+    if (row.refund_status === REFUND_STATUS.PENDING) {
+      refundPendingAmount += row.amount;
+    }
+
+    // 확인이 필요한 거래는 아직 '확정 지출' 이 아니다.
+    if (reviewReason(row) !== null) {
+      pendingAmount += row.amount;
+      continue;
+    }
+    confirmedCount += 1;
+    spent.push(row);
+  }
+
+  return {
+    confirmedCount,
+    pendingAmount,
+    refundPendingAmount,
+    major: spent.sort((a, b) => b.amount - a.amount).slice(0, majorLimit),
+  };
+}
