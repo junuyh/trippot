@@ -10,7 +10,7 @@
 //    (소비 유형·개인화 추천은 settlements + budget_categories 에서 집계한다)
 //    그래서 생성 타입을 Pick<> 으로 조합해 만들었다. 새 도메인 인터페이스를
 //    손으로 정의하지는 않았으나, 순수 생성 타입도 아니라는 점을 알린다.
-import { APPLIED_SOURCE, TRIP_STATUS } from '@/lib/constants/status';
+import { APPLIED_SOURCE, CATEGORY_CODE, TRIP_STATUS } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Json, Tables } from '@/types/database';
 
@@ -245,6 +245,16 @@ export function personalizeFromProfile(
   const results: PersonalizedAmount[] = [];
 
   for (const target of targets) {
+    // ⚠️ 예비비는 개인화 대상에서 뺀다.
+    //
+    //    예비비는 **안 쓰면 성공**인 카테고리다. 지난 여행에 안 썼다고
+    //    "예비비를 227,000원 줄일까요?" 라고 제안하면 예비비의 존재 이유가
+    //    사라진다. 다음 여행에서 예상 밖 비용이 났을 때 받아낼 자리가 없어진다.
+    //
+    //    편차만 보면 −90% 대가 나와 금액 영향도 커 보이지만, 그 숫자는
+    //    '덜 썼다' 가 아니라 '쓸 일이 없었다' 는 뜻이다.
+    if (target.categoryCode === CATEGORY_CODE.CONTINGENCY) continue;
+
     const past = pastByCode.get(target.categoryCode);
     // 과거에 쓴 적 없는 카테고리는 참고할 게 없다
     if (!past || past.planned_amount <= 0) continue;

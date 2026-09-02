@@ -1,31 +1,508 @@
-import { Link, Stack, useLocalSearchParams } from "expo-router";
+// ============================================================================
+// FUND-02 계좌 연결 / 전환  ·  /trips/:tripId/funds/connect
+//
+// 수기 → 계좌 전환. (CLAUDE.md 3장)
+//
+//   초기화 안내 → 사용자 확인 → 기존 수기 금액 제외 → 계좌 잔액으로 대체
+//
+// ⚠️ **직접입력 금액과 연결계좌 잔액을 절대 합산하지 않는다.**
+//    현재 여행자금은 항상 단일 소스(계좌 또는 수기) 기준이다.
+//
+// ⚠️ 되돌릴 수 없는 동작이라 확인을 받는다. 그리고 **무엇이 사라지는지**를
+//    금액으로 보여준다. '초기화됩니다' 같은 말만 던지면 사용자는 무엇을
+//    잃는지 모른 채 결정하게 된다.
+//
+// ⚠️ MVP 금융 데이터는 전부 Supabase Mock 이다. 실제 금융기관 API 를
+//    호출하지 않는다. (CLAUDE.md 1장/11장)
+//
+// TODO: 이 화면은 lib/analytics/events.ts 의 SCREENS 에 값이 없어
+//       useScreenView 를 부르지 않는다. docs/06 §7-0 참조.
+//       docs/06 을 v3 로 갱신한 뒤 추가한다. 임의로 만들지 않는다.
+// ============================================================================
+import { Ionicons } from "@expo/vector-icons";
+import {
+  Stack,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
+
+import {
+  BottomSheet,
+  Button,
+  EmptyState,
+  ErrorState,
+  Loading,
+} from "@/components/ui";
+import { EVENTS } from "@/lib/analytics/events";
+import { track } from "@/lib/analytics/track";
+import { institutionName } from "@/lib/constants/bank";
+import { countryTheme } from "@/lib/constants/countryTheme";
+import { findDestinationByName } from "@/lib/constants/destinations";
+import { FUND_SOURCE_TYPE } from "@/lib/constants/status";
+import {
+  convertToAccount,
+  disconnectAccount,
+  getGroupAccounts,
+  getTravelFund,
+  type FinancialAccount,
+  type FundSource,
+} from "@/lib/supabase/queries/funds";
+import { getFundTotals } from "@/lib/supabase/queries/transactions";
+import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+
+type ConnectData = {
+  trip: Trip;
+  fund: FundSource | null;
+  accounts: FinancialAccount[];
+  /** 지금까지 수기로 넣은 입금 합계. 전환하면 사라진다 */
+  depositTotal: number;
+};
+
+function won(value: number): string {
+  return `${value.toLocaleString("ko-KR")}원`;
+}
+
 export default function ScreenFUND02() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
-  // TODO: 이 화면은 lib/analytics/events.ts 의 SCREENS 에 값이 없어 useScreenView 를 부르지 않는다.
-  //       docs/06_이벤트로그정의서_v2.md §7-0 '아직 screen_name 값이 없는 화면' 참조.
-  //       화면 구현(2026-09-07~) 시점에 docs/06 을 v3로 갱신한 뒤 추가한다. 임의로 만들지 않는다.
+
+  const [data, setData] = useState<ConnectData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!tripId) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+    setError(false);
+    try {
+      const trip = await getTripById(tripId);
+      if (!trip) {
+        setNotFound(true);
+        return;
+      }
+      const [fund, accounts, totals] = await Promise.all([
+        getTravelFund(trip.id),
+        // 계좌는 모임 자산이다. 개인 여행에는 붙을 계좌가 없다.
+        trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+        getFundTotals(trip.id),
+      ]);
+      setData({ trip, fund, accounts, depositTotal: totals.depositTotal });
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [tripId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  // ── 전환 ──────────────────────────────────────────────────────────────
+  /** 초기화 안내를 띄운 계좌. null 이면 안내를 닫은 상태 */
+  const [pending, setPending] = useState<FinancialAccount | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const manualAmount =
+    (data?.fund?.current_amount ?? 0) + (data?.depositTotal ?? 0);
+
+  /** 계좌를 골라 초기화 안내를 연다 */
+  const handleSelect = useCallback(
+    (account: FinancialAccount) => {
+      setPending(account);
+      track(EVENTS.FUND_CONVERSION_STARTED, {
+        current_manual_amount: manualAmount,
+      });
+    },
+    [manualAmount],
+  );
+
+  /**
+   * 안내를 닫는다. **거절도 기록한다.**
+   * 초기화 안내에서 이탈률이 높으면 문구가 사용자를 겁준 것이다. (docs/06 §7-4)
+   */
+  const handleDismiss = useCallback(() => {
+    setPending(null);
+    track(EVENTS.FUND_CONVERSION_CONFIRMED, { agreed: false });
+  }, []);
+
+  const handleConfirm = useCallback(async () => {
+    if (!data || !pending || busy) return;
+    setBusy(true);
+    track(EVENTS.FUND_CONVERSION_CONFIRMED, { agreed: true });
+
+    try {
+      await convertToAccount(data.trip.id, pending.id);
+      track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "success" });
+      setPending(null);
+      // 자금 화면으로 돌려보낸다. 바뀐 금액을 바로 확인하게 한다.
+      router.replace(`/trips/${data.trip.id}/funds`);
+    } catch {
+      track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "fail" });
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, data, pending]);
+
+  const handleDisconnect = useCallback(async () => {
+    if (!data || disconnecting) return;
+    setDisconnecting(true);
+    try {
+      await disconnectAccount(data.trip.id);
+      router.replace(`/trips/${data.trip.id}/funds`);
+    } catch {
+      setError(true);
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [data, disconnecting]);
+
+  const theme = useMemo(
+    () =>
+      countryTheme(findDestinationByName(data?.trip.destination)?.countryKo),
+    [data?.trip.destination],
+  );
+
+  // ── 4상태 ─────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ title: "계좌 연결" }} />
+        <Loading message="계좌 정보를 불러오는 중…" />
+      </View>
+    );
+  }
+  if (notFound) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ title: "계좌 연결" }} />
+        <EmptyState
+          icon="card-outline"
+          title="여행을 찾을 수 없어요"
+          description="삭제되었거나 접근할 수 없는 여행이에요."
+          actionLabel="홈으로"
+          onAction={() => router.replace("/")}
+        />
+      </View>
+    );
+  }
+  if (error || !data) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ title: "계좌 연결" }} />
+        <ErrorState
+          message="계좌 정보를 불러오지 못했어요."
+          onRetry={() => void load()}
+        />
+      </View>
+    );
+  }
+
+  const connected =
+    data.fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT ||
+    data.fund?.source_type === FUND_SOURCE_TYPE.MOCK;
+  const linked =
+    data.accounts.find((a) => a.id === data.fund?.financial_account_id) ?? null;
 
   return (
-    <ScrollView
-      className="flex-1 bg-white"
-      contentContainerClassName="px-5 pb-10 pt-6"
-    >
-      <Stack.Screen options={{ title: "계좌 연결/전환" }} />
-      <View>
-        <Text className="text-xs font-semibold tracking-wide text-blue-600">
-          FUND-02
-        </Text>
-        <Text className="mt-1 text-2xl font-bold text-gray-900">
-          계좌 연결/전환
-        </Text>
-        <Text className="mt-1 text-xs text-gray-400">
-          /trips/:tripId/funds/connect
-        </Text>
-        <View className="mt-4 gap-1 rounded-lg bg-gray-100 px-3 py-2">
-          <Text className="text-xs text-gray-500">tripId: {tripId}</Text>
+    <View className="flex-1 bg-white">
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 18,
+          paddingBottom: 40,
+        }}
+      >
+        <Stack.Screen
+          options={{ title: connected ? "연결 계좌 관리" : "계좌 연결" }}
+        />
+
+        {/* ── 지금 방식 ── */}
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: "#e8eaee",
+            borderRadius: 16,
+            padding: 16,
+            gap: 4,
+          }}
+        >
+          <Text style={{ fontSize: 10, color: "#858e9c" }}>
+            지금 여행자금 관리 방식
+          </Text>
+          <Text style={{ fontSize: 17, fontWeight: "800", color: "#141b28" }}>
+            {connected ? "연결 계좌 기준" : "직접 입력 기준"}
+          </Text>
+          <Text
+            style={{
+              marginTop: 2,
+              fontSize: 12,
+              fontWeight: "700",
+              color: theme.primary,
+            }}
+          >
+            {won(manualAmount)}
+          </Text>
+          <Text
+            style={{
+              marginTop: 6,
+              fontSize: 11,
+              lineHeight: 17,
+              color: "#7c8695",
+            }}
+          >
+            {connected
+              ? `${linked?.masked_account_number ?? "연결된 계좌"} 의 잔액을 그대로 씁니다.`
+              : "직접 넣은 금액으로 관리하고 있어요. 계좌를 연결하면 잔액이 자동으로 반영돼요."}
+          </Text>
         </View>
-      </View>
-    </ScrollView>
+
+        {/* ── 계좌 목록 ── */}
+        <Text
+          style={{
+            marginTop: 26,
+            fontSize: 17,
+            fontWeight: "800",
+            color: "#141b28",
+          }}
+        >
+          {connected ? "연결된 계좌" : "연결할 계좌"}
+        </Text>
+
+        {!data.trip.group_id ? (
+          <View
+            style={{
+              marginTop: 12,
+              borderRadius: 14,
+              backgroundColor: "#f5f6f8",
+              padding: 16,
+            }}
+          >
+            <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
+              개인 여행에는 연결할 계좌가 없어요. 계좌는 모임 자산이라 모임
+              여행에서만 연결할 수 있어요.
+            </Text>
+            <Text
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                lineHeight: 17,
+                color: "#858e9c",
+              }}
+            >
+              직접 입력으로도 예산·결산·개인화를 모두 쓸 수 있어요.
+            </Text>
+          </View>
+        ) : data.accounts.length === 0 ? (
+          <View
+            style={{
+              marginTop: 12,
+              borderRadius: 14,
+              backgroundColor: "#f5f6f8",
+              padding: 16,
+            }}
+          >
+            <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
+              이 모임에 등록된 계좌가 없어요.
+            </Text>
+          </View>
+        ) : (
+          <View style={{ marginTop: 12, gap: 9 }}>
+            {data.accounts.map((account) => {
+              const isLinked = account.id === data.fund?.financial_account_id;
+              return (
+                <Pressable
+                  key={account.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${institutionName(account.institution_code)} 계좌 연결`}
+                  accessibilityState={{ selected: isLinked }}
+                  disabled={isLinked}
+                  onPress={() => handleSelect(account)}
+                  className={isLinked ? undefined : "active:bg-gray-50"}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: 15,
+                    borderWidth: 1,
+                    borderColor: isLinked ? theme.primary : "#e8eaee",
+                    backgroundColor: isLinked ? theme.primarySoft : "#fff",
+                    borderRadius: 14,
+                  }}
+                >
+                  <Ionicons
+                    name="card-outline"
+                    size={20}
+                    color={isLinked ? theme.primary : "#5d6674"}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "800",
+                        color: "#141b28",
+                      }}
+                    >
+                      {institutionName(account.institution_code)}
+                    </Text>
+                    {/* 마스킹된 번호만 다룬다 (NFR-002) */}
+                    <Text
+                      style={{ marginTop: 3, fontSize: 11, color: "#858e9c" }}
+                    >
+                      {account.masked_account_number}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "800",
+                        color: "#141b28",
+                      }}
+                    >
+                      {won(account.current_balance)}
+                    </Text>
+                    {isLinked ? (
+                      <Text
+                        style={{
+                          marginTop: 3,
+                          fontSize: 10,
+                          fontWeight: "800",
+                          color: theme.primary,
+                        }}
+                      >
+                        연결됨
+                      </Text>
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {connected ? (
+          <View style={{ marginTop: 22, gap: 10 }}>
+            <Text style={{ fontSize: 11, lineHeight: 17, color: "#858e9c" }}>
+              연결을 해제하면 지금 잔액을 그대로 이어받아 직접 입력으로
+              돌아가요. 모은 금액이 사라지지 않아요.
+            </Text>
+            <Button
+              label="연결 해제"
+              variant="secondary"
+              loading={disconnecting}
+              onPress={() => void handleDisconnect()}
+            />
+          </View>
+        ) : null}
+
+        <Text
+          style={{
+            marginTop: 24,
+            fontSize: 10,
+            lineHeight: 16,
+            color: "#a8afb9",
+          }}
+        >
+          지금은 준비된 예시 계좌로 동작해요. 실제 금융기관 연결은 이후에
+          붙습니다.
+        </Text>
+      </ScrollView>
+
+      {/*
+        ── 초기화 안내 ── (CLAUDE.md 3장)
+        되돌릴 수 없으므로 **무엇이 사라지는지 금액으로** 보여주고 확인을 받는다.
+      */}
+      <BottomSheet
+        visible={pending !== null}
+        title="직접 입력한 금액은 사라져요"
+        description="계좌를 연결하면 여행자금을 계좌 잔액 하나로만 관리해요. 두 금액을 합치지 않아요."
+        onClose={handleDismiss}
+        footer={
+          <View className="flex-row gap-2">
+            <View style={{ flex: 1 }}>
+              <Button
+                label="그만두기"
+                variant="secondary"
+                onPress={handleDismiss}
+                disabled={busy}
+              />
+            </View>
+            <View style={{ flex: 2 }}>
+              <Button
+                label="연결하고 대체하기"
+                loading={busy}
+                onPress={() => void handleConfirm()}
+              />
+            </View>
+          </View>
+        }
+      >
+        {pending ? (
+          <View style={{ paddingTop: 14, gap: 11 }}>
+            <View
+              className="flex-row items-center justify-between"
+              style={{
+                padding: 14,
+                borderRadius: 12,
+                backgroundColor: "#f5f6f8",
+              }}
+            >
+              <Text style={{ fontSize: 12, color: "#5d6674" }}>
+                지금 직접 입력한 금액
+              </Text>
+              <Text
+                style={{ fontSize: 14, fontWeight: "800", color: "#98a0ab" }}
+              >
+                {won(manualAmount)}
+              </Text>
+            </View>
+
+            <View className="items-center">
+              <Ionicons name="arrow-down" size={16} color="#a8afb9" />
+            </View>
+
+            <View
+              className="flex-row items-center justify-between"
+              style={{
+                padding: 14,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.primary,
+                backgroundColor: theme.primarySoft,
+              }}
+            >
+              <Text style={{ fontSize: 12, color: "#5d6674" }}>
+                {institutionName(pending.institution_code)} 잔액
+              </Text>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "900",
+                  color: theme.primary,
+                }}
+              >
+                {won(pending.current_balance)}
+              </Text>
+            </View>
+
+            <Text style={{ fontSize: 11, lineHeight: 17, color: "#7c8695" }}>
+              직접 넣어 둔 입금 기록도 함께 정리돼요. 실제로 쓴 지출 내역은
+              그대로 남아 예산과 결산에 계속 반영됩니다.
+            </Text>
+          </View>
+        ) : null}
+      </BottomSheet>
+    </View>
   );
 }
