@@ -165,8 +165,10 @@ export function PostDetailView({
           disabled={dislikeBusy}
           onPress={onToggleDislike}
           hitSlop={10}
-          className="ml-5 flex-row items-center active:opacity-60"
-          style={{ opacity: dislikeBusy ? 0.5 : 1 }}
+          className="flex-row items-center active:opacity-60"
+          // 간격을 className(ml-*) 대신 style 로 준다. 같은 줄의 다른 아이콘도
+          // style 로 띄우고 있어서 한 가지 방식으로 맞춘다.
+          style={{ marginLeft: 24, opacity: dislikeBusy ? 0.5 : 1 }}
         >
           <Ionicons
             name={post.dislikedByMe ? 'thumbs-down' : 'thumbs-down-outline'}
@@ -182,9 +184,9 @@ export function PostDetailView({
 
         <Ionicons
           name="chatbubble-outline"
-          size={21}
-          color="#111827"
-          style={{ marginLeft: 18 }}
+          size={20}
+          color="#747B88"
+          style={{ marginLeft: 24 }}
         />
         {post.commentCount > 0 ? (
           <Text className="ml-2 text-pot-mute" style={{ fontSize: 14, ...NUM }}>

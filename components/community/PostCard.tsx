@@ -151,7 +151,7 @@ export function PostCard({ post, onPress }: Props) {
           name={post.dislikedByMe ? 'thumbs-down' : 'thumbs-down-outline'}
           size={15}
           color={post.dislikedByMe ? '#111827' : '#8B94A2'}
-          style={{ marginLeft: 14 }}
+          style={{ marginLeft: 18 }}
         />
         <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
           {post.dislikeCount}
@@ -161,7 +161,7 @@ export function PostCard({ post, onPress }: Props) {
           name="chatbubble-outline"
           size={15}
           color="#8B94A2"
-          style={{ marginLeft: 14 }}
+          style={{ marginLeft: 18 }}
         />
         <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
           {post.commentCount}
