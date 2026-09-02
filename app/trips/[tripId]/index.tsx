@@ -37,11 +37,20 @@ import {
   TripGuideCards,
   type GridCategory,
 } from "@/components/trip-home";
-import { TravelTypeCard, TripReceiptCard } from "@/components/trip-type";
+import {
+  SettlementVaultGrid,
+  TravelTypeCard,
+  TripReceiptCard,
+  TripRecordCard,
+  TypeResultOverlay,
+  type SettlementVault,
+  type TypeEvidenceRow,
+} from "@/components/trip-type";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { allocateVault } from "@/lib/budget/vault";
+import { buildTripRecord } from "@/lib/budget/tripRecord";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
@@ -103,6 +112,12 @@ export default function ScreenTripHome() {
   const [typeResult, setTypeResult] = useState<TripTypeResult | null>(null);
   /** 이번 진입에서 금고 배분을 이미 저장했는지 */
   const syncedRef = useRef(false);
+  /**
+   * TYPE-01 오버레이 열림 여부. (시안 v3)
+   * ⚠️ 별도 라우트로 밀지 않는다. 유형은 결산 결과를 다르게 읽은 것이라
+   *    돌아올 때 뒤로가기를 두 번 누르게 하면 안 된다.
+   */
+  const [typeOpen, setTypeOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!tripId) {
@@ -274,6 +289,32 @@ export default function ScreenTripHome() {
   const theme = useMemo(
     () => countryTheme(destinationMeta?.countryKo),
     [destinationMeta?.countryKo],
+  );
+
+  /** 카테고리별 결산 그리드. 계획이 있는 카테고리만 그린다 */
+  const settlementVaults: SettlementVault[] = useMemo(
+    () =>
+      (data?.categories ?? [])
+        .filter((category) => category.planned_amount > 0)
+        .map((category) => ({
+          categoryCode: category.category_code as CategoryCode,
+          plannedAmount: category.planned_amount,
+          actualAmount: category.actual_amount,
+        })),
+    [data?.categories],
+  );
+
+  /** 이번 여행의 한 줄 기록. 결산 숫자에서 문장을 만든다 */
+  const record = useMemo(
+    () =>
+      buildTripRecord(
+        (data?.categories ?? []).map((category) => ({
+          categoryCode: category.category_code as CategoryCode,
+          plannedAmount: category.planned_amount,
+          actualAmount: category.actual_amount,
+        })),
+      ),
+    [data?.categories],
   );
 
   const gridCategories: GridCategory[] = useMemo(
@@ -534,10 +575,14 @@ export default function ScreenTripHome() {
 
           {typeResult ? (
             <TravelTypeCard
-              theme={theme}
               code={typeResult.code}
               accuracyBp={typeResult.accuracyBp}
-              onPress={() => router.push(`/trips/${trip.id}/type-result`)}
+              destinationEn={
+                destinationMeta?.nameEn ??
+                (trip.destination ?? "TRIP").toUpperCase()
+              }
+              /* 라우트로 밀지 않고 오버레이로 연다 (시안 v3) */
+              onPress={() => setTypeOpen(true)}
             />
           ) : (
             <View
@@ -601,19 +646,90 @@ export default function ScreenTripHome() {
           />
 
           {/* 영수증 안의 작은 링크가 아니라 분리된 주요 CTA 다 (스펙 4장) */}
-          <View className="gap-2.5">
-            <Button
-              label="여행비 결산 자세히 보기"
-              onPress={() => router.push(`/trips/${trip.id}/settlement`)}
+          <Button
+            label="여행비 결산 자세히 보기"
+            onPress={() => router.push(`/trips/${trip.id}/settlement`)}
+          />
+
+          {/*
+            ── 이번 여행의 한 줄 기록 ── (시안 v3)
+            숫자만 늘어놓으면 "그래서 어땠는데" 에 답이 없다.
+          */}
+          {settlementVaults.length > 0 ? (
+            <View className="gap-2.5">
+              <View
+                className="flex-row items-end justify-between"
+                style={{ marginHorizontal: 4, marginBottom: 11 }}
+              >
+                <Text
+                  className="text-[17px] font-extrabold"
+                  style={{ color: theme.neutral }}
+                >
+                  이번 여행의 한 줄 기록
+                </Text>
+                <Text className="text-[10px] tracking-wider text-gray-400">
+                  TRAVEL RECORD
+                </Text>
+              </View>
+              <TripRecordCard
+                theme={theme}
+                destinationEn={
+                  destinationMeta?.nameEn ??
+                  (trip.destination ?? "TRIP").toUpperCase()
+                }
+                headline={record.headline}
+                description={record.description}
+                accuracyBp={
+                  targetAmount > 0
+                    ? Math.round((actualTotal / targetAmount) * 10000)
+                    : 0
+                }
+                topSpentLabel={record.topSpentLabel}
+                topSavedLabel={record.topSavedLabel}
+                hashtags={record.hashtags}
+              />
+            </View>
+          ) : null}
+
+          {/* ── 카테고리별 결산 ── */}
+          {settlementVaults.length > 0 ? (
+            <View className="gap-2.5">
+              <View
+                className="flex-row items-end justify-between"
+                style={{ marginHorizontal: 4, marginBottom: 11 }}
+              >
+                <Text
+                  className="text-[17px] font-extrabold"
+                  style={{ color: theme.neutral }}
+                >
+                  {trip.destination ?? "여행"} 여행, 이렇게 다녀왔어요
+                </Text>
+                <Text className="text-[10px] text-gray-400">카테고리별 결산</Text>
+              </View>
+              <SettlementVaultGrid theme={theme} categories={settlementVaults} />
+            </View>
+          ) : null}
+
+          <Button
+            label="같은 멤버로 다시 여행 만들기"
+            variant="secondary"
+            onPress={() => router.push("/trips/new/owner?entryPoint=past_trip")}
+          />
+
+          {/*
+            TYPE-01 오버레이. 결산이 확정된 여행에만 결과가 있다.
+            ⚠️ 근거를 반드시 함께 보여준다. 이름만 던지면 다음 여행 추천도 안 믿는다.
+          */}
+          {typeResult ? (
+            <TypeResultOverlay
+              visible={typeOpen}
+              theme={theme}
+              code={typeResult.code}
+              accuracyBp={typeResult.accuracyBp}
+              evidence={typeResult.evidence as TypeEvidenceRow[]}
+              onClose={() => setTypeOpen(false)}
             />
-            <Button
-              label="같은 멤버로 다시 여행 만들기"
-              variant="secondary"
-              onPress={() =>
-                router.push("/trips/new/owner?entryPoint=past_trip")
-              }
-            />
-          </View>
+          ) : null}
         </>
       ) : (
         // ── TRIP-HOME-01 준비 중 ────────────────────────────────────────
