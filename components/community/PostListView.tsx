@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Header } from '@/components/ui';
 import type { PostType } from '@/lib/constants/status';
 
+import { NO_FOCUS_RING } from './inputStyle';
 import { PostCard } from './PostCard';
 import type { PostCardData, PostFilter } from './types';
 
@@ -69,7 +70,7 @@ export function PostListView({
               placeholderTextColor="#9AA3AE"
               returnKeyType="search"
               className="ml-2 flex-1 text-pot-ink"
-              style={{ fontSize: 13, padding: 0 }}
+              style={{ fontSize: 13, padding: 0, ...NO_FOCUS_RING }}
             />
             {query.length > 0 ? (
               <Pressable

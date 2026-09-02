@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from './Avatar';
+import { NO_FOCUS_RING } from './inputStyle';
 import type { PostCommentItem } from './types';
 
 type Props = {
@@ -108,7 +109,7 @@ export function CommentSection({
           multiline
           maxLength={maxLength}
           className="flex-1 rounded-2xl bg-pot-visual px-4 py-3 text-pot-ink"
-          style={{ fontSize: 13.5, lineHeight: 19, maxHeight: 110 }}
+          style={{ fontSize: 13.5, lineHeight: 19, maxHeight: 110, ...NO_FOCUS_RING }}
         />
 
         <Pressable

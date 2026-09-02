@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native';
 
+import { NO_FOCUS_RING } from './inputStyle';
+
 // ⚠️ components/ui/Button 을 쓰지 않는다. 공용 Button 의 primary 가 bg-blue-600 이고
 //    그 파일은 [공유] 라 고치면 25개 화면 버튼이 전부 바뀐다.
 //    버튼 검은색 통일이 팀 전체로 확정되면 공용 Button 을 고치고 이 버튼을 지운다.
@@ -177,7 +179,7 @@ export function PostWriteForm({
         placeholderTextColor="#9AA3AE"
         maxLength={80}
         className={`rounded-xl bg-pot-visual px-4 py-3.5 text-pot-ink ${titleError ? 'border border-red-400' : ''}`}
-        style={{ fontSize: 15 }}
+        style={{ fontSize: 15, ...NO_FOCUS_RING }}
       />
       <View className="mt-1.5 flex-row justify-between">
         <Text className="text-red-500" style={{ fontSize: 12 }}>
@@ -202,7 +204,7 @@ export function PostWriteForm({
         textAlignVertical="top"
         maxLength={2000}
         className={`rounded-xl bg-pot-visual px-4 py-3.5 text-pot-ink ${contentError ? 'border border-red-400' : ''}`}
-        style={{ fontSize: 15, lineHeight: 23, minHeight: 200 }}
+        style={{ fontSize: 15, lineHeight: 23, minHeight: 200, ...NO_FOCUS_RING }}
       />
       <View className="mt-1.5 flex-row justify-between">
         <Text className="text-red-500" style={{ fontSize: 12 }}>
