@@ -13,10 +13,21 @@
 //
 // 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/trip-home/.
 // ============================================================================
-import { differenceInCalendarDays, format, parseISO } from 'date-fns';
-import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import {
+  Stack,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 
 import {
   JourneySteps,
@@ -26,34 +37,39 @@ import {
   VaultGrid,
   type RecentTransaction,
   type VaultCategory,
-} from '@/components/trip-home';
-import { Button, EmptyState, ErrorState, Loading } from '@/components/ui';
-import { SCREENS } from '@/lib/analytics/events';
-import { allocateVault, journeyStages } from '@/lib/budget/vault';
-import { countryTheme } from '@/lib/constants/countryTheme';
-import { findDestinationByName } from '@/lib/constants/destinations';
+} from "@/components/trip-home";
+import { TravelTypeCard, TripReceiptCard } from "@/components/trip-type";
+import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
+import { SCREENS } from "@/lib/analytics/events";
+import { allocateVault, journeyStages } from "@/lib/budget/vault";
+import { countryTheme } from "@/lib/constants/countryTheme";
+import { findDestinationByName } from "@/lib/constants/destinations";
 import {
   TRIP_STATUS,
   type CategoryCode,
   type TransactionType,
   type TripStatus,
-} from '@/lib/constants/status';
-import { useScreenView } from '@/lib/hooks/useScreenView';
+} from "@/lib/constants/status";
+import { useScreenView } from "@/lib/hooks/useScreenView";
 import {
   getBudgetByTripId,
   getBudgetCategories,
   updateBudgetCategoriesPrepared,
   type BudgetCategory,
   type TripBudget,
-} from '@/lib/supabase/queries/budgets';
-import { getTravelFund, type FundSource } from '@/lib/supabase/queries/funds';
-import { getGroupById } from '@/lib/supabase/queries/groups';
+} from "@/lib/supabase/queries/budgets";
+import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import { getGroupById } from "@/lib/supabase/queries/groups";
 import {
   getFundTotals,
   getTransactions,
   type Transaction,
-} from '@/lib/supabase/queries/transactions';
-import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
+} from "@/lib/supabase/queries/transactions";
+import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import {
+  ensureTripTypeResult,
+  type TripTypeResult,
+} from "@/lib/supabase/queries/travelTypes";
 
 /**
  * 주격 조사를 붙인다. '도쿄가' / '홍콩이'.
@@ -66,13 +82,13 @@ function withSubjectParticle(word: string): string {
   const code = last.charCodeAt(0);
   const isHangul = code >= 0xac00 && code <= 0xd7a3;
   if (!isHangul) return `${word}가`;
-  return `${word}${(code - 0xac00) % 28 === 0 ? '가' : '이'}`;
+  return `${word}${(code - 0xac00) % 28 === 0 ? "가" : "이"}`;
 }
 
 /** 준비 홈에 보여줄 최근 내역 건수. 전체는 FUND-01(고도화)이 담당한다 */
 const RECENT_LIMIT = 3;
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
-const PAGE_COLOR = '#ffffff';
+const PAGE_COLOR = "#ffffff";
 
 type TripHomeData = {
   trip: Trip;
@@ -93,6 +109,8 @@ export default function ScreenTripHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  /** 결산이 확정된 여행의 유형. 확정 전에는 null */
+  const [typeResult, setTypeResult] = useState<TripTypeResult | null>(null);
   /** 이번 진입에서 금고 배분을 이미 저장했는지 */
   const syncedRef = useRef(false);
 
@@ -114,13 +132,15 @@ export default function ScreenTripHome() {
 
       // 여행을 찾은 뒤에야 나머지를 붙인다. 예산·자금이 없어도 화면은 떠야 한다.
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, fund, transactions, totals, group] = await Promise.all([
-        budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
-        getTravelFund(trip.id),
-        getTransactions(trip.id, { limit: RECENT_LIMIT }),
-        getFundTotals(trip.id),
-        trip.group_id ? getGroupById(trip.group_id) : Promise.resolve(null),
-      ]);
+      const [categories, fund, transactions, totals, group] = await Promise.all(
+        [
+          budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
+          getTravelFund(trip.id),
+          getTransactions(trip.id, { limit: RECENT_LIMIT }),
+          getFundTotals(trip.id),
+          trip.group_id ? getGroupById(trip.group_id) : Promise.resolve(null),
+        ],
+      );
 
       setData({
         trip,
@@ -199,7 +219,32 @@ export default function ScreenTripHome() {
       .catch(() => undefined);
   }, [data]);
 
-  useScreenView(SCREENS.TRIP_HOME, (data?.trip.status as TripStatus | undefined) ?? null);
+  /**
+   * 결산이 확정된 여행의 유형을 준비한다.
+   *
+   * ⚠️ SETTLED 일 때만 만든다. 결산 중에는 거래 분류가 남아 있어
+   *    카테고리별 실제가 계속 바뀌고, 그때 뽑은 유형은 확정 후와 달라진다.
+   *    한 번 만든 결과는 덮어쓰지 않는다. (queries/travelTypes.ts)
+   */
+  useEffect(() => {
+    if (!data || data.trip.status !== TRIP_STATUS.SETTLED) return;
+    void ensureTripTypeResult(
+      data.trip.id,
+      data.categories.map((category) => ({
+        categoryCode: category.category_code as CategoryCode,
+        plannedAmount: category.planned_amount,
+        actualAmount: category.actual_amount,
+      })),
+    )
+      .then(setTypeResult)
+      // 유형은 부가 정보다. 실패해도 결산 영수증은 그대로 보여준다.
+      .catch(() => undefined);
+  }, [data]);
+
+  useScreenView(
+    SCREENS.TRIP_HOME,
+    (data?.trip.status as TripStatus | undefined) ?? null,
+  );
 
   // ── 파생값 ────────────────────────────────────────────────────────────
   const destinationMeta = useMemo(
@@ -233,11 +278,18 @@ export default function ScreenTripHome() {
         })),
         data?.trip.destination,
       ),
-    [data?.categories, data?.depositTotal, data?.fund?.current_amount, data?.trip.destination],
+    [
+      data?.categories,
+      data?.depositTotal,
+      data?.fund?.current_amount,
+      data?.trip.destination,
+    ],
   );
 
   const recentTransactions: RecentTransaction[] = useMemo(() => {
-    const byId = new Map((data?.categories ?? []).map((c) => [c.id, c.category_code]));
+    const byId = new Map(
+      (data?.categories ?? []).map((c) => [c.id, c.category_code]),
+    );
     return (data?.transactions ?? []).map((transaction) => ({
       id: transaction.id,
       merchantName: transaction.name,
@@ -245,14 +297,18 @@ export default function ScreenTripHome() {
       transactionType: transaction.transaction_type as TransactionType,
       occurredAt: transaction.occurred_at,
       categoryCode: transaction.budget_category_id
-        ? ((byId.get(transaction.budget_category_id) as CategoryCode | undefined) ?? null)
+        ? ((byId.get(transaction.budget_category_id) as
+            CategoryCode | undefined) ?? null)
         : null,
     }));
   }, [data?.categories, data?.transactions]);
 
   const daysLeft = useMemo(() => {
     if (!data?.trip.start_date) return null;
-    const left = differenceInCalendarDays(parseISO(data.trip.start_date), new Date());
+    const left = differenceInCalendarDays(
+      parseISO(data.trip.start_date),
+      new Date(),
+    );
     return left > 0 ? left : null;
   }, [data?.trip.start_date]);
 
@@ -260,7 +316,7 @@ export default function ScreenTripHome() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: '여행 홈' }} />
+        <Stack.Screen options={{ title: "여행 홈" }} />
         <Loading message="여행 정보를 불러오는 중…" />
       </View>
     );
@@ -268,13 +324,13 @@ export default function ScreenTripHome() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: '여행 홈' }} />
+        <Stack.Screen options={{ title: "여행 홈" }} />
         <EmptyState
           icon="airplane-outline"
           title="여행을 찾을 수 없어요"
           description="삭제되었거나 접근할 수 없는 여행이에요."
           actionLabel="홈으로"
-          onAction={() => router.replace('/')}
+          onAction={() => router.replace("/")}
         />
       </View>
     );
@@ -282,13 +338,37 @@ export default function ScreenTripHome() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: '여행 홈' }} />
-        <ErrorState message="여행 정보를 불러오지 못했어요." onRetry={() => void load()} />
+        <Stack.Screen options={{ title: "여행 홈" }} />
+        <ErrorState
+          message="여행 정보를 불러오지 못했어요."
+          onRetry={() => void load()}
+        />
       </View>
     );
   }
 
   const { trip, budget, fund } = data;
+
+  /**
+   * 가장 크게 초과·절약한 카테고리.
+   *
+   * ⚠️ **금액 기준**이다. 비율로 고르면 6만원짜리 보험의 +50% 가
+   *    120만원짜리 숙소의 +10% 를 이겨, 사용자가 체감한 것과 다른 답이 나온다.
+   */
+  const diffs = data.categories
+    .filter((category) => category.planned_amount > 0)
+    .map((category) => ({
+      categoryCode: category.category_code as CategoryCode,
+      diff: category.actual_amount - category.planned_amount,
+    }));
+  const overs = diffs
+    .filter((row) => row.diff > 0)
+    .sort((a, b) => b.diff - a.diff);
+  const saveds = diffs
+    .filter((row) => row.diff < 0)
+    .sort((a, b) => a.diff - b.diff);
+  const topOver = overs[0] ?? null;
+  const topSaved = saveds[0] ?? null;
   const status = trip.status as TripStatus;
   const ended = status === TRIP_STATUS.ENDED || status === TRIP_STATUS.SETTLED;
 
@@ -311,48 +391,63 @@ export default function ScreenTripHome() {
    *       (docs/README.md §5 에 기록)
    */
   const raisedAmount = (fund?.current_amount ?? 0) + data.depositTotal;
-  const actualTotal = data.categories.reduce((sum, c) => sum + c.actual_amount, 0);
+  const actualTotal = data.categories.reduce(
+    (sum, c) => sum + c.actual_amount,
+    0,
+  );
   // 100 을 넘겨 넘기지 않는다. 비행기가 도착지를 지나치면 안 된다. (스펙 3장)
-  const progress = targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;
+  const progress =
+    targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;
 
   const dDay =
     daysLeft !== null
       ? `D–${daysLeft}`
-      : trip.start_date && differenceInCalendarDays(parseISO(trip.start_date), new Date()) === 0
-        ? 'D–DAY'
+      : trip.start_date &&
+          differenceInCalendarDays(parseISO(trip.start_date), new Date()) === 0
+        ? "D–DAY"
         : null;
 
   // 다음 단계 안내 — 여기까지 얼마 남았는지
   const nextStage = stages.find((stage) => !stage.reached) ?? null;
   const nextTitle = nextStage
-    ? `${nextStage.label}까지 ${(nextStage.threshold - raisedAmount).toLocaleString('ko-KR')}원`
+    ? `${nextStage.label}까지 ${(nextStage.threshold - raisedAmount).toLocaleString("ko-KR")}원`
     : targetAmount > 0
-      ? '여행 준비 완료'
+      ? "여행 준비 완료"
       : null;
   const nextDesc = nextStage
     ? daysLeft && daysLeft > 0
-      ? `하루 ${(Math.ceil((targetAmount - raisedAmount) / daysLeft / 1000) * 1000).toLocaleString('ko-KR')}원씩 모으면 딱 맞아요`
-      : '조금만 더 모으면 다음 단계예요'
-    : '이제 가볍게 출발할 시간이에요';
+      ? `하루 ${(Math.ceil((targetAmount - raisedAmount) / daysLeft / 1000) * 1000).toLocaleString("ko-KR")}원씩 모으면 딱 맞아요`
+      : "조금만 더 모으면 다음 단계예요"
+    : "이제 가볍게 출발할 시간이에요";
 
   return (
     <ScrollView
       className="flex-1"
       style={{ backgroundColor: PAGE_COLOR }}
-      contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 13, paddingBottom: 40, gap: 24 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+      contentContainerStyle={{
+        paddingHorizontal: 14,
+        paddingTop: 13,
+        paddingBottom: 40,
+        gap: 24,
+      }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
     >
-      <Stack.Screen options={{ title: trip.destination ?? '여행 홈' }} />
+      <Stack.Screen options={{ title: trip.destination ?? "여행 홈" }} />
 
       {/* ── 여행 소개 ── */}
       <View className="px-1 pt-1">
         <View className="flex-row items-center gap-1.5">
-          <View className="h-[2px] w-5" style={{ backgroundColor: theme.primary }} />
+          <View
+            className="h-[2px] w-5"
+            style={{ backgroundColor: theme.primary }}
+          />
           <Text
             className="text-[11px] font-extrabold tracking-widest"
             style={{ color: theme.primary }}
           >
-            {ended ? 'TRIP COMPLETED' : 'NEXT DESTINATION'}
+            {ended ? "TRIP COMPLETED" : "NEXT DESTINATION"}
           </Text>
         </View>
 
@@ -362,12 +457,15 @@ export default function ScreenTripHome() {
             style={{ color: theme.neutral }}
           >
             {ended
-              ? `${trip.destination ?? '여행'} 여행,\n어떻게 다녀왔을까요?`
-              : `${trip.destination ?? '여행지'}로 떠날\n준비를 시작해요.`}
+              ? `${trip.destination ?? "여행"} 여행,\n어떻게 다녀왔을까요?`
+              : `${trip.destination ?? "여행지"}로 떠날\n준비를 시작해요.`}
           </Text>
           <View className="mt-2 flex-row items-center gap-1 rounded-full bg-white px-2.5 py-1.5">
-            <Text className="text-[13px]">{destinationMeta?.flag ?? '🌍'}</Text>
-            <Text className="text-[10px] font-extrabold" style={{ color: theme.neutral }}>
+            <Text className="text-[13px]">{destinationMeta?.flag ?? "🌍"}</Text>
+            <Text
+              className="text-[10px] font-extrabold"
+              style={{ color: theme.neutral }}
+            >
               {theme.code}
             </Text>
           </View>
@@ -376,53 +474,104 @@ export default function ScreenTripHome() {
         <Text className="mt-2 text-[13px] text-gray-500">
           {[
             trip.start_date && trip.end_date
-              ? `${format(parseISO(trip.start_date), 'M.d')} — ${format(parseISO(trip.end_date), 'M.d')}`
+              ? `${format(parseISO(trip.start_date), "M.d")} — ${format(parseISO(trip.end_date), "M.d")}`
               : null,
             `${trip.headcount}명`,
-            data.groupName ?? '개인 여행',
+            data.groupName ?? "개인 여행",
           ]
             .filter(Boolean)
-            .join('  ·  ')}
+            .join("  ·  ")}
         </Text>
       </View>
 
       {ended ? (
         // ── TRIP-HOME-02 종료 상태 ──────────────────────────────────────
         <>
-          <View className="gap-4 rounded-[16px] bg-white p-5">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-sm text-gray-500">목표 여행비</Text>
-              <Text className="text-base font-bold" style={{ color: theme.neutral }}>
-                {targetAmount.toLocaleString('ko-KR')}원
-              </Text>
-            </View>
-            <View className="h-[1px] bg-gray-100" />
-            <View className="flex-row items-center justify-between">
-              <Text className="text-sm text-gray-500">실제 여행비</Text>
-              <Text className="text-base font-bold" style={{ color: theme.neutral }}>
-                {actualTotal.toLocaleString('ko-KR')}원
-              </Text>
-            </View>
-            {targetAmount > 0 ? (
+          {/*
+            여행 유형은 **결산이 확정된 뒤에만** 확정·공개한다. (IA v2 §2-6-3)
+            결산 중에는 거래 분류가 남아 있어 카테고리별 실제가 계속 바뀐다.
+            그 위에서 뽑은 유형을 확정 결과처럼 보여주면 안 된다.
+          */}
+          {typeResult ? (
+            <TravelTypeCard
+              theme={theme}
+              code={typeResult.code}
+              accuracyBp={typeResult.accuracyBp}
+              onPress={() => router.push(`/trips/${trip.id}/type-result`)}
+            />
+          ) : (
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: "#e8eaee",
+                borderRadius: 18,
+                backgroundColor: "#fff",
+                padding: 20,
+              }}
+            >
               <Text
-                className="text-right text-sm font-bold"
-                style={{ color: actualTotal > targetAmount ? theme.primary : '#1f9160' }}
+                style={{
+                  fontSize: 9,
+                  fontWeight: "900",
+                  letterSpacing: 1.2,
+                  color: "#a8afb9",
+                }}
               >
-                {actualTotal > targetAmount ? '+' : ''}
-                {(actualTotal - targetAmount).toLocaleString('ko-KR')}원
+                TRIPPOT TRAVEL TYPE
               </Text>
-            ) : null}
-          </View>
+              <Text
+                style={{
+                  marginTop: 10,
+                  fontSize: 15,
+                  fontWeight: "800",
+                  color: "#141b28",
+                }}
+              >
+                지출 확인을 마치면 여행 유형이 공개돼요
+              </Text>
+              <Text
+                style={{
+                  marginTop: 6,
+                  fontSize: 11,
+                  lineHeight: 17,
+                  color: "#7c8695",
+                }}
+              >
+                결산을 확정하면 이번 여행이 어떤 여행이었는지 알려드릴게요.
+              </Text>
+            </View>
+          )}
 
+          <TripReceiptCard
+            theme={theme}
+            destinationEn={
+              destinationMeta?.nameEn ??
+              (trip.destination ?? "TRIP").toUpperCase()
+            }
+            periodLabel={
+              trip.start_date && trip.end_date
+                ? `${format(parseISO(trip.start_date), "dd MMM").toUpperCase()} — ${format(parseISO(trip.end_date), "dd MMM").toUpperCase()}`
+                : "—"
+            }
+            headcount={trip.headcount}
+            targetAmount={targetAmount}
+            actualAmount={actualTotal}
+            topOver={topOver}
+            topSaved={topSaved}
+          />
+
+          {/* 영수증 안의 작은 링크가 아니라 분리된 주요 CTA 다 (스펙 4장) */}
           <View className="gap-2.5">
             <Button
-              label="여행비 결산 보기"
+              label="여행비 결산 자세히 보기"
               onPress={() => router.push(`/trips/${trip.id}/settlement`)}
             />
             <Button
               label="같은 멤버로 다시 여행 만들기"
               variant="secondary"
-              onPress={() => router.push('/trips/new/owner?entryPoint=past_trip')}
+              onPress={() =>
+                router.push("/trips/new/owner?entryPoint=past_trip")
+              }
             />
           </View>
         </>
@@ -431,15 +580,26 @@ export default function ScreenTripHome() {
         <>
           <TravelTicketCard
             theme={theme}
-            flag={destinationMeta?.flag ?? '🌍'}
-            destinationEn={destinationMeta?.nameEn ?? (trip.destination ?? 'TRIP').toUpperCase()}
-            destinationKo={trip.destination ?? '여행지'}
+            flag={destinationMeta?.flag ?? "🌍"}
+            destinationEn={
+              destinationMeta?.nameEn ??
+              (trip.destination ?? "TRIP").toUpperCase()
+            }
+            destinationKo={trip.destination ?? "여행지"}
             countryKo={destinationMeta?.countryKo ?? null}
-            airportCode={destinationMeta?.airportCode ?? '—'}
-            departLabel={trip.start_date ? format(parseISO(trip.start_date), 'MM.dd') : null}
-            arriveLabel={trip.end_date ? format(parseISO(trip.end_date), 'MM.dd') : null}
+            airportCode={destinationMeta?.airportCode ?? "—"}
+            departLabel={
+              trip.start_date
+                ? format(parseISO(trip.start_date), "MM.dd")
+                : null
+            }
+            arriveLabel={
+              trip.end_date ? format(parseISO(trip.end_date), "MM.dd") : null
+            }
             ticketDate={
-              trip.start_date ? format(parseISO(trip.start_date), 'dd MMM').toUpperCase() : null
+              trip.start_date
+                ? format(parseISO(trip.start_date), "dd MMM").toUpperCase()
+                : null
             }
             headcount={trip.headcount}
             dDayLabel={dDay}
@@ -452,11 +612,15 @@ export default function ScreenTripHome() {
           {/* 예산 미확정이면 여정도 금고도 의미가 없다. 먼저 정하게 한다 */}
           {targetAmount <= 0 ? (
             <View className="gap-3 rounded-[16px] bg-white p-5">
-              <Text className="text-[15px] font-bold" style={{ color: theme.neutral }}>
+              <Text
+                className="text-[15px] font-bold"
+                style={{ color: theme.neutral }}
+              >
                 아직 목표 여행비를 정하지 않았어요
               </Text>
               <Text className="text-[13px] leading-5 text-gray-500">
-                목표가 있어야 어디까지 왔는지, 무엇부터 준비할지 보여드릴 수 있어요.
+                목표가 있어야 어디까지 왔는지, 무엇부터 준비할지 보여드릴 수
+                있어요.
               </Text>
               <Button
                 label="목표 예산 정하기"
@@ -468,8 +632,12 @@ export default function ScreenTripHome() {
               {/* 섹션 문구는 스펙 9장 그대로다 — '{도시명}가 이만큼 가까워졌어요' */}
               <View className="gap-2.5">
                 <View style={{ marginHorizontal: 4, marginBottom: 11 }}>
-                  <Text className="text-[17px] font-extrabold" style={{ color: theme.neutral }}>
-                    {withSubjectParticle(trip.destination ?? '여행지')} 이만큼 가까워졌어요
+                  <Text
+                    className="text-[17px] font-extrabold"
+                    style={{ color: theme.neutral }}
+                  >
+                    {withSubjectParticle(trip.destination ?? "여행지")} 이만큼
+                    가까워졌어요
                   </Text>
                   <Text className="mt-1 text-[11px] text-gray-400">
                     여행자금을 모을수록 다음 장면이 열려요
@@ -495,8 +663,14 @@ export default function ScreenTripHome() {
               </View>
 
               <View className="gap-2.5">
-                <View className="flex-row items-end justify-between" style={{ marginHorizontal: 4, marginBottom: 11 }}>
-                  <Text className="text-[17px] font-extrabold" style={{ color: theme.neutral }}>
+                <View
+                  className="flex-row items-end justify-between"
+                  style={{ marginHorizontal: 4, marginBottom: 11 }}
+                >
+                  <Text
+                    className="text-[17px] font-extrabold"
+                    style={{ color: theme.neutral }}
+                  >
                     가상 여행 금고
                   </Text>
                   <Text
@@ -534,14 +708,24 @@ export default function ScreenTripHome() {
                 className="flex-row items-end justify-between"
                 style={{ marginHorizontal: 4, marginBottom: 11 }}
               >
-                <Text style={{ fontSize: 17, fontWeight: '800', color: theme.neutral }}>
+                <Text
+                  style={{
+                    fontSize: 17,
+                    fontWeight: "800",
+                    color: theme.neutral,
+                  }}
+                >
                   최근 여행자금 내역
                 </Text>
                 {/* 여행자금 관리(FUND-01)로 간다. 목록만이 아니라 추가·차감도 여기서 한다 */}
                 <Text
                   accessibilityRole="button"
                   onPress={() => router.push(`/trips/${trip.id}/funds`)}
-                  style={{ fontSize: 10, fontWeight: '600', color: theme.primary }}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "600",
+                    color: theme.primary,
+                  }}
                 >
                   여행자금 관리 ›
                 </Text>
@@ -556,18 +740,23 @@ export default function ScreenTripHome() {
                   className="active:bg-gray-50"
                   style={{
                     borderWidth: 1,
-                    borderColor: '#e8eaee',
+                    borderColor: "#e8eaee",
                     borderRadius: 14,
                     paddingVertical: 22,
                     paddingHorizontal: 16,
-                    alignItems: 'center',
+                    alignItems: "center",
                   }}
                 >
-                  <Text style={{ fontSize: 12, color: '#858e9c' }}>
+                  <Text style={{ fontSize: 12, color: "#858e9c" }}>
                     아직 입출금 내역이 없어요
                   </Text>
                   <Text
-                    style={{ marginTop: 5, fontSize: 12, fontWeight: '800', color: theme.primary }}
+                    style={{
+                      marginTop: 5,
+                      fontSize: 12,
+                      fontWeight: "800",
+                      color: theme.primary,
+                    }}
                   >
                     모은 금액 기록하기 ›
                   </Text>
@@ -577,17 +766,27 @@ export default function ScreenTripHome() {
           ) : null}
 
           <View className="gap-2.5">
-            <View className="flex-row items-end justify-between" style={{ marginHorizontal: 4, marginBottom: 11 }}>
-              <Text className="text-[17px] font-extrabold" style={{ color: theme.neutral }}>
+            <View
+              className="flex-row items-end justify-between"
+              style={{ marginHorizontal: 4, marginBottom: 11 }}
+            >
+              <Text
+                className="text-[17px] font-extrabold"
+                style={{ color: theme.neutral }}
+              >
                 떠나기 전 챙겨보기
               </Text>
-              <Text className="text-[10px] tracking-wider text-gray-400">TRIP GUIDE</Text>
+              <Text className="text-[10px] tracking-wider text-gray-400">
+                TRIP GUIDE
+              </Text>
             </View>
             <TripGuideCards
-              destination={trip.destination ?? '여행'}
+              destination={trip.destination ?? "여행"}
               theme={theme}
-              onPressTips={() => router.push('/community')}
-              onPressInsurance={() => router.push(`/trips/${trip.id}/insurance`)}
+              onPressTips={() => router.push("/community")}
+              onPressInsurance={() =>
+                router.push(`/trips/${trip.id}/insurance`)
+              }
             />
           </View>
         </>
