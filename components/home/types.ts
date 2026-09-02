@@ -25,14 +25,14 @@ type HomeTripBase = {
   endDate: string | null;
   status: TripStatus;
   ownerType: TripOwnerType;
+  /** 도착 공항 IATA 코드(CDG 등). 티켓 스텁과 경로에 쓴다. 모르는 목적지면 '—'. */
+  airportCode: string;
   /** 모임 여행이면 모임명, 개인 여행이면 null. */
   groupName: string | null;
 };
 
 /** 1-1. 진행 중인 여행 (PLANNING / TRAVELING) */
 export type OngoingTripCardData = HomeTripBase & {
-  /** 도착 공항 IATA 코드. 모르는 목적지면 '—' */
-  airportCode: string;
   /** 목적지 국가 테마. 진행률·D-Day 배지 색이 여기서 온다. */
   theme: CountryTheme;
   /** trip_budgets.target_amount. 아직 조회하지 못했으면 null. */

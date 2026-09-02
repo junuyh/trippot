@@ -121,6 +121,7 @@ export default function ScreenHOME01() {
       groupName: trip.group_id ? (groupNameById.get(trip.group_id) ?? null) : null,
       destinationEn: meta?.nameEn ?? (trip.destination ?? 'TRIP').toUpperCase(),
       flag: meta?.flag ?? '🌍',
+      airportCode: meta?.airportCode ?? '—',
     };
   }
 
@@ -130,7 +131,6 @@ export default function ScreenHOME01() {
     return [
       {
         ...toBase(trip, status),
-        airportCode: findDestinationByName(trip.destination)?.airportCode ?? '—',
         theme: countryTheme(findDestinationByName(trip.destination)?.countryKo),
         targetAmount: trip.targetAmount,
         currentAmount: trip.currentAmount,

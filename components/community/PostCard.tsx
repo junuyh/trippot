@@ -9,7 +9,7 @@ type Props = {
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
-const COVER_HEIGHT = 150;
+const COVER_HEIGHT = 116;
 
 /**
  * 목록 카드 한 장. (docs/09_IA_v1.md §4-1)
@@ -30,7 +30,7 @@ export function PostCard({ post, onPress }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`${post.title} 자세히 보기`}
       onPress={() => onPress(post.postId)}
-      className="overflow-hidden rounded-[24px] bg-white active:opacity-80"
+      className="overflow-hidden rounded-[20px] bg-white active:opacity-80"
       style={{
         shadowColor: '#111827',
         shadowOpacity: 0.08,
@@ -58,7 +58,7 @@ export function PostCard({ post, onPress }: Props) {
             />
           </>
         ) : null}
-        <View className="flex-1 justify-between p-4">
+        <View className="flex-1 justify-between p-3.5">
         <View className="flex-row items-start justify-between">
           {/* 날짜 배지 */}
           {post.publishedLabel ? (
@@ -93,7 +93,7 @@ export function PostCard({ post, onPress }: Props) {
 
         <Text
           className="font-black text-white"
-          style={{ fontSize: 21, lineHeight: 27, letterSpacing: -0.5 }}
+          style={{ fontSize: 17, lineHeight: 22, letterSpacing: -0.4 }}
           numberOfLines={2}
         >
           {post.title}
@@ -102,20 +102,20 @@ export function PostCard({ post, onPress }: Props) {
       </View>
 
       {/* 아랫줄 */}
-      <View className="flex-row items-center justify-between px-4 py-3.5">
+      <View className="flex-row items-center justify-between px-4 py-2.5">
         <View className="flex-1 flex-row items-center pr-3">
           {post.destination ? (
             <>
               <Ionicons name="location-outline" size={14} color="#9AA3AE" />
-              <Text className="ml-1 text-pot-faint" style={{ fontSize: 12.5 }} numberOfLines={1}>
+              <Text className="ml-1 text-pot-faint" style={{ fontSize: 11.5 }} numberOfLines={1}>
                 {post.destination}
               </Text>
-              <Text className="mx-1.5 text-pot-line" style={{ fontSize: 12.5 }}>
+              <Text className="mx-1.5 text-pot-line" style={{ fontSize: 11.5 }}>
                 ·
               </Text>
             </>
           ) : null}
-          <Text className="text-pot-faint" style={{ fontSize: 12.5 }} numberOfLines={1}>
+          <Text className="text-pot-faint" style={{ fontSize: 11.5 }} numberOfLines={1}>
             {post.authorName ?? '알 수 없음'}
           </Text>
         </View>
@@ -128,7 +128,7 @@ export function PostCard({ post, onPress }: Props) {
           />
           <Text
             className="ml-1 font-bold text-pot-mute"
-            style={{ fontSize: 12.5, ...NUM }}
+            style={{ fontSize: 11.5, ...NUM }}
           >
             {post.likeCount}
           </Text>

@@ -60,7 +60,7 @@ export function HomeView({
   return (
     <View className="flex-1 bg-pot-visual">
       <HomeHeader />
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-28 pt-1">
+      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-24 pt-1">
       <Section title="진행 중인 여행">
         {ongoingTrips.length === 0 ? (
           <Text className="text-sm leading-5 text-pot-mute">
@@ -69,7 +69,7 @@ export function HomeView({
               : '진행 중인 여행이 없어요. 다음 여행을 계획해보세요.'}
           </Text>
         ) : (
-          <View className="gap-3">
+          <View className="gap-2.5">
             {ongoingTrips.map((trip) => (
               <OngoingTripCard key={trip.tripId} trip={trip} onPress={onPressTrip} />
             ))}
@@ -79,7 +79,7 @@ export function HomeView({
 
       {endedTrips.length > 0 ? (
         <Section title="종료된 여행">
-          <View className="gap-3">
+          <View className="gap-2.5">
             {endedTrips.map((trip) => (
               <EndedTripCard key={trip.tripId} trip={trip} onPress={onPressTrip} />
             ))}

@@ -14,13 +14,15 @@ type Props = {
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
 
+/** 지난 여행 스텁은 국가 색을 쓰지 않는다. 이미 끝난 여행이다. */
+const MUTED_STUB = '#B6BCC6';
+
 /**
  * 1-2. 종료된 여행 카드. (docs/09_IA_v1.md §1)
  * 여행지 · 여행 기간 · 개인/모임명 · 최종 여행비
  *
  * 대표 여행 유형 이미지·라벨은 [고도화](9/07~)라 그리지 않는다.
- * 진행 중 카드와 같은 구조지만 날짜를 키우지 않고 국가 색도 쓰지 않는다.
- * 이미 끝난 여행이라 눈이 먼저 갈 이유가 없다.
+ * 진행 중 카드와 같은 가로 티켓이되 스텁을 회색으로 둔다.
  */
 export function EndedTripCard({ trip, onPress }: Props) {
   const destination = trip.destination ?? '여행지 미정';
@@ -30,6 +32,8 @@ export function EndedTripCard({ trip, onPress }: Props) {
     trip.ownerType === TRIP_OWNER_TYPE.GROUP
       ? (trip.groupName ?? TRIP_OWNER_TYPE_LABEL.GROUP)
       : TRIP_OWNER_TYPE_LABEL.PERSONAL;
+  const amount =
+    trip.finalAmount === null ? '—' : `${trip.finalAmount.toLocaleString('ko-KR')}원`;
 
   // ENDED 는 아직 결산 전이라 최종 여행비가 확정되지 않았다.
   const beforeSettlement = trip.status === TRIP_STATUS.ENDED && trip.finalAmount === null;
@@ -37,57 +41,58 @@ export function EndedTripCard({ trip, onPress }: Props) {
   return (
     <TripCardShell
       muted
-      accentColor="#C3C9D2"
+      stubColor={MUTED_STUB}
+      stubTextColor="#FFFFFF"
+      stubLabel={trip.airportCode}
       accessibilityLabel={`${destination} 지난 여행 보기`}
       onPress={() => onPress(trip.tripId)}
     >
-      <View className="flex-row items-center">
+      <View className="flex-row items-start justify-between">
+        <Text
+          className="flex-1 pr-2 font-bold text-pot-ink"
+          style={{ fontSize: 16, letterSpacing: -0.3 }}
+          numberOfLines={1}
+        >
+          {destination}
+        </Text>
+        <Text className="text-pot-faint" style={{ fontSize: 11 }}>
+          {ownerLabel}
+        </Text>
+      </View>
 
-        <View className="flex-1">
-          <Text
-            className="font-bold text-pot-ink"
-            style={{ fontSize: 17, letterSpacing: -0.3 }}
-            numberOfLines={1}
-          >
-            {destination}
-          </Text>
-          <Text className="mt-0.5 text-pot-faint" style={{ fontSize: 13 }} numberOfLines={1}>
-            {ownerLabel}
-          </Text>
-        </View>
-
+      <View className="mt-2 flex-row items-center">
+        <Ionicons name="calendar-outline" size={13} color="#9AA3AE" />
+        <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
+          {dates.start} – {dates.end}
+        </Text>
         {nights ? (
-          <View className="flex-row items-center">
-            <Ionicons name="time-outline" size={15} color="#9AA3AE" />
-            <Text className="ml-1 text-pot-faint" style={{ fontSize: 13 }}>
+          <>
+            <Text className="mx-1.5 text-pot-line" style={{ fontSize: 12 }}>
+              ·
+            </Text>
+            <Text className="text-pot-faint" style={{ fontSize: 12 }}>
               {nights}
             </Text>
-          </View>
+          </>
         ) : null}
       </View>
 
-      <View className="my-3.5 border-t border-dashed border-pot-dash" />
+      <View className="my-2.5 border-t border-dashed border-pot-dash" />
 
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center">
-          <Ionicons name="calendar-outline" size={15} color="#9AA3AE" />
-          <Text className="ml-1.5 text-pot-faint" style={{ fontSize: 13, ...NUM }}>
-            {dates.start} – {dates.end}
-          </Text>
-        </View>
-
+      <View className="flex-row items-end justify-between">
+        <Text className="text-pot-faint" style={{ fontSize: 10 }}>
+          최종 여행비
+        </Text>
         {beforeSettlement ? (
-          <Text className="font-bold text-pot-mute" style={{ fontSize: 13 }}>
+          <Text className="font-bold text-pot-mute" style={{ fontSize: 12 }}>
             결산 전
           </Text>
         ) : (
           <Text
-            className="font-bold text-pot-ink"
-            style={{ fontSize: 17, letterSpacing: -0.3, ...NUM }}
+            className="font-black text-pot-ink"
+            style={{ fontSize: 16, letterSpacing: -0.4, ...NUM }}
           >
-            {trip.finalAmount === null
-              ? '—'
-              : `${trip.finalAmount.toLocaleString('ko-KR')}원`}
+            {amount}
           </Text>
         )}
       </View>

@@ -21,7 +21,7 @@ type Props = {
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
-const COVER_HEIGHT = 220;
+const COVER_HEIGHT = 180;
 /** 가로 스와이프 한 장의 폭. 화면 폭에 맞춘다. */
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -112,7 +112,7 @@ export function PostDetailView({ post, onToggleLike, likeBusy }: Props) {
 
         <Text
           className="font-black text-white"
-          style={{ fontSize: 26, lineHeight: 34, letterSpacing: -0.6 }}
+          style={{ fontSize: 22, lineHeight: 29, letterSpacing: -0.5 }}
         >
           {post.title}
         </Text>

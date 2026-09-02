@@ -15,13 +15,13 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const BAR_HEIGHT = 64;
-const BAR_SIDE = 24;
+const BAR_HEIGHT = 54;
+const BAR_SIDE = 34;
 /** 안전영역이 없는 기기에서 바닥과 띄우는 최소 간격. */
-const BAR_BOTTOM_MIN = 18;
+const BAR_BOTTOM_MIN = 14;
 /** 아이콘 원형 버튼 지름. */
-const DOT_SIZE = 46;
-const ICON_SIZE = 21;
+const DOT_SIZE = 38;
+const ICON_SIZE = 19;
 
 const BAR_BG = '#1C2129';
 const DOT_ACTIVE = '#4A5361';
@@ -59,8 +59,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
           // 떠 있는 만큼 그림자를 준다. 없으면 배경에 눌어붙어 보인다.
           shadowColor: '#0B0F16',
           shadowOpacity: 0.3,
-          shadowRadius: 20,
-          shadowOffset: { width: 0, height: 12 },
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 8 },
           elevation: 10,
         }}
       >
