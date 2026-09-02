@@ -1,10 +1,11 @@
-// TRIP-02 여행 스타일 선택.
+// 여행 스타일 선택. 3단계 세그먼트.
 //
-// 라벨만으로는 '편하게' 와 '아낌없이' 가 금액으로 얼마나 벌어지는지 알 수 없다.
-// TRAVEL_STYLE_DESCRIPTION 을 항상 함께 보여준다. (lib/constants/status.ts)
+// 라벨만으로는 단계 사이의 차이를 알 수 없어서
+// TRAVEL_STYLE_DESCRIPTION 을 고른 단계 아래에 항상 함께 보여준다.
+// (lib/constants/status.ts)
 //
-// 이 값이 예산 추천 배수의 기준이 된다. (lib/constants/budgetMultiplier.ts)
-import { Ionicons } from '@expo/vector-icons';
+// ⚠️ 2026-09-01 · 카드 4개 → 세그먼트 3개로 바꿨다. (HTML 디자인 반영, L 승인)
+//    빠진 값은 luxury 다. 이유는 status.ts 의 TRAVEL_STYLE_LABEL 주석 참조.
 import { Pressable, Text, View } from 'react-native';
 
 import {
@@ -18,46 +19,60 @@ const ORDER: TravelStyle[] = [
   TRAVEL_STYLE.BUDGET,
   TRAVEL_STYLE.STANDARD,
   TRAVEL_STYLE.COMFORT,
-  TRAVEL_STYLE.LUXURY,
 ];
 
 type Props = {
   value: TravelStyle | null;
   onChange: (value: TravelStyle) => void;
+  disabled?: boolean;
 };
 
-export function TravelStyleSelector({ value, onChange }: Props) {
+export function TravelStyleSelector({ value, onChange, disabled = false }: Props) {
   return (
-    <View className="gap-2">
-      {ORDER.map((style) => {
-        const selected = value === style;
-        return (
-          <Pressable
-            key={style}
-            accessibilityRole="radio"
-            accessibilityState={{ selected }}
-            accessibilityLabel={TRAVEL_STYLE_LABEL[style]}
-            onPress={() => onChange(style)}
-            className={`flex-row items-center justify-between rounded-xl border px-4 py-3.5 ${
-              selected ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white active:bg-gray-50'
-            }`}
-          >
-            <View className="flex-1">
+    <View>
+      <View
+        className={`flex-row gap-1.5 rounded-2xl bg-gray-100 p-1.5 ${
+          disabled ? 'opacity-40' : ''
+        }`}
+      >
+        {ORDER.map((style) => {
+          const selected = value === style;
+          return (
+            <Pressable
+              key={style}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, disabled }}
+              accessibilityLabel={TRAVEL_STYLE_LABEL[style]}
+              disabled={disabled}
+              onPress={() => onChange(style)}
+              className={`flex-1 items-center justify-center rounded-xl py-2.5 ${
+                selected ? 'bg-white' : ''
+              }`}
+            >
               <Text
-                className={`text-base font-semibold ${
-                  selected ? 'text-blue-700' : 'text-gray-900'
-                }`}
+                className={`text-xs font-bold ${selected ? 'text-blue-600' : 'text-gray-500'}`}
               >
                 {TRAVEL_STYLE_LABEL[style]}
               </Text>
-              <Text className="mt-0.5 text-xs text-gray-500">
-                {TRAVEL_STYLE_DESCRIPTION[style]}
-              </Text>
-            </View>
-            {selected ? <Ionicons name="checkmark-circle" size={20} color="#2563eb" /> : null}
-          </Pressable>
-        );
-      })}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/*
+        고르기 전에도 자리를 비워 두지 않는다. 아래 내용이 위아래로 밀리면
+        무엇 때문에 움직였는지 알기 어렵다.
+      */}
+      <Text className="mt-2.5 text-[11px] leading-4 text-gray-500">
+        {value ? (
+          <>
+            <Text className="font-bold text-blue-600">{TRAVEL_STYLE_LABEL[value]}</Text>
+            <Text> · {TRAVEL_STYLE_DESCRIPTION[value]}</Text>
+          </>
+        ) : (
+          '어느 쪽에 가까운지 골라주세요. 숙소와 식사 수준으로 추천 금액이 달라져요.'
+        )}
+      </Text>
     </View>
   );
 }

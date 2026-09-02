@@ -7,73 +7,51 @@
 // 취급하는 대상이 아니다. (docs/README.md §5 #16)
 //
 // 개인 데이터는 개인에, 모임 데이터는 해당 모임에만 누적한다. 승계는 없다.
-import { Ionicons } from '@expo/vector-icons';
+//
+// ⚠️ 2026-09-01 · 2택 필수 선택 → 기본 ON 토글로 바꿨다. (안 2 · L 승인)
+//    토글은 만지지 않고 지나갈 수 있어서, 여기 onChange 만으로는 로그가 남지
+//    않는 사용자가 생긴다. 그래서 PAST_DATA_APPLY_SELECTED 는 이 컴포넌트가
+//    아니라 화면 파일이 '다음' 시점에 기록한다. 자세한 이유는 owner.tsx 참조.
 import { Pressable, Text, View } from 'react-native';
 
 type Props = {
   /** 결산 완료된 과거 여행 수. 근거로 화면에 그대로 보여준다 */
   pastTripCount: number;
-  /** null 이면 아직 고르지 않은 상태 */
+  /** 기본값은 true 다. null 은 아직 판정 전이라는 뜻이고 화면에서는 켜진 걸로 본다 */
   value: boolean | null;
   onChange: (applied: boolean) => void;
   disabled?: boolean;
 };
 
-const CHOICES: { value: boolean; label: string; description: string }[] = [
-  {
-    value: true,
-    label: '반영할래요',
-    description: '지난 여행의 소비 패턴을 예산 추천에 씁니다',
-  },
-  {
-    value: false,
-    label: '이번엔 빼주세요',
-    description: '기본 추천으로만 계산합니다',
-  },
-];
-
 export function PastDataChoice({ pastTripCount, value, onChange, disabled = false }: Props) {
+  const on = value !== false;
+
   return (
-    <View className="gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4">
-      <View className="flex-row items-start gap-2">
-        <Ionicons name="bulb-outline" size={18} color="#2563eb" />
-        <View className="flex-1">
-          <Text className="text-sm font-semibold text-gray-900">
-            지난 여행 데이터를 반영할까요?
-          </Text>
-          <Text className="mt-0.5 text-xs text-gray-500">
-            결산을 마친 여행 {pastTripCount}건이 있어요.
-          </Text>
-        </View>
+    <View>
+      <View className="flex-row items-center gap-3">
+        <Text className="flex-1 text-sm font-bold text-gray-900">
+          지난 여행을 예산에 반영
+        </Text>
+
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{ checked: on, disabled }}
+          accessibilityLabel="지난 여행 데이터 반영"
+          disabled={disabled}
+          onPress={() => onChange(!on)}
+          className={`h-7 w-[46px] justify-center rounded-full px-[3px] ${
+            on ? 'bg-blue-600' : 'bg-gray-300'
+          } ${disabled ? 'opacity-40' : ''}`}
+        >
+          <View className={`h-[21px] w-[21px] rounded-full bg-white ${on ? 'self-end' : 'self-start'}`} />
+        </Pressable>
       </View>
 
-      <View className="flex-row gap-2">
-        {CHOICES.map((choice) => {
-          const selected = value === choice.value;
-          return (
-            <Pressable
-              key={String(choice.value)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected, disabled }}
-              accessibilityLabel={choice.label}
-              disabled={disabled}
-              onPress={() => onChange(choice.value)}
-              className={`flex-1 rounded-xl border px-3 py-3 ${
-                selected
-                  ? 'border-blue-600 bg-blue-50'
-                  : 'border-gray-200 bg-white active:bg-gray-100'
-              } ${disabled ? 'opacity-40' : ''}`}
-            >
-              <Text
-                className={`text-sm font-semibold ${selected ? 'text-blue-700' : 'text-gray-800'}`}
-              >
-                {choice.label}
-              </Text>
-              <Text className="mt-0.5 text-xs leading-4 text-gray-500">{choice.description}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <Text className="mt-2 text-xs leading-5 text-gray-500">
+        결산을 마친 여행 {pastTripCount}건의 소비 패턴을 이번 추천에 반영해요.
+        {'\n'}
+        끄면 여행지 기본 추천으로만 계산해요.
+      </Text>
     </View>
   );
 }
