@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Dimensions, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
+import { Avatar } from './Avatar';
 import type { PostDetailData } from './types';
 
 type Props = {
@@ -42,14 +43,7 @@ export function PostDetailView({ post, onToggleLike, likeBusy, commentSection }:
     <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-16">
       {/* 작성자 */}
       <View className="flex-row items-center px-5 pt-4">
-        <View
-          className="h-10 w-10 items-center justify-center rounded-full"
-          style={{ backgroundColor: post.accent.background }}
-        >
-          <Text className="font-bold" style={{ fontSize: 15, color: post.accent.foreground }}>
-            {(post.authorName ?? '?').slice(0, 1)}
-          </Text>
-        </View>
+        <Avatar imageUrl={post.authorImageUrl} size={40} />
 
         <View className="ml-3 flex-1">
           <View className="flex-row items-center">

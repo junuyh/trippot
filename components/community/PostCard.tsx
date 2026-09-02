@@ -3,6 +3,7 @@ import { Image, Pressable, Text, View } from 'react-native';
 
 import { POST_TYPE, type PostType } from '@/lib/constants/status';
 
+import { Avatar } from './Avatar';
 import type { PostCardData } from './types';
 
 type Props = {
@@ -16,17 +17,16 @@ const AVATAR = 38;
 const PHOTO_RATIO = 1.15;
 
 /**
- * 글 유형별 아이콘과 색.
+ * 글 유형 배지 색.
  *
- * ⚠️ users 에 프로필 사진 컬럼이 없어서 아바타 자리에 유형 아이콘을 쓴다.
- *    사진이 생기면 이 자리에 <Image> 를 끼우면 된다.
- *    PAID_TIP 은 목록에 나오지 않지만(유료 기능 제외) 타입을 채우려고 함께 둔다.
+ * 아바타 자리는 작성자 프로필 사진이 쓴다. 유형은 이름 옆 배지로만 알린다.
+ * PAID_TIP 은 목록에 나오지 않지만(유료 기능 제외) 타입을 채우려고 함께 둔다.
  */
-const AVATAR_STYLE: Record<PostType, { icon: keyof typeof Ionicons.glyphMap; color: string; soft: string }> = {
-  [POST_TYPE.FREE_TIP]: { icon: 'airplane', color: '#6C5CE7', soft: '#EFEDFF' },
-  [POST_TYPE.POST]: { icon: 'chatbubble-ellipses', color: '#F0424E', soft: '#FFECEE' },
-  [POST_TYPE.TYPE_SHARE]: { icon: 'sparkles', color: '#1F9160', soft: '#E8F5EE' },
-  [POST_TYPE.PAID_TIP]: { icon: 'pricetag', color: '#747B88', soft: '#F1F3F6' },
+const BADGE: Record<PostType, { color: string; soft: string }> = {
+  [POST_TYPE.FREE_TIP]: { color: '#6C5CE7', soft: '#EFEDFF' },
+  [POST_TYPE.POST]: { color: '#F0424E', soft: '#FFECEE' },
+  [POST_TYPE.TYPE_SHARE]: { color: '#1F9160', soft: '#E8F5EE' },
+  [POST_TYPE.PAID_TIP]: { color: '#747B88', soft: '#F1F3F6' },
 };
 
 /**
@@ -36,7 +36,7 @@ const AVATAR_STYLE: Record<PostType, { icon: keyof typeof Ionicons.glyphMap; col
  * 탭하면 COMM-02 상세로 간다.
  */
 export function PostCard({ post, onPress }: Props) {
-  const avatar = AVATAR_STYLE[post.postType];
+  const badge = BADGE[post.postType];
   const photos = post.imageUrls.slice(0, 2);
   const hidden = post.imageUrls.length - photos.length;
 
@@ -56,12 +56,7 @@ export function PostCard({ post, onPress }: Props) {
     >
       {/* 작성자 */}
       <View className="flex-row items-center">
-        <View
-          className="items-center justify-center rounded-full"
-          style={{ width: AVATAR, height: AVATAR, backgroundColor: avatar.soft }}
-        >
-          <Ionicons name={avatar.icon} size={17} color={avatar.color} />
-        </View>
+        <Avatar imageUrl={post.authorImageUrl} size={AVATAR} />
 
         <View className="ml-2.5 flex-1">
           <View className="flex-row items-center">
@@ -70,9 +65,9 @@ export function PostCard({ post, onPress }: Props) {
             </Text>
             <View
               className="ml-1.5 rounded-md px-1.5 py-0.5"
-              style={{ backgroundColor: avatar.soft }}
+              style={{ backgroundColor: badge.soft }}
             >
-              <Text className="font-bold" style={{ fontSize: 9.5, color: avatar.color }}>
+              <Text className="font-bold" style={{ fontSize: 9.5, color: badge.color }}>
                 {post.postTypeLabel}
               </Text>
             </View>

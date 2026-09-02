@@ -104,6 +104,7 @@ export default function ScreenCOMM01() {
     postType: post.postType,
     postTypeLabel: POST_TYPE_LABEL[post.postType],
     authorName: post.authorName,
+    authorImageUrl: post.authorImageUrl,
     destination: post.destination,
     publishedLabel: formatPublished(post.publishedAt),
     contentPreview: post.content,

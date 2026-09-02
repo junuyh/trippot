@@ -55,6 +55,8 @@ export type PostListItem = {
   postType: PostType;
   /** 작성자 이름. 탈퇴한 사용자면 null. */
   authorName: string | null;
+  /** 작성자 프로필 사진. 지정하지 않았으면 null — 화면이 기본 아바타를 그린다. */
+  authorImageUrl: string | null;
   /** 이 글이 나온 여행의 목적지. 연결된 여행이 없으면 null. */
   destination: string | null;
   publishedAt: string | null;
@@ -70,7 +72,7 @@ export type PostListItem = {
 export type PostDetail = PostListItem;
 
 // users 는 작성자 FK 와 reactions 경유 두 갈래가 있어 모호하다. FK 를 명시한다.
-const AUTHOR = 'users!community_posts_author_user_id_fkey(name)';
+const AUTHOR = 'users!community_posts_author_user_id_fkey(name, profile_image_url)';
 
 /**
  * 글 목록. 게시된 글을 최신순으로 준다.
@@ -106,6 +108,7 @@ export async function getPosts(
     title: row.title,
     postType: row.post_type as PostType,
     authorName: row.users?.name ?? null,
+    authorImageUrl: row.users?.profile_image_url ?? null,
     destination: row.trips?.destination ?? null,
     publishedAt: row.published_at,
     content: row.content,
@@ -143,6 +146,7 @@ export async function getPostById(postId: string, userId: string): Promise<PostD
     title: data.title,
     postType: data.post_type as PostType,
     authorName: data.users?.name ?? null,
+    authorImageUrl: data.users?.profile_image_url ?? null,
     destination: data.trips?.destination ?? null,
     publishedAt: data.published_at,
     content: data.content,
@@ -264,6 +268,8 @@ export type PostComment = {
   commentId: string;
   /** 작성자 이름. 탈퇴한 사용자면 null. */
   authorName: string | null;
+  /** 작성자 프로필 사진. 지정하지 않았으면 null. */
+  authorImageUrl: string | null;
   content: string;
   createdAt: string;
   /** 내가 쓴 댓글인가. 지우기 버튼을 여기에만 보여준다. */
@@ -271,7 +277,7 @@ export type PostComment = {
 };
 
 // 댓글 작성자도 users 를 참조한다. 글 작성자와 구분되게 FK 를 명시한다.
-const COMMENT_AUTHOR = 'users!comments_author_user_id_fkey(name)';
+const COMMENT_AUTHOR = 'users!comments_author_user_id_fkey(name, profile_image_url)';
 
 /** 한 글의 댓글. 오래된 것부터 준다 — 대화 흐름대로 읽힌다. */
 export async function getComments(postId: string, userId: string): Promise<PostComment[]> {
@@ -287,6 +293,7 @@ export async function getComments(postId: string, userId: string): Promise<PostC
   return (data ?? []).map((row) => ({
     commentId: row.id,
     authorName: row.users?.name ?? null,
+    authorImageUrl: row.users?.profile_image_url ?? null,
     content: row.content,
     createdAt: row.created_at,
     mine: row.author_user_id === userId,
@@ -341,6 +348,7 @@ export async function createComment(input: CreateCommentInput): Promise<PostComm
   return {
     commentId: data.id,
     authorName: data.users?.name ?? null,
+    authorImageUrl: data.users?.profile_image_url ?? null,
     content: data.content,
     createdAt: data.created_at,
     mine: true,

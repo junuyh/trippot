@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
+import { Avatar } from './Avatar';
 import type { PostCommentItem } from './types';
 
 type Props = {
@@ -58,11 +59,7 @@ export function CommentSection({
         <View className="mt-3 gap-3.5">
           {comments.map((comment) => (
             <View key={comment.commentId} className="flex-row">
-              <View className="h-8 w-8 items-center justify-center rounded-full bg-pot-visual">
-                <Text className="font-bold text-pot-mute" style={{ fontSize: 12 }}>
-                  {(comment.authorName ?? '?').slice(0, 1)}
-                </Text>
-              </View>
+              <Avatar imageUrl={comment.authorImageUrl} size={32} />
 
               <View className="ml-2.5 flex-1">
                 <View className="flex-row items-center">
