@@ -337,7 +337,7 @@ export default function ScreenBUDGET02() {
       }
       // 거래 상세는 전체 내역 화면의 바텀시트다. ?transactionId= 로 지목해 연다.
       router.push(
-        `/trips/${data.trip.id}/funds/transactions?transactionId=${linked.id}`,
+        `/trips/${data.trip.id}/funds/transactions/${linked.id}`,
       );
     },
     [data],

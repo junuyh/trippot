@@ -461,7 +461,7 @@ export default function ScreenSETTLE01() {
             accessibilityRole="button"
             onPress={() =>
               router.push(
-                `/trips/${data.trip.id}/funds/transactions?sort=amount`,
+                `/trips/${data.trip.id}/funds/transactions?filter=major`,
               )
             }
             className="text-xs font-semibold"
@@ -474,7 +474,7 @@ export default function ScreenSETTLE01() {
           expenses={majorExpenses}
           onSelect={(transactionId) =>
             router.push(
-              `/trips/${data.trip.id}/funds/transactions?transactionId=${transactionId}`,
+              `/trips/${data.trip.id}/funds/transactions/${transactionId}`,
             )
           }
         />
