@@ -13,6 +13,7 @@
 //
 // 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/trip-home/.
 // ============================================================================
+import { Ionicons } from "@expo/vector-icons";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import {
   Stack,
@@ -30,26 +31,25 @@ import {
 } from "react-native";
 
 import {
-  JourneySteps,
-  RecentTransactionList,
+  CategoryGrid,
+  FundManagerCard,
   TravelTicketCard,
   TripGuideCards,
-  VaultGrid,
-  type RecentTransaction,
-  type VaultCategory,
+  type GridCategory,
 } from "@/components/trip-home";
 import { TravelTypeCard, TripReceiptCard } from "@/components/trip-type";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
-import { allocateVault, journeyStages } from "@/lib/budget/vault";
+import { allocateVault } from "@/lib/budget/vault";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
+  FUND_SOURCE_TYPE,
   SETTLEMENT_TRIGGER,
+  TRANSACTION_TYPE,
   TRIP_STATUS,
   type CategoryCode,
-  type TransactionType,
   type TripStatus,
 } from "@/lib/constants/status";
 import { useScreenView } from "@/lib/hooks/useScreenView";
@@ -77,22 +77,6 @@ import {
   type TripTypeResult,
 } from "@/lib/supabase/queries/travelTypes";
 
-/**
- * 주격 조사를 붙인다. '도쿄가' / '홍콩이'.
- *
- * 받침 유무로 갈린다. 한글 음절은 0xAC00 부터 28개 종성 단위로 배열돼 있어
- * 나머지가 0 이면 받침이 없다. 한글이 아니면 '가' 로 둔다.
- */
-function withSubjectParticle(word: string): string {
-  const last = word.trim().slice(-1);
-  const code = last.charCodeAt(0);
-  const isHangul = code >= 0xac00 && code <= 0xd7a3;
-  if (!isHangul) return `${word}가`;
-  return `${word}${(code - 0xac00) % 28 === 0 ? "가" : "이"}`;
-}
-
-/** 준비 홈에 보여줄 최근 내역 건수. 전체는 FUND-01(고도화)이 담당한다 */
-const RECENT_LIMIT = 3;
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
 const PAGE_COLOR = "#ffffff";
 
@@ -154,7 +138,7 @@ export default function ScreenTripHome() {
         [
           budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
           getTravelFund(trip.id),
-          getTransactions(trip.id, { limit: RECENT_LIMIT }),
+          getTransactions(trip.id),
           getFundTotals(trip.id),
           trip.group_id ? getGroupById(trip.group_id) : Promise.resolve(null),
         ],
@@ -292,52 +276,27 @@ export default function ScreenTripHome() {
     [destinationMeta?.countryKo],
   );
 
-  const vaultCategories: VaultCategory[] = useMemo(
+  const gridCategories: GridCategory[] = useMemo(
     () =>
       (data?.categories ?? []).map((category) => ({
         id: category.id,
         categoryCode: category.category_code as CategoryCode,
-        plannedAmount: category.planned_amount,
-        preparedAmount: category.prepared_amount,
-        actualAmount: category.actual_amount,
       })),
     [data?.categories],
   );
 
-  const stages = useMemo(
-    () =>
-      journeyStages(
-        (data?.fund?.current_amount ?? 0) + (data?.depositTotal ?? 0),
-        (data?.categories ?? []).map((category) => ({
-          categoryCode: category.category_code as CategoryCode,
-          plannedAmount: category.planned_amount,
-        })),
-        data?.trip.destination,
-      ),
-    [
-      data?.categories,
-      data?.depositTotal,
-      data?.fund?.current_amount,
-      data?.trip.destination,
-    ],
-  );
-
-  const recentTransactions: RecentTransaction[] = useMemo(() => {
-    const byId = new Map(
-      (data?.categories ?? []).map((c) => [c.id, c.category_code]),
-    );
-    return (data?.transactions ?? []).map((transaction) => ({
-      id: transaction.id,
-      merchantName: transaction.name,
-      amount: transaction.amount,
-      transactionType: transaction.transaction_type as TransactionType,
-      occurredAt: transaction.occurred_at,
-      categoryCode: transaction.budget_category_id
-        ? ((byId.get(transaction.budget_category_id) as
-            CategoryCode | undefined) ?? null)
-        : null,
-    }));
-  }, [data?.categories, data?.transactions]);
+  /**
+   * 여행자금 관리 카드에 얹을 요약. (시안 v4)
+   * 목록 자체는 FUND-01 이 그린다. 여기서는 "무엇이 얼마나 있는가" 만 말한다.
+   */
+  const fundLatest = useMemo(() => {
+    const latest = data?.transactions?.[0];
+    if (!latest) return null;
+    return {
+      amount: latest.amount,
+      isDeposit: latest.transaction_type === TRANSACTION_TYPE.DEPOSIT,
+    };
+  }, [data?.transactions]);
 
   const daysLeft = useMemo(() => {
     if (!data?.trip.start_date) return null;
@@ -443,19 +402,6 @@ export default function ScreenTripHome() {
         ? "D–DAY"
         : null;
 
-  // 다음 단계 안내 — 여기까지 얼마 남았는지
-  const nextStage = stages.find((stage) => !stage.reached) ?? null;
-  const nextTitle = nextStage
-    ? `${nextStage.label}까지 ${(nextStage.threshold - raisedAmount).toLocaleString("ko-KR")}원`
-    : targetAmount > 0
-      ? "여행 준비 완료"
-      : null;
-  const nextDesc = nextStage
-    ? daysLeft && daysLeft > 0
-      ? `하루 ${(Math.ceil((targetAmount - raisedAmount) / daysLeft / 1000) * 1000).toLocaleString("ko-KR")}원씩 모으면 딱 맞아요`
-      : "조금만 더 모으면 다음 단계예요"
-    : "이제 가볍게 출발할 시간이에요";
-
   return (
     <ScrollView
       className="flex-1"
@@ -507,17 +453,41 @@ export default function ScreenTripHome() {
           </View>
         </View>
 
-        <Text className="mt-2 text-[13px] text-gray-500">
-          {[
-            trip.start_date && trip.end_date
-              ? `${format(parseISO(trip.start_date), "M.d")} — ${format(parseISO(trip.end_date), "M.d")}`
-              : null,
-            `${trip.headcount}명`,
-            data.groupName ?? "개인 여행",
-          ]
-            .filter(Boolean)
-            .join("  ·  ")}
-        </Text>
+        <View className="mt-2 flex-row items-center" style={{ gap: 8 }}>
+          <Text className="text-[13px] text-gray-500">
+            {[
+              trip.start_date && trip.end_date
+                ? `${format(parseISO(trip.start_date), "M.d")} — ${format(parseISO(trip.end_date), "M.d")}`
+                : null,
+              `${trip.headcount}명`,
+              data.groupName ?? "개인 여행",
+            ]
+              .filter(Boolean)
+              .join("  ·  ")}
+          </Text>
+          {/*
+            여행 일정·인원·여행계를 고친다. (시안 v4)
+            ⚠️ 끝난 여행은 못 고친다. 결산이 그 시점의 기록이라,
+               일정이나 인원을 뒤에서 바꾸면 이미 확정한 결산과 어긋난다.
+          */}
+          {!ended ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="여행 기본 정보 수정"
+              onPress={() => router.push(`/trips/${trip.id}/edit`)}
+              className="items-center justify-center active:bg-gray-100"
+              style={{
+                width: 25,
+                height: 25,
+                borderRadius: 12.5,
+                borderWidth: 1,
+                borderColor: "#e6e9ed",
+              }}
+            >
+              <Ionicons name="pencil" size={12} color="#657181" />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {ended ? (
@@ -655,7 +625,6 @@ export default function ScreenTripHome() {
               destinationMeta?.nameEn ??
               (trip.destination ?? "TRIP").toUpperCase()
             }
-            destinationKo={trip.destination ?? "여행지"}
             countryKo={destinationMeta?.countryKo ?? null}
             airportCode={destinationMeta?.airportCode ?? "—"}
             departLabel={
@@ -676,10 +645,11 @@ export default function ScreenTripHome() {
             raisedAmount={raisedAmount}
             targetAmount={targetAmount}
             progress={progress}
-            onPressBudget={() => router.push(`/trips/${trip.id}/budget`)}
+            /* 금액을 누르면 여행자금 관리로 간다 (시안 v4) */
+            onPressFund={() => router.push(`/trips/${trip.id}/funds`)}
           />
 
-          {/* 예산 미확정이면 여정도 금고도 의미가 없다. 먼저 정하게 한다 */}
+          {/* 예산이 없으면 카테고리도 목표도 없다. 먼저 정하게 한다 */}
           {targetAmount <= 0 ? (
             <View className="gap-3 rounded-[16px] bg-white p-5">
               <Text
@@ -697,141 +667,107 @@ export default function ScreenTripHome() {
                 onPress={() => router.push(`/trips/${trip.id}/budget`)}
               />
             </View>
-          ) : (
-            <>
-              {/* 섹션 문구는 스펙 9장 그대로다 — '{도시명}가 이만큼 가까워졌어요' */}
-              <View className="gap-2.5">
-                <View style={{ marginHorizontal: 4, marginBottom: 11 }}>
-                  <Text
-                    className="text-[17px] font-extrabold"
-                    style={{ color: theme.neutral }}
-                  >
-                    {withSubjectParticle(trip.destination ?? "여행지")} 이만큼
-                    가까워졌어요
-                  </Text>
-                  <Text className="mt-1 text-[11px] text-gray-400">
-                    여행자금을 모을수록 다음 장면이 열려요
-                  </Text>
-                </View>
-                {/*
-                  ⚠️ 이 행은 **예산이 아니라 모으는 행동**에 대한 안내다.
-                     "숙소까지 1,400,000원 · 하루 219,000원씩 모으면 딱 맞아요"
-                     를 읽고 사용자가 하려는 건 자금을 넣는 것이지
-                     카테고리별 예산을 들여다보는 게 아니다.
-                     그래서 여기만 여행자금 관리(FUND-01)로 보낸다.
-
-                     예산을 보는 두 곳 — 보딩패스 뒷면 · 금고 우측 — 은
-                     그대로 BUDGET-01 이다.
-                */}
-                <JourneySteps
-                  stages={stages}
-                  theme={theme}
-                  nextTitle={nextTitle}
-                  nextDesc={nextDesc}
-                  onPressNext={() => router.push(`/trips/${trip.id}/funds`)}
-                />
-              </View>
-
-              <View className="gap-2.5">
-                <View
-                  className="flex-row items-end justify-between"
-                  style={{ marginHorizontal: 4, marginBottom: 11 }}
-                >
-                  <Text
-                    className="text-[17px] font-extrabold"
-                    style={{ color: theme.neutral }}
-                  >
-                    가상 여행 금고
-                  </Text>
-                  <Text
-                    accessibilityRole="button"
-                    onPress={() => router.push(`/trips/${trip.id}/budget`)}
-                    className="text-[10px] font-semibold"
-                    style={{ color: theme.primary }}
-                  >
-                    예산 전체 보기 ›
-                  </Text>
-                </View>
-                <VaultGrid
-                  categories={vaultCategories}
-                  theme={theme}
-                  onSelect={(categoryId) =>
-                    router.push(`/trips/${trip.id}/budget/${categoryId}`)
-                  }
-                />
-              </View>
-            </>
-          )}
+          ) : null}
 
           {/*
-            최근 내역. 항목 탭은 거래 상세(FUND-03)가 아직 없어 막아두고,
-            '전체 보기' 만 내역 화면(FUND-01)으로 연결한다.
+            ── 여행자금 관리 ── FUND-01
+            티켓의 금액과 같은 곳으로 가지만, 시안 v4 가 요구한 두 진입점이다.
+            티켓은 '얼마나 모였는가', 이 카드는 '무엇을 할 수 있는가' 를 말한다.
           */}
-          {/*
-            ⚠️ 거래가 없어도 이 섹션을 숨기지 않는다.
-               여기가 여행자금 관리(FUND-01)로 들어가는 유일한 입구인데,
-               숨기면 아직 아무것도 모으지 않은 사용자가 자금을 넣을 방법이 없다.
-          */}
-          {targetAmount > 0 ? (
-            <View className="gap-2.5">
-              <View
-                className="flex-row items-end justify-between"
-                style={{ marginHorizontal: 4, marginBottom: 11 }}
+          <View className="gap-2.5">
+            <View style={{ marginHorizontal: 4, marginBottom: 11 }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "900",
+                  letterSpacing: 1.1,
+                  color: theme.primary,
+                }}
               >
+                TRAVEL FUND
+              </Text>
+              <Text
+                className="mt-1.5 text-[17px] font-extrabold"
+                style={{ color: theme.neutral }}
+              >
+                여행자금 관리
+              </Text>
+            </View>
+            <FundManagerCard
+              theme={theme}
+              sourceLabel={
+                fund?.source_type === FUND_SOURCE_TYPE.MANUAL || !fund
+                  ? "직접 입력"
+                  : "연결 계좌"
+              }
+              latest={fundLatest}
+              totalCount={data.transactions.length}
+              onPress={() => router.push(`/trips/${trip.id}/funds`)}
+            />
+          </View>
+
+          {/*
+            ── 카테고리별 준비 현황 ── BUDGET-02 / BUDGET-01
+            준비율은 그리지 않는다. 이유는 CategoryGrid 주석 참고.
+          */}
+          {gridCategories.length > 0 ? (
+            <View className="gap-2.5">
+              <View style={{ marginHorizontal: 4, marginBottom: 11 }}>
                 <Text
-                  style={{
-                    fontSize: 17,
-                    fontWeight: "800",
-                    color: theme.neutral,
-                  }}
+                  className="text-[17px] font-extrabold"
+                  style={{ color: theme.neutral }}
                 >
-                  최근 여행자금 내역
-                </Text>
-                {/* 여행자금 관리(FUND-01)로 간다. 목록만이 아니라 추가·차감도 여기서 한다 */}
-                <Text
-                  accessibilityRole="button"
-                  onPress={() => router.push(`/trips/${trip.id}/funds`)}
-                  style={{
-                    fontSize: 10,
-                    fontWeight: "600",
-                    color: theme.primary,
-                  }}
-                >
-                  여행자금 관리 ›
+                  카테고리별 준비 현황
                 </Text>
               </View>
-              {recentTransactions.length > 0 ? (
-                <RecentTransactionList transactions={recentTransactions} />
-              ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="여행자금 관리"
-                  onPress={() => router.push(`/trips/${trip.id}/funds`)}
-                  className="active:bg-gray-50"
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "#e8eaee",
-                    borderRadius: 14,
-                    paddingVertical: 22,
-                    paddingHorizontal: 16,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: "#858e9c" }}>
-                    아직 입출금 내역이 없어요
-                  </Text>
+              <CategoryGrid
+                categories={gridCategories}
+                onSelect={(categoryId) =>
+                  router.push(`/trips/${trip.id}/budget/${categoryId}`)
+                }
+              />
+              {/* 전체 예산(BUDGET-01)으로 가는 유일한 입구다 */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="전체 예산 관리하기"
+                onPress={() => router.push(`/trips/${trip.id}/budget`)}
+                className="flex-row items-center justify-between active:opacity-80"
+                style={{
+                  marginTop: 2,
+                  borderWidth: 1,
+                  borderColor: theme.primary + "44",
+                  borderRadius: 14,
+                  backgroundColor: theme.primarySoft,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                }}
+              >
+                <View style={{ flex: 1 }}>
                   <Text
                     style={{
-                      marginTop: 5,
                       fontSize: 12,
-                      fontWeight: "800",
+                      fontWeight: "900",
                       color: theme.primary,
                     }}
                   >
-                    모은 금액 기록하기 ›
+                    전체 예산 관리하기
                   </Text>
-                </Pressable>
-              )}
+                  <Text
+                    style={{ marginTop: 4, fontSize: 10, color: "#687689" }}
+                  >
+                    목표 예산과 카테고리별 금액을 확인·수정해요.
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "900",
+                    color: theme.primary,
+                  }}
+                >
+                  ›
+                </Text>
+              </Pressable>
             </View>
           ) : null}
 
@@ -844,7 +780,7 @@ export default function ScreenTripHome() {
                 className="text-[17px] font-extrabold"
                 style={{ color: theme.neutral }}
               >
-                떠나기 전 챙겨보기
+                여행 준비에 도움되는 정보
               </Text>
               <Text className="text-[10px] tracking-wider text-gray-400">
                 TRIP GUIDE
