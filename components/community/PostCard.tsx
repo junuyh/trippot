@@ -115,6 +115,18 @@ export function PostCard({ post, onPress }: Props) {
             </Text>
           ) : null}
 
+          <Ionicons
+            name="chatbubble-outline"
+            size={16}
+            color="#747B88"
+            style={{ marginLeft: 14 }}
+          />
+          {post.commentCount > 0 ? (
+            <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12.5, ...NUM }}>
+              {post.commentCount}
+            </Text>
+          ) : null}
+
           {post.destination ? (
             <>
               <View className="flex-1" />

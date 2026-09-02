@@ -8,6 +8,13 @@ type Props = {
   /** 좋아요 토글. 저장 중이면 잠근다. */
   onToggleLike: () => void;
   likeBusy: boolean;
+  /**
+   * 댓글 영역. 화면 파일이 <CommentSection> 을 만들어 넣는다.
+   *
+   * 댓글 상태(입력값·저장 중·오류)를 이 컴포넌트까지 끌고 오면
+   * props 가 열 개 넘게 늘어난다. 자리만 비워 두고 조립은 화면이 한다.
+   */
+  commentSection?: React.ReactNode;
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
@@ -28,7 +35,7 @@ const PHOTO_WIDTH_MULTI = Math.round(SCREEN_WIDTH * 0.72);
  *
  * 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
  */
-export function PostDetailView({ post, onToggleLike, likeBusy }: Props) {
+export function PostDetailView({ post, onToggleLike, likeBusy, commentSection }: Props) {
   const single = post.imageUrls.length === 1;
 
   return (
@@ -135,10 +142,21 @@ export function PostDetailView({ post, onToggleLike, likeBusy }: Props) {
             </Text>
           ) : null}
         </Pressable>
+
+        <Ionicons
+          name="chatbubble-outline"
+          size={21}
+          color="#111827"
+          style={{ marginLeft: 18 }}
+        />
+        {post.commentCount > 0 ? (
+          <Text className="ml-2 text-pot-mute" style={{ fontSize: 14, ...NUM }}>
+            {post.commentCount}
+          </Text>
+        ) : null}
       </View>
 
-      {/* 아래 구분선 — 글이 여기서 끝난다는 표시 */}
-      <View className="mt-4" style={{ height: 1, backgroundColor: '#EFF1F4' }} />
+      {commentSection}
     </ScrollView>
   );
 }

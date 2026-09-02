@@ -40,6 +40,7 @@ export type PostCardData = {
   likeCount: number;
   /** 내가 좋아요를 눌렀는가. */
   likedByMe: boolean;
+  commentCount: number;
   accent: PostAccent;
   /** 사진 주소 목록. 첫 장이 카드 커버다. [임시] 지금은 더미다. (cover.ts) */
   imageUrls: string[];
@@ -55,4 +56,20 @@ export type PostFilter = {
   /** null 이면 전체 */
   value: PostType | null;
   label: string;
+};
+
+/**
+ * 댓글 한 줄. (2026-09-02 추가)
+ *
+ * 컴포넌트가 날짜를 계산하지 않는다. 화면 파일이 이미 읽을 수 있는 문자열로 바꿔서 넘긴다.
+ */
+export type PostCommentItem = {
+  commentId: string;
+  /** 작성자 이름. 없으면 컴포넌트가 대체 문구를 쓴다. */
+  authorName: string | null;
+  content: string;
+  /** '3일 전' 처럼 이미 사람이 읽을 문자열. */
+  createdLabel: string;
+  /** 내가 쓴 댓글인가. 지우기 버튼을 여기에만 보여준다. */
+  mine: boolean;
 };
