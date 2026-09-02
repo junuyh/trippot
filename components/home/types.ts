@@ -25,14 +25,14 @@ type HomeTripBase = {
   endDate: string | null;
   status: TripStatus;
   ownerType: TripOwnerType;
+  /** 도착 공항 IATA 코드(CDG 등). 티켓 스텁과 경로에 쓴다. 모르는 목적지면 '—'. */
+  airportCode: string;
   /** 모임 여행이면 모임명, 개인 여행이면 null. */
   groupName: string | null;
 };
 
 /** 1-1. 진행 중인 여행 (PLANNING / TRAVELING) */
 export type OngoingTripCardData = HomeTripBase & {
-  /** 도착 공항 IATA 코드. 모르는 목적지면 '—' */
-  airportCode: string;
   /** 목적지 국가 테마. 진행률·D-Day 배지 색이 여기서 온다. */
   theme: CountryTheme;
   /** trip_budgets.target_amount. 아직 조회하지 못했으면 null. */
@@ -70,3 +70,71 @@ export type HomeGroupItem = {
  *    보여줄 문구를 고르는 데 더 맞는 기준이라고 봤다.
  */
 export type HomeEmptyVariant = 'first' | 'return';
+
+// ============================================================================
+// 대표 홈 대시보드 (2026-09-02 개편)
+//
+// 대표 홈은 "여러 여행 중 지금 무슨 일이 일어나고 있는가" 를 본다.
+// 카테고리별 예산 같은 여행 상세(TRIP-HOME-01)의 정보를 반복하지 않는다.
+//
+// 아래 타입은 모두 **이미 계산이 끝난 값**이다.
+// 컴포넌트가 금액을 계산하거나 라우트를 만들지 않는다. (CLAUDE.md 9장)
+// ============================================================================
+
+/** 출발이 가장 가까운 여행 하나. 메인 카드가 쓴다. */
+export type NextTripCardData = OngoingTripCardData & {
+  /** 참여 인원(ACTIVE 멤버 수). 모르면 null 이고 카드가 인원을 그리지 않는다. */
+  memberCount: number | null;
+};
+
+/**
+ * '지금 챙겨야 할 것' 한 줄.
+ *
+ * 문장을 세 조각으로 나눠서 받는다. 가운데 조각만 색을 입혀 강조하기 때문이다.
+ * 컴포넌트가 금액을 계산하거나 문장을 조립하지 않는다.
+ */
+export type HomeActionItem = {
+  /** 눌렀을 때 어디로 갈지 화면 파일이 이 값으로 찾는다. */
+  id: string;
+  icon: string;
+  /** 아이콘 뒤 동그라미 색. */
+  tint: string;
+  /** 강조 앞 글자. */
+  textBefore: string;
+  /** 색으로 강조할 조각. 없으면 null. */
+  highlight: string | null;
+  /** 강조 뒤 글자. */
+  textAfter: string;
+  /** 어느 여행 이야기인지. 아랫줄에 작게 붙는다. */
+  subtitle: string;
+};
+
+/** 여행자금 현황의 여행 한 줄. 도넛 조각 하나이자 범례 한 줄이다. */
+export type HomeFundTripBar = {
+  tripId: string;
+  destination: string | null;
+  /** 목표를 정하지 않았으면 null. */
+  ratePercent: number | null;
+  /** 이 여행에 준비된 금액. 도넛 조각 크기다. */
+  currentAmount: number;
+  /** 조각·점 색. 목적지 국가 테마의 primary. */
+  color: string;
+};
+
+export type HomeFundSummaryData = {
+  currentTotal: number;
+  monthlyDeposit: number;
+  /** 도넛 한가운데 숫자. 목표가 하나도 없으면 null. */
+  overallRatePercent: number | null;
+  trips: HomeFundTripBar[];
+};
+
+/** 지난 여행 인사이트 한 건. 확정된 결산이 없으면 화면이 null 을 넘긴다. */
+export type HomePastInsightData = {
+  tripId: string;
+  destination: string | null;
+  categoryLabel: string;
+  emoji: string;
+  /** 계획보다 더 쓴 금액. 원 단위 정수. */
+  overAmount: number;
+};

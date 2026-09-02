@@ -1,4 +1,4 @@
-// 하단 탭바 — 직접 그린다.
+// 하단 탭바 — 직접 그린다. (Threads 앱과 같은 납작한 바)
 //
 // ⚠️ react-navigation 기본 탭바를 쓰지 않는 이유:
 //    아이템에 justifyContent: 'flex-start' 와 라벨 자리가 내부 스타일로 박혀 있어
@@ -10,30 +10,40 @@
 //    · 안전영역(홈 인디케이터) 아래 여백
 //    · tabPress 이벤트와 기본 동작(preventDefault) 존중
 //    · 접근성 라벨·선택 상태
+//
+// ⚠️ position: 'absolute' 를 유지한다. 바를 화면 흐름 안에 넣으면 모든 화면의
+//    본문 높이가 줄어, 이미 pb-24~28 을 넣어 둔 화면들이 아래쪽만 비어 보인다.
+//    지금처럼 본문 위에 떠 있으면 각 화면의 바닥 여백이 그대로 맞는다.
+//
+// 파일 이름은 그대로 둔다. 팀원 브랜치에서 이 경로를 import 하고 있다.
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const BAR_HEIGHT = 64;
-const BAR_SIDE = 24;
+/** 아이콘이 놓이는 줄 높이. 안전영역은 이 아래에 더 붙는다. */
+const BAR_HEIGHT = 50;
 /** 안전영역이 없는 기기에서 바닥과 띄우는 최소 간격. */
-const BAR_BOTTOM_MIN = 18;
-/** 아이콘 원형 버튼 지름. */
-const DOT_SIZE = 46;
-const ICON_SIZE = 21;
+const BAR_BOTTOM_MIN = 8;
+const ICON_SIZE = 25;
 
-const BAR_BG = '#1C2129';
-const DOT_ACTIVE = '#4A5361';
-const ICON_ACTIVE = '#FFFFFF';
-const ICON_INACTIVE = '#98A2B3';
+const BAR_BG = '#FFFFFF';
+/** 본문과 바를 가르는 실선. 진하면 바가 무거워 보인다. */
+const BAR_LINE = '#EEF0F3';
+const ICON_ACTIVE = '#111827';
+const ICON_INACTIVE = '#B6BCC6';
 
-/** 라우트 이름 → 아이콘. 여기 없는 라우트는 탭바에 그리지 않는다. */
-const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  index: 'home',
-  groups: 'people',
-  community: 'chatbubble',
-  me: 'person',
+/**
+ * 라우트 이름 → 아이콘. 여기 없는 라우트는 탭바에 그리지 않는다.
+ *
+ * 선택된 탭만 꽉 찬 아이콘을 쓴다. Threads 와 같은 방식이라
+ * 라벨 없이도 지금 어느 탭인지 알 수 있다.
+ */
+const ICONS: Record<string, { on: keyof typeof Ionicons.glyphMap; off: keyof typeof Ionicons.glyphMap }> = {
+  index: { on: 'home', off: 'home-outline' },
+  groups: { on: 'people', off: 'people-outline' },
+  community: { on: 'chatbubble', off: 'chatbubble-outline' },
+  me: { on: 'person', off: 'person-outline' },
 };
 
 export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
@@ -41,29 +51,18 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
 
   return (
     <View
-      pointerEvents="box-none"
       style={{
         position: 'absolute',
-        left: BAR_SIDE,
-        right: BAR_SIDE,
-        bottom: Math.max(insets.bottom, BAR_BOTTOM_MIN),
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingBottom: Math.max(insets.bottom, BAR_BOTTOM_MIN),
+        backgroundColor: BAR_BG,
+        borderTopWidth: 1,
+        borderTopColor: BAR_LINE,
       }}
     >
-      <View
-        style={{
-          flexDirection: 'row',
-          height: BAR_HEIGHT,
-          borderRadius: BAR_HEIGHT / 2,
-          backgroundColor: BAR_BG,
-          alignItems: 'center',
-          // 떠 있는 만큼 그림자를 준다. 없으면 배경에 눌어붙어 보인다.
-          shadowColor: '#0B0F16',
-          shadowOpacity: 0.3,
-          shadowRadius: 20,
-          shadowOffset: { width: 0, height: 12 },
-          elevation: 10,
-        }}
-      >
+      <View style={{ flexDirection: 'row', height: BAR_HEIGHT, alignItems: 'center' }}>
         {state.routes.map((route, index) => {
           const icon = ICONS[route.name];
           if (!icon) return null;
@@ -103,22 +102,11 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
                 justifyContent: 'center',
               }}
             >
-              <View
-                style={{
-                  width: DOT_SIZE,
-                  height: DOT_SIZE,
-                  borderRadius: DOT_SIZE / 2,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: focused ? DOT_ACTIVE : 'transparent',
-                }}
-              >
-                <Ionicons
-                  name={icon}
-                  size={ICON_SIZE}
-                  color={focused ? ICON_ACTIVE : ICON_INACTIVE}
-                />
-              </View>
+              <Ionicons
+                name={focused ? icon.on : icon.off}
+                size={ICON_SIZE}
+                color={focused ? ICON_ACTIVE : ICON_INACTIVE}
+              />
             </Pressable>
           );
         })}

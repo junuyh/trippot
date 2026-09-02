@@ -5,28 +5,73 @@
 //
 // ⚠️ 지금은 워드마크다. assets/icon.png 는 Expo 기본 플레이스홀더(회색 동심원)라
 //    로고로 쓸 수 없다. 로고 이미지가 나오면 이 파일의 마크만 <Image> 로 바꾼다.
+//
+// ⚠️ 상단바에는 아이콘을 두지 않는다. 마이페이지는 하단 탭으로 가고,
+//    알림은 갈 화면이 아직 없다. (docs/04_화면목록_v3.md 에 알림 화면 없음)
 import { Ionicons } from '@expo/vector-icons';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export function HomeHeader() {
+type Props = {
+  /** 인사에 쓸 이름. 없으면 이름 없이 인사한다. */
+  userName: string | null;
+  /** 가장 가까운 여행까지 남은 일수. 없으면 다른 문구를 쓴다. */
+  daysToNextTrip: number | null;
+  onPressCreateTrip: () => void;
+};
+
+const NUM = { fontVariant: ['tabular-nums' as const] };
+
+export function HomeHeader({
+  userName,
+  daysToNextTrip,
+  onPressCreateTrip,
+}: Props) {
   const insets = useSafeAreaInsets();
+  const greeting = userName ? `안녕하세요, ${userName}님 👋` : '안녕하세요 👋';
 
   return (
-    <View
-      className="bg-pot-visual px-5 pb-5"
-      style={{ paddingTop: insets.top + 20 }}
-    >
+    <View className="bg-pot-visual px-4 pb-3" style={{ paddingTop: insets.top + 12 }}>
       <View className="flex-row items-center">
         <View className="h-8 w-8 items-center justify-center rounded-[10px] bg-pot-ink">
-          <Ionicons name="airplane" size={17} color="#FFFFFF" />
+          <Ionicons name="airplane" size={16} color="#FFFFFF" />
         </View>
         <Text
-          className="ml-2.5 font-bold text-pot-ink"
-          style={{ fontSize: 21, letterSpacing: -0.5 }}
+          className="ml-2.5 flex-1 font-black text-pot-ink"
+          style={{ fontSize: 18, letterSpacing: -0.5 }}
         >
           TripPot
         </Text>
+      </View>
+
+      <View className="mt-4 flex-row items-center">
+        <View className="flex-1 pr-3">
+          <Text
+            className="font-black text-pot-ink"
+            style={{ fontSize: 17.5, lineHeight: 23, letterSpacing: -0.6 }}
+          >
+            {greeting}
+          </Text>
+          <Text className="mt-0.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
+            {daysToNextTrip === null
+              ? '새 여행을 계획해보세요.'
+              : daysToNextTrip === 0
+                ? '오늘 여행을 떠나요!'
+                : `다음 여행까지 ${daysToNextTrip}일 남았어요!`}
+          </Text>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="새 여행 만들기"
+          onPress={onPressCreateTrip}
+          className="flex-row items-center rounded-full bg-pot-ink px-3.5 py-2.5 active:opacity-80"
+        >
+          <Ionicons name="add" size={15} color="#FFFFFF" />
+          <Text className="ml-1 font-bold text-white" style={{ fontSize: 12.5 }}>
+            여행 만들기
+          </Text>
+        </Pressable>
       </View>
     </View>
   );

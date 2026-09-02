@@ -1,7 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
-import { Button } from '@/components/ui';
+import { NO_FOCUS_RING } from './inputStyle';
+
+// ⚠️ components/ui/Button 을 쓰지 않는다. 공용 Button 의 primary 가 bg-blue-600 이고
+//    그 파일은 [공유] 라 고치면 25개 화면 버튼이 전부 바뀐다.
+//    버튼 검은색 통일이 팀 전체로 확정되면 공용 Button 을 고치고 이 버튼을 지운다.
+//    (components/home/HomeButton.tsx 도 같은 이유로 따로 있다)
 
 type TypeOption = { value: string; label: string };
 
@@ -32,6 +45,13 @@ type Props = {
 
   /** 저장 중이면 버튼이 잠기고 스피너가 뜬다. (중복 제출 방지) */
   submitting: boolean;
+  /**
+   * 지금 올릴 수 있는 상태인가.
+   *
+   * 아니면 버튼이 연회색으로 잠긴다. 길이 기준은 화면 파일이 갖고 있어
+   * 판단도 거기서 하고 결과만 받는다. (CLAUDE.md 9장)
+   */
+  canSubmit: boolean;
   onSubmit: () => void;
 };
 
@@ -65,11 +85,12 @@ export function PostWriteForm({
   onPickImages,
   onRemoveImage,
   submitting,
+  canSubmit,
   onSubmit,
 }: Props) {
   return (
     <ScrollView
-      className="flex-1 bg-pot-visual"
+      className="flex-1 bg-white"
       contentContainerClassName="px-5 pb-12 pt-5"
       keyboardShouldPersistTaps="handled"
     >
@@ -99,7 +120,7 @@ export function PostWriteForm({
             accessibilityLabel="사진 추가"
             disabled={submitting || imagePicking}
             onPress={onPickImages}
-            className="items-center justify-center rounded-2xl bg-white active:opacity-70"
+            className="items-center justify-center rounded-2xl bg-pot-visual active:opacity-70"
             style={{ width: 110, height: 110, opacity: imagePicking ? 0.5 : 1 }}
           >
             <Ionicons name="add" size={24} color="#9AA3AE" />
@@ -133,7 +154,7 @@ export function PostWriteForm({
               accessibilityState={{ selected: active }}
               disabled={submitting}
               onPress={() => onChangeType(option.value)}
-              className={`rounded-full px-4 py-2.5 ${active ? 'bg-pot-ink' : 'bg-white'}`}
+              className={`rounded-full px-4 py-2.5 ${active ? 'bg-pot-ink' : 'bg-pot-visual'}`}
             >
               <Text
                 className={`font-bold ${active ? 'text-white' : 'text-pot-mute'}`}
@@ -157,8 +178,8 @@ export function PostWriteForm({
         placeholder="어떤 이야기인지 한 줄로 적어주세요"
         placeholderTextColor="#9AA3AE"
         maxLength={80}
-        className={`rounded-xl bg-white px-4 py-3.5 text-pot-ink ${titleError ? 'border border-red-400' : ''}`}
-        style={{ fontSize: 15 }}
+        className={`rounded-xl bg-pot-visual px-4 py-3.5 text-pot-ink ${titleError ? 'border border-red-400' : ''}`}
+        style={{ fontSize: 15, ...NO_FOCUS_RING }}
       />
       <View className="mt-1.5 flex-row justify-between">
         <Text className="text-red-500" style={{ fontSize: 12 }}>
@@ -182,8 +203,8 @@ export function PostWriteForm({
         multiline
         textAlignVertical="top"
         maxLength={2000}
-        className={`rounded-xl bg-white px-4 py-3.5 text-pot-ink ${contentError ? 'border border-red-400' : ''}`}
-        style={{ fontSize: 15, lineHeight: 23, minHeight: 200 }}
+        className={`rounded-xl bg-pot-visual px-4 py-3.5 text-pot-ink ${contentError ? 'border border-red-400' : ''}`}
+        style={{ fontSize: 15, lineHeight: 23, minHeight: 200, ...NO_FOCUS_RING }}
       />
       <View className="mt-1.5 flex-row justify-between">
         <Text className="text-red-500" style={{ fontSize: 12 }}>
@@ -201,7 +222,25 @@ export function PostWriteForm({
       ) : null}
 
       <View className="mt-7">
-        <Button label="게시하기" loading={submitting} onPress={onSubmit} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canSubmit || submitting, busy: submitting }}
+          disabled={!canSubmit || submitting}
+          onPress={onSubmit}
+          className={`w-full flex-row items-center justify-center rounded-xl px-5 py-3.5 ${
+            canSubmit ? 'bg-pot-ink active:bg-black' : 'bg-pot-visual'
+          } ${submitting ? 'opacity-40' : ''}`}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text
+              className={`text-base font-semibold ${canSubmit ? 'text-white' : 'text-pot-faint'}`}
+            >
+              게시하기
+            </Text>
+          )}
+        </Pressable>
       </View>
     </ScrollView>
   );

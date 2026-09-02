@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Header } from '@/components/ui';
 import type { PostType } from '@/lib/constants/status';
 
+import { NO_FOCUS_RING } from './inputStyle';
 import { PostCard } from './PostCard';
 import type { PostCardData, PostFilter } from './types';
 
@@ -13,15 +15,24 @@ type Props = {
   /** null 이면 전체 */
   activeFilter: PostType | null;
   onChangeFilter: (value: PostType | null) => void;
+  /** 검색어. 화면 파일이 들고 있고 여기서는 보여주기만 한다. */
+  query: string;
+  onChangeQuery: (value: string) => void;
   onPressPost: (postId: string) => void;
   onPressWrite: () => void;
 };
+
+const ACCENT = '#6C5CE7';
+const ACCENT_SOFT = '#EFEDFF';
 
 /**
  * COMM-01 커뮤니티 홈. (docs/09_IA_v1.md §4-1, §4-2)
  *
  * 4-2 "여행 팁 목록" 은 별도 화면이 아니라 이 화면의 필터다. IA 주석 그대로다.
- * ⚠️ 정렬·검색은 고도화(9/07~)라 넣지 않았다. 댓글·유료도 없다.
+ *
+ * ⚠️ 검색은 문서상 고도화(9/07~)다. 서버 검색이 아니라 **이미 불러온 글 안에서**
+ *    찾는다. 그래서 정렬·페이지네이션은 건드리지 않았다.
+ *    거르는 일은 화면 파일이 하고 여기서는 입력만 받는다.
  *
  * 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
  */
@@ -30,6 +41,8 @@ export function PostListView({
   filters,
   activeFilter,
   onChangeFilter,
+  query,
+  onChangeQuery,
   onPressPost,
   onPressWrite,
 }: Props) {
@@ -38,36 +51,61 @@ export function PostListView({
 
   return (
     <View className="flex-1 bg-pot-visual">
-      <View className="px-5 pb-6" style={{ paddingTop: insets.top + 36 }}>
-        {/* 제목 */}
-        <Text
-          className="font-black text-pot-ink"
-          style={{ fontSize: 20, lineHeight: 24, letterSpacing: -0.6 }}
-        >
-          커뮤니티
-        </Text>
+      {/* 상단바 — 다른 화면과 같은 공통 Header 를 쓴다. 제목은 가운데다.
+          커뮤니티는 탭 첫 화면이라 뒤로가기가 없다.
+          탭 헤더를 끈 상태라 상태바 높이만큼은 여기서 띄운다. */}
+      <View className="bg-white" style={{ paddingTop: insets.top }}>
+        <Header title="커뮤니티" showBack={false} />
+      </View>
 
-        {/* 글쓰기 — 제목 아래 오른쪽 */}
-        <View className="mt-4 flex-row justify-end">
+      <View className="bg-white px-4 pb-3 pt-3">
+        {/* 검색 + 글쓰기 */}
+        <View className="flex-row items-center">
+          <View className="mr-2 flex-1 flex-row items-center rounded-full bg-pot-visual px-3.5 py-2.5">
+            <Ionicons name="search" size={16} color="#9AA3AE" />
+            <TextInput
+              value={query}
+              onChangeText={onChangeQuery}
+              placeholder="여행 정보나 후기를 검색해 보세요"
+              placeholderTextColor="#9AA3AE"
+              returnKeyType="search"
+              className="ml-2 flex-1 text-pot-ink"
+              style={{ fontSize: 13, padding: 0, ...NO_FOCUS_RING }}
+            />
+            {query.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="검색어 지우기"
+                onPress={() => onChangeQuery('')}
+                hitSlop={8}
+                className="active:opacity-60"
+              >
+                <Ionicons name="close-circle" size={16} color="#C3C9D2" />
+              </Pressable>
+            ) : null}
+          </View>
+
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="글 쓰기"
             onPress={onPressWrite}
-            className="flex-row items-center rounded-full bg-pot-ink px-3.5 py-2 active:opacity-80"
+            className="flex-row items-center rounded-full bg-pot-ink px-3.5 py-2.5 active:opacity-80"
           >
-            <Ionicons name="create-outline" size={15} color="#FFFFFF" />
-            <Text className="ml-1.5 font-bold text-white" style={{ fontSize: 13 }}>
+            <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+            <Text className="ml-1.5 font-bold text-white" style={{ fontSize: 12.5 }}>
               글쓰기
             </Text>
           </Pressable>
         </View>
 
-        {/* 유형 필터 (IA 4-2) */}
+        {/* 유형 필터 (IA 4-2)
+            검색창과의 간격은 style 로 준다. className(mt-*) 이 ScrollView 에서
+            먹지 않는 경우가 있어 눈에 보이는 값으로 직접 잡는다. */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="mt-4"
-          contentContainerClassName="gap-2 pr-5"
+          style={{ marginTop: 18 }}
+          contentContainerClassName="gap-2 pr-4"
         >
           {filters.map((filter) => {
             const active = filter.value === activeFilter;
@@ -77,24 +115,40 @@ export function PostListView({
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 onPress={() => onChangeFilter(filter.value)}
-                className={`rounded-full px-3.5 py-2 ${active ? 'bg-pot-ink' : 'bg-white'}`}
+                className="items-center"
               >
-                <Text
-                  className={`font-bold ${active ? 'text-white' : 'text-pot-mute'}`}
-                  style={{ fontSize: 13 }}
+                <View
+                  className="rounded-full px-4 py-2"
+                  style={{ backgroundColor: active ? ACCENT_SOFT : '#F1F3F6' }}
                 >
-                  {filter.label}
-                </Text>
+                  <Text
+                    className="font-bold"
+                    style={{ fontSize: 12.5, color: active ? ACCENT : '#747B88' }}
+                  >
+                    {filter.label}
+                  </Text>
+                </View>
+
+                {/* 고른 칩 아래 짧은 밑줄. 칩 색만으로는 구분이 약하다. */}
+                <View
+                  className="mt-1.5 h-[3px] rounded-full"
+                  style={{
+                    width: 22,
+                    backgroundColor: active ? ACCENT : 'transparent',
+                  }}
+                />
               </Pressable>
             );
           })}
         </ScrollView>
       </View>
 
-      <ScrollView className="flex-1" contentContainerClassName="px-5 pb-28 pt-1">
+      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-4">
         {posts.length === 0 ? (
-          <Text className="mt-8 text-center text-pot-faint" style={{ fontSize: 14 }}>
-            이 유형의 글이 아직 없어요.
+          <Text className="mt-8 text-center text-pot-faint" style={{ fontSize: 13.5 }}>
+            {query.trim().length > 0
+              ? `'${query.trim()}' 와 맞는 글이 없어요.`
+              : '이 유형의 글이 아직 없어요.'}
           </Text>
         ) : (
           <View className="gap-3">

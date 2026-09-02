@@ -61,6 +61,10 @@ export default function ScreenCOMM01() {
   const [posts, setPosts] = useState<PostListItem[]>([]);
   const [filter, setFilter] = useState<PostType | null>(null);
 
+  // 검색어. 서버에 다시 묻지 않고 이미 불러온 글 안에서 거른다.
+  // 서버 검색·정렬은 문서상 고도화(9/07~)라 이번에 만들지 않았다.
+  const [query, setQuery] = useState('');
+
   const load = useCallback(async (postType: PostType | null) => {
     setLoadState('loading');
     try {
@@ -100,21 +104,45 @@ export default function ScreenCOMM01() {
     postType: post.postType,
     postTypeLabel: POST_TYPE_LABEL[post.postType],
     authorName: post.authorName,
+    authorImageUrl: post.authorImageUrl,
     destination: post.destination,
     publishedLabel: formatPublished(post.publishedAt),
+    contentPreview: post.content,
     likeCount: post.likeCount,
     likedByMe: post.likedByMe,
+    dislikeCount: post.dislikeCount,
+    dislikedByMe: post.dislikedByMe,
+    bookmarkedByMe: post.bookmarkedByMe,
+    commentCount: post.commentCount,
     accent: toAccent(post.destination),
     // TODO: 사진 스키마가 생기면 post.imageUrls 로 바꾼다. [임시]
-    imageUrls: toCoverUrls(post.postId),
+    imageUrls: toCoverUrls({
+      postId: post.postId,
+      title: post.title,
+      content: post.content,
+      destination: post.destination,
+    }),
   }));
+
+  // 제목·본문·목적지·작성자 어디에 있어도 찾는다.
+  const keyword = query.trim().toLowerCase();
+  const shown =
+    keyword.length === 0
+      ? cards
+      : cards.filter((card) =>
+          [card.title, card.contentPreview, card.destination, card.authorName]
+            .filter(Boolean)
+            .some((text) => (text as string).toLowerCase().includes(keyword)),
+        );
 
   return (
     <PostListView
-      posts={cards}
+      posts={shown}
       filters={FILTERS}
       activeFilter={filter}
       onChangeFilter={setFilter}
+      query={query}
+      onChangeQuery={setQuery}
       onPressPost={(postId) => router.push(`/community/posts/${postId}`)}
       onPressWrite={() => router.push('/community/write')}
     />

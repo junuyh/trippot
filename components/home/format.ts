@@ -80,3 +80,17 @@ export function formatNights(startDate: string | null, endDate: string | null): 
   if (nights === 0) return '당일';
   return `${nights}박 ${nights + 1}일`;
 }
+
+/**
+ * 오늘부터 출발일까지 남은 일수. 이미 지났거나 날짜가 없으면 null.
+ *
+ * 인사 문구("다음 여행까지 16일 남았어요")에 쓴다.
+ * D-Day 배지는 formatDDay 를 쓴다. 지난 날짜도 D+3 으로 보여줘야 해서 다르다.
+ */
+export function daysUntil(startDate: string | null): number | null {
+  const start = toDate(startDate);
+  if (!start) return null;
+
+  const diff = differenceInCalendarDays(start, startOfDay(new Date()));
+  return diff >= 0 ? diff : null;
+}
