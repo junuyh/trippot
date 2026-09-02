@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 
 import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from './format';
 import {
@@ -20,6 +20,8 @@ const NUM = { fontVariant: ['tabular-nums' as const] };
 /** 왼쪽 가장자리에 파인 반원. 티켓처럼 보이게 하는 장치다. */
 const NOTCH = 12;
 const NOTCH_COUNT = 4;
+/** 오른쪽 일러스트 크기. 이 값만큼 위쪽 글자에 오른쪽 여백을 준다. */
+const ART = 132;
 
 /**
  * 대표 홈 메인 카드 — 출발이 가장 가까운 여행 하나.
@@ -80,6 +82,15 @@ export function NextTripCard({ trip, onPress }: Props) {
         ))}
       </View>
 
+      {/* 오른쪽 일러스트. 글자를 가리지 않게 위쪽 줄에 오른쪽 여백을 준다. */}
+      <Image
+        source={require('@/assets/home/next-trip.png')}
+        style={{ position: 'absolute', right: 2, top: 30, width: ART, height: ART }}
+        resizeMode="contain"
+        // 장식이다. 화면 낭독기가 읽을 내용이 없다.
+        accessible={false}
+      />
+
       <View className="flex-row items-start justify-between">
         <Text style={{ fontSize: 11, fontWeight: '900', letterSpacing: 1.4, color: HOME_DANGER }}>
           NEXT TRIP
@@ -93,7 +104,7 @@ export function NextTripCard({ trip, onPress }: Props) {
         ) : null}
       </View>
 
-      <View className="mt-2 flex-row items-center">
+      <View className="mt-2 flex-row items-center" style={{ paddingRight: ART - 24 }}>
         <Text
           className="font-black text-pot-ink"
           style={{ fontSize: 21, letterSpacing: -0.7 }}
@@ -106,19 +117,23 @@ export function NextTripCard({ trip, onPress }: Props) {
         </Text>
       </View>
 
-      <Text className="mt-1 text-pot-mute" style={{ fontSize: 12.5, ...NUM }}>
+      <Text
+        className="mt-1 text-pot-mute"
+        style={{ fontSize: 12.5, paddingRight: ART - 24, ...NUM }}
+        numberOfLines={1}
+      >
         {meta.join('  ·  ')}
       </Text>
 
       {/* 금액 두 칸 */}
-      <View className="mt-5 flex-row">
+      <View className="mt-5 flex-row" style={{ paddingRight: ART - 44 }}>
         <View className="flex-1">
           <Text className="text-pot-faint" style={{ fontSize: 11.5 }}>
             준비된 금액
           </Text>
           <Text
             className="mt-1 font-black text-pot-ink"
-            style={{ fontSize: 19, letterSpacing: -0.6, ...NUM }}
+            style={{ fontSize: 17, letterSpacing: -0.5, ...NUM }}
           >
             {trip.currentAmount === null
               ? '—'
@@ -134,7 +149,7 @@ export function NextTripCard({ trip, onPress }: Props) {
           </Text>
           <Text
             className="mt-1 font-black text-pot-ink"
-            style={{ fontSize: 19, letterSpacing: -0.6, ...NUM }}
+            style={{ fontSize: 17, letterSpacing: -0.5, ...NUM }}
           >
             {trip.targetAmount === null ? '—' : `${trip.targetAmount.toLocaleString('ko-KR')}원`}
           </Text>
