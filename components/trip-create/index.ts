@@ -2,6 +2,8 @@
 export { BottomCta } from './BottomCta';
 export { BudgetCategoryList, type EditableCategory } from './BudgetCategoryList';
 export { BudgetMethodSelector } from './BudgetMethodSelector';
+export { BudgetPreviewList } from './BudgetPreviewList';
+export { BudgetResultHero } from './BudgetResultHero';
 export { BudgetSummary } from './BudgetSummary';
 export { DateRangeCalendar } from './DateRangeCalendar';
 export { DestinationPicker } from './DestinationPicker';
@@ -12,6 +14,7 @@ export { HeadcountStepper } from './HeadcountStepper';
 export { NewGroupForm } from './NewGroupForm';
 export { OwnerTypeSelector } from './OwnerTypeSelector';
 export { PastDataChoice } from './PastDataChoice';
+export { PastPatternCard } from './PastPatternCard';
 export { PastTripSheet, type PastTripRow } from './PastTripSheet';
 export { StepProgress, TRIP_CREATE_STEPS } from './StepProgress';
 export { TravelStyleSelector } from './TravelStyleSelector';
