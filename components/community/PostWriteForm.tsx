@@ -239,6 +239,14 @@ export function PostWriteForm({
             </Text>
           )}
         </Pressable>
+
+        {/* 왜 눌리지 않는지 알려준다. 회색 버튼만 두면 사용자는 이유를 모른다.
+            사진은 조건이 아니다 — 없어도 올릴 수 있다. */}
+        {!canSubmit && !submitting ? (
+          <Text className="mt-2 text-center text-pot-faint" style={{ fontSize: 12 }}>
+            제목 2자, 내용 10자 이상이면 올릴 수 있어요. 사진은 없어도 돼요.
+          </Text>
+        ) : null}
       </View>
     </ScrollView>
   );
