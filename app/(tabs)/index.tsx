@@ -276,7 +276,6 @@ export default function ScreenHOME01() {
       onPressTrip={handlePressTrip}
       onPressGroup={handlePressGroup}
       onPressCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.HOME)}
-      onPressProfile={() => router.push('/me')}
       onPressAction={handlePressAction}
       onPressAllTrips={() => router.push('/me/trips')}
       onPressInsight={(tripId) => router.push(`/trips/${tripId}/settlement`)}

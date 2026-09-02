@@ -38,7 +38,6 @@ type Props = {
   onPressTrip: (tripId: string) => void;
   onPressGroup: (groupId: string) => void;
   onPressCreateTrip: () => void;
-  onPressProfile: () => void;
   onPressAction: (actionId: string) => void;
   onPressAllTrips: () => void;
   onPressInsight: (tripId: string) => void;
@@ -73,7 +72,6 @@ export function HomeView({
   onPressTrip,
   onPressGroup,
   onPressCreateTrip,
-  onPressProfile,
   onPressAction,
   onPressAllTrips,
   onPressInsight,
@@ -87,7 +85,6 @@ export function HomeView({
       <HomeHeader
         userName={userName}
         daysToNextTrip={daysToNextTrip}
-        onPressProfile={onPressProfile}
         onPressCreateTrip={onPressCreateTrip}
       />
 

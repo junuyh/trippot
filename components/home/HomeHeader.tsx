@@ -6,8 +6,8 @@
 // ⚠️ 지금은 워드마크다. assets/icon.png 는 Expo 기본 플레이스홀더(회색 동심원)라
 //    로고로 쓸 수 없다. 로고 이미지가 나오면 이 파일의 마크만 <Image> 로 바꾼다.
 //
-// ⚠️ 알림 아이콘은 두지 않는다. docs/04_화면목록_v3.md 에 알림 화면이 없어
-//    눌러도 갈 곳이 없다. 화면이 정해지면 프로필 아이콘 왼쪽에 넣는다.
+// ⚠️ 상단바에는 아이콘을 두지 않는다. 마이페이지는 하단 탭으로 가고,
+//    알림은 갈 화면이 아직 없다. (docs/04_화면목록_v3.md 에 알림 화면 없음)
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +17,6 @@ type Props = {
   userName: string | null;
   /** 가장 가까운 여행까지 남은 일수. 없으면 다른 문구를 쓴다. */
   daysToNextTrip: number | null;
-  onPressProfile: () => void;
   onPressCreateTrip: () => void;
 };
 
@@ -26,7 +25,6 @@ const NUM = { fontVariant: ['tabular-nums' as const] };
 export function HomeHeader({
   userName,
   daysToNextTrip,
-  onPressProfile,
   onPressCreateTrip,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -44,16 +42,6 @@ export function HomeHeader({
         >
           TripPot
         </Text>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="마이페이지"
-          onPress={onPressProfile}
-          hitSlop={8}
-          className="h-8 w-8 items-center justify-center active:opacity-60"
-        >
-          <Ionicons name="person-circle-outline" size={23} color="#111827" />
-        </Pressable>
       </View>
 
       <View className="mt-4 flex-row items-center">
