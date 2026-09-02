@@ -97,11 +97,13 @@ export function PostListView({
           </Pressable>
         </View>
 
-        {/* 유형 필터 (IA 4-2) */}
+        {/* 유형 필터 (IA 4-2)
+            검색창과의 간격은 style 로 준다. className(mt-*) 이 ScrollView 에서
+            먹지 않는 경우가 있어 눈에 보이는 값으로 직접 잡는다. */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="mt-3"
+          style={{ marginTop: 18 }}
           contentContainerClassName="gap-2 pr-4"
         >
           {filters.map((filter) => {
