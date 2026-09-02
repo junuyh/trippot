@@ -13,7 +13,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 import type { DestinationCode, RegionCode } from '@/lib/constants/destinations';
-import type { CompanionType, EntryPoint, TravelStyle } from '@/lib/constants/status';
+import { TRAVEL_STYLE, type CompanionType, type EntryPoint, type TravelStyle } from '@/lib/constants/status';
 
 /**
  * 생성 흐름에서 모으는 값.
@@ -28,6 +28,12 @@ export type TripDraft = {
   companionType: CompanionType | null;
   /** 기존 모임을 골랐을 때만 채워진다 */
   groupId: string | null;
+  /**
+   * 고른 기존 모임의 이름. TRIP-02 인원 안내 문구에 쓴다.
+   * ("대학동기 멤버 4명 중 3명이 가요")
+   * 기존 모임이 아니면 null 이다. 저장에는 쓰지 않는다.
+   */
+  groupName: string | null;
   /** 신규 모임을 골랐을 때만 채워진다. 모임 생성은 TRIP-03 에서 한다 */
   newGroupName: string | null;
   /**
@@ -35,8 +41,18 @@ export type TripDraft = {
    * 본인은 포함하지 않는다. (docs/README.md §5 #15)
    */
   companionNames: string[];
-  /** 과거 데이터 반영 여부. 물어보지 않았으면 null */
+  /**
+   * 과거 데이터 반영 여부. 물어보지 않았으면 null.
+   * 물어보는 경우(pastTripCount > 0)의 기본값은 true 다. 토글이 켜진 채로 뜬다.
+   */
   applyPastData: boolean | null;
+  /**
+   * 사용자가 반영 토글을 직접 만졌는지.
+   * PAST_DATA_APPLY_SELECTED 의 interacted 파라미터로 나간다.
+   * 기본 ON 을 그대로 둔 것과 직접 켠 것을 구분하지 않으면 가설 5 의 반영
+   * 비율이 기본값 관성만큼 부풀려진다. (owner.tsx 참조)
+   */
+  pastDataInteracted: boolean;
   /** 결산 완료된 과거 여행 수. 0 이면 반영 여부를 묻지 않는다 */
   pastTripCount: number;
   /**
@@ -63,6 +79,15 @@ export type TripDraft = {
   endDate: string | null;
   /** trips.headcount. DB CHECK 로 0 이하가 막혀 있다 */
   headcount: number;
+  /**
+   * 여행 스타일. TRIP-03 에서 고른다.
+   *
+   * ⚠️ 2026-09-01 · 기본값을 null 에서 'standard' 로 바꿨다.
+   *    스타일 입력이 TRIP-02 에서 TRIP-03 으로 옮겨가면서, TRIP-03 진입 시점에
+   *    스타일이 없으면 추천 자체를 만들지 못해 빈 화면이 된다. 보통을 미리 골라
+   *    두면 들어오자마자 추천 금액을 보고 세그먼트로 바꿔볼 수 있다.
+   *    null 을 허용하는 타입은 그대로 둔다. 화면들이 이미 null 을 다루고 있다.
+   */
   travelStyle: TravelStyle | null;
 };
 
@@ -70,9 +95,11 @@ const INITIAL_DRAFT: TripDraft = {
   entryPoint: 'home',
   companionType: null,
   groupId: null,
+  groupName: null,
   newGroupName: null,
   companionNames: [],
   applyPastData: null,
+  pastDataInteracted: false,
   pastTripCount: 0,
   groupMemberCount: 0,
 
@@ -83,7 +110,7 @@ const INITIAL_DRAFT: TripDraft = {
   startDate: null,
   endDate: null,
   headcount: 1,
-  travelStyle: null,
+  travelStyle: TRAVEL_STYLE.STANDARD,
 };
 
 type TripDraftContextValue = {

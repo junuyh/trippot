@@ -53,6 +53,23 @@ export const EVENTS = {
   TRIP_BASIC_INFO_SUBMITTED: 'trip_basic_info_submitted',
   /** 가설 1 */
   BUDGET_METHOD_SELECTED: 'budget_method_selected',
+  /**
+   * 근거 상품을 켜거나 끔. (2026-09-01 추가 · L 승인)
+   * 파라미터: category, product_id, selected, from_amount, to_amount
+   *
+   * "근거를 보여주면 사용자가 예산을 스스로 조정하는가" 를 재는 유일한 지표다.
+   * 어느 카테고리에서 가장 많이 바꾸는지가 곧 기본 추천이 어디서 안 맞는지다.
+   */
+  BUDGET_PRODUCT_CHANGED: 'budget_product_changed',
+  /**
+   * TRIP-03 에서 여행 스타일 변경. (2026-09-01 추가 · L 승인)
+   * 파라미터: from_style, to_style
+   *
+   * 스타일 입력이 TRIP-02 에서 TRIP-03 으로 옮겨오면서
+   * trip_basic_info_submitted.travel_style 이 기본값만 싣게 됐다.
+   * 실제로 고른 값과 바꾼 횟수를 잡을 곳이 여기밖에 없다.
+   */
+  TRAVEL_STYLE_CHANGED: 'travel_style_changed',
   /** Proxy NSM 분자 */
   BUDGET_TARGET_CONFIRMED: 'budget_target_confirmed',
   TRAVEL_FUND_REGISTERED: 'travel_fund_registered',

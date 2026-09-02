@@ -1,19 +1,20 @@
 // ============================================================================
-// BUDGET-02 세부 계획 목록
+// BUDGET-02 세부 계획 목록 (시안 v3)
 //
-// ⚠️ 삭제는 **왼쪽으로 밀었을 때만** 나온다. 체크 해제는 계획에서 빼는 것이고
-//    삭제는 항목 자체를 없애는 것이라, 두 동작이 한 자리에 같이 있으면 안 된다.
+// 항목을 **왼쪽으로 밀면 수정 / 삭제**가 나온다.
 //
-// ⚠️ 체크를 해제해도 **삭제 배경이 카드 전체에 비치면 안 된다.** (스펙)
-//    빨간 배경 위에 반투명 카드를 얹는 방식은 꺼진 항목을 전부 빨갛게 만든다.
-//    카드는 항상 불투명하게 두고, 삭제 배경은 카드 뒤 오른쪽에만 깐다.
+// ⚠️ 2026-09-02 · 시안 v3 · **체크 기능을 걷어냈다.**
+//    '계획에서 빼기(체크 해제)' 와 '삭제' 는 사용자 입장에서 결과가 같았다.
+//    둘 다 그 금액이 예산에서 빠진다. 꺼진 채 목록에 남은 항목은
+//    "이건 왜 여기 있지" 만 남기고, 세부 계획 합계를 읽기 어렵게 만들었다.
+//    이제 목록에 있는 항목은 전부 계획에 포함된다.
 //
-// ⚠️ 실제 지출이 연결된 항목은 **체크 해제도 스와이프 삭제도 막는다.**
-//    이미 쓴 돈이 달린 계획을 빼면 '계획에 없는 지출' 이 생겨
+// ⚠️ 실제 지출이 연결된 항목은 **수정도 삭제도 막는다.**
+//    이미 쓴 돈이 달린 계획을 고치거나 없애면 '계획에 없는 지출' 이 생겨
 //    계획 대비 실제 비교가 성립하지 않는다.
 //    연결 해제는 지출 상세 화면에서만 한다. (스펙)
 //
-// ⚠️ 여유 예산은 DB 행이 아니라 **설정 예산 − 선택된 계획 합계**다.
+// ⚠️ 여유 예산은 DB 행이 아니라 **설정 예산 − 계획 합계**다.
 //    전체 여행 공통 '예비비' 카테고리와 헷갈리지 않게 이름을 다르게 쓴다. (스펙)
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
@@ -37,14 +38,12 @@ export type PlanItem = {
   name: string;
   expectedAmount: number;
   actualAmount: number;
-  /** 계획에 포함할지. 끄면 합계에서 빠진다 */
-  selected: boolean;
   emoji: string;
   /** 금액을 총액으로 보여줄지 1인당 × 인원으로 보여줄지. 총액은 바뀌지 않는다 */
   displayMode: PlanDisplayMode;
   /**
    * 실제 지출과 연결된 항목인가.
-   * 연결되면 잠긴다 — 체크 해제도 삭제도 못 한다.
+   * 연결되면 잠긴다 — 수정도 삭제도 못 한다.
    */
   locked: boolean;
 };
@@ -60,13 +59,15 @@ type Props = {
   items: PlanItem[];
   headcount: number;
   theme: CountryTheme;
-  /** 설정 예산 − 선택된 계획 합계. 0 이면 행을 그리지 않는다 */
+  /** 설정 예산 − 계획 합계. 0 이면 행을 그리지 않는다 */
   reserveAmount: number;
-  onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
+  /** 없으면 수정·삭제를 막는다 (결산 중·완료) */
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
   /** 연결된 항목을 누르면 지출 상세로 간다 */
   onOpenLinked: (id: string) => void;
-  onStartAdd: () => void;
+  /** 없으면 '계획 항목 추가' 를 감춘다 (결산 중·완료) */
+  onStartAdd?: () => void;
 };
 
 function won(value: number): string {
@@ -85,7 +86,7 @@ export function PlanItemCard({
   headcount,
   theme,
   reserveAmount,
-  onToggle,
+  onEdit,
   onDelete,
   onOpenLinked,
   onStartAdd,
@@ -95,7 +96,7 @@ export function PlanItemCard({
   return (
     <View style={{ gap: 9 }}>
       {items.map((item) =>
-        item.locked ? (
+        item.locked || !onEdit ? (
           // ── 실제 지출과 연결된 계획 ──────────────────────────────────
           <Pressable
             key={item.id}
@@ -201,43 +202,73 @@ export function PlanItemCard({
             }}
             overshootRight={false}
             renderRightActions={() => (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${item.name} 삭제`}
-                onPress={() => {
-                  swipeRefs.current.get(item.id)?.close();
-                  onDelete(item.id);
-                }}
-                style={{
-                  width: 74,
-                  backgroundColor: theme.primary,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderTopRightRadius: 14,
-                  borderBottomRightRadius: 14,
-                }}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={16}
-                  color={theme.onPrimary}
-                />
-                <Text
+              // 수정이 왼쪽, 삭제가 오른쪽(끝)이다. 되돌릴 수 없는 쪽을
+              // 바깥에 두어야 손가락이 미끄러져도 삭제가 먼저 눌리지 않는다.
+              <View className="flex-row">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.name} 수정`}
+                  onPress={() => {
+                    swipeRefs.current.get(item.id)?.close();
+                    onEdit?.(item.id);
+                  }}
                   style={{
-                    marginTop: 3,
-                    fontSize: 11,
-                    fontWeight: "800",
-                    color: theme.onPrimary,
+                    width: 68,
+                    backgroundColor: "#526274",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  삭제
-                </Text>
-              </Pressable>
+                  <Ionicons name="create-outline" size={16} color="#fff" />
+                  <Text
+                    style={{
+                      marginTop: 3,
+                      fontSize: 11,
+                      fontWeight: "800",
+                      color: "#fff",
+                    }}
+                  >
+                    수정
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.name} 삭제`}
+                  onPress={() => {
+                    swipeRefs.current.get(item.id)?.close();
+                    onDelete?.(item.id);
+                  }}
+                  style={{
+                    width: 68,
+                    backgroundColor: theme.primary,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderTopRightRadius: 14,
+                    borderBottomRightRadius: 14,
+                  }}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={16}
+                    color={theme.onPrimary}
+                  />
+                  <Text
+                    style={{
+                      marginTop: 3,
+                      fontSize: 11,
+                      fontWeight: "800",
+                      color: theme.onPrimary,
+                    }}
+                  >
+                    삭제
+                  </Text>
+                </Pressable>
+              </View>
             )}
           >
             {/*
-              ⚠️ 카드는 항상 불투명하다. 체크를 꺼도 뒤의 삭제 배경이 비치지 않는다.
-                 꺼진 상태는 배경을 회색으로 바꾸고 안쪽 요소만 흐리게 해서 알린다.
+              ⚠️ 카드는 항상 불투명하다. 뒤의 수정·삭제 배경이 비치면
+                 모든 항목이 빨갛게 물든 것처럼 보인다.
             */}
             <View
               style={{
@@ -249,7 +280,7 @@ export function PlanItemCard({
                 borderWidth: 1,
                 borderColor: LINE,
                 borderRadius: 14,
-                backgroundColor: item.selected ? "#fff" : "#f7f8fa",
+                backgroundColor: "#fff",
               }}
             >
               <View
@@ -260,13 +291,12 @@ export function PlanItemCard({
                   backgroundColor: "#f2f4f7",
                   alignItems: "center",
                   justifyContent: "center",
-                  opacity: item.selected ? 1 : 0.48,
                 }}
               >
                 <Text style={{ fontSize: 22 }}>{item.emoji}</Text>
               </View>
 
-              <View style={{ flex: 1, opacity: item.selected ? 1 : 0.48 }}>
+              <View style={{ flex: 1 }}>
                 <Text
                   style={{ fontSize: 12, fontWeight: "700", color: "#111827" }}
                 >
@@ -279,41 +309,14 @@ export function PlanItemCard({
 
               <View style={{ alignItems: "flex-end" }}>
                 <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "700",
-                    color: "#111827",
-                    opacity: item.selected ? 1 : 0.48,
-                  }}
+                  style={{ fontSize: 11, fontWeight: "700", color: "#111827" }}
                 >
                   {won(item.expectedAmount)}
                 </Text>
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityLabel={`${item.name} 계획에 포함`}
-                  accessibilityState={{ checked: item.selected }}
-                  onPress={() => onToggle(item.id)}
-                  hitSlop={8}
-                  style={{
-                    width: 23,
-                    height: 23,
-                    marginTop: 6,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: item.selected ? theme.primary : "#cfd4dc",
-                    backgroundColor: item.selected ? theme.primary : "#fff",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {item.selected ? (
-                    <Ionicons
-                      name="checkmark"
-                      size={14}
-                      color={theme.onPrimary}
-                    />
-                  ) : null}
-                </Pressable>
+                {/* 스와이프를 모르는 사람이 있다. 있다는 사실만 조용히 알린다 */}
+                <Text style={{ marginTop: 5, fontSize: 8, color: "#b3bac4" }}>
+                  ← 밀어서 수정·삭제
+                </Text>
               </View>
             </View>
           </Swipeable>
@@ -361,27 +364,29 @@ export function PlanItemCard({
         </View>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="계획 항목 추가"
-        onPress={onStartAdd}
-        className="active:bg-gray-50"
-        style={{
-          marginTop: 1,
-          borderWidth: 1,
-          borderStyle: "dashed",
-          borderColor: "#cfd5dc",
-          borderRadius: 13,
-          backgroundColor: "#fff",
-          paddingVertical: 14,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ fontSize: 11, fontWeight: "800", color: "#576170" }}>
-          <Text style={{ color: theme.primary }}>＋ </Text>
-          계획 항목 추가
-        </Text>
-      </Pressable>
+      {onStartAdd ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="계획 항목 추가"
+          onPress={onStartAdd}
+          className="active:bg-gray-50"
+          style={{
+            marginTop: 1,
+            borderWidth: 1,
+            borderStyle: "dashed",
+            borderColor: "#cfd5dc",
+            borderRadius: 13,
+            backgroundColor: "#fff",
+            paddingVertical: 14,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ fontSize: 11, fontWeight: "800", color: "#576170" }}>
+            <Text style={{ color: theme.primary }}>＋ </Text>
+            계획 항목 추가
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

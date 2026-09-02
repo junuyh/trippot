@@ -5,16 +5,16 @@
 //
 // ⚠️ 거래명(transactions.name)은 화면에 보여주되 이벤트 파라미터로는 기록하지 않는다.
 //    (NFR-007 — 계좌번호·거래명 원문을 로그에 남기지 않는다)
-import { Ionicons } from '@expo/vector-icons';
-import { format, parseISO } from 'date-fns';
-import { Pressable, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { format, parseISO } from "date-fns";
+import { Pressable, Text, View } from "react-native";
 
 import {
   CATEGORY_CODE_LABEL,
   TRANSACTION_TYPE,
   type CategoryCode,
   type TransactionType,
-} from '@/lib/constants/status';
+} from "@/lib/constants/status";
 
 export type RecentTransaction = {
   id: string;
@@ -42,29 +42,30 @@ export function RecentTransactionList({ transactions, onSelect }: Props) {
   return (
     <View className="overflow-hidden rounded-2xl border border-gray-200">
       {transactions.map((transaction, index) => {
-        const deposit = transaction.transactionType === TRANSACTION_TYPE.DEPOSIT;
+        const deposit =
+          transaction.transactionType === TRANSACTION_TYPE.DEPOSIT;
         const Row = onSelect ? Pressable : View;
         return (
           <Row
             key={transaction.id}
             {...(onSelect
               ? {
-                  accessibilityRole: 'button' as const,
-                  accessibilityLabel: `${transaction.merchantName ?? '거래'} 상세`,
+                  accessibilityRole: "button" as const,
+                  accessibilityLabel: `${transaction.merchantName ?? "거래"} 상세`,
                   onPress: () => onSelect(transaction.id),
                 }
               : {})}
             className={`flex-row items-center justify-between px-4 py-3.5 ${
-              onSelect ? 'active:bg-gray-50' : ''
-            } ${index > 0 ? 'border-t border-gray-100' : ''}`}
+              onSelect ? "active:bg-gray-50" : ""
+            } ${index > 0 ? "border-t border-gray-100" : ""}`}
           >
             <View className="flex-1 pr-3">
               <Text numberOfLines={1} className="text-base text-gray-800">
-                {transaction.merchantName ?? '이름 없는 거래'}
+                {transaction.merchantName ?? "이름 없는 거래"}
               </Text>
               <View className="mt-0.5 flex-row items-center gap-1.5">
                 <Text className="text-xs text-gray-400">
-                  {format(parseISO(transaction.occurredAt), 'M.d')}
+                  {format(parseISO(transaction.occurredAt), "M.d")}
                 </Text>
                 {/*
                   ⚠️ 입금에는 카테고리를 붙이지 않는다. '미분류' 배지도 달지 않는다.
@@ -79,7 +80,9 @@ export function RecentTransactionList({ transactions, onSelect }: Props) {
                   </Text>
                 ) : (
                   <View className="rounded-full bg-amber-50 px-1.5 py-0.5">
-                    <Text className="text-[10px] font-medium text-amber-700">미분류</Text>
+                    <Text className="text-[10px] font-medium text-amber-700">
+                      미분류
+                    </Text>
                   </View>
                 )}
               </View>
@@ -88,11 +91,11 @@ export function RecentTransactionList({ transactions, onSelect }: Props) {
             <View className="flex-row items-center gap-1">
               <Text
                 className={`text-base font-semibold ${
-                  deposit ? 'text-blue-600' : 'text-gray-900'
+                  deposit ? "text-blue-600" : "text-gray-900"
                 }`}
               >
-                {deposit ? '+' : '−'}
-                {transaction.amount.toLocaleString('ko-KR')}
+                {deposit ? "+" : "−"}
+                {transaction.amount.toLocaleString("ko-KR")}
               </Text>
               {onSelect ? (
                 <Ionicons name="chevron-forward" size={15} color="#d1d5db" />
