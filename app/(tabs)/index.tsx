@@ -34,6 +34,7 @@ import {
   type OngoingTripCardData,
 } from '@/components/home';
 import { daysUntil } from '@/components/home/format';
+import { HOME_ACTION_TINT } from '@/components/home/palette';
 import { SCREENS } from '@/lib/analytics/events';
 import { CATEGORY_EMOJI } from '@/lib/constants/categoryEmoji';
 import { countryTheme } from '@/lib/constants/countryTheme';
@@ -67,12 +68,24 @@ const ACTION_ROUTE: Record<HomeAction['kind'], (tripId: string) => string> = {
   UNPAID_CONTRIBUTION: (tripId) => `/trips/${tripId}/contributions`,
 };
 
-const ACTION_EMOJI: Record<HomeAction['kind'], string> = {
-  BUDGET_NOT_SET: '💰',
-  // 부족한 카테고리 아이콘이 있으면 그걸 쓰고, 없을 때만 이 값을 쓴다.
-  BUDGET_SHORTAGE: '📊',
-  FUND_SHORTAGE: '💸',
-  UNPAID_CONTRIBUTION: '👥',
+/** 액션 종류별 아이콘. 카테고리 부족은 아래 CATEGORY_ICON 이 우선한다. */
+const ACTION_ICON: Record<HomeAction['kind'], string> = {
+  BUDGET_NOT_SET: 'calculator-outline',
+  BUDGET_SHORTAGE: 'pie-chart-outline',
+  FUND_SHORTAGE: 'wallet-outline',
+  UNPAID_CONTRIBUTION: 'people-outline',
+};
+
+/** 카테고리별 아이콘. 어떤 예산이 모자란지 그림만 봐도 알게 한다. */
+const CATEGORY_ICON: Record<CategoryCode, string> = {
+  AIRFARE: 'airplane-outline',
+  LODGING: 'bed-outline',
+  FOOD: 'restaurant-outline',
+  TRANSPORT: 'subway-outline',
+  ACTIVITY: 'ticket-outline',
+  SHOPPING: 'bag-handle-outline',
+  INSURANCE: 'shield-checkmark-outline',
+  CONTINGENCY: 'wallet-outline',
 };
 
 export default function ScreenHOME01() {
@@ -214,14 +227,16 @@ export default function ScreenHOME01() {
     .slice(0, HOME_ACTION_LIMIT)
     .map((action) => ({
       id: actionId(action),
-      emoji: toActionEmoji(action),
-      message: toActionMessage(action),
-      tintSoft: countryTheme(findDestinationByName(action.destination)?.countryKo).primarySoft,
+      icon: toActionIcon(action),
+      tint: HOME_ACTION_TINT[action.kind],
+      subtitle: `${action.destination ?? '여행지 미정'} 여행`,
+      ...toActionText(action),
     }));
 
   const fund: HomeFundSummaryData = {
     currentTotal: dashboard.fund.currentTotal,
     monthlyDeposit: dashboard.fund.monthlyDeposit,
+    overallRatePercent: dashboard.fund.overallRatePercent,
     trips: dashboard.fund.trips.map((trip) => ({
       ...trip,
       color: countryTheme(findDestinationByName(trip.destination)?.countryKo).primary,
@@ -274,30 +289,41 @@ function actionId(action: HomeAction): string {
   return `${action.kind}:${action.tripId}`;
 }
 
-function toActionEmoji(action: HomeAction): string {
+function toActionIcon(action: HomeAction): string {
   if (action.kind === 'BUDGET_SHORTAGE' && action.categoryCode) {
-    return CATEGORY_EMOJI[action.categoryCode as CategoryCode] ?? ACTION_EMOJI.BUDGET_SHORTAGE;
+    return CATEGORY_ICON[action.categoryCode as CategoryCode] ?? ACTION_ICON.BUDGET_SHORTAGE;
   }
-  return ACTION_EMOJI[action.kind];
+  return ACTION_ICON[action.kind];
 }
 
 /**
- * 액션 한 줄에 보여줄 문장.
+ * 액션 한 줄의 문장. 강조할 숫자를 따로 떼어서 넘긴다.
  *
  * 컴포넌트가 아니라 여기서 만든다. 금액·단위·라벨을 한곳에서 다루려는 것이다.
  */
-function toActionMessage(action: HomeAction): string {
-  const where = action.destination ?? '여행지 미정';
-  const amount = action.amount === null ? null : action.amount.toLocaleString('ko-KR');
+function toActionText(action: HomeAction): {
+  textBefore: string;
+  highlight: string | null;
+  textAfter: string;
+} {
+  const amount = action.amount === null ? null : `${action.amount.toLocaleString('ko-KR')}원`;
 
   switch (action.kind) {
     case 'BUDGET_NOT_SET':
-      return `${where} 여행의 목표 여행자금을 아직 정하지 않았어요`;
+      return { textBefore: '목표 여행자금을 아직 정하지 않았어요', highlight: null, textAfter: '' };
     case 'BUDGET_SHORTAGE':
-      return `${where} ${action.categoryLabel ?? '예산'} 예산이 ${amount ?? '—'}원 부족해요`;
+      return {
+        textBefore: `${action.categoryLabel ?? '예산'} 예산이 `,
+        highlight: amount,
+        textAfter: ' 부족해요',
+      };
     case 'FUND_SHORTAGE':
-      return `${where} 여행자금을 ${amount ?? '—'}원 더 모으면 목표에 닿아요`;
+      return { textBefore: '여행자금이 ', highlight: amount, textAfter: ' 더 필요해요' };
     case 'UNPAID_CONTRIBUTION':
-      return `${where} 여행 멤버 ${action.memberCount ?? 0}명이 아직 입금하지 않았어요`;
+      return {
+        textBefore: '멤버 ',
+        highlight: `${action.memberCount ?? 0}명`,
+        textAfter: '이 아직 입금하지 않았어요',
+      };
   }
 }

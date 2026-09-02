@@ -87,30 +87,45 @@ export type NextTripCardData = OngoingTripCardData & {
   memberCount: number | null;
 };
 
-/** '지금 챙겨야 할 것' 한 줄. */
+/**
+ * '지금 챙겨야 할 것' 한 줄.
+ *
+ * 문장을 세 조각으로 나눠서 받는다. 가운데 조각만 색을 입혀 강조하기 때문이다.
+ * 컴포넌트가 금액을 계산하거나 문장을 조립하지 않는다.
+ */
 export type HomeActionItem = {
   /** 눌렀을 때 어디로 갈지 화면 파일이 이 값으로 찾는다. */
   id: string;
-  emoji: string;
-  /** 이미 완성된 한 문장. */
-  message: string;
-  /** 아이콘 뒤 옅은 배경색. 목적지 국가 테마의 primarySoft. */
-  tintSoft: string;
+  icon: string;
+  /** 아이콘 뒤 동그라미 색. */
+  tint: string;
+  /** 강조 앞 글자. */
+  textBefore: string;
+  /** 색으로 강조할 조각. 없으면 null. */
+  highlight: string | null;
+  /** 강조 뒤 글자. */
+  textAfter: string;
+  /** 어느 여행 이야기인지. 아랫줄에 작게 붙는다. */
+  subtitle: string;
 };
 
-/** 여행자금 현황의 여행별 준비율 막대 하나. */
+/** 여행자금 현황의 여행 한 줄. 도넛 조각 하나이자 범례 한 줄이다. */
 export type HomeFundTripBar = {
   tripId: string;
   destination: string | null;
   /** 목표를 정하지 않았으면 null. */
   ratePercent: number | null;
-  /** 막대 색. 목적지 국가 테마의 primary. */
+  /** 이 여행에 준비된 금액. 도넛 조각 크기다. */
+  currentAmount: number;
+  /** 조각·점 색. 목적지 국가 테마의 primary. */
   color: string;
 };
 
 export type HomeFundSummaryData = {
   currentTotal: number;
   monthlyDeposit: number;
+  /** 도넛 한가운데 숫자. 목표가 하나도 없으면 null. */
+  overallRatePercent: number | null;
   trips: HomeFundTripBar[];
 };
 

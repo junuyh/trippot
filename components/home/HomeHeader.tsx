@@ -6,9 +6,9 @@
 // ⚠️ 지금은 워드마크다. assets/icon.png 는 Expo 기본 플레이스홀더(회색 동심원)라
 //    로고로 쓸 수 없다. 로고 이미지가 나오면 이 파일의 마크만 <Image> 로 바꾼다.
 //
-// ⚠️ 알림 아이콘은 onPressNotifications 를 받을 때만 그린다.
-//    docs/04_화면목록_v3.md 에 알림 화면이 없어서 지금은 갈 곳이 없다.
-//    화면이 정해지면 화면 파일에서 핸들러만 넘기면 아이콘이 나타난다.
+// ⚠️ 알림 아이콘은 그림만 있고 눌리지 않는다.
+//    docs/04_화면목록_v3.md 에 알림 화면이 없어서 갈 곳이 없다.
+//    화면이 정해지면 onPressNotifications 를 넘겨 Pressable 로 바꾼다.
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,87 +20,76 @@ type Props = {
   daysToNextTrip: number | null;
   onPressProfile: () => void;
   onPressCreateTrip: () => void;
-  onPressNotifications?: () => void;
 };
+
+const NUM = { fontVariant: ['tabular-nums' as const] };
 
 export function HomeHeader({
   userName,
   daysToNextTrip,
   onPressProfile,
   onPressCreateTrip,
-  onPressNotifications,
 }: Props) {
   const insets = useSafeAreaInsets();
-
   const greeting = userName ? `안녕하세요, ${userName}님 👋` : '안녕하세요 👋';
-  const subtitle =
-    daysToNextTrip === null
-      ? '새 여행을 계획해보세요.'
-      : daysToNextTrip === 0
-        ? '오늘 여행을 떠나요!'
-        : `다음 여행까지 ${daysToNextTrip}일 남았어요!`;
 
   return (
-    <View className="bg-pot-visual px-5 pb-4" style={{ paddingTop: insets.top + 16 }}>
-      {/* 로고 · 아이콘 */}
+    <View className="bg-pot-visual px-5 pb-4" style={{ paddingTop: insets.top + 14 }}>
       <View className="flex-row items-center">
-        <View className="h-8 w-8 items-center justify-center rounded-[10px] bg-pot-ink">
-          <Ionicons name="airplane" size={17} color="#FFFFFF" />
+        <View className="h-9 w-9 items-center justify-center rounded-xl bg-pot-ink">
+          <Ionicons name="airplane" size={18} color="#FFFFFF" />
         </View>
         <Text
-          className="ml-2.5 flex-1 font-bold text-pot-ink"
-          style={{ fontSize: 21, letterSpacing: -0.5 }}
+          className="ml-2.5 flex-1 font-black text-pot-ink"
+          style={{ fontSize: 21, letterSpacing: -0.6 }}
         >
           TripPot
         </Text>
 
-        {onPressNotifications ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="알림"
-            onPress={onPressNotifications}
-            hitSlop={8}
-            className="mr-1 h-9 w-9 items-center justify-center rounded-full active:opacity-60"
-          >
-            <Ionicons name="notifications-outline" size={20} color="#111827" />
-          </Pressable>
-        ) : null}
+        <View className="mr-2 h-9 w-9 items-center justify-center">
+          <Ionicons name="notifications-outline" size={22} color="#111827" />
+        </View>
 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="마이페이지"
           onPress={onPressProfile}
           hitSlop={8}
-          className="h-9 w-9 items-center justify-center rounded-full bg-white active:opacity-60"
-          style={{ borderWidth: 1, borderColor: '#E5E8EC' }}
+          className="h-9 w-9 items-center justify-center active:opacity-60"
         >
-          <Ionicons name="person-outline" size={17} color="#111827" />
+          <Ionicons name="person-circle-outline" size={26} color="#111827" />
         </Pressable>
       </View>
 
-      {/* 인사 */}
-      <Text
-        className="mt-4 font-black text-pot-ink"
-        style={{ fontSize: 19, lineHeight: 25, letterSpacing: -0.5 }}
-      >
-        {greeting}
-      </Text>
-      <Text className="mt-0.5 text-pot-mute" style={{ fontSize: 13.5 }}>
-        {subtitle}
-      </Text>
+      <View className="mt-4 flex-row items-center">
+        <View className="flex-1 pr-3">
+          <Text
+            className="font-black text-pot-ink"
+            style={{ fontSize: 20, lineHeight: 26, letterSpacing: -0.6 }}
+          >
+            {greeting}
+          </Text>
+          <Text className="mt-1 text-pot-mute" style={{ fontSize: 13, ...NUM }}>
+            {daysToNextTrip === null
+              ? '새 여행을 계획해보세요.'
+              : daysToNextTrip === 0
+                ? '오늘 여행을 떠나요!'
+                : `다음 여행까지 ${daysToNextTrip}일 남았어요!`}
+          </Text>
+        </View>
 
-      {/* 여행 만들기 */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="새 여행 만들기"
-        onPress={onPressCreateTrip}
-        className="mt-3.5 flex-row items-center self-start rounded-full bg-pot-ink px-3.5 py-2 active:opacity-80"
-      >
-        <Ionicons name="add" size={15} color="#FFFFFF" />
-        <Text className="ml-1 font-bold text-white" style={{ fontSize: 13 }}>
-          여행 만들기
-        </Text>
-      </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="새 여행 만들기"
+          onPress={onPressCreateTrip}
+          className="flex-row items-center rounded-full bg-pot-ink px-4 py-3 active:opacity-80"
+        >
+          <Ionicons name="add" size={16} color="#FFFFFF" />
+          <Text className="ml-1 font-bold text-white" style={{ fontSize: 13 }}>
+            여행 만들기
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }

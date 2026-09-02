@@ -51,6 +51,10 @@ export type HomeFundTripRate = {
   destination: string | null;
   /** 준비율(%). 목표가 없으면 null. */
   ratePercent: number | null;
+  /** 이 여행에 준비된 금액. 도넛 조각 크기와 범례 숫자에 쓴다. */
+  currentAmount: number;
+  /** 목표 여행자금. 정하지 않았으면 0. */
+  targetAmount: number;
 };
 
 export type HomeFundSummary = {
@@ -58,6 +62,8 @@ export type HomeFundSummary = {
   currentTotal: number;
   /** 이번 달 들어온 여행자금(입금 거래 합계). */
   monthlyDeposit: number;
+  /** 진행 중 여행 전체의 준비율(%). 목표가 하나도 없으면 null. */
+  overallRatePercent: number | null;
   trips: HomeFundTripRate[];
 };
 
@@ -197,9 +203,15 @@ export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
     currentByTripId.set(row.trip_id, row.current_amount);
   }
 
+  const currentTotal = [...currentByTripId.values()].reduce((sum, value) => sum + value, 0);
+  const targetTotal = ongoing.reduce((sum, trip) => sum + (targetByTripId.get(trip.id) ?? 0), 0);
+
   const fund: HomeFundSummary = {
-    currentTotal: [...currentByTripId.values()].reduce((sum, value) => sum + value, 0),
+    currentTotal,
     monthlyDeposit: (deposits?.data ?? []).reduce((sum, row) => sum + row.amount, 0),
+    // 여행별 비율을 평균 내지 않는다. 금액이 작은 여행의 비율이 과하게 반영된다.
+    // 총액끼리 나눈다. (personalization.ts 의 deviationBp 와 같은 이유)
+    overallRatePercent: targetTotal > 0 ? Math.floor((currentTotal * 100) / targetTotal) : null,
     trips: ongoing.map((trip) => {
       const target = targetByTripId.get(trip.id) ?? 0;
       const current = currentByTripId.get(trip.id) ?? 0;
@@ -208,6 +220,8 @@ export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
         destination: trip.destination,
         // 정수 퍼센트만 만든다. 소수점 연산을 하지 않는다. (CLAUDE.md 9장)
         ratePercent: target > 0 ? Math.floor((current * 100) / target) : null,
+        currentAmount: current,
+        targetAmount: target,
       };
     }),
   };
