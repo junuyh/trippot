@@ -116,7 +116,7 @@ export default function ScreenCOMM04() {
 
   return (
     <>
-      <Stack.Screen options={{ title: WRITE_TITLE[postType] }} />
+      <Stack.Screen options={{ title: WRITE_TITLE[postType], headerTitleAlign: 'center' }} />
       <PostWriteForm
         typeOptions={TYPE_OPTIONS}
         postType={postType}

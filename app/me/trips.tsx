@@ -77,7 +77,7 @@ export default function ScreenMY02() {
   if (loadState === 'loading') {
     return (
       <>
-        <Stack.Screen options={{ title: '나의 여행' }} />
+        <Stack.Screen options={{ title: '나의 여행', headerTitleAlign: 'center' }} />
         <Loading message="여행을 불러오고 있어요" />
       </>
     );
@@ -86,7 +86,7 @@ export default function ScreenMY02() {
   if (loadState === 'error') {
     return (
       <>
-        <Stack.Screen options={{ title: '나의 여행' }} />
+        <Stack.Screen options={{ title: '나의 여행', headerTitleAlign: 'center' }} />
         <ErrorState message="여행을 불러오지 못했어요." onRetry={() => void load()} />
       </>
     );
@@ -138,7 +138,7 @@ export default function ScreenMY02() {
 
   return (
     <>
-      <Stack.Screen options={{ title: '나의 여행' }} />
+      <Stack.Screen options={{ title: '나의 여행', headerTitleAlign: 'center' }} />
       <MyTripListView
         trips={filter === 'ongoing' ? ongoing : past}
         filter={filter}

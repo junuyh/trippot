@@ -179,7 +179,7 @@ export default function ScreenCOMM02() {
   if (loadState === 'loading') {
     return (
       <>
-        <Stack.Screen options={{ title: '글' }} />
+        <Stack.Screen options={{ title: '글', headerTitleAlign: 'center' }} />
         <Loading message="글을 불러오고 있어요" />
       </>
     );
@@ -188,7 +188,7 @@ export default function ScreenCOMM02() {
   if (loadState === 'notFound') {
     return (
       <>
-        <Stack.Screen options={{ title: '글' }} />
+        <Stack.Screen options={{ title: '글', headerTitleAlign: 'center' }} />
         <ErrorState
           message="찾을 수 없는 글이에요."
           retryLabel="뒤로"
@@ -201,7 +201,7 @@ export default function ScreenCOMM02() {
   if (loadState === 'error' || !post) {
     return (
       <>
-        <Stack.Screen options={{ title: '글' }} />
+        <Stack.Screen options={{ title: '글', headerTitleAlign: 'center' }} />
         <ErrorState message="글을 불러오지 못했어요." onRetry={() => void load()} />
       </>
     );
@@ -241,7 +241,7 @@ export default function ScreenCOMM02() {
 
   return (
     <>
-      <Stack.Screen options={{ title: POST_TYPE_LABEL[post.postType] }} />
+      <Stack.Screen options={{ title: POST_TYPE_LABEL[post.postType], headerTitleAlign: 'center' }} />
       <PostDetailView
         post={data}
         likeBusy={likeBusy}
