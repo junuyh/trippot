@@ -1,7 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
-import { Button } from '@/components/ui';
+// ⚠️ components/ui/Button 을 쓰지 않는다. 공용 Button 의 primary 가 bg-blue-600 이고
+//    그 파일은 [공유] 라 고치면 25개 화면 버튼이 전부 바뀐다.
+//    버튼 검은색 통일이 팀 전체로 확정되면 공용 Button 을 고치고 이 버튼을 지운다.
+//    (components/home/HomeButton.tsx 도 같은 이유로 따로 있다)
 
 type TypeOption = { value: string; label: string };
 
@@ -201,7 +212,21 @@ export function PostWriteForm({
       ) : null}
 
       <View className="mt-7">
-        <Button label="게시하기" loading={submitting} onPress={onSubmit} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: submitting, busy: submitting }}
+          disabled={submitting}
+          onPress={onSubmit}
+          className={`w-full flex-row items-center justify-center rounded-xl bg-pot-ink px-5 py-3.5 active:bg-black ${
+            submitting ? 'opacity-40' : ''
+          }`}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text className="text-base font-semibold text-white">게시하기</Text>
+          )}
+        </Pressable>
       </View>
     </ScrollView>
   );
