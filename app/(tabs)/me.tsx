@@ -155,15 +155,29 @@ export default function ScreenMY01() {
   }, []);
 
   /**
-   * 여행 카드 두 개 모두 홈으로 보낸다.
+   * 여행 카드 두 개는 '내 여행' 목록(/me/trips)으로 보낸다.
    *
-   * 진행 중 / 종료 여행을 한 화면에서 구분해 보여주는 곳이 홈이다.
-   * (app/(tabs)/index.tsx 의 ongoingTrips / endedTrips)
-   * 2-2 /trips/:tripId 는 여행 한 건의 상세라 tripId 가 필요하다.
-   * 임의로 하나를 골라 넘기지 않는다. 필터용 query param 도 만들지 않는다.
+   * ⚠️ /me/trips 는 마이페이지 전용 화면이 아니다. 홈 담당자가 만든 **공용
+   *    목록 화면**이고 홈의 '전체 보기' 도 같은 곳으로 들어온다.
+   *    (app/(tabs)/index.tsx 의 onPressAllTrips)
+   *    그래서 이 화면의 목록·필터·분류 기준을 마이페이지 쪽에서 바꾸지 않는다.
+   *    여기서 하는 일은 **올바른 진입 경로를 연결하는 것뿐**이다.
+   *
+   * ⚠️ 예전에는 둘 다 홈으로 보냈다. 홈이 진행 중과 지난 여행을 함께 보여줬기
+   *    때문이다. 지금은 홈이 **진행 중인 여행만** 다뤄서
+   *    '지난 여행' 을 홈으로 보내면 아무것도 없는 화면에 도착한다.
+   *
+   * 목록 화면이 filter 파라미터를 열어 두었다. 기본은 진행 중이고 past 면 지난 여행이다.
+   * (app/me/trips.tsx — params.filter === 'past' ? 'past' : 'ongoing')
+   * 분류 기준도 이 화면의 개수와 같다. 진행 중 = PLANNING·TRAVELING,
+   * 지난 = ENDED·SETTLED 라 카드 숫자와 목록 길이가 어긋나지 않는다.
    */
-  function handlePressTrips() {
-    router.navigate('/');
+  function handlePressOngoingTrips() {
+    router.push('/me/trips');
+  }
+
+  function handlePressPastTrips() {
+    router.push('/me/trips?filter=past');
   }
 
   // TODO: 커뮤니티 목적지 미확정.
@@ -225,8 +239,8 @@ export default function ScreenMY01() {
         <View className="mt-7">
           <TripSummaryCards
             counts={counts}
-            onPressOngoing={handlePressTrips}
-            onPressPast={handlePressTrips}
+            onPressOngoing={handlePressOngoingTrips}
+            onPressPast={handlePressPastTrips}
           />
         </View>
       </View>
