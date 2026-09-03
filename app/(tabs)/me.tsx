@@ -284,8 +284,14 @@ export default function ScreenMY01() {
   // TODO: 알림 설정 화면 미확정. notification_settings_json 구조도 정의되지 않았다.
   function handlePressNotification() {}
 
-  // TODO: 약관 미확정. 종류·route·URL·원문이 모두 없다.
-  function handlePressTerms() {}
+  // ⚠️ 두 문서 모두 MVP 검증용 임시 원문이다. 정식 문서는 확정 후 교체한다.
+  function handlePressTerms() {
+    router.push('/me/settings/terms');
+  }
+
+  function handlePressPrivacy() {
+    router.push('/me/settings/privacy');
+  }
 
   /**
    * 로그아웃 확인.
@@ -350,7 +356,8 @@ export default function ScreenMY01() {
         <View className="mt-9">
           <MenuSection title="설정">
             <MenuRow label="알림" onPress={handlePressNotification} />
-            <MenuRow label="약관" onPress={handlePressTerms} isLast />
+            <MenuRow label="약관" onPress={handlePressTerms} />
+            <MenuRow label="개인정보처리방침" onPress={handlePressPrivacy} isLast />
           </MenuSection>
         </View>
 
