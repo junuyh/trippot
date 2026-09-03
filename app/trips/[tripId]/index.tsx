@@ -443,8 +443,16 @@ export default function ScreenTripHome() {
    * ⚠️ **금액 기준**이다. 비율로 고르면 6만원짜리 보험의 +50% 가
    *    120만원짜리 숙소의 +10% 를 이겨, 사용자가 체감한 것과 다른 답이 나온다.
    */
+  /**
+   * ⚠️ 실제 지출이 0 인 카테고리는 비교에서 뺀다. 계획만 세우고 아직 아무것도
+   *    안 적은 카테고리를 '절약' 으로 세면, 실제 여행비가 0원인 여행이
+   *    "숙소에서 268만원 절약" 이라고 말하게 된다.
+   *    안 쓴 것과 아직 안 적은 것을 구분할 방법이 없으므로 판단하지 않는다.
+   */
   const diffs = data.categories
-    .filter((category) => category.planned_amount > 0)
+    .filter(
+      (category) => category.planned_amount > 0 && category.actual_amount > 0,
+    )
     .map((category) => ({
       categoryCode: category.category_code as CategoryCode,
       diff: category.actual_amount - category.planned_amount,

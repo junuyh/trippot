@@ -79,7 +79,36 @@ export function buildTripRecord(inputs: RecordInput[]): TripRecord {
   const plannedTotal = usable.reduce((sum, row) => sum + row.plannedAmount, 0);
   const actualTotal = usable.reduce((sum, row) => sum + row.actualAmount, 0);
 
-  const diffs = usable.map((row) => ({
+  /**
+   * ⚠️ 지출 기록이 하나도 없으면 아무 말도 하지 않는다.
+   *
+   *    예전에는 실제가 0 이어도 diff = 0 − 계획 이라 **모든 카테고리가 최대
+   *    절약**이 되고, 실제가 전부 0 이라 최대 지출도 아무 카테고리나 뽑혔다.
+   *    "실제 여행비 0원인데 숙소에서 268만원 절약, 최대 지출은 항공" 같은
+   *    말이 나온 원인이다.
+   *
+   *    안 쓴 것과 **아직 안 적은 것**은 다르다. 구분할 방법이 없으므로
+   *    기록이 없으면 판단 자체를 하지 않는다.
+   */
+  if (actualTotal === 0) {
+    return {
+      headline: "아직 이야기가\n시작되지 않았어요",
+      description:
+        "지출을 기록하면 이번 여행이 어떤 여행이었는지 한 줄로 정리해 드려요.",
+      topSpentLabel: null,
+      topSavedLabel: null,
+      hashtags: [],
+    };
+  }
+
+  /**
+   * ⚠️ 실제 지출이 0 인 카테고리는 비교에서 뺀다. 계획만 세우고 아직 아무것도
+   *    안 적은 카테고리를 '절약' 으로 세면, 기록을 덜 한 사람이 가장 알뜰한
+   *    여행자가 된다.
+   */
+  const compared = usable.filter((row) => row.actualAmount > 0);
+
+  const diffs = compared.map((row) => ({
     categoryCode: row.categoryCode,
     diff: row.actualAmount - row.plannedAmount,
     actual: row.actualAmount,

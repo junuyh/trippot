@@ -94,12 +94,24 @@ export function SettlementSummaryCard({
         </Text>
       </Text>
 
+      {/*
+        ⚠️ 지출 기록이 하나도 없으면 절약했다고 말하지 않는다.
+           계획 전액이 그대로 남은 것을 절약으로 부르면, 아직 아무것도
+           적지 않은 여행이 "목표보다 806만원 절약" 이 된다.
+      */}
       <Text
-        style={{ marginTop: 6, fontSize: 12, fontWeight: "800", color: accent }}
+        style={{
+          marginTop: 6,
+          fontSize: 12,
+          fontWeight: "800",
+          color: actualAmount === 0 ? "#8b94a2" : accent,
+        }}
       >
-        {same
-          ? "목표한 금액에 딱 맞췄어요"
-          : `목표보다 ${Math.abs(difference).toLocaleString("ko-KR")}원 ${saved ? "절약했어요" : "더 썼어요"}`}
+        {actualAmount === 0
+          ? "아직 기록된 지출이 없어요"
+          : same
+            ? "목표한 금액에 딱 맞췄어요"
+            : `목표보다 ${Math.abs(difference).toLocaleString("ko-KR")}원 ${saved ? "절약했어요" : "더 썼어요"}`}
       </Text>
 
       <View
