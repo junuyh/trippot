@@ -71,11 +71,13 @@ import {
   type TripBudget,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import { classifyTransaction } from "@/lib/supabase/queries/transactionClassify";
 import {
   createTransaction,
   getFundTotals,
   getTransactions,
   reviewReason,
+  updateTransactionMapping,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
@@ -170,6 +172,47 @@ export default function ScreenFUND01() {
    */
   const [draftCategoryId, setDraftCategoryId] = useState<string | null>(null);
 
+  /**
+   * 거래명으로 카테고리를 추측해 붙인다.
+   *
+   * ⚠️ 추측이지 확정이 아니다. category_method 를 AUTO 로 남겨
+   *    '확인 필요' 에 잡히게 한다. 사용자가 거래 상세에서 확인해야 확정된다.
+   *    (CLAUDE.md 3장 — 추천이 사용자 대신 확정하지 않는다)
+   *
+   * ⚠️ 못 맞히면 아무것도 하지 않는다. 미분류로 두는 것이 틀린 분류보다 낫다.
+   *    엉뚱한 카테고리가 붙으면 그 카테고리의 실제 사용액이 틀렸다는 것조차
+   *    사용자가 눈치채기 어렵다.
+   */
+  const autoClassify = useCallback(
+    async (transactionId: string, name: string, amount: number) => {
+      if (!data) return;
+      try {
+        const result = await classifyTransaction({
+          name,
+          destination: data.trip.destination,
+          amount,
+        });
+        if (!result.classification) return;
+
+        const category = data.categories.find(
+          (c) => c.category_code === result.classification!.categoryCode,
+        );
+        // 이 여행에 없는 카테고리를 골랐으면 붙이지 않는다
+        if (!category) return;
+
+        await updateTransactionMapping(transactionId, {
+          categoryId: category.id,
+          categoryMethod: CATEGORY_METHOD.AUTO,
+          categoryConfidence: result.classification.confidence,
+        });
+        await load();
+      } catch {
+        // 분류는 부가 기능이다. 실패해도 거래는 그대로 남는다.
+      }
+    },
+    [data, load],
+  );
+
   const openSheet = useCallback((type: TransactionType) => {
     setDraft({ name: "", amount: null });
     setOccurredOn(format(new Date(), "yyyy-MM-dd"));
@@ -192,7 +235,7 @@ export default function ScreenFUND01() {
 
     setSaving(true);
     try {
-      await createTransaction({
+      const created = await createTransaction({
         trip_id: data.trip.id,
         // 직접 입력한 자금 이동이다. 계좌에서 불러온 거래가 아니다.
         source_type: TRANSACTION_SOURCE_TYPE.MANUAL,
@@ -221,12 +264,38 @@ export default function ScreenFUND01() {
       });
       setSheetType(null);
       await load();
+
+      /**
+       * ── 자동 분류 ── (시안 v1: 미선택 시 AI 자동 분류 후 확인 필요)
+       *
+       * ⚠️ **저장을 여기에 묶지 않는다.** 위에서 거래는 이미 저장됐다.
+       *    분류를 기다렸다가 저장하면 사용자가 '기록하기' 를 누르고
+       *    LLM 응답만큼 멈춰 선다. 실측에서 10초를 넘긴 적이 있다.
+       *    실패해도 거래는 미분류로 남아 '확인 필요' 에 잡히므로 잃는 게 없다.
+       */
+      if (sheetType === TRANSACTION_TYPE.WITHDRAWAL && !draftCategoryId) {
+        void autoClassify(created.id, name, draft.amount);
+      }
     } catch {
       setError(true);
     } finally {
       setSaving(false);
     }
-  }, [data, draft, load, saving, sheetType]);
+    /**
+     * ⚠️ autoClassify · draftCategoryId · occurredOn 이 빠져 있었다.
+     *    빠지면 오래된 클로저를 잡아 방금 고른 카테고리·날짜가 아니라
+     *    이전 값으로 저장되고, 자동 분류도 옛 data 를 보고 돌아 아무것도 안 한다.
+     */
+  }, [
+    autoClassify,
+    data,
+    draft,
+    draftCategoryId,
+    load,
+    occurredOn,
+    saving,
+    sheetType,
+  ]);
 
   // ── 파생값 ────────────────────────────────────────────────────────────
   const visibleTransactions = useMemo(() => {
