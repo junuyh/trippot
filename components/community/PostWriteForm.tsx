@@ -144,18 +144,19 @@ export function PostWriteForm({
           </Pressable>
         ) : null}
       </ScrollView>
+      {/* ⚠️ 여기 '사진 저장은 준비 중이에요' 안내를 뒀다가 뺐다. 글을 쓰러 온
+             사람에게 아직 안 되는 기능을 먼저 알릴 이유가 없다.
+             오류가 났을 때만 말한다. */}
       {imageError ? (
         <Text className="mt-1.5 text-red-500" style={{ fontSize: 12 }}>
           {imageError}
         </Text>
-      ) : (
-        <Text className="mt-1.5 text-pot-faint" style={{ fontSize: 11, lineHeight: 15 }}>
-          사진 저장은 준비 중이에요. 지금은 미리보기만 됩니다.
-        </Text>
-      )}
+      ) : null}
 
       {/* 유형 */}
-      <Text className="mb-2 font-bold text-pot-ink" style={{ fontSize: 13 }}>
+      {/* ⚠️ mt-6 은 아래 '어느 여행 이야기인가요' · '제목' 과 같은 값이다.
+             안내 문구가 있던 시절에는 그 문구가 간격 노릇을 해서 필요 없었다. */}
+      <Text className="mb-2 mt-6 font-bold text-pot-ink" style={{ fontSize: 13 }}>
         어떤 글인가요
       </Text>
       <View className="flex-row gap-2">

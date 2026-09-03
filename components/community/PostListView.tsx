@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Header } from '@/components/ui';
+import { BottomSheet, Header } from '@/components/ui';
 
 import { NO_FOCUS_RING } from './inputStyle';
 import { PostCard } from './PostCard';
@@ -52,8 +53,23 @@ export function PostListView({
   // 커뮤니티 탭은 헤더를 끈 상태다. 상태바·노치 밑으로 내용이 들어가지 않게 띄운다.
   const insets = useSafeAreaInsets();
 
+  // 여행지 셀렉트 열림 여부. 고른 뒤 바로 닫는다.
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   // 빈 목록 문구에 쓴다. 목록에서 사라진 카테고리를 고른 상태여도 문구는 나와야 한다.
   const activeLabel = categories.find((item) => item.key === activeCategory)?.label ?? '이 분류의';
+
+  // 칩으로 그릴 칸과 셀렉트로 그릴 칸을 가른다.
+  // 컴포넌트는 key 규칙을 모르고 kind 만 본다. (CLAUDE.md 9장)
+  const chips = categories.filter((item) => item.kind !== 'destination');
+  const places = categories.filter((item) => item.kind === 'destination');
+  const allKey = categories.find((item) => item.kind === 'all')?.key ?? '';
+  const activePlace = places.find((item) => item.key === activeCategory) ?? null;
+
+  function pickPlace(key: string) {
+    setPickerOpen(false);
+    onChangeCategory(key);
+  }
 
   return (
     <View className="flex-1 bg-pot-visual">
@@ -104,20 +120,14 @@ export function PostListView({
           </Pressable>
         </View>
 
-        {/* 카테고리 — 한 줄 (2026-09-03)
-            글 유형(자유·여행 팁)과 여행지를 한 줄에 두고 하나만 고른다.
-            처음에는 유형 줄과 여행지 줄을 따로 뒀는데, 줄이 둘이면 지금 무엇으로
-            걸러진 목록인지 한눈에 안 읽혔다.
+        {/* 카테고리 (2026-09-03)
+            전체·자유는 칩, 여행지는 셀렉트다. 한 번에 하나만 고른다.
+            여행지는 글이 쌓일수록 계속 늘어나서 칩으로 두면 줄이 한없이 길어진다.
 
             검색창과의 간격은 style 로 준다. className(mt-*) 이 ScrollView 에서
             먹지 않는 경우가 있어 눈에 보이는 값으로 직접 잡는다. */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 16 }}
-          contentContainerClassName="gap-2 pr-4"
-        >
-          {categories.map((item) => {
+        <View className="flex-row items-center" style={{ marginTop: 16, gap: 8 }}>
+          {chips.map((item) => {
             const active = item.key === activeCategory;
             return (
               <Pressable
@@ -125,48 +135,77 @@ export function PostListView({
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 onPress={() => onChangeCategory(item.key)}
-                className="items-center"
+                className="rounded-full px-4 py-2"
+                style={{ backgroundColor: active ? ACCENT_SOFT : '#F1F3F6' }}
               >
-                <View
-                  className="flex-row items-center rounded-full px-3.5 py-2"
-                  style={{ backgroundColor: active ? ACCENT_SOFT : '#F1F3F6' }}
+                <Text
+                  className="font-bold"
+                  style={{ fontSize: 12.5, color: active ? ACCENT : '#747B88' }}
                 >
-                  {item.flag ? (
-                    // 장식이다. 옆 글자가 여행지 이름을 그대로 말한다.
-                    <Text style={{ fontSize: 11, marginRight: 4 }} accessible={false}>
-                      {item.flag}
-                    </Text>
-                  ) : null}
-                  <Text
-                    className="font-bold"
-                    style={{ fontSize: 12.5, color: active ? ACCENT : '#747B88' }}
-                  >
-                    {item.label}
-                  </Text>
-                  {item.count === null ? null : (
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        marginLeft: 4,
-                        color: active ? ACCENT : '#9AA3AE',
-                        fontVariant: ['tabular-nums'],
-                      }}
-                    >
-                      {item.count}
-                    </Text>
-                  )}
-                </View>
-
-                {/* 고른 칩 아래 짧은 밑줄. 칩 색만으로는 구분이 약하다. */}
-                <View
-                  className="mt-1.5 h-[3px] rounded-full"
-                  style={{ width: 22, backgroundColor: active ? ACCENT : 'transparent' }}
-                />
+                  {item.label}
+                </Text>
               </Pressable>
             );
           })}
-        </ScrollView>
+
+          {/* 여행지 셀렉트. 고를 여행지가 하나도 없으면 그리지 않는다. */}
+          {places.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="여행지 고르기"
+              accessibilityState={{ expanded: pickerOpen }}
+              onPress={() => setPickerOpen(true)}
+              className="flex-row items-center rounded-full px-3.5 py-2"
+              style={{ backgroundColor: activePlace ? ACCENT_SOFT : '#F1F3F6' }}
+            >
+              {activePlace?.flag ? (
+                // 장식이다. 옆 글자가 여행지 이름을 그대로 말한다.
+                <Text style={{ fontSize: 11, marginRight: 4 }} accessible={false}>
+                  {activePlace.flag}
+                </Text>
+              ) : null}
+              <Text
+                className="font-bold"
+                style={{ fontSize: 12.5, color: activePlace ? ACCENT : '#747B88' }}
+              >
+                {activePlace?.label ?? '여행지'}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={13}
+                color={activePlace ? ACCENT : '#9AA3AE'}
+                style={{ marginLeft: 3 }}
+              />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
+
+      {/* 여행지 셀렉트 — 공통 바텀시트를 쓴다. (components/ui/BottomSheet) */}
+      <BottomSheet
+        visible={pickerOpen}
+        title="여행지"
+        description="글이 있는 여행지만 보여요."
+        onClose={() => setPickerOpen(false)}
+      >
+        <PlaceRow
+          label="전체 여행지"
+          flag={null}
+          count={null}
+          selected={activePlace === null}
+          onPress={() => pickPlace(allKey)}
+        />
+        {places.map((item) => (
+          <PlaceRow
+            key={item.key}
+            label={item.label}
+            flag={item.flag}
+            count={item.count}
+            selected={item.key === activeCategory}
+            onPress={() => pickPlace(item.key)}
+          />
+        ))}
+      </BottomSheet>
 
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-4">
         {posts.length === 0 ? (
@@ -184,5 +223,49 @@ export function PostListView({
         )}
       </ScrollView>
     </View>
+  );
+}
+
+/** 여행지 셀렉트 한 줄. */
+function PlaceRow({
+  label,
+  flag,
+  count,
+  selected,
+  onPress,
+}: {
+  label: string;
+  flag: string | null;
+  count: number | null;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      className="flex-row items-center border-b border-pot-line py-3.5 active:opacity-60"
+    >
+      {flag ? (
+        <Text style={{ fontSize: 15, marginRight: 8 }} accessible={false}>
+          {flag}
+        </Text>
+      ) : null}
+      <Text
+        className="flex-1"
+        style={{ fontSize: 14.5, fontWeight: selected ? '800' : '500', color: '#111827' }}
+      >
+        {label}
+      </Text>
+      {count === null ? null : (
+        <Text
+          style={{ fontSize: 12.5, color: '#9AA3AE', marginRight: 8, fontVariant: ['tabular-nums'] }}
+        >
+          {count}
+        </Text>
+      )}
+      {selected ? <Ionicons name="checkmark" size={17} color={ACCENT} /> : null}
+    </Pressable>
   );
 }
