@@ -1,127 +1,95 @@
 import { ScrollView, View } from 'react-native';
 
-import { ActionRequiredSection } from './ActionRequiredSection';
-import { GroupShortcutList } from './GroupShortcutList';
+import { CreateTripCard } from './CreateTripCard';
 import { HomeHeader } from './HomeHeader';
-import { NextTripCard } from './NextTripCard';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
-import { PastTripInsight } from './PastTripInsight';
-import { SectionHeader } from './SectionHeader';
-import { TravelFundSummary } from './TravelFundSummary';
-import type {
-  HomeActionItem,
-  HomeEmptyVariant,
-  HomeFundSummaryData,
-  HomeGroupItem,
-  HomePastInsightData,
-  NextTripCardData,
-  OngoingTripCardData,
-} from './types';
+import { PastTripCarousel } from './PastTripCarousel';
+import type { EndedTripCardData, HomeEmptyVariant, OngoingTripCardData } from './types';
 
 type Props = {
   userName: string | null;
   /** 가장 가까운 여행까지 남은 일수. 인사 문구에 쓴다. */
   daysToNextTrip: number | null;
 
-  /** 출발이 가장 가까운 여행. 없으면 메인 카드를 그리지 않는다. */
-  nextTrip: NextTripCardData | null;
-  /** 메인 카드에 올린 여행을 뺀 나머지 진행 중 여행. */
-  otherTrips: OngoingTripCardData[];
+  /** 진행 중인 여행 전부. 사진 배너 가로 스크롤이 된다. */
+  ongoingTrips: OngoingTripCardData[];
   /** 진행 중 여행이 하나도 없을 때 문구를 고르는 값. (docs/03 REQ-HOME-002) */
   emptyVariant: HomeEmptyVariant;
 
-  actions: HomeActionItem[];
-  fund: HomeFundSummaryData;
-  insight: HomePastInsightData | null;
-  groups: HomeGroupItem[];
+  /** 홈에 보여줄 지난 여행. 최근 몇 개만이다. 전체는 MY-02. */
+  pastTrips: EndedTripCardData[];
+  /** 홈에 다 담지 못한 지난 여행이 더 있는가. */
+  hasMorePastTrips: boolean;
 
   onPressTrip: (tripId: string) => void;
-  onPressGroup: (groupId: string) => void;
+  /** 지난 여행 카드의 '결산하기' 를 눌렀을 때. 결산 화면으로 바로 보낸다. */
+  onPressSettle: (tripId: string) => void;
   onPressCreateTrip: () => void;
-  onPressAction: (actionId: string) => void;
-  onPressAllTrips: () => void;
-  onPressInsight: (tripId: string) => void;
+  onPressAllPastTrips: () => void;
 };
 
 /**
- * HOME-01 본문 — 대표 홈 대시보드. (2026-09-02 개편)
+ * HOME-01 본문. (2026-09-03 개편)
  *
- * 사용자가 홈에서 세 가지를 바로 알 수 있어야 한다.
- *   ① 가장 가까운 여행이 무엇인가   → NextTripCard
- *   ② 준비 상태가 어떤가            → NextTripCard 진행률 · TravelFundSummary
- *   ③ 지금 해야 할 일이 무엇인가    → ActionRequiredSection
+ * 홈은 **내 여행이 놓인 선반**이다. 지금 가는 여행과 다녀온 여행을 보여주고,
+ * 새 여행을 시작하게 한다. docs/09_IA_v2.md §1 구조 그대로다.
  *
- * ⚠️ 항공·숙소·식비 같은 카테고리 관리 UI 를 여기서 반복하지 않는다.
- *    그건 여행 상세 홈(TRIP-HOME-01)의 일이다. 두 화면의 역할을 나눈다.
+ *   1-1. 진행 중인 여행   큰 사진 배너 가로 슬라이드
+ *   1-2. 지난 여행        작은 사진 카드 가로 슬라이드 (결산 전이면 '결산하기')
+ *   1-4. 새 여행 만들기
  *
- * ⚠️ 바탕은 pot-visual 이다. 여행 카드(TripCardShell)의 절취선 구멍이
- *    이 색으로 뚫려 있어서, 바탕색이 다르면 구멍이 아니라 점으로 보인다.
+ * ⚠️ 2026-09-02 대시보드 개편(메인 카드·지금 챙겨야 할 것·여행자금 현황·
+ *    모임 바로가기·지난 여행 인사이트)을 되돌렸다.
+ *    금액·준비율·부족 금액이 홈 대부분을 차지하면서 홈이 "어디 가지?" 가 아니라
+ *    "얼마 있지?" 에 답하고 있었다. 계좌관리 앱·가계부처럼 만들지 않는다는
+ *    CLAUDE.md 2장에 어긋난다. 금액은 여행 준비 홈(TRIP-HOME-01)에서 본다.
+ *
+ * ⚠️ 지난 여행을 홈에 둔 것은 취향이 아니라 요구사항이다.
+ *    docs/03_요구사항정의서_v1.md REQ-HOME-001 은 Must 이고,
+ *    개편 전 홈은 종료 여행을 아예 그리지 않아 이 항목을 채우지 못했다.
+ *
+ * ⚠️ 바탕은 pot-visual 이다. 카드가 흰색이라 바탕이 흰색이면 경계가 사라진다.
  *
  * 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
  */
 export function HomeView({
   userName,
   daysToNextTrip,
-  nextTrip,
-  otherTrips,
+  ongoingTrips,
   emptyVariant,
-  actions,
-  fund,
-  insight,
-  groups,
+  pastTrips,
+  hasMorePastTrips,
   onPressTrip,
-  onPressGroup,
+  onPressSettle,
   onPressCreateTrip,
-  onPressAction,
-  onPressAllTrips,
-  onPressInsight,
+  onPressAllPastTrips,
 }: Props) {
-  // 메인 카드에 이미 올라간 여행을 가로 스크롤에서 또 보여주지 않는다.
-  // 진행 중 여행이 그 하나뿐이면 섹션 자체를 그리지 않는다.
-  const showCarousel = nextTrip === null || otherTrips.length > 0;
-
   return (
     <View className="flex-1 bg-pot-visual">
-      <HomeHeader
-        userName={userName}
-        daysToNextTrip={daysToNextTrip}
-        onPressCreateTrip={onPressCreateTrip}
-      />
+      {/* 상단바에는 만들기 버튼이 없다. 이유는 HomeHeader 주석 참조. */}
+      <HomeHeader userName={userName} daysToNextTrip={daysToNextTrip} />
 
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-1">
-        {nextTrip ? <NextTripCard trip={nextTrip} onPress={onPressTrip} /> : null}
+      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-2">
+        <OngoingTripCarousel
+          trips={ongoingTrips}
+          emptyVariant={emptyVariant}
+          onPressTrip={onPressTrip}
+          onPressCreateTrip={onPressCreateTrip}
+        />
 
-        <View className="mt-6">
-          <ActionRequiredSection actions={actions} onPressAction={onPressAction} />
+        <View className="mt-7">
+          <PastTripCarousel
+            trips={pastTrips}
+            hasMore={hasMorePastTrips}
+            onPressTrip={onPressTrip}
+            onPressSettle={onPressSettle}
+            onPressSeeAll={onPressAllPastTrips}
+          />
         </View>
 
-        {showCarousel ? (
-          <View className="mt-6">
-            <OngoingTripCarousel
-              trips={otherTrips}
-              emptyVariant={emptyVariant}
-              onPressTrip={onPressTrip}
-              onPressSeeAll={onPressAllTrips}
-              onPressCreateTrip={onPressCreateTrip}
-            />
-          </View>
-        ) : null}
-
-        <View className="mt-6">
-          <TravelFundSummary fund={fund} />
+        <View className="mt-7">
+          <CreateTripCard onPress={onPressCreateTrip} />
         </View>
-
-        <View className="mt-6">
-          <PastTripInsight insight={insight} onPress={onPressInsight} />
-        </View>
-
-        {/* 모임 바로가기 — docs/09_IA §1-3. 어디서 눌러도 같은 모임 상세로 간다. */}
-        {groups.length > 0 ? (
-          <View className="mt-6">
-            <SectionHeader title="모임 바로가기" />
-            <GroupShortcutList groups={groups} onPress={onPressGroup} />
-          </View>
-        ) : null}
       </ScrollView>
     </View>
   );
