@@ -2,18 +2,27 @@
 //
 // ⚠️ 입금과 출금을 한 목록에 두되 부호로 구분한다.
 //    출금만 예산 실제 사용액에 합산된다. 입금은 자금 유입이다.
-import { Ionicons } from "@expo/vector-icons";
+//
+// ⚠️ 아이콘·부호·상태 문구는 transactionIcon.ts 하나에서 정한다. (시안 v1)
+//    전체 내역(FUND-03)과 같은 거래가 다른 그림으로 보이면 안 된다.
 import { format, parseISO } from "date-fns";
 import { Pressable, Text, View } from "react-native";
 
 import type { CountryTheme } from "@/lib/constants/countryTheme";
+import {
+  amountSign,
+  statusLabel,
+  transactionIcon,
+  type IconInput,
+} from "@/lib/constants/transactionIcon";
 
-export type RecentFundItem = {
+export type RecentFundItem = IconInput & {
   id: string;
   name: string | null;
   amount: number;
-  deposit: boolean;
   occurredAt: string;
+  /** 확인이 필요한 거래인가 */
+  needsReview: boolean;
 };
 
 type Props = {
@@ -78,19 +87,15 @@ export function RecentFundList({ theme, transactions, onSelect }: Props) {
         >
           <View
             style={{
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               borderRadius: 10,
-              backgroundColor: item.deposit ? "#e8f7f0" : "#eef2f8",
+              backgroundColor: "#f5f7f9",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Ionicons
-              name={item.deposit ? "arrow-down" : "arrow-up"}
-              size={14}
-              color={item.deposit ? "#2d8a63" : "#5d6674"}
-            />
+            <Text style={{ fontSize: 16 }}>{transactionIcon(item)}</Text>
           </View>
 
           <View style={{ flex: 1 }}>
@@ -102,16 +107,28 @@ export function RecentFundList({ theme, transactions, onSelect }: Props) {
             </Text>
           </View>
 
-          <Text
-            style={{
-              fontSize: 13,
-              fontWeight: "700",
-              color: item.deposit ? theme.primary : "#141b28",
-            }}
-          >
-            {item.deposit ? "+" : "−"}
-            {item.amount.toLocaleString("ko-KR")}원
-          </Text>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "700",
+                color: amountSign(item) === "+" ? theme.primary : "#141b28",
+              }}
+            >
+              {amountSign(item)}
+              {item.amount.toLocaleString("ko-KR")}원
+            </Text>
+            <Text
+              style={{
+                marginTop: 3,
+                fontSize: 9,
+                fontWeight: "700",
+                color: item.needsReview ? "#e83d4d" : "#a3a9b3",
+              }}
+            >
+              {statusLabel(item)}
+            </Text>
+          </View>
         </Pressable>
       ))}
     </View>
