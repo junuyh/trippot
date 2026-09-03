@@ -67,6 +67,24 @@ import {
 } from "@/lib/supabase/queries/transactions";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
 
+/**
+ * 확인이 필요한 이유별 안내 문구.
+ *
+ * ⚠️ AUTO_GUESS 와 LOW_CONFIDENCE 를 갈라 쓴다. 직접 적은 거래를 추측해
+ *    붙인 경우는 확신도가 95% 여도 확인을 받는데, 여기에 "확신이 낮아요" 를
+ *    쓰면 같은 화면에 적힌 신뢰도 95% 와 정면으로 어긋난다.
+ */
+const REVIEW_NOTE: Record<string, string> = {
+  UNCATEGORIZED:
+    "아직 예산 카테고리가 없어요. 카테고리를 정하면 해당 예산의 실제 사용액에 반영돼요.",
+  LOW_CONFIDENCE: "자동으로 분류했지만 확신이 낮아요. 맞는지 확인해 주세요.",
+  AUTO_GUESS:
+    "직접 적은 거래를 거래명으로 추측해 분류했어요. 맞는지 확인해 주세요.",
+  REFUND_PENDING:
+    "환불이 예정된 거래예요. 아직 돈이 돌아오지 않아 지출에는 남아 있어요.",
+  NONE: "",
+};
+
 type DetailData = {
   trip: Trip;
   transaction: Transaction;
@@ -215,6 +233,38 @@ export default function ScreenFUND03() {
     },
     [busy, data, load],
   );
+
+  /**
+   * 확인 완료. 자동 분류가 맞다고 사용자가 확인한 것이다.
+   *
+   * ⚠️ 카테고리가 없는 거래에는 쓸 수 없다. 무엇으로 확정할지가 없다.
+   *    그때는 카테고리 변경이 먼저다.
+   *
+   * ⚠️ category_method 를 USER 로 올린다. 그래야 reviewReason() 이 더는
+   *    확인 대상으로 잡지 않는다. 자동분류 정확도 지표에도
+   *    '사람이 확인함' 으로 남는다. (docs/06 §7-3)
+   */
+  const handleConfirmReview = useCallback(async () => {
+    if (!data || busy) return;
+    if (!data.transaction.budget_category_id) {
+      setToast("먼저 카테고리를 정해 주세요");
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateTransactionMapping(data.transaction.id, {
+        categoryId: data.transaction.budget_category_id,
+        budgetItemId: data.transaction.budget_plan_item_id,
+        categoryMethod: CATEGORY_METHOD.USER,
+      });
+      await load();
+      setToast("거래 분류를 완료했어요");
+    } catch {
+      setToast("저장하지 못했어요");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, data, load]);
 
   // 삭제는 되돌릴 수 없다. 먼저 확인한다. (NFR-003)
   const handleDelete = useCallback(() => {
@@ -399,11 +449,7 @@ export default function ScreenFUND03() {
             }}
           >
             <Text style={{ fontSize: 10, lineHeight: 16, color: "#687281" }}>
-              {reason === "UNCATEGORIZED"
-                ? "아직 예산 카테고리가 없어요. 카테고리를 정하면 해당 예산의 실제 사용액에 반영돼요."
-                : reason === "REFUND_PENDING"
-                  ? "환불이 예정된 거래예요. 아직 돈이 돌아오지 않아 지출에는 남아 있어요."
-                  : "자동으로 분류했지만 확신이 낮아요. 맞는지 확인해 주세요."}
+              {REVIEW_NOTE[reason ?? "NONE"]}
             </Text>
           </View>
         ) : null}
@@ -451,6 +497,20 @@ export default function ScreenFUND03() {
                 />
               </View>
             </View>
+
+            {/*
+              ⚠️ 확인이 필요한 거래에만 낸다. (시안 v1)
+                 확정된 거래에 '확인 완료' 가 있으면 사용자는 매번 눌러야
+                 하는 줄 안다.
+            */}
+            {reason ? (
+              <Button
+                label="확인 완료"
+                loading={busy}
+                onPress={() => void handleConfirmReview()}
+              />
+            ) : null}
+
             <Text
               accessibilityRole="button"
               accessibilityLabel="이 거래 삭제"

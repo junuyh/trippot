@@ -97,6 +97,23 @@ type FundsData = {
  *    시안대로 네 가지 보기 중 하나를 고르는 방식으로 되돌린다.
  *    '큰 금액순' 은 필터가 아니라 **보기**다 — 입금을 빼고 금액순으로 세운다.
  */
+/**
+ * 확인이 필요한 이유별 안내 문구.
+ *
+ * ⚠️ AUTO_GUESS 와 LOW_CONFIDENCE 를 갈라 쓴다. 직접 적은 거래를 추측해
+ *    붙인 경우는 확신도가 95% 여도 확인을 받는데, 여기에 "확신이 낮아요" 를
+ *    쓰면 같은 화면에 적힌 신뢰도 95% 와 정면으로 어긋난다.
+ */
+const REVIEW_NOTE: Record<string, string | null> = {
+  UNCATEGORIZED: "분류되지 않은 거래예요. 카테고리를 확인해 주세요.",
+  LOW_CONFIDENCE: "자동으로 분류했지만 확신이 낮아요. 맞는지 확인해 주세요.",
+  AUTO_GUESS:
+    "직접 적은 거래를 거래명으로 추측해 분류했어요. 맞는지 확인해 주세요.",
+  REFUND_PENDING:
+    "환불이 예정된 거래예요. 아직 돈이 돌아오지 않아 지출에 남아 있어요.",
+  NONE: null,
+};
+
 type FundView = "ALL" | "DEPOSIT" | "SPEND" | "REVIEW";
 
 export default function ScreenFUND01() {
@@ -232,14 +249,7 @@ export default function ScreenFUND01() {
             ?.name ?? "계획에 연결됨")
         : null,
       needsReview: reason !== null,
-      reviewNote:
-        reason === "UNCATEGORIZED"
-          ? "분류되지 않은 거래예요. 카테고리를 확인해 주세요."
-          : reason === "REFUND_PENDING"
-            ? "환불이 예정된 거래예요. 아직 돈이 돌아오지 않아 지출에 남아 있어요."
-            : reason === "LOW_CONFIDENCE"
-              ? "자동으로 분류했지만 확신이 낮아요. 맞는지 확인해 주세요."
-              : null,
+      reviewNote: REVIEW_NOTE[reason ?? "NONE"],
     };
   }, [data, detail]);
 
