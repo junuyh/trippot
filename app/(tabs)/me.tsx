@@ -274,12 +274,17 @@ export default function ScreenMY01() {
     router.push('/me/trips?filter=past');
   }
 
-  // TODO: 커뮤니티 목적지 미확정.
-  //       COMM 화면은 구현됐지만 getPosts() 에 author_user_id 필터가 없고
-  //       댓글·좋아요 목록 조회 함수도 없다. "내가 쓴 것" 목적지가 아직 없다.
-  function handlePressMyPosts() {}
+  function handlePressMyPosts() {
+    router.push('/me/posts');
+  }
+
+  // TODO: 목적지 미확정. 내가 쓴 댓글을 가져오는 query 가 아직 없다.
+  //       임의 route 를 만들지 않고 확정되면 여기만 채운다.
   function handlePressMyComments() {}
-  function handlePressMyLikes() {}
+
+  function handlePressMyLikes() {
+    router.push('/me/likes');
+  }
 
   function handlePressNotification() {
     router.push('/me/settings/notifications');
