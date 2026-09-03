@@ -3,6 +3,7 @@ export { LegalDocument } from './LegalDocument';
 export type { LegalSection } from './LegalDocument';
 export { LogoutConfirmModal } from './LogoutConfirmModal';
 export { MenuRow } from './MenuRow';
+export { MyPostList } from './MyPostList';
 export { MenuSection } from './MenuSection';
 export { NotificationBellButton } from './NotificationBellButton';
 export { NotificationList } from './NotificationList';

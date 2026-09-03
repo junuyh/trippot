@@ -509,3 +509,98 @@ export async function deleteComment(commentId: string, userId: string): Promise<
 
   if (error) throw error;
 }
+
+// ============================================================================
+// MY 커뮤니티 활동 (MY-01 → 작성한 게시글 · 좋아요)
+//
+// ⚠️ 위의 getPosts() 는 건드리지 않는다. 그쪽은 커뮤니티 목록의 의미이고
+//    여기는 "내가 쓴 것 / 내가 누른 것" 이라 조건이 다르다.
+//
+// ⚠️ 목록에 좋아요 수·댓글 수를 붙이지 않는다. MY 목록은 제목·유형·날짜만
+//    보여주고, 자세한 건 기존 게시글 상세로 넘긴다. reaction·comment 집계를
+//    빼면 쿼리가 1번으로 끝난다.
+// ============================================================================
+
+/** MY 커뮤니티 활동 목록 한 줄. */
+export type MyPostListItem = {
+  postId: string;
+  title: string;
+  postType: PostType;
+  /** 이 글이 나온 여행의 목적지. 연결된 여행이 없으면 null. */
+  destination: string | null;
+  /** 게시 시각. 아직 게시되지 않았으면 null. */
+  publishedAt: string | null;
+};
+
+/** 목록에 쓰는 최소 칼럼. 본문은 상세에서 읽는다. */
+const MY_POST_COLUMNS = 'id, title, post_type, published_at, trips(destination)';
+
+/**
+ * 내가 쓴 글. 게시된 것만 최신순으로.
+ *
+ * ⚠️ status = PUBLISHED 로 좁혀 DRAFT·HIDDEN·DELETED 를 모두 뺀다.
+ *    삭제는 행을 지우지 않고 status 만 바꾼다. (이 파일 319행)
+ *
+ * ⚠️ VISIBLE_POST_TYPES 로 거른다. 유료 팁(PAID_TIP)은 빠진다.
+ *    getPostById 도 같은 조건이라 유료 팁 상세는 열리지 않는다. 목록에만
+ *    남겨 두면 눌렀을 때 '찾을 수 없는 글' 로 떨어지는 막다른 줄이 된다.
+ *    커뮤니티가 감추는 글은 MY 에서도 감춘다.
+ */
+export async function getMyPosts(userId: string, limit = 50): Promise<MyPostListItem[]> {
+  const { data, error } = await supabase
+    .from('community_posts')
+    .select(MY_POST_COLUMNS)
+    .eq('author_user_id', userId)
+    .eq('status', POST_STATUS.PUBLISHED)
+    .in('post_type', [...VISIBLE_POST_TYPES])
+    .order('published_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    postId: row.id,
+    title: row.title,
+    postType: row.post_type as PostType,
+    destination: row.trips?.destination ?? null,
+    publishedAt: row.published_at,
+  }));
+}
+
+/**
+ * 내가 좋아요한 글.
+ *
+ * ⚠️ LIKE 만이다. BOOKMARK(찜) · DISLIKE 는 다른 화면의 이야기라 섞지 않는다.
+ *
+ * ⚠️ community_posts 를 **!inner** 로 붙인다. 바깥 조인이면 삭제된 글의
+ *    reaction 이 글 없이 남아 빈 줄이 생긴다. !inner 라야 조건에 맞는 글이
+ *    있는 reaction 만 남는다. (getPosts 의 목적지 필터와 같은 이유)
+ *
+ * ⚠️ 정렬은 reactions.created_at 이다. **누른 순서**로 보여야 한다.
+ *    글이 쓰인 순서로 정렬하면 방금 누른 오래된 글이 맨 아래로 숨는다.
+ */
+export async function getMyLikedPosts(
+  userId: string,
+  limit = 50,
+): Promise<MyPostListItem[]> {
+  const { data, error } = await supabase
+    .from('reactions')
+    .select(`created_at, community_posts!inner(${MY_POST_COLUMNS})`)
+    .eq('user_id', userId)
+    .eq('reaction_type', REACTION_TYPE.LIKE)
+    .eq('community_posts.status', POST_STATUS.PUBLISHED)
+    // 상세가 열리지 않는 유형은 목록에도 두지 않는다. (getMyPosts 와 같은 이유)
+    .in('community_posts.post_type', [...VISIBLE_POST_TYPES])
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    postId: row.community_posts.id,
+    title: row.community_posts.title,
+    postType: row.community_posts.post_type as PostType,
+    destination: row.community_posts.trips?.destination ?? null,
+    publishedAt: row.community_posts.published_at,
+  }));
+}
