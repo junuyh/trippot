@@ -7,7 +7,8 @@
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
 //
-// ⚠️ 읽기 전용이다. 프로필 수정 기능이 확정되기 전까지 update 를 만들지 않는다.
+// ⚠️ 프로필 중 **이미지만** 수정한다. 이름·계정은 수정 기능이 확정되기 전까지
+//    update 를 만들지 않는다.
 // ============================================================================
 import { supabase } from '@/lib/supabase/client';
 import type { Tables } from '@/types/database';
@@ -41,4 +42,26 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 
   if (error) throw error;
   return data;
+}
+
+/**
+ * 프로필 이미지 위치를 갱신한다. (MY-01)
+ *
+ * ⚠️ `publicUrl` 은 **public URL 전체**다. object path 가 아니다.
+ *    컬럼 이름이 `_url` 이고 앱이 `Image` 의 `uri` 에 그대로 넣는다.
+ *    (docs/05_ERD_v5.md §3 users · 파일 업로드는 lib/supabase/storage/profileImage.ts)
+ *
+ * ⚠️ 다른 사용자의 행을 건드리지 않도록 `userId` 로만 좁힌다. (CLAUDE.md 7장)
+ */
+export async function updateProfileImageUrl(
+  userId: string,
+  publicUrl: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('users')
+    .update({ profile_image_url: publicUrl })
+    .eq('id', userId)
+    .is('deleted_at', null);
+
+  if (error) throw error;
 }

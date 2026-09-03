@@ -40,7 +40,13 @@ import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { AUTH_PROVIDER, TRIP_STATUS } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { getTrips } from '@/lib/supabase/queries/trips';
-import { getUserProfile } from '@/lib/supabase/queries/users';
+import { prepareProfileImage } from '@/lib/image/profileImage';
+import { getUserProfile, updateProfileImageUrl } from '@/lib/supabase/queries/users';
+import {
+  ProfileImageTooLargeError,
+  deleteProfileImage,
+  uploadProfileImage,
+} from '@/lib/supabase/storage/profileImage';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -70,15 +76,16 @@ export default function ScreenMY01() {
   const router = useRouter();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   /**
-   * 이번 세션에서 고른 프로필 이미지.
+   * 이번 실행에서 고른 사진의 기기 경로.
    *
-   * ⚠️ TODO: Supabase Storage 구축 → 업로드 → users.profile_image_url 갱신 →
-   *    재접속 후 복원. 지금은 서버 저장이 없어 앱을 다시 켜면 사라진다.
-   *    이번 MVP 의 명시적 제한이다.
+   * 업로드가 끝나도 비우지 않는다. 비우면 같은 사진을 원격 URL 로 다시 내려받는
+   * 동안 빈 원이 보인다. 앱을 다시 켜면 사라지고 profile.profileImageUrl 로 그린다.
    */
   const [pickedImageUri, setPickedImageUri] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [counts, setCounts] = useState<MyTripCounts>({ ongoing: 0, past: 0 });
+  /** 프로필 사진 업로드 중. 중복 제출을 막는다. */
+  const [savingImage, setSavingImage] = useState(false);
   /** 로그아웃 확인창 노출 여부. Alert 대신 Modal 을 쓰는 이유는 아래 주석 참고. */
   const [logoutAsking, setLogoutAsking] = useState(false);
 
@@ -130,12 +137,17 @@ export default function ScreenMY01() {
   // 빈 스텁이나 가짜 링크로도 연결하지 않는다. 확정되면 여기만 채우면 된다.
 
   /**
-   * 프로필 사진 변경. 기기 이미지 선택까지만 한다.
+   * 프로필 사진 변경. 고르기 → 업로드 → DB 갱신 → 이전 파일 삭제.
    *
-   * ⚠️ 서버 업로드가 없다. 고른 이미지는 화면 state 로만 들고 있다.
-   *    (pickedImageUri 주석 참고)
+   * 순서가 중요하다. **새 이미지 업로드와 DB 갱신이 모두 성공한 뒤에만**
+   * 이전 파일을 지운다. 먼저 지우면 중간에 실패했을 때 사진이 사라진다.
+   *
+   * 실패하면 화면을 원래 사진으로 되돌리고, 방금 올린 파일은 정리한다.
    */
   const handleChangeProfileImage = useCallback(async () => {
+    // 중복 제출 방지. 업로드 중에 다시 눌러도 무시한다. (CLAUDE.md 9장)
+    if (savingImage) return;
+
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('사진 접근 권한이 필요해요', '설정에서 사진 접근을 허용해 주세요.');
@@ -144,15 +156,97 @@ export default function ScreenMY01() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      // 프로필은 원형이라 정사각형으로 잘라 받는다.
-      aspect: [1, 1],
-      quality: 0.8,
+
+      // ⚠️ allowsEditing 을 켜지 않는다. 켜면 iOS 가 구형 UIImagePickerController 로
+      //    떨어져 사진첩이 눈에 띄게 늦게 열린다. 앱이 라이브러리를 직접 읽기 때문이다.
+      //    끄면 PHPickerViewController 를 써서 훨씬 빨리 열린다.
+      //    (expo-image-picker ios/ImagePickerModule.swift 의 `if !options.allowsEditing`)
+      //
+      //    자르기 화면은 사라지지만 프로필은 85pt 원이고, ProfileSection 이
+      //    resizeMode="cover" 로 그려서 어떤 비율이든 가운데를 채워 보여준다.
+
+      // ⚠️ compatible 을 주지 않으면 아이폰 사진이 **HEIC 원본 그대로** 넘어온다.
+      //    네이티브 기본값이 current 라 원본 표현을 주기 때문이다.
+      //    아래에서 image/jpeg 로 이름 붙여 올리므로 HEIC 가 오면 내용과 형식이
+      //    어긋나 깨진 이미지가 저장된다. Storage 허용 MIME 에도 HEIC 는 없다.
+      //    compatible 이면 iOS 가 읽는 시점에 JPEG 로 바꿔 준다.
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+
+      // ⚠️ 1 미만이어야 재인코딩 경로를 타서 결과가 JPEG 로 확정된다.
+      //    1 이면 원본 파일을 그대로 복사해 형식이 남는다.
+      //    (ios/ImageUtils.swift readDataAndFileExtension 의 default 분기)
+      //    화면에는 85pt 원으로만 보여서 0.6 이어도 차이가 보이지 않는다.
+      quality: 0.6,
+
+      // ⚠️ base64 를 여기서 받지 않는다. 원본 해상도의 base64 는 문자열이 수 MB 라
+      //    브릿지를 건너오는 것만으로 느리다. 업로드에 쓸 base64 는 크기를 줄인
+      //    뒤에 얻는다. (lib/image/profileImage.ts)
     });
 
     if (result.canceled) return;
-    setPickedImageUri(result.assets[0].uri);
-  }, []);
+
+    const asset = result.assets[0];
+
+    // TODO: 로그인 연동 시 교체
+    const userId = DEV_USER_ID;
+    const previousUrl = profile?.profileImageUrl ?? null;
+
+    setSavingImage(true);
+    // 고른 즉시 보여준다. 업로드가 끝나면 DB 의 URL 로 바뀐다.
+    setPickedImageUri(asset.uri);
+
+    // 업로드는 됐는데 DB 갱신에서 실패하면 주인 없는 파일이 남는다. 그것만 지운다.
+    let uploadedUrl: string | null = null;
+
+    try {
+      // 원본 그대로 올리면 고해상도 사진이 Storage 상한 2MB 를 넘는다.
+      // 긴 변을 1024 로 줄이고 JPEG 로 다시 뽑는다. (lib/image/profileImage.ts)
+      const prepared = await prepareProfileImage(asset.uri);
+
+      // ⚠️ const 로 받는다. 아래에서 uploadedUrl 을 null 로 되돌리는데,
+      //    setProfile 의 updater 는 나중에 실행되므로 그 변수를 그대로 읽으면
+      //    null 이 들어가 방금 올린 사진이 화면에서 사라진다.
+      const newUrl = await uploadProfileImage(userId, prepared.base64);
+      uploadedUrl = newUrl;
+
+      await updateProfileImageUrl(userId, newUrl);
+
+      // 여기부터는 성공이다.
+      setProfile((prev) => (prev ? { ...prev, profileImageUrl: newUrl } : prev));
+      // 성공했으니 정리 대상이 아니다.
+      uploadedUrl = null;
+
+      // ⚠️ pickedImageUri 를 비우지 않는다.
+      //    비우면 화면이 기기 파일 대신 방금 올린 **원격 URL** 로 그리기 시작해서,
+      //    같은 사진을 네트워크로 다시 내려받는 동안 빈 원이 보인다.
+      //    기기 파일을 그대로 두면 그 공백이 없다. 내용은 어차피 같은 사진이다.
+      //    앱을 다시 켜면 이 값이 사라지고 profile.profileImageUrl 로 그린다.
+
+      // 이전 파일 삭제는 마지막이다. 실패해도 사용자에게는 이미 성공이라
+      // 화면을 되돌리지 않는다. 남은 파일은 다음에 정리한다.
+      if (previousUrl) {
+        await deleteProfileImage(previousUrl).catch(() => {});
+      }
+    } catch (error) {
+      // 화면을 원래 사진으로 되돌린다.
+      setPickedImageUri(null);
+      if (uploadedUrl) {
+        await deleteProfileImage(uploadedUrl).catch(() => {});
+      }
+
+      Alert.alert(
+        error instanceof ProfileImageTooLargeError
+          ? '사진이 너무 커요'
+          : '사진을 저장하지 못했어요',
+        error instanceof ProfileImageTooLargeError
+          ? '2MB 이하의 사진을 골라 주세요.'
+          : '잠시 후 다시 시도해 주세요.',
+      );
+    } finally {
+      setSavingImage(false);
+    }
+  }, [savingImage, profile]);
 
   /**
    * 여행 카드 두 개는 '내 여행' 목록(/me/trips)으로 보낸다.
