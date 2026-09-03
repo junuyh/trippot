@@ -58,3 +58,25 @@ export async function markNotificationAsRead(
   if (error) throw error;
   return data.read_at ?? new Date().toISOString();
 }
+
+/**
+ * 알림 하나를 지운다.
+ *
+ * ⚠️ 되돌릴 수 없다. 행을 실제로 지운다. notifications 에는 deleted_at 이 없다.
+ *    (docs/05_ERD_v5.md §3 — 쌓기만 하는 테이블이라 soft delete 를 두지 않았다)
+ *
+ * ⚠️ 남의 알림을 지울 수 없도록 사용자까지 좁힌다. (CLAUDE.md 7장)
+ *    id 만으로 지우면 uuid 를 아는 누구나 남의 알림을 지울 수 있다.
+ */
+export async function deleteNotification(
+  notificationId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('id', notificationId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
