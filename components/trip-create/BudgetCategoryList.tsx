@@ -196,10 +196,37 @@ export function BudgetCategoryList({
     <View className="overflow-hidden rounded-2xl border border-gray-200">
       {categories.map((category, index) => {
         const open = editingCode === category.categoryCode;
-        // 사용자에게 제시한 값이 비교 기준이다. 반영이 붙었으면 그쪽이다.
-        const baseline = category.personalizedAmount ?? category.recommendedAmount;
-        const diff = category.plannedAmount - baseline;
         const isContingency = category.categoryCode === CATEGORY_CODE.CONTINGENCY;
+
+        /**
+         * 지난 여행 반영이 이 카테고리의 금액에 실제로 관여하는가.
+         *
+         * ⚠️ 직접 입력 중이면 관여하지 않는다. 금액은 사용자가 적은 값 그대로다.
+         *    그런데도 ±% 배지를 남겨 두면, 배지가 설명하지 않는 숫자 옆에서
+         *    "이 금액에 지난 여행이 반영돼 있다" 고 잘못 말하게 된다.
+         */
+        const pastApplies = Boolean(category.adjustmentPercent) && !category.isManual;
+
+        /**
+         * '추천보다 ±' 의 비교 기준.
+         *
+         * 반영이 실제로 걸려 있으면 사용자에게 제시된 값은 개인화 금액이다.
+         * 직접 입력 중이면 반영이 빠지므로, 화면에 보이는 '추천 N원' 칩과 같은
+         * 기본 추천이 기준이어야 한다. 안 그러면 칩의 숫자와 차이가 어긋난다.
+         */
+        const baseline = pastApplies
+          ? (category.personalizedAmount ?? category.recommendedAmount)
+          : category.recommendedAmount;
+        const diff = category.plannedAmount - baseline;
+
+        /**
+         * 계산 박스에 '○○ 예산' 줄을 따로 둘지.
+         *
+         * 더해질 줄이 있을 때만 의미가 있다. 없으면 '선택한 상품 합계' 가 곧
+         * 최종 금액이라 두 줄이 같은 숫자를 반복한다. 그때는 합계 줄 하나만
+         * 남기고 결과의 무게를 그 줄에 준다.
+         */
+        const showTotalRow = isContingency || Boolean(category.adjustmentPercent);
 
         return (
           <View
@@ -222,7 +249,7 @@ export function BudgetCategoryList({
 
               <View className="flex-row items-center gap-1.5">
                 {/* 지난 여행 반영 배지. 뺀 카테고리는 회색으로 남겨 뺐다는 걸 보여준다 */}
-                {category.adjustmentPercent ? (
+                {category.adjustmentPercent && !category.isManual ? (
                   <View
                     className={`rounded-md px-1.5 py-0.5 ${
                       category.adjustmentDropped
@@ -298,16 +325,37 @@ export function BudgetCategoryList({
                       editable={!disabled}
                     />
 
-                    {diff !== 0 ? (
-                      <Text
-                        className={`text-right text-xs font-medium ${
-                          diff > 0 ? 'text-red-500' : 'text-blue-600'
-                        }`}
-                      >
-                        추천보다 {diff > 0 ? '+' : '−'}
-                        {Math.abs(diff).toLocaleString('ko-KR')}원
-                      </Text>
-                    ) : null}
+                    {/*
+                      ⚠️ 입력은 즉시 반영된다. 여기에 '저장' 을 두지 않는다.
+                         이 화면의 확정 지점은 하단 '이 예산으로 여행 만들기' 하나다.
+                         카테고리마다 저장 버튼을 두면 확정 지점이 8개가 되고,
+                         누르지 않고 넘어간 값이 어떻게 되는지 알 수 없게 된다.
+
+                         대신 입력한 값이 곧 이 카테고리 예산이라는 걸 그 자리에서
+                         보여준다. 길 A 의 계산 박스 맨 아래 줄과 같은 모양이라
+                         두 길을 오가도 결과를 읽는 자리가 바뀌지 않는다.
+                    */}
+                    <View className="gap-1 rounded-xl bg-white p-3">
+                      <View className="flex-row items-center justify-between">
+                        <Text className="text-xs font-semibold text-gray-700">
+                          {CATEGORY_CODE_LABEL[category.categoryCode]} 예산
+                        </Text>
+                        <Text className="text-sm font-bold text-blue-700">
+                          {won(category.plannedAmount)}
+                        </Text>
+                      </View>
+
+                      {diff !== 0 ? (
+                        <Text
+                          className={`text-right text-[11px] font-medium ${
+                            diff > 0 ? 'text-red-500' : 'text-blue-600'
+                          }`}
+                        >
+                          추천보다 {diff > 0 ? '+' : '−'}
+                          {Math.abs(diff).toLocaleString('ko-KR')}원
+                        </Text>
+                      ) : null}
+                    </View>
 
                     <Pressable
                       accessibilityRole="button"
@@ -373,14 +421,43 @@ export function BudgetCategoryList({
                       </View>
                     ) : null}
 
-                    {/* ── 계산 ── 줄들이 맨 아래 금액으로 정확히 더해진다 ── */}
+                    {/*
+                      ── 계산 ── 줄들이 맨 아래 금액으로 정확히 더해진다 ──
+
+                      ⚠️ 지난 여행 반영이 없으면 최종 금액은 상품 합계를 그대로
+                         돌려준다.(budget-fund 의 computeAmount) 그래서 두 줄을
+                         모두 그리면 같은 숫자가 연달아 나오고, 더하는 것도 없이
+                         '= 78,000원' 만 쓴 셈이 된다. 그때는 '선택한 상품 합계'
+                         한 줄만 남긴다. 금액이 어디서 나왔는지 말해 주는 쪽이
+                         '○○ 예산' 이라는 되풀이보다 알려주는 것이 많다.
+                         혼자 남는 줄이므로 결과의 무게(파란 굵은 글씨)를 갖는다.
+
+                         예비비는 예외다. '다른 항목 합계' 는 비율 계산의 분모라서
+                         반영이 없어도 근거로 보여야 한다.
+                    */}
                     <View className="mx-4 gap-1 rounded-xl bg-white p-3">
                       <View className="flex-row items-center justify-between">
-                        <Text className="text-xs text-gray-500">
+                        <Text
+                          className={
+                            showTotalRow
+                              ? 'text-xs text-gray-500'
+                              : 'text-xs font-semibold text-gray-700'
+                          }
+                        >
                           {isContingency ? '다른 항목 합계' : '선택한 상품 합계'}
                         </Text>
-                        <Text className="text-xs font-bold text-gray-900">
-                          {won(isContingency ? otherCategoriesTotal : (category.productSubtotal ?? 0))}
+                        <Text
+                          className={
+                            showTotalRow
+                              ? 'text-xs font-bold text-gray-900'
+                              : 'text-sm font-bold text-blue-700'
+                          }
+                        >
+                          {won(
+                            isContingency
+                              ? otherCategoriesTotal
+                              : (category.productSubtotal ?? 0),
+                          )}
                         </Text>
                       </View>
 
@@ -427,14 +504,16 @@ export function BudgetCategoryList({
                         </View>
                       ) : null}
 
-                      <View className="mt-0.5 flex-row items-center justify-between border-t border-gray-100 pt-1.5">
-                        <Text className="text-xs font-semibold text-gray-700">
-                          {CATEGORY_CODE_LABEL[category.categoryCode]} 예산
-                        </Text>
-                        <Text className="text-sm font-bold text-blue-700">
-                          {won(category.plannedAmount)}
-                        </Text>
-                      </View>
+                      {showTotalRow ? (
+                        <View className="mt-0.5 flex-row items-center justify-between border-t border-gray-100 pt-1.5">
+                          <Text className="text-xs font-semibold text-gray-700">
+                            {CATEGORY_CODE_LABEL[category.categoryCode]} 예산
+                          </Text>
+                          <Text className="text-sm font-bold text-blue-700">
+                            {won(category.plannedAmount)}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
 
                     {/*

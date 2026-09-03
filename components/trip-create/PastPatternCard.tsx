@@ -4,7 +4,7 @@
 //    지우면 사용자는 방금 무엇을 껐는지도, 다시 켤 방법도 잃는다.
 //    반영 중 / 반영 안 함 두 상태를 같은 자리에서 보여준다.
 //
-// 카테고리별 개별 제외는 수정 모드(BudgetCategoryList)가 계속 담당한다.
+// 카테고리별 개별 제외는 BudgetCategoryList 가 계속 담당한다.
 // 여기는 '전체' 만 다룬다.
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
@@ -26,16 +26,21 @@ type Props = {
  *
  * ⚠️ '식비를', '쇼핑은' 처럼 조사를 붙이지 않는다. 카테고리 이름의 받침에 따라
  *    조사가 달라지는데 그 규칙이 프로젝트에 없다. 조사가 필요 없는 문장으로 쓴다.
+ *
+ * ⚠️ 2026-09-03 · 괄호로 카테고리 이름을 나열하지 않는다. 항목이 늘어날수록
+ *    문장이 두 줄, 세 줄로 늘어나 카드가 예산 목록만큼 커졌다. 어떤 항목인지는
+ *    바로 위 목록의 ±% 배지와 '자세히 보기' 가 이미 말해 준다.
+ *    라벨 배열은 '더 쓴 것' / '덜 쓴 것' 이 있는지 판단하는 데만 쓴다.
  */
 function describe(increased: string[], decreased: string[]): string {
-  const more = increased.join('·');
-  const less = decreased.join('·');
+  const hasMore = increased.length > 0;
+  const hasLess = decreased.length > 0;
 
-  if (more && less) {
-    return `지난 여행에서 더 쓴 항목(${more})과 덜 쓴 항목(${less})을 추천 예산에 반영했어요.`;
+  if (hasMore && hasLess) {
+    return '지난 여행에서 더 쓴 항목과 덜 쓴 항목을 추천 예산에 반영했어요.';
   }
-  if (more) return `지난 여행에서 더 쓴 항목(${more})을 추천 예산에 반영했어요.`;
-  if (less) return `지난 여행에서 덜 쓴 항목(${less})을 추천 예산에 반영했어요.`;
+  if (hasMore) return '지난 여행에서 더 쓴 항목을 추천 예산에 반영했어요.';
+  if (hasLess) return '지난 여행에서 덜 쓴 항목을 추천 예산에 반영했어요.';
   return '지난 여행의 소비 패턴을 추천 예산에 반영했어요.';
 }
 
