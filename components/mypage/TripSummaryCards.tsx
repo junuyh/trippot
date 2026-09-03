@@ -75,7 +75,7 @@ export function TripSummaryCards({ counts, onPressOngoing, onPressPast }: Props)
           두 카드가 2씩 줄면서 가운데가 4 벌어진다. 폭은 늘 같고 섹션 전체
           너비와 화면 padding 은 그대로다. */}
       <View className="mt-2.5 flex-row gap-4">
-        <CountCard label="진행중인 여행" count={counts.ongoing} onPress={onPressOngoing} />
+        <CountCard label="준비 중인 여행" count={counts.ongoing} onPress={onPressOngoing} />
         <CountCard label="지난 여행" count={counts.past} onPress={onPressPast} />
       </View>
     </View>

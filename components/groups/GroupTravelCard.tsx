@@ -21,15 +21,6 @@ const TRIP_LINE_HEIGHT = 20;
  */
 const TRIP_SLOT_HEIGHT = TRIP_LINE_HEIGHT * MAX_VISIBLE_TRIPS;
 
-/**
- * 편집 모드에서 본문이 좌우로 비켜 앉는 폭(px).
- *
- * ⚠️ 가로 여백만 준다. 세로에는 손대지 않는다.
- *    체크와 Chevron 은 absolute 라 레이아웃에서 빠지므로 카드 높이가 그대로다.
- */
-const EDIT_INSET_LEFT = 32;
-const EDIT_INSET_RIGHT = 36;
-
 type Props = {
   group: GroupTravelCardData;
   /** 일반 모드에서 카드를 눌렀을 때. 편집 모드에서는 불리지 않는다. */
@@ -39,10 +30,6 @@ type Props = {
   editMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (groupId: string) => void;
-  onMoveUp?: (groupId: string) => void;
-  onMoveDown?: (groupId: string) => void;
-  canMoveUp?: boolean;
-  canMoveDown?: boolean;
   /** 저장 중. Chevron 을 잠근다. (NFR-005 중복 실행 방지) */
   actionsDisabled?: boolean;
 };
@@ -51,40 +38,13 @@ type Props = {
 function TripLine({ trip, suffix }: { trip: GroupTripItem; suffix?: string }) {
   return (
     <View style={{ height: TRIP_LINE_HEIGHT }} className="flex-row items-center">
-      <Text numberOfLines={1} className="shrink text-sm leading-5 text-gray-800">
+      <Text numberOfLines={1} className="shrink text-pot-ink" style={{ fontSize: 13.5, lineHeight: 20 }}>
         {trip.destination ?? '여행지 미정'}
       </Text>
-      <Text numberOfLines={1} className="shrink-0 text-xs leading-5 text-gray-500">
+      <Text numberOfLines={1} className="shrink-0 text-pot-mute" style={{ fontSize: 12, lineHeight: 20 }}>
         {` · ${formatDateRange(trip.startDate, trip.endDate)}${suffix ?? ''}`}
       </Text>
     </View>
-  );
-}
-
-/** 순서 이동 버튼 하나. 카드 선택과 터치가 섞이지 않게 별도 Pressable 이다. */
-function MoveButton({
-  icon,
-  label,
-  disabled,
-  onPress,
-}: {
-  icon: 'chevron-up' | 'chevron-down';
-  label: string;
-  disabled: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      hitSlop={8}
-      onPress={onPress}
-      className="h-7 w-7 items-center justify-center rounded-lg active:bg-gray-100"
-    >
-      <Ionicons name={icon} size={18} color={disabled ? '#d1d5db' : '#6b7280'} />
-    </Pressable>
   );
 }
 
@@ -94,7 +54,7 @@ function MoveButton({
  * 모임명 · 멤버(인원 수) · 진행 중인 여행 · 지난 여행 수 를 담는다.
  *
  * 일반 모드 — 카드를 누르면 모임 상세로 간다. (docs/03 POL-NAV-001)
- * 편집 모드 — 상세 이동을 막고 선택 토글로 바꾼다. Chevron 으로 순서를 바꾼다.
+ * 편집 모드 — 상세 이동을 막고 선택 토글로 바꾼다.
  *
  * ── 높이 정책 ─────────────────────────────────────────────────────────────
  * 폭은 부모가 정하고, 높이는 콘텐츠와 무관하게 정해진다.
@@ -109,10 +69,6 @@ export function GroupTravelCard({
   editMode = false,
   selected = false,
   onToggleSelect,
-  onMoveUp,
-  onMoveDown,
-  canMoveUp = false,
-  canMoveDown = false,
   actionsDisabled = false,
 }: Props) {
   const { ongoingTrips, pastTripCount } = group;
@@ -138,61 +94,70 @@ export function GroupTravelCard({
       }
       accessibilityState={{ selected: editMode ? selected : undefined }}
       onPress={handlePress}
-      className="rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"
+      className="rounded-2xl bg-white px-4 py-4 active:opacity-90"
+      style={{
+        shadowColor: '#111827',
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 2,
+      }}
     >
-      {/* 편집 UI — absolute 라 카드 높이에 관여하지 않는다 */}
-      {editMode ? (
-        <>
-          <View className="absolute bottom-0 left-3 top-0 justify-center">
-            <Ionicons
-              name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-              size={22}
-              color={selected ? '#2563eb' : '#d1d5db'}
-            />
-          </View>
+      <View>
+        {/*
+          제목 줄. 세 요소가 서로의 자리를 밀지 않는다.
 
-          <View className="absolute bottom-0 right-2 top-0 justify-center gap-1">
-            <MoveButton
-              icon="chevron-up"
-              label="위로 이동"
-              disabled={actionsDisabled || !canMoveUp}
-              onPress={() => onMoveUp?.(group.groupId)}
-            />
-            <MoveButton
-              icon="chevron-down"
-              label="아래로 이동"
-              disabled={actionsDisabled || !canMoveDown}
-              onPress={() => onMoveDown?.(group.groupId)}
-            />
-          </View>
-        </>
-      ) : null}
+          ⚠️ 모임 이름만 **카드 폭 기준 중앙**이다. 폭을 다 쓰는 Text 에
+             text-center 를 주고, 인원·선택 원은 absolute 로 띄웠다.
+             flex-row + justify-between 으로는 인원 폭만큼 이름이 왼쪽으로
+             밀려 카드 중앙이 되지 않는다.
 
-      <View
-        style={{
-          paddingLeft: editMode ? EDIT_INSET_LEFT : 0,
-          paddingRight: editMode ? EDIT_INSET_RIGHT : 0,
-        }}
-      >
-        <View className="flex-row items-center justify-between">
+          ⚠️ 편집 모드로 들어가도 이름이 좌우로 움직이지 않는다.
+             전에는 선택 원이 뜨면서 본문 전체에 paddingLeft 를 걸어
+             카드 내용이 통째로 오른쪽으로 밀렸다. 그 padding 을 없앴다.
+
+          ⚠️ px-9 는 좌우 대칭이라 중앙을 흐트러뜨리지 않는다.
+             긴 이름이 인원·선택 원 위로 올라타지 않게 자리를 비워 둔다.
+        */}
+        <View className="relative" style={{ height: 23 }}>
           <Text
             numberOfLines={1}
-            className="flex-1 pr-3 text-lg font-bold leading-6 text-gray-900"
+            className="px-9 text-center font-black text-pot-ink"
+            style={{ fontSize: 17, lineHeight: 23, letterSpacing: -0.5 }}
           >
             {group.name}
           </Text>
-          <Text className="shrink-0 text-sm leading-6 text-gray-500">
-            {formatMemberCount(group.memberCount)}
-          </Text>
+
+          <View className="absolute bottom-0 right-0 top-0 justify-center">
+            <Text className="text-pot-mute" style={{ fontSize: 12.5 }}>
+              {formatMemberCount(group.memberCount)}
+            </Text>
+          </View>
+
+          {/* 선택 원 — 제목 줄 안에서만 absolute 다. 카드 전체 높이를 덮으면
+              가운데(여행 줄) 위로 올라간다. */}
+          {editMode ? (
+            <View className="absolute bottom-0 left-0 top-0 justify-center">
+              <Ionicons
+                name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                size={22}
+                color={selected ? '#2563eb' : '#d1d5db'}
+              />
+            </View>
+          ) : null}
         </View>
 
-        <View className="mt-4 border-t border-gray-100 pt-3">
-          <Text className="text-xs font-medium leading-4 text-gray-500">준비 중인 여행</Text>
+        <View className="mt-3.5 border-t border-pot-line pt-3">
+          <Text className="font-semibold text-pot-faint" style={{ fontSize: 11, lineHeight: 15 }}>
+            준비 중인 여행
+          </Text>
 
           <View style={{ height: TRIP_SLOT_HEIGHT }} className="mt-1.5">
             {visibleTrips.length === 0 ? (
               <View style={{ height: TRIP_LINE_HEIGHT }} className="justify-center">
-                <Text className="text-sm leading-5 text-gray-400">준비 중인 여행이 없어요.</Text>
+                <Text className="text-pot-faint" style={{ fontSize: 13, lineHeight: 20 }}>
+                  준비 중인 여행이 없어요.
+                </Text>
               </View>
             ) : (
               visibleTrips.map((trip, index) => {
@@ -204,7 +169,7 @@ export function GroupTravelCard({
             )}
           </View>
 
-          <Text className="mt-3 text-xs leading-4 text-gray-400">
+          <Text className="mt-3 text-pot-faint" style={{ fontSize: 11.5, lineHeight: 16 }}>
             {`지난 여행 ${pastTripCount}회`}
           </Text>
         </View>

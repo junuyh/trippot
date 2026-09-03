@@ -35,7 +35,12 @@ export default function TabsLayout() {
           headerShown: false,
         }}
       />
-      <Tabs.Screen name="groups" options={{ title: '모임' }} />
+      {/*
+        ⚠️ 모임도 기본 헤더를 끈다. 커뮤니티·마이페이지와 같은 방식이다.
+           Tabs 기본 헤더는 본체가 얇아 다른 화면과 높이가 어긋난다.
+           화면이 components/ui/Header 를 직접 그린다. (app/(tabs)/groups.tsx)
+      */}
+      <Tabs.Screen name="groups" options={{ title: '모임', headerShown: false }} />
       <Tabs.Screen
         name="community"
         options={{

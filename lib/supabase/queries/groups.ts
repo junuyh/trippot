@@ -215,7 +215,7 @@ export type GroupListPreference = Tables<'user_group_list_preferences'>;
 export type GroupListPreferenceInsert = TablesInsert<'user_group_list_preferences'>;
 
 /** 목록이 어떤 기준으로 정렬돼 있는지. 화면은 이 값을 문구로만 보여준다. */
-export type GroupSortMode = 'CREATED_AT' | 'CUSTOM';
+export type GroupSortMode = 'RECENT_TRIP' | 'CREATED_AT';
 
 /** 정렬·쓰기에 필요한 최소 정보. 카드 데이터로는 화면이 다시 가공한다. */
 export type GroupListEntry = {
@@ -227,7 +227,6 @@ export type GroupListEntry = {
 export type MyGroupListForDisplay = {
   /** 숨김을 제외하고 정렬까지 끝난 목록. */
   entries: GroupListEntry[];
-  sortMode: GroupSortMode;
   /** 편집 모드의 '숨긴 모임 N개 보기' 노출 판단에 쓴다. */
   hiddenCount: number;
 };
@@ -272,12 +271,10 @@ export async function getMyGroupListForDisplay(userId: string): Promise<MyGroupL
 
   const byGroupId = new Map(preferences.map((row) => [row.group_id, row]));
 
-  // 정렬 모드는 숨긴 행까지 포함해 판정한다.
-  // 보이는 행만 보면 순서를 지정한 모임을 전부 숨겼을 때 모드가 임의로 돌아간다.
-  const sortMode: GroupSortMode = preferences.some((row) => row.sort_order !== null)
-    ? 'CUSTOM'
-    : 'CREATED_AT';
-
+  // ⚠️ sort_order 를 읽지 않는다. GROUP-01 에서 '사용자 지정 순' 을 없앴다.
+  //    (2026-09-03 정책 — 정렬은 최근 여행순 / 모임 생성순 둘뿐이다)
+  //    컬럼과 migration 은 그대로 둔다. 지우지 않는다.
+  //    여기서 preferences 는 hidden 판정에만 쓴다.
   const visible: GroupListEntry[] = [];
   let hiddenCount = 0;
 
@@ -290,16 +287,11 @@ export async function getMyGroupListForDisplay(userId: string): Promise<MyGroupL
     visible.push({ group, sortOrder: preference?.sort_order ?? null });
   }
 
-  const ordered = visible.filter((entry) => entry.sortOrder !== null);
-  const unordered = visible.filter((entry) => entry.sortOrder === null);
+  // 기본 순서는 모임 생성 최신순이다. '최근 여행순' 은 여행 날짜가 필요해서
+  // 화면이 카드 데이터를 다 모은 뒤에 다시 정렬한다. (app/(tabs)/groups.tsx)
+  visible.sort((a, b) => compareCreatedAtDesc(a.group, b.group));
 
-  ordered.sort(
-    (a, b) =>
-      (a.sortOrder as number) - (b.sortOrder as number) || compareCreatedAtDesc(a.group, b.group),
-  );
-  unordered.sort((a, b) => compareCreatedAtDesc(a.group, b.group));
-
-  return { entries: [...ordered, ...unordered], sortMode, hiddenCount };
+  return { entries: visible, hiddenCount };
 }
 
 /**

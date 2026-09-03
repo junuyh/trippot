@@ -7,7 +7,7 @@ export { GroupAccountList } from './GroupAccountList';
 export { GroupDetailView } from './GroupDetailView';
 export { GroupEditActionBar } from './GroupEditActionBar';
 export { GroupListEmptyNotice } from './GroupListEmptyNotice';
-export { GroupListHeader } from './GroupListHeader';
+export { GroupListHeader, GROUP_SORT_LABEL } from './GroupListHeader';
 export { GroupMemberList } from './GroupMemberList';
 export { GroupMoreMenu } from './GroupMoreMenu';
 export { GroupRenameModal } from './GroupRenameModal';
