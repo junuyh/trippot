@@ -22,17 +22,19 @@
 // 실제로 보이는 UI 는 components/community/ 에 있다. (CLAUDE.md 9장)
 // ============================================================================
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { PostWriteForm } from '@/components/community';
+import { PostWriteForm, type TripOption } from '@/components/community';
 import { MAX_IMAGES, usePostImages } from '@/components/community/usePostImages';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { findDestinationByName } from '@/lib/constants/destinations';
 import { POST_TYPE } from '@/lib/constants/status';
 import {
   createPost,
   WRITABLE_POST_TYPES,
   type WritablePostType,
 } from '@/lib/supabase/queries/community';
+import { getTrips, type Trip } from '@/lib/supabase/queries/trips';
 
 const TITLE_MIN = 2;
 const CONTENT_MIN = 10;
@@ -60,6 +62,33 @@ export default function ScreenCOMM04() {
   const [postType, setPostType] = useState<WritablePostType>(POST_TYPE.FREE_TIP);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+
+  // 어느 여행 이야기인가. (2026-09-03)
+  //
+  // ⚠️ 이 값이 커뮤니티의 여행지 카테고리를 정한다. community_posts 에
+  //    destination 컬럼이 없어서(types/database.ts) 글의 여행지는 연결한 여행에서만
+  //    나온다. 전에는 여기가 null 로 고정이라 어떤 글도 여행지 칸에 들어가지 못했다.
+  //
+  // ⚠️ 여행 조회가 실패해도 글은 쓸 수 있어야 한다. 선택지가 없으면
+  //    작성 폼이 그 섹션을 그리지 않고, tripId 는 null 로 남는다.
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [tripId, setTripId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    // TODO: 로그인 연동 시 교체
+    getTrips(DEV_USER_ID)
+      .then((rows) => {
+        if (alive) setTrips(rows);
+      })
+      .catch(() => {
+        // 여행 목록을 못 불러와도 글쓰기 자체를 막지 않는다.
+        if (alive) setTrips([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const [titleError, setTitleError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
@@ -100,9 +129,9 @@ export default function ScreenCOMM04() {
         postType,
         title: title.trim(),
         content: content.trim(),
-        // 여행 연결은 아직 없다. 어느 여행에서 나온 글인지 고르는 UI 는
-        // 화면 목록에 없어서 넣지 않았다.
-        tripId: null,
+        // 고른 여행. 이 값이 글의 여행지 카테고리를 정한다.
+        // 고르지 않았으면 null 이고 그 글은 '전체' 에만 보인다.
+        tripId,
       });
 
       // 목록으로 돌아가지 않고 방금 쓴 글을 보여준다.
@@ -114,6 +143,21 @@ export default function ScreenCOMM04() {
     }
   }
 
+  // 여행 선택지. 국기는 목적지 상수에서 온다. 컴포넌트가 상수를 뒤지지 않는다. (CLAUDE.md 9장)
+  //
+  // 최근 여행이 앞이다. 방금 다녀온 여행 이야기를 쓸 확률이 가장 높다.
+  // 출발일이 없는 여행은 뒤로 보낸다.
+  const tripOptions: TripOption[] = [...trips]
+    .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''))
+    .map((trip) => ({
+      tripId: trip.id,
+      label: trip.destination ?? '여행지 미정',
+      // 같은 여행지를 여러 번 갔을 때 구분되게 연·월만 붙인다.
+      // start_date 는 date 타입이라 시간대 변환이 없다. 앞 7자가 'YYYY-MM' 이다.
+      sublabel: trip.start_date ? trip.start_date.slice(0, 7).replace('-', '.') : null,
+      flag: findDestinationByName(trip.destination)?.flag ?? null,
+    }));
+
   return (
     <>
       <Stack.Screen options={{ title: WRITE_TITLE[postType], headerTitleAlign: 'center' }} />
@@ -124,6 +168,9 @@ export default function ScreenCOMM04() {
         typeOptions={TYPE_OPTIONS}
         postType={postType}
         onChangeType={(value) => setPostType(value as WritablePostType)}
+        tripOptions={tripOptions}
+        tripId={tripId}
+        onChangeTrip={setTripId}
         title={title}
         onChangeTitle={(value) => {
           setTitle(value);

@@ -87,21 +87,23 @@ const AUTHOR = 'users!community_posts_author_user_id_fkey(name, profile_image_ur
 export async function getPosts(
   userId: string,
   postType?: PostType,
+  destination?: string | null,
   limit = 30,
 ): Promise<PostListItem[]> {
   const types = postType ? [postType] : [...VISIBLE_POST_TYPES];
 
-  const { data, error } = await supabase
-    .from('community_posts')
-    .select(`id, title, content, post_type, published_at, ${AUTHOR}, trips(destination)`)
-    .eq('status', POST_STATUS.PUBLISHED)
-    .in('post_type', types)
-    .order('published_at', { ascending: false })
-    .limit(limit);
+  // ⚠️ 목적지로 거를 때는 trips 를 **!inner** 로 붙인다.
+  //    바깥 조인(trips(...))에 .eq('trips.destination', …) 를 걸면 Supabase 는
+  //    붙여 오는 trips 만 걸러내고 글 자체는 그대로 남긴다. 목적지가 다른 글이
+  //    destination = null 인 채로 목록에 섞여 버린다.
+  //    !inner 라야 조건에 맞는 trips 가 있는 글만 남는다.
+  //
+  //    여행에 연결되지 않은 글이 목적지 칸에서 빠지는 것은 의도한 동작이다.
+  //    목적지를 모르는 글은 어느 여행지에도 속할 수 없다.
+  const rows = destination
+    ? await selectPostsByDestination(types, destination, limit)
+    : await selectPosts(types, limit);
 
-  if (error) throw error;
-
-  const rows = data ?? [];
   const postIds = rows.map((row) => row.id);
   const [reactions, commentCounts] = await Promise.all([
     getReactionMap(postIds, userId),
@@ -124,6 +126,86 @@ export async function getPosts(
     bookmarkedByMe: reactions.get(row.id)?.bookmarkedByMe ?? false,
     commentCount: commentCounts.get(row.id) ?? 0,
   }));
+}
+
+/**
+ * 목적지 조건 없이 전부.
+ *
+ * ⚠️ select 문자열을 변수로 만들어 한 함수에서 분기하지 않았다.
+ *    supabase-js 는 select 리터럴로 반환 타입을 추론한다. 문자열을 조립하면
+ *    행 타입 추론이 무너져서 row.trips 같은 접근이 전부 any 가 된다.
+ *    갈래마다 리터럴을 두는 편이 타입이 산다.
+ */
+async function selectPosts(types: PostType[], limit: number) {
+  const { data, error } = await supabase
+    .from('community_posts')
+    .select(`id, title, content, post_type, published_at, ${AUTHOR}, trips(destination)`)
+    .eq('status', POST_STATUS.PUBLISHED)
+    .in('post_type', types)
+    .order('published_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** 특정 여행지의 글만. 여행에 연결된 글만 남는다. */
+async function selectPostsByDestination(types: PostType[], destination: string, limit: number) {
+  const { data, error } = await supabase
+    .from('community_posts')
+    .select(`id, title, content, post_type, published_at, ${AUTHOR}, trips!inner(destination)`)
+    .eq('status', POST_STATUS.PUBLISHED)
+    .in('post_type', types)
+    .eq('trips.destination', destination)
+    .order('published_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** 여행지 칸 하나. 글이 한 건이라도 있는 여행지만 나온다. */
+export type PostDestinationCount = {
+  destination: string;
+  count: number;
+};
+
+/**
+ * 커뮤니티에 글이 있는 여행지 목록. (2026-09-03)
+ *
+ * 커뮤니티 카테고리를 여행지별로 만들면서 추가했다.
+ *
+ * ⚠️ lib/constants/destinations.ts 의 12개를 그대로 칸으로 만들지 않는다.
+ *    글이 하나도 없는 여행지를 눌러 빈 목록을 보게 하지 않기 위해서다.
+ *    **실제로 글이 있는 여행지만** 돌려준다.
+ *
+ * ⚠️ 글이 많은 여행지가 앞이다. 수가 같으면 이름순으로 고정해서
+ *    새로고침할 때마다 칸 순서가 바뀌지 않게 한다.
+ *
+ * 집계 함수 대신 목적지만 받아 메모리에서 센다. MVP 글 수에서는 이 편이 단순하고,
+ * group by 를 쓰려면 DB 에 뷰나 RPC 를 만들어야 한다. (CLAUDE.md 1장)
+ */
+export async function getPostDestinations(limit = 500): Promise<PostDestinationCount[]> {
+  const { data, error } = await supabase
+    .from('community_posts')
+    .select('trips!inner(destination)')
+    .eq('status', POST_STATUS.PUBLISHED)
+    .in('post_type', [...VISIBLE_POST_TYPES])
+    .limit(limit);
+
+  if (error) throw error;
+
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    const destination = row.trips?.destination;
+    // 여행은 있는데 목적지를 아직 안 정한 글이 있다. 칸으로 만들지 않는다.
+    if (!destination) continue;
+    counts.set(destination, (counts.get(destination) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([destination, count]) => ({ destination, count }))
+    .sort((a, b) => b.count - a.count || a.destination.localeCompare(b.destination, 'ko'));
 }
 
 /**
