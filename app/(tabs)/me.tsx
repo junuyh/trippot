@@ -40,6 +40,7 @@ import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { AUTH_PROVIDER, TRIP_STATUS } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { getTrips } from '@/lib/supabase/queries/trips';
+import { prepareProfileImage } from '@/lib/image/profileImage';
 import { getUserProfile, updateProfileImageUrl } from '@/lib/supabase/queries/users';
 import {
   ProfileImageTooLargeError,
@@ -178,17 +179,14 @@ export default function ScreenMY01() {
       //    화면에는 85pt 원으로만 보여서 0.6 이어도 차이가 보이지 않는다.
       quality: 0.6,
 
-      // 업로드에 쓴다. RN 에는 Buffer 가 없어 base64 로 받아 바이트로 바꾼다.
-      base64: true,
+      // ⚠️ base64 를 여기서 받지 않는다. 원본 해상도의 base64 는 문자열이 수 MB 라
+      //    브릿지를 건너오는 것만으로 느리다. 업로드에 쓸 base64 는 크기를 줄인
+      //    뒤에 얻는다. (lib/image/profileImage.ts)
     });
 
     if (result.canceled) return;
 
     const asset = result.assets[0];
-    if (!asset.base64) {
-      Alert.alert('사진을 읽지 못했어요', '다시 시도해 주세요.');
-      return;
-    }
 
     // TODO: 로그인 연동 시 교체
     const userId = DEV_USER_ID;
@@ -202,10 +200,14 @@ export default function ScreenMY01() {
     let uploadedUrl: string | null = null;
 
     try {
+      // 원본 그대로 올리면 고해상도 사진이 Storage 상한 2MB 를 넘는다.
+      // 긴 변을 1024 로 줄이고 JPEG 로 다시 뽑는다. (lib/image/profileImage.ts)
+      const prepared = await prepareProfileImage(asset.uri);
+
       // ⚠️ const 로 받는다. 아래에서 uploadedUrl 을 null 로 되돌리는데,
       //    setProfile 의 updater 는 나중에 실행되므로 그 변수를 그대로 읽으면
       //    null 이 들어가 방금 올린 사진이 화면에서 사라진다.
-      const newUrl = await uploadProfileImage(userId, asset.base64);
+      const newUrl = await uploadProfileImage(userId, prepared.base64);
       uploadedUrl = newUrl;
 
       await updateProfileImageUrl(userId, newUrl);
