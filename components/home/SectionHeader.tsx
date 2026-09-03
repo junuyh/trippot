@@ -19,7 +19,7 @@ export function SectionHeader({ title, actionLabel, onPressAction }: Props) {
       {/* 크기·굵기는 trip-home 카드 제목(16 / 800 / -0.5)과 같은 단이다. */}
       <Text
         className="text-pot-ink"
-        style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5 }}
+        style={{ fontSize: 16, lineHeight: 21, fontWeight: '700', letterSpacing: -0.4 }}
       >
         {title}
       </Text>

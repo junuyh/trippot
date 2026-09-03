@@ -190,6 +190,7 @@ export default function ScreenHOME01() {
       return [
         {
           ...toBase(trip, status),
+          headcount: trip.headcount,
           targetAmount: trip.targetAmount,
           currentAmount: trip.currentAmount,
         },

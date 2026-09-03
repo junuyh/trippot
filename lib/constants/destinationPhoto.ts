@@ -21,6 +21,12 @@
 //      2) 위키미디어를 직접 호출할 것인가, 이미지를 우리 스토리지로 옮길 것인가
 //    MVP 는 화면 확인이 목적이라 원격 URL 을 그대로 쓴다.
 //
+// 사진 고르는 기준 (2026-09-03 추가)
+//   · 낮 사진. 야경은 카드 위 흰 글자와 겹쳐 전체가 어두워 보인다
+//   · 가로가 긴 것. 카드가 가로로 넓어서 세로 사진은 가운데만 잘려 나온다
+//   · 하늘이나 물이 보이는 것. 카드가 밝아 보인다
+//   · CC0 / Public domain 우선. 저작자 표시 의무가 없다
+//
 // URL 은 위키미디어 CDN(upload.wikimedia.org)의 960px 썸네일이다.
 // 원본은 수천 픽셀이라 카드 배너에 그대로 쓰면 트래픽만 늘어난다.
 // ============================================================================
@@ -56,19 +62,20 @@ const PHOTOS: Record<DestinationCode, DestinationPhoto> = {
     sourcePage: 'https://commons.wikimedia.org/wiki/File:Osaka_Castle_02bs3200.jpg',
   },
   [DESTINATION_CODE.FUKUOKA]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Fukuoka_in_the_night.jpg/960px-Fukuoka_in_the_night.jpg',
-    caption: '후쿠오카 야경',
-    author: 'Ningyou',
-    license: 'Public domain',
-    sourcePage: 'https://commons.wikimedia.org/wiki/File:Fukuoka_in_the_night.jpg',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Fukuoka_Tower_and_pine_trees_from_beach_of_Seaside_Momochi_Seaside_Park.jpg/960px-Fukuoka_Tower_and_pine_trees_from_beach_of_Seaside_Momochi_Seaside_Park.jpg',
+    caption: '후쿠오카 모모치 해변과 후쿠오카 타워',
+    author: 'Wikimedia Commons',
+    license: 'CC BY-SA 4.0',
+    sourcePage:
+      'https://commons.wikimedia.org/wiki/File:Fukuoka_Tower_and_pine_trees_from_beach_of_Seaside_Momochi_Seaside_Park.jpg',
   },
   [DESTINATION_CODE.SHANGHAI]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/2010_Shanghai_Bund%2C_Viewed_from_Oriental_Pearl_Tower_01.jpg/960px-2010_Shanghai_Bund%2C_Viewed_from_Oriental_Pearl_Tower_01.jpg',
-    caption: '상하이 와이탄',
-    author: 'Gary Lee Todd',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/Shanghai_skyline_waterfront_pudong_5166168_69_70.jpg/960px-Shanghai_skyline_waterfront_pudong_5166168_69_70.jpg',
+    caption: '상하이 푸둥 스카이라인',
+    author: 'Wikimedia Commons',
     license: 'CC0',
     sourcePage:
-      'https://commons.wikimedia.org/wiki/File:2010_Shanghai_Bund,_Viewed_from_Oriental_Pearl_Tower_01.jpg',
+      'https://commons.wikimedia.org/wiki/File:Shanghai_skyline_waterfront_pudong_5166168_69_70.jpg',
   },
   [DESTINATION_CODE.TAIPEI]: {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/Taipei_city_skyline_20140721.jpg/960px-Taipei_city_skyline_20140721.jpg',
