@@ -30,8 +30,8 @@ export function GroupListEmptyNotice({ editMode }: Props) {
   return (
     <View className="flex-1 items-center justify-center px-8">
       <Ionicons name="eye-off-outline" size={44} color="#d1d5db" />
-      <Text className="mt-4 text-center text-base font-semibold text-gray-900">{title}</Text>
-      <Text className="mt-1.5 text-center text-sm leading-5 text-gray-500">{description}</Text>
+      <Text className="mt-4 text-center text-base font-semibold text-pot-ink">{title}</Text>
+      <Text className="mt-1.5 text-center text-sm leading-5 text-pot-mute">{description}</Text>
     </View>
   );
 }

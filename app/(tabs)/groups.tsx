@@ -7,9 +7,9 @@
 // 담지 않는 것: 대표 모임 여행 유형([고도화]), 생성일 · 대표 이미지 · More(IA 에 없음)
 //               생성일은 표시하지 않고 정렬에만 쓴다.
 //
-// 편집 모드: 카드 선택 · Chevron 순서 변경 · 내 목록에서 제거 · 숨긴 모임 복구
+// 편집 모드: 카드 선택 · 내 목록에서 숨김 · 숨긴 모임 다시 표시
 //
-// ⚠️ '내 목록에서 제거' 는 삭제도 탈퇴도 아니다.
+// ⚠️ '목록에서 숨김' 은 삭제도 탈퇴도 아니다.
 //    groups / group_members / trips / 예산 / 거래 / 결산 을 건드리지 않는다.
 //    현재 사용자의 GROUP-01 표시 여부만 바꾼다. 홈과 여행 생성 화면에서는 계속 보인다.
 //
@@ -19,11 +19,14 @@
 // 헤더·탭 라벨 제목은 app/(tabs)/_layout.tsx 에서 정한다.
 // ============================================================================
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { differenceInCalendarDays, parseISO } from 'date-fns';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   GroupEditActionBar,
+  GroupSortSheet,
   GroupListEmptyNotice,
   GroupListHeader,
   GroupTravelCardList,
@@ -32,7 +35,7 @@ import {
   type GroupTravelCardData,
   type HiddenGroupItem,
 } from '@/components/groups';
-import { EmptyState, ErrorState, Loading } from '@/components/ui';
+import { EmptyState, ErrorState, Header, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { ENTRY_POINT } from '@/lib/constants/status';
@@ -43,12 +46,33 @@ import {
   getHiddenGroups,
   getMyGroupListForDisplay,
   hideGroups,
-  resetGroupOrder,
-  saveGroupOrder,
-  swapGroupOrder,
   unhideGroup,
   type GroupSortMode,
 } from '@/lib/supabase/queries/groups';
+
+/**
+ * "이미 시작한 여행" 중 가장 늦은 start_date. 없으면 null.
+ *
+ * ⚠️ 앞으로 갈 여행은 세지 않는다. GROUP-01 '최근 여행순' 은
+ *    "최근에 다녀온 여행이 있는 모임" 순서다. 미래 여행 때문에 모임이
+ *    위로 올라오면 안 된다.
+ *
+ * 시작 여부는 closeTripIfEnded 와 같은 방식으로 본다.
+ *   differenceInCalendarDays(오늘, start_date) >= 0  → 이미 시작
+ * start_date 는 date 타입이라 시간대 변환이 없다.
+ * 삭제된 여행은 getGroupTrips 가 이미 제외한다.
+ */
+function latestStartedTripDate(trips: { start_date: string | null }[]): string | null {
+  const today = new Date();
+  let latest: string | null = null;
+
+  for (const trip of trips) {
+    if (!trip.start_date) continue;
+    if (differenceInCalendarDays(today, parseISO(trip.start_date)) < 0) continue;
+    if (latest === null || trip.start_date > latest) latest = trip.start_date;
+  }
+  return latest;
+}
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -57,15 +81,29 @@ type Row = {
   card: GroupTravelCardData;
   /** null 이면 사용자가 이 모임의 순서를 지정한 적이 없다. */
   sortOrder: number | null;
+  /**
+   * '최근 여행순' 정렬 키 — **이미 시작한 여행 중 가장 늦은 start_date**.
+   *
+   * ⚠️ 앞으로 갈 여행은 세지 않는다. "최근에 다녀온 여행이 있는 모임" 순서다.
+   *    미래 여행이 잡혔다고 모임이 위로 올라오면 안 된다.
+   *    시작 여부는 closeTripIfEnded 와 같은 방식으로 본다.
+   *    (differenceInCalendarDays — 오늘이면 이미 시작한 것으로 본다)
+   *
+   * 다녀온 여행이 없거나 start_date 가 전부 null 이면 null 이고 맨 아래로 간다.
+   */
+  lastStartedTripDate: string | null;
 };
 
 export default function ScreenGROUP01() {
   useScreenView(SCREENS.GROUP_LIST);
 
   const router = useRouter();
+  // 탭 헤더를 껐다. 상태바 높이만큼은 여기서 띄운다. (커뮤니티·마이페이지와 같은 방식)
+  const insets = useSafeAreaInsets();
+
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [rows, setRows] = useState<Row[]>([]);
-  const [sortMode, setSortMode] = useState<GroupSortMode>('CREATED_AT');
+  const [sortMode, setSortMode] = useState<GroupSortMode>('RECENT_TRIP');
   const [hiddenCount, setHiddenCount] = useState(0);
 
   // ── 편집 모드 ──────────────────────────────────────────────────────────
@@ -74,6 +112,7 @@ export default function ScreenGROUP01() {
   const [saving, setSaving] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
 
+  const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [hiddenSheetOpen, setHiddenSheetOpen] = useState(false);
   const [hiddenGroups, setHiddenGroups] = useState<HiddenGroupItem[]>([]);
   const [hiddenLoading, setHiddenLoading] = useState(false);
@@ -104,6 +143,7 @@ export default function ScreenGROUP01() {
 
           return {
             sortOrder: entry.sortOrder,
+            lastStartedTripDate: latestStartedTripDate([...trips.ongoing, ...trips.past]),
             card: {
               groupId: entry.group.id,
               name: entry.group.name,
@@ -122,7 +162,6 @@ export default function ScreenGROUP01() {
       );
 
       setRows(items);
-      setSortMode(list.sortMode);
       setHiddenCount(list.hiddenCount);
       // 목록이 바뀌면 사라진 모임의 선택은 버린다.
       setSelectedIds((prev) =>
@@ -169,63 +208,33 @@ export default function ScreenGROUP01() {
     );
   }
 
-  // ── 순서 변경 ──────────────────────────────────────────────────────────
-  const move = useCallback(
-    async (groupId: string, direction: -1 | 1) => {
-      if (saving) return;
+  // ── 정렬 ───────────────────────────────────────────────────────────────
+  //
+  // 화면에서 정렬한다. 여행 날짜가 필요해 쿼리 단계에서는 못 정한다.
+  // 정렬 값은 저장하지 않는다. user_group_list_preferences.sort_order 는
+  // 더 이상 읽지도 쓰지도 않는다. (컬럼과 migration 은 그대로 둔다)
+  const sortedRows = useMemo(() => {
+    const next = [...rows];
+    if (sortMode === 'CREATED_AT') {
+      next.sort((a, b) => b.card.createdAt.localeCompare(a.card.createdAt));
+      return next;
+    }
 
-      const index = rows.findIndex((row) => row.card.groupId === groupId);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= rows.length) return;
+    // 최근 여행순 — 다녀온 여행이 최신인 모임이 위로.
+    // 다녀온 여행이 없는 모임은 맨 아래로 보내고, 그 안에서는 생성 최신순으로 둔다.
+    next.sort((a, b) => {
+      const x = a.lastStartedTripDate;
+      const y = b.lastStartedTripDate;
+      if (x === null && y === null) return b.card.createdAt.localeCompare(a.card.createdAt);
+      if (x === null) return 1;
+      if (y === null) return -1;
+      // 같은 날짜면 생성 최신순으로 고정한다. 순서가 흔들리지 않게 한다.
+      return y.localeCompare(x) || b.card.createdAt.localeCompare(a.card.createdAt);
+    });
+    return next;
+  }, [rows, sortMode]);
 
-      // 순서가 하나라도 비어 있으면 전체를 1..N 으로 정규화한다.
-      // 일부에만 값을 넣으면 NULL 과 숫자가 섞여 정렬이 정의되지 않는다.
-      const needsInit = rows.some((row) => row.sortOrder === null);
-
-      // 위치를 먼저 바꾼 뒤 순서값을 자리에 맞춰 다시 붙인다.
-      const moved = [...rows];
-      const [picked] = moved.splice(index, 1);
-      moved.splice(target, 0, picked);
-
-      const originalOrders = rows.map((row) => row.sortOrder);
-      const next: Row[] = moved.map((row, i) => ({
-        ...row,
-        sortOrder: needsInit ? i + 1 : originalOrders[i],
-      }));
-
-      // 낙관적 반영. 실패하면 load() 로 되돌린다.
-      setRows(next);
-      setSaving(true);
-      try {
-        // TODO: 로그인 연동 시 교체
-        const userId = DEV_USER_ID;
-
-        if (needsInit) {
-          // 최초 1회. 전체 저장과 교환을 두 요청으로 나누지 않는다.
-          await saveGroupOrder(userId, next.map((row) => row.card.groupId));
-        } else {
-          const a = rows[index];
-          const b = rows[target];
-          await swapGroupOrder(
-            userId,
-            { groupId: a.card.groupId, sortOrder: b.sortOrder as number },
-            { groupId: b.card.groupId, sortOrder: a.sortOrder as number },
-          );
-        }
-        setSortMode('CUSTOM');
-      } catch {
-        await recoverFromFailure();
-      } finally {
-        setSaving(false);
-      }
-    },
-    [recoverFromFailure, rows, saving],
-  );
-
-  const handleMoveUp = useCallback((groupId: string) => void move(groupId, -1), [move]);
-  const handleMoveDown = useCallback((groupId: string) => void move(groupId, 1), [move]);
-
-  // ── 내 목록에서 제거 ───────────────────────────────────────────────────
+  // ── 내 목록에서 숨김 ───────────────────────────────────────────────────
   const handleConfirmRemove = useCallback(async () => {
     if (saving || selectedIds.length === 0) return;
 
@@ -280,12 +289,9 @@ export default function ScreenGROUP01() {
         const userId = DEV_USER_ID;
 
         // 원래 위치로 되돌리지 않는다. '목록에 다시 추가' 다.
-        //   기본 정렬       → null. groups.created_at 자리로 들어간다.
-        //   사용자 지정 순  → 보이는 목록의 마지막 + 1. 맨 아래에 붙는다.
-        const maxOrder = rows.reduce((max, row) => Math.max(max, row.sortOrder ?? 0), 0);
-        const nextOrder = sortMode === 'CUSTOM' ? maxOrder + 1 : null;
-
-        await unhideGroup(userId, groupId, nextOrder);
+        // ⚠️ sort_order 는 항상 null 로 둔다. GROUP-01 정렬에서 더 이상 쓰지 않는다.
+        //    컬럼은 남겨 두되 이 화면이 값을 새로 쓰지 않는다. (2026-09-03 정책)
+        await unhideGroup(userId, groupId, null);
         await load();
         await loadHiddenGroups();
       } catch {
@@ -294,33 +300,35 @@ export default function ScreenGROUP01() {
         setSaving(false);
       }
     },
-    [load, loadHiddenGroups, recoverFromFailure, rows, saving, sortMode],
+    [load, loadHiddenGroups, recoverFromFailure, saving],
   );
 
-  // ── 정렬 초기화 ────────────────────────────────────────────────────────
-  const handleResetOrder = useCallback(async () => {
-    if (saving) return;
-
-    setSaving(true);
-    try {
-      // TODO: 로그인 연동 시 교체
-      // sort_order 만 지운다. hidden 은 건드리지 않는다.
-      await resetGroupOrder(DEV_USER_ID);
-      await load();
-    } catch {
-      await recoverFromFailure();
-    } finally {
-      setSaving(false);
-    }
-  }, [load, recoverFromFailure, saving]);
-
   // ── 4상태 ──────────────────────────────────────────────────────────────
+  //
+  // 상단바는 로딩·오류·빈 상태에서도 같은 자리에 있어야 한다.
+  // 커뮤니티·마이페이지와 같은 공통 Header 다. 같은 컴포넌트라 높이가 같다.
+  const header = (
+    <View className="bg-white" style={{ paddingTop: insets.top }}>
+      <Header title="모임" showBack={false} />
+    </View>
+  );
+
   if (loadState === 'loading') {
-    return <Loading message="모임을 불러오고 있어요" />;
+    return (
+      <View className="flex-1 bg-pot-visual">
+        {header}
+        <Loading message="모임을 불러오고 있어요" />
+      </View>
+    );
   }
 
   if (loadState === 'error') {
-    return <ErrorState message="모임 목록을 불러오지 못했어요." onRetry={() => void load()} />;
+    return (
+      <View className="flex-1 bg-pot-visual">
+        {header}
+        <ErrorState message="모임 목록을 불러오지 못했어요." onRetry={() => void load()} />
+      </View>
+    );
   }
 
   // 보이는 모임이 없어도 숨긴 모임이 있으면 편집으로 되살릴 수 있어야 한다.
@@ -328,22 +336,30 @@ export default function ScreenGROUP01() {
     // 모임은 여행 생성의 '누구와' 단계에서 만든다. 별도 모임 생성 화면은 없다.
     // (docs/09_IA_v1.md §2-1)
     return (
-      <EmptyState
-        icon="people-outline"
-        title="아직 참여 중인 모임이 없어요"
-        description="여행을 만들 때 모임을 함께 만들면 여기에 모여요."
-        actionLabel="새 여행 만들기"
-        onAction={() => router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)}
-      />
+      <View className="flex-1 bg-pot-visual">
+        {header}
+        <EmptyState
+          icon="people-outline"
+          title="아직 참여 중인 모임이 없어요"
+          description="여행을 만들 때 모임을 함께 만들면 여기에 모여요."
+          actionLabel="새 여행 만들기"
+          onAction={() => router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)}
+        />
+      </View>
     );
   }
 
   return (
-    <View className={`flex-1 ${editMode ? 'bg-gray-50' : 'bg-white'}`}>
+    // ⚠️ 편집 모드에서 배경색을 바꾸지 않는다. 다른 탭에 없는 장치였고,
+    //    바탕이 이미 pot-visual 이라 구분이 필요 없다.
+    <View className="flex-1 bg-pot-visual">
+      {header}
+
       <GroupListHeader
         sortMode={sortMode}
         editMode={editMode}
         onToggleEdit={handleToggleEdit}
+        onPressSort={() => setSortSheetOpen(true)}
       />
 
       {rows.length === 0 ? (
@@ -354,13 +370,11 @@ export default function ScreenGROUP01() {
         <GroupListEmptyNotice editMode={editMode} />
       ) : (
         <GroupTravelCardList
-          groups={rows.map((row) => row.card)}
+          groups={sortedRows.map((row) => row.card)}
           onPressGroup={handlePressGroup}
           editMode={editMode}
           selectedIds={selectedIds}
           onToggleSelect={handleToggleSelect}
-          onMoveUp={handleMoveUp}
-          onMoveDown={handleMoveDown}
           actionsDisabled={saving}
         />
       )}
@@ -369,11 +383,9 @@ export default function ScreenGROUP01() {
         <GroupEditActionBar
           selectedCount={selectedIds.length}
           hiddenCount={hiddenCount}
-          canResetOrder={sortMode === 'CUSTOM'}
           saving={saving}
           onPressRemove={() => setRemoveOpen(true)}
           onPressHidden={handleOpenHidden}
-          onPressResetOrder={() => void handleResetOrder()}
         />
       ) : null}
 
@@ -383,6 +395,16 @@ export default function ScreenGROUP01() {
         saving={saving}
         onCancel={() => setRemoveOpen(false)}
         onConfirm={() => void handleConfirmRemove()}
+      />
+
+      <GroupSortSheet
+        visible={sortSheetOpen}
+        current={sortMode}
+        onClose={() => setSortSheetOpen(false)}
+        onSelect={(mode) => {
+          setSortMode(mode);
+          setSortSheetOpen(false);
+        }}
       />
 
       <HiddenGroupsSheet

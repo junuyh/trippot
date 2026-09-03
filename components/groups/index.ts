@@ -8,6 +8,7 @@ export { GroupDetailView } from './GroupDetailView';
 export { GroupEditActionBar } from './GroupEditActionBar';
 export { GroupListEmptyNotice } from './GroupListEmptyNotice';
 export { GroupListHeader } from './GroupListHeader';
+export { GroupSortSheet, GROUP_SORT_LABEL } from './GroupSortSheet';
 export { GroupMemberList } from './GroupMemberList';
 export { GroupMoreMenu } from './GroupMoreMenu';
 export { GroupRenameModal } from './GroupRenameModal';

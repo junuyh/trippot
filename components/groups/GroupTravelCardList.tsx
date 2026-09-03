@@ -11,8 +11,6 @@ type Props = {
   editMode?: boolean;
   selectedIds?: string[];
   onToggleSelect?: (groupId: string) => void;
-  onMoveUp?: (groupId: string) => void;
-  onMoveDown?: (groupId: string) => void;
   actionsDisabled?: boolean;
 };
 
@@ -30,14 +28,14 @@ export function GroupTravelCardList({
   editMode = false,
   selectedIds = [],
   onToggleSelect,
-  onMoveUp,
-  onMoveDown,
   actionsDisabled = false,
 }: Props) {
   const selected = new Set(selectedIds);
 
+  // ⚠️ pb-28. pb-10 이면 마지막 카드가 떠 있는 탭바(FloatingTabBar)에 가려
+  //    편집 모드에서 선택조차 되지 않는다. 다른 탭 화면과 같은 값이다.
   return (
-    <ScrollView className="flex-1" contentContainerClassName="px-5 pb-10 pt-2">
+    <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-1">
       <View className="gap-3">
         {groups.map((group, index) => (
           <GroupTravelCard
@@ -47,10 +45,6 @@ export function GroupTravelCardList({
             editMode={editMode}
             selected={selected.has(group.groupId)}
             onToggleSelect={onToggleSelect}
-            onMoveUp={onMoveUp}
-            onMoveDown={onMoveDown}
-            canMoveUp={index > 0}
-            canMoveDown={index < groups.length - 1}
             actionsDisabled={actionsDisabled}
           />
         ))}
