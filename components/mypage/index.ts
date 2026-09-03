@@ -5,6 +5,8 @@ export { LogoutConfirmModal } from './LogoutConfirmModal';
 export { MenuRow } from './MenuRow';
 export { MenuSection } from './MenuSection';
 export { NotificationBellButton } from './NotificationBellButton';
+export { NotificationList } from './NotificationList';
+export { NotificationSettingsList } from './NotificationSettingsList';
 export { ProfileSection } from './ProfileSection';
 export { TripSummaryCards } from './TripSummaryCards';
 export type { MyProfile, MyTripCounts } from './types';

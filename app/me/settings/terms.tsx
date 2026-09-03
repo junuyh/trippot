@@ -56,7 +56,7 @@ export default function ScreenTerms() {
   return (
     <>
       {/* 다른 상세 화면과 같은 헤더. 뒤로 버튼은 root Stack 이 이미 그린다. */}
-      <Stack.Screen options={{ title: '약관', headerTitleAlign: 'center' }} />
+      <Stack.Screen options={{ title: '이용약관', headerTitleAlign: 'center' }} />
       <LegalDocument notice={NOTICE} sections={SECTIONS} />
     </>
   );

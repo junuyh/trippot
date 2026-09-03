@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { router, Tabs } from 'expo-router';
 
 import { NotificationBellButton } from '@/components/mypage';
 import { FloatingTabBar } from '@/components/navigation/FloatingTabBar';
@@ -34,13 +34,15 @@ import { FloatingTabBar } from '@/components/navigation/FloatingTabBar';
 const HEADER_INK = '#111827';
 
 /**
- * 헤더 알림 아이콘(MY-01)을 눌렀을 때.
+ * 헤더 알림 아이콘(MY-01)을 눌렀을 때. 받은 알림 목록으로 간다.
  *
- * ⚠️ TODO: 갈 화면이 아직 없다. 프로젝트 전체에 알림 목록 화면·route·query·테이블이
- *    하나도 없어서 임의 route 를 만들지 않았다. 목적지가 확정되면 여기만 채운다.
- *    (설정 > 알림 = 수신 여부 설정, 이 버튼 = 받은 알림 목록. 서로 다른 화면이다)
+ * ⚠️ 설정 > 알림 설정 과 다른 화면이다.
+ *    설정 > 알림 설정 = 어떤 알림을 받을지 (/me/settings/notifications)
+ *    이 버튼          = 실제로 받은 알림   (/me/notifications)
  */
-function handlePressNotifications() {}
+function handlePressNotifications() {
+  router.push('/me/notifications');
+}
 
 export default function TabsLayout() {
   return (
