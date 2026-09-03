@@ -24,6 +24,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import {
   CommentSection,
+  POST_TYPE_DISPLAY_LABEL,
   PostDetailView,
   type PostCommentItem,
   type PostDetailData,
@@ -35,7 +36,7 @@ import { SCREENS } from '@/lib/analytics/events';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { findDestinationByName } from '@/lib/constants/destinations';
-import { POST_TYPE_LABEL, REACTION_TYPE } from '@/lib/constants/status';
+import { REACTION_TYPE } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import {
   addReaction,
@@ -257,7 +258,7 @@ export default function ScreenCOMM02() {
     postId: post.postId,
     title: post.title,
     postType: post.postType,
-    postTypeLabel: POST_TYPE_LABEL[post.postType],
+    postTypeLabel: POST_TYPE_DISPLAY_LABEL[post.postType],
     authorName: post.authorName,
     authorImageUrl: post.authorImageUrl,
     destination: post.destination,
@@ -292,7 +293,12 @@ export default function ScreenCOMM02() {
 
   return (
     <>
-      <Stack.Screen options={{ title: POST_TYPE_LABEL[post.postType], headerTitleAlign: 'center' }} />
+      <Stack.Screen
+        options={{
+          title: POST_TYPE_DISPLAY_LABEL[post.postType],
+          headerTitleAlign: 'center',
+        }}
+      />
       <PostDetailView
         post={data}
         likeBusy={likeBusy}

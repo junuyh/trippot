@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { NO_FOCUS_RING } from './inputStyle';
+import type { TripOption } from './types';
 
 // ⚠️ components/ui/Button 을 쓰지 않는다. 공용 Button 의 primary 가 bg-blue-600 이고
 //    그 파일은 [공유] 라 고치면 25개 화면 버튼이 전부 바뀐다.
@@ -22,6 +23,16 @@ type Props = {
   typeOptions: TypeOption[];
   postType: string;
   onChangeType: (value: string) => void;
+
+  /**
+   * 어느 여행 이야기인가. (2026-09-03)
+   *
+   * 이 선택이 글의 여행지 카테고리를 정한다. 비어 있으면 섹션을 그리지 않는다.
+   */
+  tripOptions: TripOption[];
+  /** 고른 여행. null 이면 연결하지 않는다. */
+  tripId: string | null;
+  onChangeTrip: (value: string | null) => void;
 
   title: string;
   onChangeTitle: (value: string) => void;
@@ -71,6 +82,9 @@ export function PostWriteForm({
   typeOptions,
   postType,
   onChangeType,
+  tripOptions,
+  tripId,
+  onChangeTrip,
   title,
   onChangeTitle,
   content,
@@ -166,6 +180,82 @@ export function PostWriteForm({
           );
         })}
       </View>
+
+      {/* 어느 여행 이야기인가 (2026-09-03)
+          ⚠️ 이 선택이 커뮤니티의 여행지 카테고리를 정한다. community_posts 에
+             destination 컬럼이 없어서 글의 여행지는 연결한 여행에서만 나온다.
+             고르지 않으면 '전체' 에만 보인다. 그래서 안내 문구를 꼭 남긴다. */}
+      {tripOptions.length > 0 ? (
+        <>
+          <Text className="mb-2 mt-6 font-bold text-pot-ink" style={{ fontSize: 13 }}>
+            어느 여행 이야기인가요
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerClassName="gap-2 pr-4"
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: tripId === null }}
+              disabled={submitting}
+              onPress={() => onChangeTrip(null)}
+              className={`justify-center rounded-2xl px-4 py-2.5 ${
+                tripId === null ? 'bg-pot-ink' : 'bg-pot-visual'
+              }`}
+            >
+              <Text
+                className={`font-bold ${tripId === null ? 'text-white' : 'text-pot-mute'}`}
+                style={{ fontSize: 13 }}
+              >
+                선택 안 함
+              </Text>
+            </Pressable>
+
+            {tripOptions.map((option) => {
+              const active = option.tripId === tripId;
+              return (
+                <Pressable
+                  key={option.tripId}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  disabled={submitting}
+                  onPress={() => onChangeTrip(option.tripId)}
+                  className={`rounded-2xl px-4 py-2 ${active ? 'bg-pot-ink' : 'bg-pot-visual'}`}
+                >
+                  <View className="flex-row items-center">
+                    {option.flag ? (
+                      // 장식이다. 옆 글자가 여행지 이름을 그대로 말한다.
+                      <Text style={{ fontSize: 12, marginRight: 4 }} accessible={false}>
+                        {option.flag}
+                      </Text>
+                    ) : null}
+                    <Text
+                      className={`font-bold ${active ? 'text-white' : 'text-pot-mute'}`}
+                      style={{ fontSize: 13 }}
+                    >
+                      {option.label}
+                    </Text>
+                  </View>
+                  {option.sublabel ? (
+                    <Text
+                      className={active ? 'text-white/70' : 'text-pot-faint'}
+                      style={{ fontSize: 10.5, marginTop: 1 }}
+                    >
+                      {option.sublabel}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Text className="mt-1.5 text-pot-faint" style={{ fontSize: 11, lineHeight: 15 }}>
+            {tripId === null
+              ? '고르지 않으면 여행지 카테고리 없이 전체 목록에만 보여요.'
+              : '커뮤니티에서 이 여행지 카테고리로 묶여요.'}
+          </Text>
+        </>
+      ) : null}
 
       {/* 제목 */}
       <Text className="mb-2 mt-6 font-bold text-pot-ink" style={{ fontSize: 13 }}>

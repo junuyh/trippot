@@ -16,9 +16,10 @@ type Props = {
 export function SectionHeader({ title, actionLabel, onPressAction }: Props) {
   return (
     <View className="mb-2.5 flex-row items-center justify-between">
+      {/* 크기·굵기는 trip-home 카드 제목(16 / 800 / -0.5)과 같은 단이다. */}
       <Text
-        className="font-black text-pot-ink"
-        style={{ fontSize: 15.5, lineHeight: 20, letterSpacing: -0.5 }}
+        className="text-pot-ink"
+        style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5 }}
       >
         {title}
       </Text>

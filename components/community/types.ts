@@ -57,11 +57,47 @@ export type PostDetailData = PostCardData & {
   content: string | null;
 };
 
-/** COMM-01 의 유형 필터 한 칸. (IA 4-2 — 홈 안의 탭·필터) */
-export type PostFilter = {
-  /** null 이면 전체 */
-  value: PostType | null;
+/**
+ * COMM-04 작성 화면의 '어느 여행 이야기인가' 선택지 한 칸. (2026-09-03)
+ *
+ * ⚠️ community_posts 에는 destination 컬럼이 없다. trip_id 뿐이다.
+ *    그래서 글의 여행지는 **연결한 여행에서 나온다.** 여행을 고르지 않으면
+ *    그 글은 어느 여행지 카테고리에도 들어가지 않고 '전체' 에만 보인다.
+ */
+export type TripOption = {
+  tripId: string;
+  /** 여행지 이름. 목적지를 아직 안 정한 여행이면 대체 문구가 온다. */
   label: string;
+  /** '2026.09' 처럼 언제 여행인지. 같은 여행지를 여러 번 갔을 때 구분된다. */
+  sublabel: string | null;
+  /** 국기 이모지. 목록에 없는 목적지면 null. */
+  flag: string | null;
+};
+
+/**
+ * COMM-01 의 카테고리 한 칸. (2026-09-03)
+ *
+ * 카테고리 줄은 **하나**다. 글 유형(자유·여행 팁)과 여행지가 같은 줄에 있고
+ * 한 번에 하나만 고른다.
+ *
+ * ⚠️ 처음에는 유형 줄과 여행지 줄을 따로 뒀는데, 줄이 둘이면 지금 무엇으로
+ *    걸러진 목록인지 한눈에 안 읽힌다. 한 줄로 합치고 단일 선택으로 바꿨다.
+ *
+ * ⚠️ 여행지 칸은 **글이 실제로 있는 여행지만** 온다.
+ *    lib/constants/destinations.ts 의 12개를 그대로 늘어놓지 않는다.
+ *    눌렀을 때 빈 목록이 뜨는 칸을 만들지 않기 위해서다.
+ *
+ * key 가 무엇을 뜻하는지는 화면 파일이 정한다. 컴포넌트는 키를 그대로 돌려줄 뿐
+ * 'type:' 이니 'dest:' 니 하는 규칙을 알지 못한다. (CLAUDE.md 9장)
+ */
+export type CommunityCategory = {
+  /** 고유 키. 무엇으로 거를지는 화면 파일이 이 값으로 판단한다. */
+  key: string;
+  label: string;
+  /** 국기 이모지. 여행지 칸에만 있고 유형 칸은 null 이다. */
+  flag: string | null;
+  /** 글 수. 셀 수 없는 칸은 null 이고 숫자를 그리지 않는다. */
+  count: number | null;
 };
 
 /**

@@ -29,12 +29,27 @@ type HomeTripBase = {
   airportCode: string;
   /** 모임 여행이면 모임명, 개인 여행이면 null. */
   groupName: string | null;
+  /**
+   * 카드 배너에 까는 랜드마크 사진 URL. (2026-09-03)
+   *
+   * 목록에 없는 목적지(직접 입력)면 null 이다.
+   * ⚠️ 원격 URL 이라 로드에 실패할 수 있다. null 이든 실패든 카드는 그대로
+   *    읽혀야 한다. 대체 화면은 DestinationBanner 가 그린다.
+   */
+  photoUrl: string | null;
+  /** 사진이 없을 때 그릴 랜드마크 실루엣을 고르는 값. 모르는 목적지면 null. */
+  countryKo: string | null;
+  /**
+   * 목적지 국가 테마. 진행률·D-Day 배지 색과 사진 대체 화면 배경이 여기서 온다.
+   *
+   * 2026-09-03 OngoingTripCardData 에서 여기로 올렸다. 지난 여행 목록도
+   * 사진 대체 화면을 그리게 되면서 종료된 여행에도 필요해졌다.
+   */
+  theme: CountryTheme;
 };
 
 /** 1-1. 진행 중인 여행 (PLANNING / TRAVELING) */
 export type OngoingTripCardData = HomeTripBase & {
-  /** 목적지 국가 테마. 진행률·D-Day 배지 색이 여기서 온다. */
-  theme: CountryTheme;
   /** trip_budgets.target_amount. 아직 조회하지 못했으면 null. */
   targetAmount: number | null;
   /** fund_sources.current_amount. 단일 소스 기준이라 절대 합산하지 않는다. (CLAUDE.md 3장) */
