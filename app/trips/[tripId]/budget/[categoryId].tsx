@@ -65,6 +65,8 @@ import {
   CATEGORY_CODE_TO_ANALYTICS,
   CATEGORY_METHOD,
   PLAN_DISPLAY_MODE,
+  PLAN_ITEM_SOURCE,
+  type PlanItemSource,
   TRIP_STATUS,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
@@ -336,9 +338,7 @@ export default function ScreenBUDGET02() {
         return;
       }
       // 거래 상세는 전체 내역 화면의 바텀시트다. ?transactionId= 로 지목해 연다.
-      router.push(
-        `/trips/${data.trip.id}/funds/transactions?transactionId=${linked.id}`,
-      );
+      router.push(`/trips/${data.trip.id}/funds/transactions/${linked.id}`);
     },
     [data],
   );
@@ -404,6 +404,15 @@ export default function ScreenBUDGET02() {
   /** AI 추천 영역이 열려 있는지. 열리면 '계획 항목 추가' 버튼을 감춘다 */
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<PlanSuggestion[]>([]);
+  /**
+   * 추천을 누가 만들었는가. 'ai' 인지 'catalog' 인지 로그에 함께 남긴다.
+   *
+   * ⚠️ 합쳐 두면 Edge Function 이 죽어 카탈로그로만 돌아간 기간의 수치가
+   *    AI 성과로 잡힌다. 실제로 그런 기간이 있었다.
+   */
+  const [suggestSource, setSuggestSource] = useState<PlanItemSource>(
+    PLAN_ITEM_SOURCE.CATALOG,
+  );
   const [suggestLoading, setSuggestLoading] = useState(false);
   /** 추가 중인 추천 key. 그 카드만 잠근다 */
   const [suggestBusyKey, setSuggestBusyKey] = useState<string | null>(null);
@@ -556,6 +565,27 @@ export default function ScreenBUDGET02() {
         existingNames: plans.map((plan) => plan.name),
       });
       setSuggestions(result.suggestions);
+      // 쿼리의 'ai' | 'catalog' 를 로그 상수로 옮긴다. 리터럴을 그대로 쏘지 않는다
+      const source =
+        result.source === "ai" ? PLAN_ITEM_SOURCE.AI : PLAN_ITEM_SOURCE.CATALOG;
+      setSuggestSource(source);
+
+      /**
+       * 추천을 실제로 보여준 시점에만 쏜다. (docs/06 §11 — 저장 성공 후)
+       * 이게 budget_plan_item_added 의 분모다. 후보가 하나도 없으면
+       * 보여준 게 없으므로 쏘지 않는다.
+       */
+      if (result.suggestions.length > 0) {
+        track(EVENTS.BUDGET_PLAN_SUGGESTION_OFFERED, {
+          trip_id: data.trip.id,
+          category:
+            CATEGORY_CODE_TO_ANALYTICS[
+              data.category.category_code as CategoryCode
+            ],
+          plan_source: source,
+          suggestion_count: result.suggestions.length,
+        });
+      }
     } catch {
       setSuggestions([]);
     } finally {
@@ -587,12 +617,7 @@ export default function ScreenBUDGET02() {
           status: BUDGET_PLAN_ITEM_STATUS.PLANNED,
           sort_order: plans.length + 1,
         });
-        /**
-         * ⚠️ 추천에서 왔다는 것을 따로 기록하지 못하고 있다.
-         *    events.ts 에 그 속성도, 전용 이벤트도 없고 공유 파일이라
-         *    임의로 추가하지 않는다. (CLAUDE.md 8장)
-         *    이게 없으면 "AI 추천이 계획 항목 수를 늘렸는가" 를 잴 수 없다.
-         */
+        // ⚠️ 추천에서 왔다는 것을 남긴다. 없으면 AI 효과를 잴 수 없다.
         track(EVENTS.BUDGET_PLAN_ITEM_ADDED, {
           trip_id: data.trip.id,
           category:
@@ -601,6 +626,7 @@ export default function ScreenBUDGET02() {
             ],
           planned_amount: suggestion.amount,
           item_id: created.id,
+          plan_source: suggestSource,
         });
 
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -628,7 +654,7 @@ export default function ScreenBUDGET02() {
         setSuggestBusyKey(null);
       }
     },
-    [data, plans, suggestBusyKey, syncBudgetFromPlans],
+    [data, plans, suggestBusyKey, suggestSource, syncBudgetFromPlans],
   );
 
   /**
@@ -719,6 +745,8 @@ export default function ScreenBUDGET02() {
           ],
         planned_amount: amount,
         item_id: created.id,
+        // 바텀시트로 직접 적어 넣은 항목이다
+        plan_source: PLAN_ITEM_SOURCE.USER,
       });
 
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);

@@ -19,64 +19,68 @@
 
 // ── 모임 ───────────────────────────────────────────────────────────────────
 export const GROUP_STATUS = {
-  ACTIVE: 'ACTIVE',
-  ARCHIVED: 'ARCHIVED',
-  DELETED: 'DELETED',
+  ACTIVE: "ACTIVE",
+  ARCHIVED: "ARCHIVED",
+  DELETED: "DELETED",
 } as const;
 export type GroupStatus = (typeof GROUP_STATUS)[keyof typeof GROUP_STATUS];
 
 export const GROUP_MEMBER_ROLE = {
-  OWNER: 'OWNER',
-  MEMBER: 'MEMBER',
+  OWNER: "OWNER",
+  MEMBER: "MEMBER",
 } as const;
-export type GroupMemberRole = (typeof GROUP_MEMBER_ROLE)[keyof typeof GROUP_MEMBER_ROLE];
+export type GroupMemberRole =
+  (typeof GROUP_MEMBER_ROLE)[keyof typeof GROUP_MEMBER_ROLE];
 
 export const GROUP_MEMBER_STATUS = {
-  ACTIVE: 'ACTIVE',
-  INVITED: 'INVITED',
-  LEFT: 'LEFT',
+  ACTIVE: "ACTIVE",
+  INVITED: "INVITED",
+  LEFT: "LEFT",
 } as const;
-export type GroupMemberStatus = (typeof GROUP_MEMBER_STATUS)[keyof typeof GROUP_MEMBER_STATUS];
+export type GroupMemberStatus =
+  (typeof GROUP_MEMBER_STATUS)[keyof typeof GROUP_MEMBER_STATUS];
 
 // ── 여행 ───────────────────────────────────────────────────────────────────
 export const TRIP_OWNER_TYPE = {
-  PERSONAL: 'PERSONAL',
-  GROUP: 'GROUP',
+  PERSONAL: "PERSONAL",
+  GROUP: "GROUP",
 } as const;
-export type TripOwnerType = (typeof TRIP_OWNER_TYPE)[keyof typeof TRIP_OWNER_TYPE];
+export type TripOwnerType =
+  (typeof TRIP_OWNER_TYPE)[keyof typeof TRIP_OWNER_TYPE];
 
 export const TRIP_STATUS = {
-  PLANNING: 'PLANNING',
-  TRAVELING: 'TRAVELING',
-  ENDED: 'ENDED',
-  SETTLED: 'SETTLED',
-  DELETED: 'DELETED',
+  PLANNING: "PLANNING",
+  TRAVELING: "TRAVELING",
+  ENDED: "ENDED",
+  SETTLED: "SETTLED",
+  DELETED: "DELETED",
 } as const;
 export type TripStatus = (typeof TRIP_STATUS)[keyof typeof TRIP_STATUS];
 
 export const TRIP_MEMBER_STATUS = {
-  ACTIVE: 'ACTIVE',
-  INVITED: 'INVITED',
-  LEFT: 'LEFT',
+  ACTIVE: "ACTIVE",
+  INVITED: "INVITED",
+  LEFT: "LEFT",
 } as const;
-export type TripMemberStatus = (typeof TRIP_MEMBER_STATUS)[keyof typeof TRIP_MEMBER_STATUS];
+export type TripMemberStatus =
+  (typeof TRIP_MEMBER_STATUS)[keyof typeof TRIP_MEMBER_STATUS];
 
 // ── 예산 ───────────────────────────────────────────────────────────────────
 export const BUDGET_METHOD = {
-  RECOMMENDED: 'RECOMMENDED',
-  USER_DEFINED: 'USER_DEFINED',
+  RECOMMENDED: "RECOMMENDED",
+  USER_DEFINED: "USER_DEFINED",
 } as const;
 export type BudgetMethod = (typeof BUDGET_METHOD)[keyof typeof BUDGET_METHOD];
 
 export const CATEGORY_CODE = {
-  AIRFARE: 'AIRFARE',
-  LODGING: 'LODGING',
-  FOOD: 'FOOD',
-  TRANSPORT: 'TRANSPORT',
-  ACTIVITY: 'ACTIVITY',
-  SHOPPING: 'SHOPPING',
-  INSURANCE: 'INSURANCE',
-  CONTINGENCY: 'CONTINGENCY',
+  AIRFARE: "AIRFARE",
+  LODGING: "LODGING",
+  FOOD: "FOOD",
+  TRANSPORT: "TRANSPORT",
+  ACTIVITY: "ACTIVITY",
+  SHOPPING: "SHOPPING",
+  INSURANCE: "INSURANCE",
+  CONTINGENCY: "CONTINGENCY",
 } as const;
 export type CategoryCode = (typeof CATEGORY_CODE)[keyof typeof CATEGORY_CODE];
 
@@ -85,16 +89,17 @@ export type CategoryCode = (typeof CATEGORY_CODE)[keyof typeof CATEGORY_CODE];
  * ⚠️ 이 열거값만 소문자다. DB CHECK 가 소문자로 정의돼 있다.
  */
 export const APPLIED_SOURCE = {
-  DEFAULT: 'default',
-  PERSONALIZED: 'personalized',
-  USER: 'user',
+  DEFAULT: "default",
+  PERSONALIZED: "personalized",
+  USER: "user",
 } as const;
-export type AppliedSource = (typeof APPLIED_SOURCE)[keyof typeof APPLIED_SOURCE];
+export type AppliedSource =
+  (typeof APPLIED_SOURCE)[keyof typeof APPLIED_SOURCE];
 
 export const BUDGET_PLAN_ITEM_STATUS = {
-  PLANNED: 'PLANNED',
-  DONE: 'DONE',
-  CANCELED: 'CANCELED',
+  PLANNED: "PLANNED",
+  DONE: "DONE",
+  CANCELED: "CANCELED",
 } as const;
 export type BudgetPlanItemStatus =
   (typeof BUDGET_PLAN_ITEM_STATUS)[keyof typeof BUDGET_PLAN_ITEM_STATUS];
@@ -107,10 +112,11 @@ export type BudgetPlanItemStatus =
  *    (BUDGET-02 v2 스펙 / 20260901000001 마이그레이션)
  */
 export const PLAN_DISPLAY_MODE = {
-  TOTAL: 'TOTAL',
-  PER_PERSON: 'PER_PERSON',
+  TOTAL: "TOTAL",
+  PER_PERSON: "PER_PERSON",
 } as const;
-export type PlanDisplayMode = (typeof PLAN_DISPLAY_MODE)[keyof typeof PLAN_DISPLAY_MODE];
+export type PlanDisplayMode =
+  (typeof PLAN_DISPLAY_MODE)[keyof typeof PLAN_DISPLAY_MODE];
 
 /**
  * transactions.refund_status. 환불·취소 상태다.
@@ -123,79 +129,83 @@ export type PlanDisplayMode = (typeof PLAN_DISPLAY_MODE)[keyof typeof PLAN_DISPL
  *   CANCELED  결제 취소. 처음부터 없던 거래로 본다
  */
 export const REFUND_STATUS = {
-  NONE: 'NONE',
-  PENDING: 'PENDING',
-  REFUNDED: 'REFUNDED',
-  CANCELED: 'CANCELED',
+  NONE: "NONE",
+  PENDING: "PENDING",
+  REFUNDED: "REFUNDED",
+  CANCELED: "CANCELED",
 } as const;
 export type RefundStatus = (typeof REFUND_STATUS)[keyof typeof REFUND_STATUS];
 
 // ── 여행자금 ───────────────────────────────────────────────────────────────
 /** fund_sources.source_type. ZERO 는 '아직 등록 안 함'이다. */
 export const FUND_SOURCE_TYPE = {
-  ACCOUNT: 'ACCOUNT',
-  MANUAL: 'MANUAL',
-  ZERO: 'ZERO',
-  MOCK: 'MOCK',
+  ACCOUNT: "ACCOUNT",
+  MANUAL: "MANUAL",
+  ZERO: "ZERO",
+  MOCK: "MOCK",
 } as const;
-export type FundSourceType = (typeof FUND_SOURCE_TYPE)[keyof typeof FUND_SOURCE_TYPE];
+export type FundSourceType =
+  (typeof FUND_SOURCE_TYPE)[keyof typeof FUND_SOURCE_TYPE];
 
 // ── 거래 ───────────────────────────────────────────────────────────────────
 /** transactions.source_type / contributions.source_type. ZERO 가 없다. */
 export const TRANSACTION_SOURCE_TYPE = {
-  ACCOUNT: 'ACCOUNT',
-  MANUAL: 'MANUAL',
-  MOCK: 'MOCK',
+  ACCOUNT: "ACCOUNT",
+  MANUAL: "MANUAL",
+  MOCK: "MOCK",
 } as const;
 export type TransactionSourceType =
   (typeof TRANSACTION_SOURCE_TYPE)[keyof typeof TRANSACTION_SOURCE_TYPE];
 
 export const TRANSACTION_TYPE = {
-  DEPOSIT: 'DEPOSIT',
-  WITHDRAWAL: 'WITHDRAWAL',
+  DEPOSIT: "DEPOSIT",
+  WITHDRAWAL: "WITHDRAWAL",
 } as const;
-export type TransactionType = (typeof TRANSACTION_TYPE)[keyof typeof TRANSACTION_TYPE];
+export type TransactionType =
+  (typeof TRANSACTION_TYPE)[keyof typeof TRANSACTION_TYPE];
 
 /** 거래 카테고리를 누가 정했는가. */
 export const CATEGORY_METHOD = {
-  AUTO: 'AUTO',
-  USER: 'USER',
-  NONE: 'NONE',
+  AUTO: "AUTO",
+  USER: "USER",
+  NONE: "NONE",
 } as const;
-export type CategoryMethod = (typeof CATEGORY_METHOD)[keyof typeof CATEGORY_METHOD];
+export type CategoryMethod =
+  (typeof CATEGORY_METHOD)[keyof typeof CATEGORY_METHOD];
 
 // ── 모임원 납부 ────────────────────────────────────────────────────────────
 export const CONTRIBUTION_STATUS = {
-  UNPAID: 'UNPAID',
-  PARTIAL: 'PARTIAL',
-  PAID: 'PAID',
+  UNPAID: "UNPAID",
+  PARTIAL: "PARTIAL",
+  PAID: "PAID",
 } as const;
 export type ContributionStatus =
   (typeof CONTRIBUTION_STATUS)[keyof typeof CONTRIBUTION_STATUS];
 
 // ── 커뮤니티 ───────────────────────────────────────────────────────────────
 export const POST_TYPE = {
-  POST: 'POST',
-  FREE_TIP: 'FREE_TIP',
-  PAID_TIP: 'PAID_TIP',
-  TYPE_SHARE: 'TYPE_SHARE',
+  POST: "POST",
+  FREE_TIP: "FREE_TIP",
+  PAID_TIP: "PAID_TIP",
+  TYPE_SHARE: "TYPE_SHARE",
 } as const;
 export type PostType = (typeof POST_TYPE)[keyof typeof POST_TYPE];
 
 export const POST_STATUS = {
-  DRAFT: 'DRAFT',
-  PUBLISHED: 'PUBLISHED',
-  HIDDEN: 'HIDDEN',
-  DELETED: 'DELETED',
+  DRAFT: "DRAFT",
+  PUBLISHED: "PUBLISHED",
+  HIDDEN: "HIDDEN",
+  DELETED: "DELETED",
 } as const;
 export type PostStatus = (typeof POST_STATUS)[keyof typeof POST_STATUS];
 
 export const COMMENT_STATUS = {
-  PUBLISHED: 'PUBLISHED',
-  HIDDEN: 'HIDDEN',
-  DELETED: 'DELETED',
+  PUBLISHED: "PUBLISHED",
+  HIDDEN: "HIDDEN",
+  DELETED: "DELETED",
 } as const;
-export type CommentStatus = (typeof COMMENT_STATUS)[keyof typeof COMMENT_STATUS];
+export type CommentStatus =
+  (typeof COMMENT_STATUS)[keyof typeof COMMENT_STATUS];
 
 /**
  * 글에 남기는 반응.
@@ -206,45 +216,66 @@ export type CommentStatus = (typeof COMMENT_STATUS)[keyof typeof COMMENT_STATUS]
  * BOOKMARK(찜)는 개수를 공개하지 않는다. 내가 눌렀는지만 화면에 쓴다.
  */
 export const REACTION_TYPE = {
-  LIKE: 'LIKE',
-  DISLIKE: 'DISLIKE',
-  BOOKMARK: 'BOOKMARK',
+  LIKE: "LIKE",
+  DISLIKE: "DISLIKE",
+  BOOKMARK: "BOOKMARK",
 } as const;
 export type ReactionType = (typeof REACTION_TYPE)[keyof typeof REACTION_TYPE];
 
 // ── 팁 판매 ────────────────────────────────────────────────────────────────
 export const SALES_STATUS = {
-  ON_SALE: 'ON_SALE',
-  PAUSED: 'PAUSED',
-  ENDED: 'ENDED',
+  ON_SALE: "ON_SALE",
+  PAUSED: "PAUSED",
+  ENDED: "ENDED",
 } as const;
 export type SalesStatus = (typeof SALES_STATUS)[keyof typeof SALES_STATUS];
 
 export const PURCHASE_STATUS = {
-  PENDING: 'PENDING',
-  COMPLETED: 'COMPLETED',
-  CANCELED: 'CANCELED',
-  REFUNDED: 'REFUNDED',
+  PENDING: "PENDING",
+  COMPLETED: "COMPLETED",
+  CANCELED: "CANCELED",
+  REFUNDED: "REFUNDED",
 } as const;
-export type PurchaseStatus = (typeof PURCHASE_STATUS)[keyof typeof PURCHASE_STATUS];
+export type PurchaseStatus =
+  (typeof PURCHASE_STATUS)[keyof typeof PURCHASE_STATUS];
 
 // ── 보험 제휴 ──────────────────────────────────────────────────────────────
 export const INSURANCE_REFERRAL_STATUS = {
-  CLICKED: 'CLICKED',
-  QUOTE_COMPLETED: 'QUOTE_COMPLETED',
-  PURCHASE_COMPLETED: 'PURCHASE_COMPLETED',
+  CLICKED: "CLICKED",
+  QUOTE_COMPLETED: "QUOTE_COMPLETED",
+  PURCHASE_COMPLETED: "PURCHASE_COMPLETED",
 } as const;
 export type InsuranceReferralStatus =
   (typeof INSURANCE_REFERRAL_STATUS)[keyof typeof INSURANCE_REFERRAL_STATUS];
 
+// ── 알림 ───────────────────────────────────────────────────────────────────
+/**
+ * notifications.type — 받은 알림의 종류.
+ *
+ * ⚠️ 이 목록은 DB 의 `notifications_type_check` 허용값과 정확히 같아야 한다.
+ *    하나라도 다르면 앱이 만든 알림이 DB 에서 거부된다.
+ *
+ * ⚠️ 화면·기능 코드에서는 type 문자열을 직접 쓰지 않고
+ *    반드시 `NOTIFICATION_TYPE` 을 사용한다.
+ */
+export const NOTIFICATION_TYPE = {
+  /** 전체 목표 여행비 100% 최초 달성 */
+  FUND_GOAL_REACHED: "FUND_GOAL_REACHED",
+  /** 여행 시작 7일 전 */
+  TRIP_D7: "TRIP_D7",
+  /** 여행 종료 후 정산 가능 */
+  SETTLEMENT_READY: "SETTLEMENT_READY",
+} as const;
+export type NotificationType =
+  (typeof NOTIFICATION_TYPE)[keyof typeof NOTIFICATION_TYPE];
+
 // ── 로그 ───────────────────────────────────────────────────────────────────
 /** ⚠️ 소문자다. track() 이 자동으로 채우므로 화면에서 직접 쓸 일은 없다. */
 export const EVENT_LOG_ENV = {
-  DEVELOPMENT: 'development',
-  PRODUCTION: 'production',
+  DEVELOPMENT: "development",
+  PRODUCTION: "production",
 } as const;
 export type EventLogEnv = (typeof EVENT_LOG_ENV)[keyof typeof EVENT_LOG_ENV];
-
 
 // ============================================================================
 // Analytics 파라미터 열거값
@@ -265,28 +296,29 @@ export type EventLogEnv = (typeof EVENT_LOG_ENV)[keyof typeof EVENT_LOG_ENV];
 
 /** trip_create_started.entry_point */
 export const ENTRY_POINT = {
-  HOME: 'home',
-  EMPTY_STATE: 'empty_state',
-  GROUP_DETAIL: 'group_detail',
-  PAST_TRIP: 'past_trip',
+  HOME: "home",
+  EMPTY_STATE: "empty_state",
+  GROUP_DETAIL: "group_detail",
+  PAST_TRIP: "past_trip",
 } as const;
 export type EntryPoint = (typeof ENTRY_POINT)[keyof typeof ENTRY_POINT];
 
 /** trip_companion_selected.companion_type. DB 대응 없음 (신규/기존 모임 구분은 앱 상태다). */
 export const COMPANION_TYPE = {
-  PERSONAL: 'personal',
-  EXISTING_GROUP: 'existing_group',
-  NEW_GROUP: 'new_group',
+  PERSONAL: "personal",
+  EXISTING_GROUP: "existing_group",
+  NEW_GROUP: "new_group",
 } as const;
-export type CompanionType = (typeof COMPANION_TYPE)[keyof typeof COMPANION_TYPE];
+export type CompanionType =
+  (typeof COMPANION_TYPE)[keyof typeof COMPANION_TYPE];
 
 /**
  * budget_method_selected.method
  * ⚠️ DB BUDGET_METHOD 와 이름도 뜻도 같지만 값이 다르다. USER_DEFINED ≠ user_entered.
  */
 export const ANALYTICS_BUDGET_METHOD = {
-  RECOMMENDED: 'recommended',
-  USER_ENTERED: 'user_entered',
+  RECOMMENDED: "recommended",
+  USER_ENTERED: "user_entered",
 } as const;
 export type AnalyticsBudgetMethod =
   (typeof ANALYTICS_BUDGET_METHOD)[keyof typeof ANALYTICS_BUDGET_METHOD];
@@ -296,9 +328,9 @@ export type AnalyticsBudgetMethod =
  * ⚠️ DB FUND_SOURCE_TYPE 은 값이 4개(MOCK 포함), 이쪽은 3개다.
  */
 export const FUND_TYPE = {
-  ACCOUNT: 'account',
-  MANUAL: 'manual',
-  ZERO: 'zero',
+  ACCOUNT: "account",
+  MANUAL: "manual",
+  ZERO: "zero",
 } as const;
 export type FundType = (typeof FUND_TYPE)[keyof typeof FUND_TYPE];
 
@@ -307,8 +339,8 @@ export type FundType = (typeof FUND_TYPE)[keyof typeof FUND_TYPE];
  * ⚠️ DB TRIP_OWNER_TYPE 은 'PERSONAL' | 'GROUP' (대문자). 여기는 소문자다.
  */
 export const ANALYTICS_OWNER_TYPE = {
-  PERSONAL: 'personal',
-  GROUP: 'group',
+  PERSONAL: "personal",
+  GROUP: "group",
 } as const;
 export type AnalyticsOwnerType =
   (typeof ANALYTICS_OWNER_TYPE)[keyof typeof ANALYTICS_OWNER_TYPE];
@@ -323,16 +355,17 @@ export type AnalyticsOwnerType =
  *    반드시 CATEGORY_CODE_TO_ANALYTICS 를 거친다.
  */
 export const ANALYTICS_CATEGORY = {
-  FLIGHT: 'flight',
-  ACCOMMODATION: 'accommodation',
-  FOOD: 'food',
-  TRANSPORT: 'transport',
-  ACTIVITY: 'activity',
-  SHOPPING: 'shopping',
-  INSURANCE: 'insurance',
-  RESERVE: 'reserve',
+  FLIGHT: "flight",
+  ACCOMMODATION: "accommodation",
+  FOOD: "food",
+  TRANSPORT: "transport",
+  ACTIVITY: "activity",
+  SHOPPING: "shopping",
+  INSURANCE: "insurance",
+  RESERVE: "reserve",
 } as const;
-export type AnalyticsCategory = (typeof ANALYTICS_CATEGORY)[keyof typeof ANALYTICS_CATEGORY];
+export type AnalyticsCategory =
+  (typeof ANALYTICS_CATEGORY)[keyof typeof ANALYTICS_CATEGORY];
 
 // budget_category_edited.applied_source 는 DB APPLIED_SOURCE 와 값이 같다.
 // (DB 쪽이 원래 소문자다) 이 파라미터만 변환 없이 그대로 넘겨도 된다.
@@ -345,8 +378,8 @@ export type AnalyticsCategory = (typeof ANALYTICS_CATEGORY)[keyof typeof ANALYTI
  *    미분류(NONE) 거래는 이 이벤트를 쏘지 않는다.
  */
 export const MAPPED_BY = {
-  AUTO: 'auto',
-  USER: 'user',
+  AUTO: "auto",
+  USER: "user",
 } as const;
 export type MappedBy = (typeof MAPPED_BY)[keyof typeof MAPPED_BY];
 
@@ -357,27 +390,51 @@ export type MappedBy = (typeof MAPPED_BY)[keyof typeof MAPPED_BY];
  *    이 값으로 재는 것은 사용자 습관이 아니라 **자동분류 로직의 품질**이다. (docs/06 §7-3)
  */
 export const ANALYTICS_TRANSACTION_SOURCE_TYPE = {
-  MOCK: 'mock',
-  MANUAL: 'manual',
+  MOCK: "mock",
+  MANUAL: "manual",
 } as const;
 export type AnalyticsTransactionSourceType =
   (typeof ANALYTICS_TRANSACTION_SOURCE_TYPE)[keyof typeof ANALYTICS_TRANSACTION_SOURCE_TYPE];
+
+// ── 세부 계획 추천 (BUDGET-02) ────────────────────────────────────────────
+
+/**
+ * 계획 항목이 **어디서 왔는가**. budget_plan_item_added.plan_source
+ *
+ * ⚠️ 이 값이 없으면 "AI 추천이 계획 항목 수를 늘렸는가" 를 잴 수 없다.
+ *    프로젝트의 핵심 가설 중 하나라 추가했다. (2026-09-03)
+ *
+ * ⚠️ ai 와 catalog 를 나눈다. 둘 다 '추천에서 왔다' 지만 만든 주체가 다르다.
+ *    합쳐 두면 Edge Function 이 죽어 카탈로그로만 돌아간 기간의 수치가
+ *    AI 성과로 잡힌다. 실제로 그런 기간이 있었다.
+ */
+export const PLAN_ITEM_SOURCE = {
+  /** 사용자가 직접 입력 */
+  USER: "user",
+  /** AI(Edge Function) 추천 카드 */
+  AI: "ai",
+  /** 규칙 기반 카탈로그 추천 카드 (AI 실패 시 대체) */
+  CATALOG: "catalog",
+} as const;
+export type PlanItemSource =
+  (typeof PLAN_ITEM_SOURCE)[keyof typeof PLAN_ITEM_SOURCE];
 
 // ── 수기 → 계좌 전환 (docs/06 §7-4) ────────────────────────────────────────
 
 /** fund_conversion_completed.result */
 export const CONVERSION_RESULT = {
-  SUCCESS: 'success',
-  FAIL: 'fail',
+  SUCCESS: "success",
+  FAIL: "fail",
 } as const;
-export type ConversionResult = (typeof CONVERSION_RESULT)[keyof typeof CONVERSION_RESULT];
+export type ConversionResult =
+  (typeof CONVERSION_RESULT)[keyof typeof CONVERSION_RESULT];
 
 // ── 결산 (docs/06 §7-5) ────────────────────────────────────────────────────
 
 /** settlement_prompted.trigger. 여행 종료 자동 유도인지 사용자가 직접 눌렀는지. */
 export const SETTLEMENT_TRIGGER = {
-  AUTO: 'auto',
-  MANUAL: 'manual',
+  AUTO: "auto",
+  MANUAL: "manual",
 } as const;
 export type SettlementTrigger =
   (typeof SETTLEMENT_TRIGGER)[keyof typeof SETTLEMENT_TRIGGER];
@@ -390,8 +447,8 @@ export type SettlementTrigger =
  * SCREENS 를 재사용하지 말고 이 상수를 쓴다. 문서가 이 두 곳만 정의했다.
  */
 export const INSURANCE_PLACEMENT = {
-  BUDGET_DETAIL: 'budget_detail',
-  TRIP_HOME: 'trip_home',
+  BUDGET_DETAIL: "budget_detail",
+  TRIP_HOME: "trip_home",
 } as const;
 export type InsurancePlacement =
   (typeof INSURANCE_PLACEMENT)[keyof typeof INSURANCE_PLACEMENT];
@@ -400,8 +457,8 @@ export type InsurancePlacement =
 
 /** tip_reacted.reaction — 고도화(9/07~) 이벤트의 파라미터다. MVP 에서 쓰지 않는다. */
 export const TIP_REACTION = {
-  UP: 'up',
-  DOWN: 'down',
+  UP: "up",
+  DOWN: "down",
 } as const;
 export type TipReaction = (typeof TIP_REACTION)[keyof typeof TIP_REACTION];
 
@@ -414,13 +471,13 @@ export type TipReaction = (typeof TIP_REACTION)[keyof typeof TIP_REACTION];
  * MVP 는 kakao 만 구현한다. 나머지는 [Future] — 값만 확정해 두고 쓰지 않는다.
  */
 export const AUTH_PROVIDER = {
-  KAKAO: 'kakao',
+  KAKAO: "kakao",
   /** [Future] */
-  APPLE: 'apple',
+  APPLE: "apple",
   /** [Future] */
-  GOOGLE: 'google',
+  GOOGLE: "google",
   /** [Future] */
-  EMAIL: 'email',
+  EMAIL: "email",
 } as const;
 export type AuthProvider = (typeof AUTH_PROVIDER)[keyof typeof AUTH_PROVIDER];
 
@@ -432,9 +489,9 @@ export type AuthProvider = (typeof AUTH_PROVIDER)[keyof typeof AUTH_PROVIDER];
  * (해당 칼럼은 jsonb 라 DB CHECK 로 막혀 있지 않다. 이 상수가 유일한 방어선이다.)
  */
 export const TRAVEL_STYLE = {
-  BUDGET: 'budget',
-  STANDARD: 'standard',
-  COMFORT: 'comfort',
+  BUDGET: "budget",
+  STANDARD: "standard",
+  COMFORT: "comfort",
 } as const;
 export type TravelStyle = (typeof TRAVEL_STYLE)[keyof typeof TRAVEL_STYLE];
 
@@ -452,22 +509,22 @@ export type TravelStyle = (typeof TRAVEL_STYLE)[keyof typeof TRAVEL_STYLE];
  *    시드가 이 값들을 code 로 참조하고 있다.
  */
 export const SPENDING_PROFILE_TYPE = {
-  GOURMET: 'gourmet',
-  LODGING_FOCUSED: 'lodging_focused',
-  EXPERIENCE: 'experience',
-  SHOPPING: 'shopping',
-  FRUGAL: 'frugal',
+  GOURMET: "gourmet",
+  LODGING_FOCUSED: "lodging_focused",
+  EXPERIENCE: "experience",
+  SHOPPING: "shopping",
+  FRUGAL: "frugal",
   /** 뚜렷한 편차가 없을 때의 기본값 */
-  BALANCED: 'balanced',
+  BALANCED: "balanced",
 } as const;
 export type SpendingProfileType =
   (typeof SPENDING_PROFILE_TYPE)[keyof typeof SPENDING_PROFILE_TYPE];
 
 /** settlement_shared.channel — 고도화(9/07~) 이벤트의 파라미터다. MVP 에서 쓰지 않는다. */
 export const SHARE_CHANNEL = {
-  KAKAO: 'kakao',
-  LINK: 'link',
-  IMAGE: 'image',
+  KAKAO: "kakao",
+  LINK: "link",
+  IMAGE: "image",
 } as const;
 export type ShareChannel = (typeof SHARE_CHANNEL)[keyof typeof SHARE_CHANNEL];
 
@@ -481,23 +538,21 @@ export type ShareChannel = (typeof SHARE_CHANNEL)[keyof typeof SHARE_CHANNEL];
  *    서로 바꿔 쓰면 Analytics 에 조용히 잘못된 값이 쌓인다.
  */
 export const TIP_PLACEMENT = {
-  BUDGET_CATEGORY: 'budget_category',
-  BUDGET_DETAIL: 'budget_detail',
-  TRIP_HOME: 'trip_home',
-  TIP_LIST: 'tip_list',
+  BUDGET_CATEGORY: "budget_category",
+  BUDGET_DETAIL: "budget_detail",
+  TRIP_HOME: "trip_home",
+  TIP_LIST: "tip_list",
 } as const;
 export type TipPlacement = (typeof TIP_PLACEMENT)[keyof typeof TIP_PLACEMENT];
 
 /** tip_list_viewed.sort — 고도화(9/07~) 이벤트의 파라미터다. MVP 에서 쓰지 않는다. */
 export const TIP_SORT = {
-  LATEST: 'latest',
-  POPULAR: 'popular',
-  PRICE_LOW: 'price_low',
-  PRICE_HIGH: 'price_high',
+  LATEST: "latest",
+  POPULAR: "popular",
+  PRICE_LOW: "price_low",
+  PRICE_HIGH: "price_high",
 } as const;
 export type TipSort = (typeof TIP_SORT)[keyof typeof TIP_SORT];
-
-
 
 // ============================================================================
 // DB → Analytics 변환 맵
@@ -508,7 +563,10 @@ export type TipSort = (typeof TIP_SORT)[keyof typeof TIP_SORT];
 // ============================================================================
 
 /** budget_categories.category_code → 이벤트 category */
-export const CATEGORY_CODE_TO_ANALYTICS: Record<CategoryCode, AnalyticsCategory> = {
+export const CATEGORY_CODE_TO_ANALYTICS: Record<
+  CategoryCode,
+  AnalyticsCategory
+> = {
   AIRFARE: ANALYTICS_CATEGORY.FLIGHT,
   LODGING: ANALYTICS_CATEGORY.ACCOMMODATION,
   FOOD: ANALYTICS_CATEGORY.FOOD,
@@ -520,13 +578,19 @@ export const CATEGORY_CODE_TO_ANALYTICS: Record<CategoryCode, AnalyticsCategory>
 };
 
 /** trips.owner_type → trip_created.owner_type */
-export const OWNER_TYPE_TO_ANALYTICS: Record<TripOwnerType, AnalyticsOwnerType> = {
+export const OWNER_TYPE_TO_ANALYTICS: Record<
+  TripOwnerType,
+  AnalyticsOwnerType
+> = {
   PERSONAL: ANALYTICS_OWNER_TYPE.PERSONAL,
   GROUP: ANALYTICS_OWNER_TYPE.GROUP,
 };
 
 /** trip_budgets.method → budget_method_selected.method */
-export const BUDGET_METHOD_TO_ANALYTICS: Record<BudgetMethod, AnalyticsBudgetMethod> = {
+export const BUDGET_METHOD_TO_ANALYTICS: Record<
+  BudgetMethod,
+  AnalyticsBudgetMethod
+> = {
   RECOMMENDED: ANALYTICS_BUDGET_METHOD.RECOMMENDED,
   USER_DEFINED: ANALYTICS_BUDGET_METHOD.USER_ENTERED,
 };
@@ -550,7 +614,10 @@ export const FUND_SOURCE_TYPE_TO_ANALYTICS: Record<FundSourceType, FundType> = {
  * transactions.category_method → transaction_categorized.mapped_by
  * NONE 은 아직 분류되지 않은 상태라 대응 값이 없다. null 이면 이벤트를 쏘지 않는다.
  */
-export const CATEGORY_METHOD_TO_ANALYTICS: Record<CategoryMethod, MappedBy | null> = {
+export const CATEGORY_METHOD_TO_ANALYTICS: Record<
+  CategoryMethod,
+  MappedBy | null
+> = {
   AUTO: MAPPED_BY.AUTO,
   USER: MAPPED_BY.USER,
   NONE: null,
@@ -568,7 +635,6 @@ export const TRANSACTION_SOURCE_TYPE_TO_ANALYTICS: Record<
   MANUAL: ANALYTICS_TRANSACTION_SOURCE_TYPE.MANUAL,
   ACCOUNT: null,
 };
-
 
 // ============================================================================
 // docs/06 미반영 — v2 대상
@@ -594,136 +660,145 @@ export const TRANSACTION_SOURCE_TYPE_TO_ANALYTICS: Record<
 // ============================================================================
 
 export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
-  PLANNING: '준비 중',
-  TRAVELING: '여행 중',
-  ENDED: '종료',
-  SETTLED: '결산 완료',
-  DELETED: '삭제됨',
+  PLANNING: "준비 중",
+  TRAVELING: "여행 중",
+  ENDED: "종료",
+  SETTLED: "결산 완료",
+  DELETED: "삭제됨",
 };
 
 export const TRIP_OWNER_TYPE_LABEL: Record<TripOwnerType, string> = {
-  PERSONAL: '개인 여행',
-  GROUP: '모임 여행',
+  PERSONAL: "개인 여행",
+  GROUP: "모임 여행",
 };
 
 export const CATEGORY_CODE_LABEL: Record<CategoryCode, string> = {
-  AIRFARE: '항공',
-  LODGING: '숙소',
-  FOOD: '식비',
-  TRANSPORT: '교통',
-  ACTIVITY: '액티비티',
-  SHOPPING: '쇼핑',
-  INSURANCE: '여행자보험',
-  CONTINGENCY: '예비비',
+  AIRFARE: "항공",
+  LODGING: "숙소",
+  FOOD: "식비",
+  TRANSPORT: "교통",
+  ACTIVITY: "액티비티",
+  SHOPPING: "쇼핑",
+  INSURANCE: "여행자보험",
+  CONTINGENCY: "예비비",
 };
 
 export const BUDGET_METHOD_LABEL: Record<BudgetMethod, string> = {
-  RECOMMENDED: '추천 예산',
-  USER_DEFINED: '직접 입력',
+  RECOMMENDED: "추천 예산",
+  USER_DEFINED: "직접 입력",
 };
 
 export const APPLIED_SOURCE_LABEL: Record<AppliedSource, string> = {
-  default: '기본 추천',
-  personalized: '개인화 추천',
-  user: '직접 설정',
+  default: "기본 추천",
+  personalized: "개인화 추천",
+  user: "직접 설정",
 };
 
-export const BUDGET_PLAN_ITEM_STATUS_LABEL: Record<BudgetPlanItemStatus, string> = {
-  PLANNED: '예정',
-  DONE: '완료',
-  CANCELED: '취소',
+export const BUDGET_PLAN_ITEM_STATUS_LABEL: Record<
+  BudgetPlanItemStatus,
+  string
+> = {
+  PLANNED: "예정",
+  DONE: "완료",
+  CANCELED: "취소",
 };
 
 export const FUND_SOURCE_TYPE_LABEL: Record<FundSourceType, string> = {
-  ACCOUNT: '연결 계좌',
-  MANUAL: '직접 입력',
-  ZERO: '미등록',
-  MOCK: '연결 계좌',
+  ACCOUNT: "연결 계좌",
+  MANUAL: "직접 입력",
+  ZERO: "미등록",
+  MOCK: "연결 계좌",
 };
 
-export const TRANSACTION_SOURCE_TYPE_LABEL: Record<TransactionSourceType, string> = {
-  ACCOUNT: '계좌 연동',
-  MANUAL: '직접 입력',
-  MOCK: '계좌 연동',
+export const TRANSACTION_SOURCE_TYPE_LABEL: Record<
+  TransactionSourceType,
+  string
+> = {
+  ACCOUNT: "계좌 연동",
+  MANUAL: "직접 입력",
+  MOCK: "계좌 연동",
 };
 
 export const TRANSACTION_TYPE_LABEL: Record<TransactionType, string> = {
-  DEPOSIT: '입금',
-  WITHDRAWAL: '출금',
+  DEPOSIT: "입금",
+  WITHDRAWAL: "출금",
 };
 
 export const CATEGORY_METHOD_LABEL: Record<CategoryMethod, string> = {
-  AUTO: '자동 분류',
-  USER: '직접 분류',
-  NONE: '미분류',
+  AUTO: "자동 분류",
+  USER: "직접 분류",
+  NONE: "미분류",
 };
 
 export const CONTRIBUTION_STATUS_LABEL: Record<ContributionStatus, string> = {
-  UNPAID: '미납',
-  PARTIAL: '일부 납부',
-  PAID: '납부 완료',
+  UNPAID: "미납",
+  PARTIAL: "일부 납부",
+  PAID: "납부 완료",
 };
 
 export const GROUP_STATUS_LABEL: Record<GroupStatus, string> = {
-  ACTIVE: '활동 중',
-  ARCHIVED: '보관됨',
-  DELETED: '삭제됨',
+  ACTIVE: "활동 중",
+  ARCHIVED: "보관됨",
+  DELETED: "삭제됨",
 };
 
 export const GROUP_MEMBER_ROLE_LABEL: Record<GroupMemberRole, string> = {
-  OWNER: '모임장',
-  MEMBER: '멤버',
+  OWNER: "모임장",
+  MEMBER: "멤버",
 };
 
 export const GROUP_MEMBER_STATUS_LABEL: Record<GroupMemberStatus, string> = {
-  ACTIVE: '참여 중',
-  INVITED: '초대됨',
-  LEFT: '나감',
+  ACTIVE: "참여 중",
+  INVITED: "초대됨",
+  LEFT: "나감",
 };
 
 export const TRIP_MEMBER_STATUS_LABEL: Record<TripMemberStatus, string> = {
-  ACTIVE: '참여 중',
-  INVITED: '초대됨',
-  LEFT: '나감',
+  ACTIVE: "참여 중",
+  INVITED: "초대됨",
+  LEFT: "나감",
 };
 
 export const POST_TYPE_LABEL: Record<PostType, string> = {
-  POST: '게시글',
-  FREE_TIP: '무료 팁',
-  PAID_TIP: '유료 팁',
-  TYPE_SHARE: '여행 유형 공유',
+  POST: "게시글",
+  FREE_TIP: "무료 팁",
+  PAID_TIP: "유료 팁",
+  TYPE_SHARE: "여행 유형 공유",
 };
 
 export const POST_STATUS_LABEL: Record<PostStatus, string> = {
-  DRAFT: '임시저장',
-  PUBLISHED: '게시됨',
-  HIDDEN: '숨김',
-  DELETED: '삭제됨',
+  DRAFT: "임시저장",
+  PUBLISHED: "게시됨",
+  HIDDEN: "숨김",
+  DELETED: "삭제됨",
 };
 
 export const COMMENT_STATUS_LABEL: Record<CommentStatus, string> = {
-  PUBLISHED: '게시됨',
-  HIDDEN: '숨김',
-  DELETED: '삭제됨',
+  PUBLISHED: "게시됨",
+  HIDDEN: "숨김",
+  DELETED: "삭제됨",
 };
 
 export const SALES_STATUS_LABEL: Record<SalesStatus, string> = {
-  ON_SALE: '판매 중',
-  PAUSED: '판매 중지',
-  ENDED: '판매 종료',
+  ON_SALE: "판매 중",
+  PAUSED: "판매 중지",
+  ENDED: "판매 종료",
 };
 
 export const PURCHASE_STATUS_LABEL: Record<PurchaseStatus, string> = {
-  PENDING: '결제 대기',
-  COMPLETED: '구매 완료',
-  CANCELED: '취소됨',
-  REFUNDED: '환불됨',
+  PENDING: "결제 대기",
+  COMPLETED: "구매 완료",
+  CANCELED: "취소됨",
+  REFUNDED: "환불됨",
 };
 
-export const INSURANCE_REFERRAL_STATUS_LABEL: Record<InsuranceReferralStatus, string> = {
-  CLICKED: '조회함',
-  QUOTE_COMPLETED: '견적 완료',
-  PURCHASE_COMPLETED: '가입 완료',
+export const INSURANCE_REFERRAL_STATUS_LABEL: Record<
+  InsuranceReferralStatus,
+  string
+> = {
+  CLICKED: "조회함",
+  QUOTE_COMPLETED: "견적 완료",
+  PURCHASE_COMPLETED: "가입 완료",
 };
 
 // ── Analytics 열거값 라벨 ──────────────────────────────────────────────────
@@ -750,9 +825,9 @@ export const INSURANCE_REFERRAL_STATUS_LABEL: Record<InsuranceReferralStatus, st
  *    → 이미 luxury 로 저장된 여행이 있으면 라벨과 배수가 조회되지 않는다.
  */
 export const TRAVEL_STYLE_LABEL: Record<TravelStyle, string> = {
-  budget: '아끼는 편',
-  standard: '보통',
-  comfort: '아낌없이',
+  budget: "아끼는 편",
+  standard: "보통",
+  comfort: "아낌없이",
 };
 
 /**
@@ -764,17 +839,18 @@ export const TRAVEL_STYLE_LABEL: Record<TravelStyle, string> = {
  * (lib/constants/budgetMultiplier.ts)
  */
 export const TRAVEL_STYLE_DESCRIPTION: Record<TravelStyle, string> = {
-  budget: '가성비 위주, 게스트하우스·현지식',
-  standard: '무난한 호텔, 적당한 외식',
-  comfort: '좋은 호텔, 맛집 위주',
+  budget: "가성비 위주, 게스트하우스·현지식",
+  standard: "무난한 호텔, 적당한 외식",
+  comfort: "좋은 호텔, 맛집 위주",
 };
 
 /** 결산 후 소비 유형 결과 화면에 표시한다. */
-export const SPENDING_PROFILE_TYPE_LABEL: Record<SpendingProfileType, string> = {
-  gourmet: '미식형',
-  lodging_focused: '숙박 중시형',
-  experience: '체험형',
-  shopping: '쇼핑 중심형',
-  frugal: '절약형',
-  balanced: '균형형',
-};
+export const SPENDING_PROFILE_TYPE_LABEL: Record<SpendingProfileType, string> =
+  {
+    gourmet: "미식형",
+    lodging_focused: "숙박 중시형",
+    experience: "체험형",
+    shopping: "쇼핑 중심형",
+    frugal: "절약형",
+    balanced: "균형형",
+  };
