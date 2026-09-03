@@ -18,7 +18,10 @@ type Props = {
 const NUM = { fontVariant: ['tabular-nums' as const] };
 
 const TABS: { value: MyTripFilter; label: string }[] = [
-  { value: 'ongoing', label: '진행 중' },
+  // ⚠️ value 는 'ongoing' 그대로다. 내부 상태값이라 바꾸지 않는다.
+  //    보이는 말만 '준비 중' 이다. (2026-09-04 팀 확정 — 출발 전 상태를
+  //    '진행 중' 이라 부르면 여행 중과 헷갈린다)
+  { value: 'ongoing', label: '준비 중' },
   { value: 'past', label: '지난 여행' },
 ];
 
@@ -26,7 +29,7 @@ const TABS: { value: MyTripFilter; label: string }[] = [
  * MY-02 나의 여행 목록. (docs/04_화면목록_v3.md MY-02)
  *
  * 홈의 '진행 중인 여행 — 전체 보기' 가 여기로 들어온다.
- * 그래서 기본 탭이 '진행 중' 이다.
+ * 그래서 기본 탭이 '준비 중' 이다.
  *
  * 홈은 지금 챙길 것을 추려 보여주는 자리고, 이 화면은 전부 훑는 자리다.
  * 카드 모양은 홈과 같게 두되 세로로 쌓는다.
@@ -72,7 +75,7 @@ export function MyTripListView({
           <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-8">
             <Text className="text-pot-mute" style={{ fontSize: 13, lineHeight: 19 }}>
               {filter === 'ongoing'
-                ? '진행 중인 여행이 없어요.'
+                ? '준비 중인 여행이 없어요.'
                 : '아직 다녀온 여행 기록이 없어요.'}
             </Text>
 
