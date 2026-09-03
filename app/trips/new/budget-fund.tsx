@@ -853,7 +853,19 @@ export default function ScreenTRIP03() {
   );
 
   // ── ④ 여행자금 ────────────────────────────────────────────────────────
-  // ⚠️ 여행자금은 선택사항이다. 기본값은 0원이고, 이것 때문에 CTA 가 막히지 않는다.
+  // ⚠️ 여행자금은 선택사항이다. 이것 때문에 CTA 가 막히지 않는다.
+  //
+  // ⚠️ 2026-09-03 · 연결된 계좌가 있으면 그 계좌를 **자동으로 고른다.**
+  //    붙여 둔 모임통장이 있는데 여행자금을 0원이라고 우기는 것보다 정확하다.
+  //
+  //    ⚠️ 이건 화면 정리가 아니라 **기본 동작 변경**이다. 이 섹션을 지나친
+  //       사용자도 fund_sources 에 mock + 계좌 잔액으로 저장되고, 준비율이
+  //       0% 가 아닌 값으로 시작한다. trip_created 의 fund_type 분포도 바뀐다 —
+  //       'zero' 가 "사용자가 0원을 골랐다" 에서 "고를 계좌가 없었다" 로,
+  //       'mock' 이 "사용자가 계좌를 골랐다" 에서 "계좌가 있었다" 로 옮겨간다.
+  //       (.handoff/L-전달사항.md 에 기록)
+  //
+  //    계좌가 로딩되기 전까지는 0원이다. 계좌 조회가 실패해도 0원으로 남는다.
   const [fundType, setFundType] = useState<FundSourceType>(FUND_SOURCE_TYPE.ZERO);
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
@@ -865,7 +877,15 @@ export default function ScreenTRIP03() {
     if (draft.companionType !== COMPANION_TYPE.EXISTING_GROUP || !draft.groupId) return;
     setAccountsLoading(true);
     getGroupAccounts(draft.groupId)
-      .then(setAccounts)
+      .then((rows) => {
+        setAccounts(rows);
+        // 계좌가 있으면 첫 계좌를 골라 둔다. 조회 직후 한 번만 한다 —
+        // 사용자가 '0원으로 시작' 을 고른 뒤 덮어쓰면 고른 것이 사라진다.
+        if (rows.length > 0) {
+          setAccountId(rows[0].id);
+          setFundType(FUND_SOURCE_TYPE.MOCK);
+        }
+      })
       .catch(() => setAccounts([])) // 계좌 조회 실패로 여행 생성을 막지 않는다
       .finally(() => setAccountsLoading(false));
   }, [draft.companionType, draft.groupId]);
@@ -873,14 +893,26 @@ export default function ScreenTRIP03() {
   const selectedAccount = accounts.find((a) => a.id === accountId) ?? null;
 
   /**
-   * '이 계좌 사용'. 소스 전환과 계좌 선택이 한 동작이다.
+   * 여행자금 소스를 고른다. 셋 중 하나만 켜진다. (CLAUDE.md 3장 · 단일 소스)
    *
    * ⚠️ 여기서 신규 계좌 연결을 열지 않는다. 이미 연결된 모임통장만 후보다.
-   *    새 연결은 여행을 만든 뒤 준비 홈에서 한다.
+   *    새 연결은 여행을 만든 뒤 여행 홈에서 한다.
    */
-  const handleUseAccount = useCallback((id: string) => {
+  const handleChangeFundType = useCallback(
+    (next: FundSourceType) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setFundType(next);
+      // 계좌를 골랐는데 어느 계좌인지 없으면 첫 계좌로 채운다.
+      if (next === FUND_SOURCE_TYPE.MOCK && accountId === null && accounts.length > 0) {
+        setAccountId(accounts[0].id);
+      }
+    },
+    [accountId, accounts],
+  );
+
+  /** 여러 계좌 중 하나를 고른다. 소스는 이미 '연결된 계좌' 다. */
+  const handleSelectAccount = useCallback((id: string) => {
     setAccountId(id);
-    setFundType(FUND_SOURCE_TYPE.MOCK);
   }, []);
 
   // ── ⑤ 저장 ────────────────────────────────────────────────────────────
@@ -1217,23 +1249,20 @@ export default function ScreenTRIP03() {
           <Text className="ml-auto text-[11px] font-medium text-gray-400">선택</Text>
         </View>
         {/*
-          계좌가 없을 때는 FundSourceSelector 의 카드가 상태·안내·액션을 모두
-          말한다. 여기에 같은 말을 한 줄 더 두면 같은 정보가 두 번 나온다.
+          선택지 자체가 무엇을 고르는지 말해 주므로, 여기서는 안 골라도 된다는
+          것만 남긴다. 계좌 유무에 따라 문구를 나누지 않는다 — 이제 아래 UI 가
+          한 벌이다.
         */}
-        {accounts.length > 0 ? (
-          <Text className="mb-2.5 mt-1 text-xs text-gray-400">
-            이미 연결된 계좌를 사용하거나, 계좌 없이 시작할 수 있어요.
-          </Text>
-        ) : (
-          <View className="mb-2.5" />
-        )}
+        <Text className="mb-2.5 mt-1 text-xs text-gray-400">
+          지금 정하지 않아도 괜찮아요. 여행을 만든 뒤에 바꿀 수 있어요.
+        </Text>
         <FundSourceSelector
           value={fundType}
-          onChange={setFundType}
+          onChange={handleChangeFundType}
           accounts={accounts}
           accountsLoading={accountsLoading}
           selectedAccountId={accountId}
-          onUseAccount={handleUseAccount}
+          onSelectAccount={handleSelectAccount}
           manualAmount={manualAmount}
           onChangeManualAmount={setManualAmount}
           disabled={saving}
