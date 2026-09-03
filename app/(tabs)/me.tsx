@@ -24,17 +24,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   LogoutConfirmModal,
   MenuRow,
   MenuSection,
+  NotificationBellButton,
   ProfileSection,
   TripSummaryCards,
   type MyProfile,
   type MyTripCounts,
 } from '@/components/mypage';
-import { ErrorState, Loading } from '@/components/ui';
+import { ErrorState, Header, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { AUTH_PROVIDER, TRIP_STATUS } from '@/lib/constants/status';
@@ -74,6 +76,8 @@ export default function ScreenMY01() {
   useScreenView(SCREENS.MY_PAGE);
 
   const router = useRouter();
+  // 탭 헤더를 껐다. 상태바 높이만큼은 여기서 띄운다. (커뮤니티와 같은 방식)
+  const insets = useSafeAreaInsets();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   /**
    * 이번 실행에서 고른 사진의 기기 경로.
@@ -278,9 +282,11 @@ export default function ScreenMY01() {
     router.push('/me/posts');
   }
 
-  // TODO: 목적지 미확정. 내가 쓴 댓글을 가져오는 query 가 아직 없다.
-  //       임의 route 를 만들지 않고 확정되면 여기만 채운다.
-  function handlePressMyComments() {}
+  // ⚠️ 화면과 이동 경로만 있다. 내가 쓴 댓글을 가져오는 query 는 아직 없어
+  //    그 화면은 빈 상태만 보여준다. (app/me/comments.tsx)
+  function handlePressMyComments() {
+    router.push('/me/comments');
+  }
 
   function handlePressMyLikes() {
     router.push('/me/likes');
@@ -288,6 +294,17 @@ export default function ScreenMY01() {
 
   function handlePressNotification() {
     router.push('/me/settings/notifications');
+  }
+
+  /**
+   * 헤더 알림 아이콘. 받은 알림 목록으로 간다.
+   *
+   * ⚠️ 설정 > 알림 설정 과 다른 화면이다.
+   *    설정 > 알림 설정 = 어떤 알림을 받을지 (/me/settings/notifications)
+   *    이 버튼          = 실제로 받은 알림   (/me/notifications)
+   */
+  function handlePressNotifications() {
+    router.push('/me/notifications');
   }
 
   // ⚠️ 두 문서 모두 MVP 검증용 임시 원문이다. 정식 문서는 확정 후 교체한다.
@@ -321,27 +338,62 @@ export default function ScreenMY01() {
     setLogoutAsking(false);
   }
 
+  // 상단바는 로딩·오류일 때도 같은 자리에 있어야 한다.
+  // 커뮤니티와 같은 공통 Header 를 쓴다. 같은 컴포넌트라 높이·제목 단이 같다.
+  const header = (
+    <View className="bg-white" style={{ paddingTop: insets.top }}>
+      <Header
+        title="마이페이지"
+        showBack={false}
+        right={<NotificationBellButton onPress={handlePressNotifications} />}
+      />
+    </View>
+  );
+
   if (loadState === 'loading') {
-    return <Loading message="프로필을 불러오고 있어요" />;
+    return (
+      <View className="flex-1 bg-white">
+        {header}
+        <Loading message="프로필을 불러오고 있어요" />
+      </View>
+    );
   }
 
   if (loadState === 'error' || !profile) {
-    return <ErrorState message="내 정보를 불러오지 못했어요." onRetry={() => void load()} />;
+    return (
+      <View className="flex-1 bg-white">
+        {header}
+        <ErrorState message="내 정보를 불러오지 못했어요." onRetry={() => void load()} />
+      </View>
+    );
   }
 
+  // 화면은 두 영역으로 읽힌다.
+  //   위 (pot-visual) — 내 상태와 여행.  프로필 · 내 여행
+  //   아래 (white)    — navigation 과 action.  커뮤니티 · 설정 · 로그아웃
+  //
+  // ⚠️ ScrollView 자체는 흰색이다. 내용이 짧아 아래가 남을 때 그 빈자리가
+  //    하단 영역과 이어져야 한다. 회색이면 흰 블록이 중간에서 끊겨 보인다.
+  //
+  // ⚠️ pb-28 은 하단 탭바 자리다. FloatingTabBar 가 화면 위에 떠 있어(absolute)
+  //    내용을 가린다. 바 높이 64 + 안전영역(최소 18)을 덮는 값이다.
+  //    홈·커뮤니티도 같은 값을 쓴다. (app/(tabs)/_layout.tsx 주석)
+  //
+  // 가로 여백은 홈과 같은 px-4 다. (HomeView)
   return (
-    // ⚠️ pb-28 은 하단 탭바 자리다. FloatingTabBar 가 화면 위에 떠 있어(absolute)
-    //    내용을 가린다. 바 높이 64 + 안전영역(최소 18)을 덮는 값이다.
-    //    홈·커뮤니티도 같은 값을 쓴다. (app/(tabs)/_layout.tsx 주석)
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
-      {/* 상단 — 배경색으로 하단과 구분한다 */}
-      <View className="bg-pot-visual px-5 pb-7 pt-6">
+    <View className="flex-1 bg-white">
+      {header}
+
+      <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
+      {/* ── 상단: 개인 · 여행 ─────────────────────────────────────────── */}
+      <View className="bg-pot-visual px-4 pb-7 pt-4">
         <ProfileSection
           profile={profile}
           pickedImageUri={pickedImageUri}
           onPressChangeImage={() => void handleChangeProfileImage()}
         />
 
+        {/* 섹션 간격은 홈과 같은 mt-7 이다. */}
         <View className="mt-7">
           <TripSummaryCards
             counts={counts}
@@ -351,15 +403,15 @@ export default function ScreenMY01() {
         </View>
       </View>
 
-      {/* 하단 — 흰 배경 */}
-      <View className="px-5 pt-7">
+      {/* ── 하단: 메뉴 · action ───────────────────────────────────────── */}
+      <View className="px-4 pt-7">
         <MenuSection title="내 커뮤니티 활동">
           <MenuRow label="작성한 게시글" onPress={handlePressMyPosts} />
           <MenuRow label="작성한 댓글" onPress={handlePressMyComments} />
           <MenuRow label="좋아요" onPress={handlePressMyLikes} isLast />
         </MenuSection>
 
-        <View className="mt-9">
+        <View className="mt-7">
           <MenuSection title="설정">
             <MenuRow label="알림 설정" onPress={handlePressNotification} />
             <MenuRow label="이용약관" onPress={handlePressTerms} />
@@ -369,18 +421,18 @@ export default function ScreenMY01() {
 
         {/*
           로그아웃은 navigation 이 아니라 action 이다.
-          MenuRow 에 끼워 넣지 않고 여백을 크게 띄워 위계를 구분한다.
-          텍스트만 두되 터치 영역은 padding 으로 충분히 확보한다.
+          MenuRow 에 끼워 넣지 않고 여백을 띄워 위계를 구분한다.
         */}
-        <View className="mt-8">
+        <View className="mt-7">
           <View className="self-start">
             <Text
               accessibilityRole="button"
               accessibilityLabel="로그아웃"
               onPress={handlePressLogout}
               suppressHighlighting
-              // py-2.5 + leading-6 → 높이 44. 글자가 16 으로 커져도 터치 영역을 지킨다.
-              className="py-2.5 text-base font-medium leading-6 text-pot-ink"
+              // py-3 + lineHeight 19 → 높이 43. 터치 영역을 지킨다.
+              className="py-3 text-pot-mute"
+              style={{ fontSize: 13.5, lineHeight: 19 }}
             >
               로그아웃
             </Text>
@@ -393,6 +445,7 @@ export default function ScreenMY01() {
         onCancel={() => setLogoutAsking(false)}
         onConfirm={handleConfirmLogout}
       />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
