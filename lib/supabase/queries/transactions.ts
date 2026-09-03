@@ -9,6 +9,7 @@ import {
   BUDGET_PLAN_ITEM_STATUS,
   CATEGORY_METHOD,
   REFUND_STATUS,
+  TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
 } from "@/lib/constants/status";
 import { supabase } from "@/lib/supabase/client";
@@ -146,6 +147,13 @@ export async function updateTransactionMapping(
     categoryId: string | null;
     budgetItemId?: string | null;
     categoryMethod: Transaction["category_method"];
+    /**
+     * 자동 분류의 확신도(0~100). AUTO 일 때만 의미가 있다.
+     * ⚠️ 넘기지 않으면 건드리지 않는다. 사용자가 직접 고친 분류에
+     *    예전 자동 분류의 확신도가 남아 있으면 reviewReason() 이
+     *    '신뢰도 낮음' 으로 계속 잡는다.
+     */
+    categoryConfidence?: number | null;
   },
 ): Promise<Transaction> {
   // 옮기기 전 카테고리를 먼저 확인한다. 옮기고 나면 알 수 없다.
@@ -162,6 +170,13 @@ export async function updateTransactionMapping(
       budget_category_id: mapping.categoryId,
       budget_plan_item_id: mapping.budgetItemId ?? null,
       category_method: mapping.categoryMethod,
+      // 사용자가 직접 고친 분류면 확신도를 지운다. 자동 분류의 흔적이다.
+      category_confidence:
+        mapping.categoryConfidence !== undefined
+          ? mapping.categoryConfidence
+          : mapping.categoryMethod === CATEGORY_METHOD.USER
+            ? null
+            : undefined,
     })
     .eq("id", transactionId)
     .select()
@@ -288,7 +303,11 @@ export async function getFundTotals(tripId: string): Promise<FundTotals> {
 export const LOW_CONFIDENCE_THRESHOLD = 70;
 
 export type ReviewReason =
-  "UNCATEGORIZED" | "LOW_CONFIDENCE" | "REFUND_PENDING";
+  | "UNCATEGORIZED"
+  | "LOW_CONFIDENCE"
+  /** 사용자가 직접 적은 거래를 우리가 추측해 붙였다. 확신도와 무관하게 확인받는다 */
+  | "AUTO_GUESS"
+  | "REFUND_PENDING";
 
 export function reviewReason(transaction: Transaction): ReviewReason | null {
   // 환불이 예정된 거래는 결과를 확인해야 한다. 분류보다 먼저 물어야 할 것이다.
@@ -297,6 +316,27 @@ export function reviewReason(transaction: Transaction): ReviewReason | null {
   // 입금은 예산 카테고리에 붙지 않는다. 분류를 물을 대상이 아니다.
   if (transaction.transaction_type === TRANSACTION_TYPE.DEPOSIT) return null;
   if (!transaction.budget_category_id) return "UNCATEGORIZED";
+
+  /**
+   * ⚠️ 사용자가 직접 적었는데 우리가 추측한 분류는 **확신도와 무관하게**
+   *    확인을 받는다. (FUND-03 시안 v1 — "AI 자동 분류 후 확인 필요로 처리")
+   *
+   *    계좌에서 들어온 거래의 자동 분류와 성격이 다르다. 그쪽은 가맹점
+   *    코드 같은 근거가 있지만, 이쪽은 사용자가 손으로 친 이름 한 줄이
+   *    전부다. 모델이 95% 라고 답해도 그 근거는 이름뿐이다.
+   */
+  if (
+    transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL &&
+    transaction.category_method === CATEGORY_METHOD.AUTO
+  ) {
+    /**
+     * ⚠️ LOW_CONFIDENCE 와 구분한다. 확신도가 95% 여도 여기로 온다.
+     *    "확신이 낮아요" 라고 적으면 화면에 적힌 신뢰도 95% 와 정면으로
+     *    어긋난다. 사용자는 둘 중 무엇을 믿어야 할지 모른다.
+     */
+    return "AUTO_GUESS";
+  }
+
   if (
     transaction.category_method === CATEGORY_METHOD.AUTO &&
     transaction.category_confidence !== null &&
