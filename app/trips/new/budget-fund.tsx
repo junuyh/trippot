@@ -18,12 +18,17 @@
 // ⚠️ 2026-09-02 · 화면을 '추천 결과 먼저' 로 바꿨다. (HTML 시안 반영)
 //    예산 방식을 먼저 고르게 하지 않는다. 들어오면 추천 총액이 이미 나와 있고,
 //    직접 정하고 싶은 사람만 히어로의 액션으로 입력칸을 연다.
-//    카테고리 상세도 기본은 접혀 있고 '수정' 을 눌러야 열린다.
+//
+// ⚠️ 2026-09-03 · 예산 구성의 '수정' 버튼을 없앴다. 고치겠다는 의사표시를 한 번 더
+//    받는 단계였는데, 여기까지 온 사람은 이미 예산을 보러 온 것이다. 들어오면
+//    카테고리 목록이 곧바로 편집 가능한 상태로 놓여 있다. 다만 전부 펼치면
+//    마지막 단계에서 스크롤이 지나치게 길어져서, **맨 위 한 줄(항공)만** 펼쳐 두고
+//    나머지는 닫아 둔다. 그 한 줄이 "눌러서 고칠 수 있다" 를 대신 말해 준다.
 //
 // 단계
 //   ① 추천 결과 (BudgetResultHero) — 직접 입력 전환도 여기서 한다
 //      └ 추천 상태에서만 여행 스타일을 묻는다
-//   ② 예산 구성 — 요약(BudgetPreviewList) ↔ 수정(BudgetCategoryList)
+//   ② 예산 구성 (BudgetCategoryList) — 처음부터 편집 가능. 맨 위 행만 펼쳐 둔다
 //      └ 지난 여행 소비 패턴 카드로 전체 반영을 켜고 끈다
 //   ③ 현재 준비한 여행자금 (선택)
 //   ④ 저장 → 준비 홈으로 이동
@@ -38,7 +43,6 @@ import { LayoutAnimation, Pressable, ScrollView, Text, View } from 'react-native
 import {
   BottomCta,
   BudgetCategoryList,
-  BudgetPreviewList,
   BudgetResultHero,
   FundSourceSelector,
   PastPatternCard,
@@ -163,9 +167,14 @@ export default function ScreenTRIP03() {
    */
   const [userTotalDraft, setUserTotalDraft] = useState<number | null>(null);
   const [categories, setCategories] = useState<EditableCategory[]>([]);
-  const [editingCode, setEditingCode] = useState<CategoryCode | null>(null);
-  /** 예산 구성 수정 모드. 켜면 같은 자리에서 카테고리 목록으로 바뀐다 */
-  const [detailOpen, setDetailOpen] = useState(false);
+  /**
+   * 지금 펼쳐 둔 카테고리. 맨 위 한 줄로 시작한다.
+   *
+   * 목록이 전부 닫힌 채로 시작하면 금액만 늘어서서 눌러 볼 곳이 있다는 걸 모른다.
+   * 그렇다고 다 펼치면 생성 마지막 단계에서 스크롤이 지나치게 길어진다.
+   * 순서 상수의 첫 항목이라 카테고리 순서가 바뀌어도 '맨 위' 가 유지된다.
+   */
+  const [editingCode, setEditingCode] = useState<CategoryCode | null>(CATEGORY_ORDER[0]);
 
   // ── 근거 상품 선택 ────────────────────────────────────────────────────
   //
@@ -274,8 +283,8 @@ export default function ScreenTRIP03() {
 
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMethod(next);
-    setDetailOpen(false);
-    setEditingCode(null);
+    // 펼침 상태도 처음 들어왔을 때로 되돌린다. 맨 위 한 줄만 열려 있다.
+    setEditingCode(CATEGORY_ORDER[0]);
     setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
     setContingencyChoice(null);
     setManualCategories(new Set());
@@ -330,8 +339,7 @@ export default function ScreenTRIP03() {
     if (!recommendation) return;
 
     setCategories(toEditable(recommendation));
-    setEditingCode(null);
-    setDetailOpen(false);
+    setEditingCode(CATEGORY_ORDER[0]);
 
     // 상품 선택과 예비비 비율도 함께 되돌린다.
     // 스타일을 '보통' → '아낌없이' 로 바꿨는데 상품이 보통 조합 그대로면,
@@ -1139,68 +1147,32 @@ export default function ScreenTRIP03() {
         </View>
       ) : null}
 
-      {/* ── ② 예산 구성 ── 요약 ↔ 수정이 같은 자리에서 바뀐다 ── */}
+      {/* ── ② 예산 구성 ── 처음부터 고칠 수 있다 ── */}
       {showBudgetDetail ? (
         <View className="mt-6">
-          <View className="mb-2 flex-row items-center">
-            <Text className="text-base font-semibold text-gray-900">예산 구성</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={detailOpen ? '예산 수정 완료' : '예산 수정'}
-              accessibilityState={{ expanded: detailOpen }}
-              disabled={saving}
-              onPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                const next = !detailOpen;
-                setDetailOpen(next);
-                if (!next) setEditingCode(null);
-              }}
-              className={`ml-auto flex-row items-center gap-1 rounded-lg px-2 py-1.5 ${
-                detailOpen ? 'bg-blue-50' : 'active:bg-gray-100'
-              }`}
-            >
-              <Ionicons
-                name={detailOpen ? 'checkmark' : 'create-outline'}
-                size={15}
-                color={detailOpen ? '#2563eb' : '#6b7280'}
-              />
-              <Text
-                className={`text-xs font-bold ${
-                  detailOpen ? 'text-blue-600' : 'text-gray-500'
-                }`}
-              >
-                {detailOpen ? '완료' : '수정'}
-              </Text>
-            </Pressable>
-          </View>
+          <Text className="mb-2 text-base font-semibold text-gray-900">예산 구성</Text>
 
-          {detailOpen ? (
-            <>
-              <Text className="mx-0.5 mb-2 text-[11px] text-gray-400">
-                항목을 눌러 추천 근거와 금액을 조정할 수 있어요.
-              </Text>
-              <BudgetCategoryList
-                categories={categoriesWithProducts}
-                onChangeAmount={handleChangeCategoryAmount}
-                onToggleProduct={handleToggleProduct}
-                onToggleDrop={handleToggleDrop}
-                onToggleManual={handleToggleManual}
-                otherCategoriesTotal={otherCategoriesTotal}
-                contingencyChoice={contingencyChoice}
-                onChangeContingency={handleChangeContingency}
-                editingCode={editingCode}
-                onToggleEditing={(code) => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setEditingCode((prev) => (prev === code ? null : code));
-                }}
-                disabled={saving}
-              />
-            </>
-          ) : (
-            <BudgetPreviewList categories={categories} />
-          )}
+          <Text className="mx-0.5 mb-2 text-[11px] text-gray-400">
+            항목을 눌러 추천 근거와 금액을 조정할 수 있어요.
+          </Text>
+          <BudgetCategoryList
+            categories={categoriesWithProducts}
+            onChangeAmount={handleChangeCategoryAmount}
+            onToggleProduct={handleToggleProduct}
+            onToggleDrop={handleToggleDrop}
+            onToggleManual={handleToggleManual}
+            otherCategoriesTotal={otherCategoriesTotal}
+            contingencyChoice={contingencyChoice}
+            onChangeContingency={handleChangeContingency}
+            editingCode={editingCode}
+            onToggleEditing={(code) => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setEditingCode((prev) => (prev === code ? null : code));
+            }}
+            disabled={saving}
+          />
 
-          {/* 전체 반영은 이 카드가, 카테고리별 제외는 수정 모드가 담당한다 */}
+          {/* 전체 반영은 이 카드가, 카테고리별 제외는 위 목록이 담당한다 */}
           {pastAdjustments.length > 0 ? (
             <PastPatternCard
               applied={pastOn}

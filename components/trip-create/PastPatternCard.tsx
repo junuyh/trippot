@@ -4,7 +4,7 @@
 //    지우면 사용자는 방금 무엇을 껐는지도, 다시 켤 방법도 잃는다.
 //    반영 중 / 반영 안 함 두 상태를 같은 자리에서 보여준다.
 //
-// 카테고리별 개별 제외는 수정 모드(BudgetCategoryList)가 계속 담당한다.
+// 카테고리별 개별 제외는 BudgetCategoryList 가 계속 담당한다.
 // 여기는 '전체' 만 다룬다.
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
