@@ -31,13 +31,10 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
-import Svg, { Circle, Defs, G, Line, Path, Pattern, Rect } from "react-native-svg";
+import Svg, { Defs, Line, Pattern, Rect } from "react-native-svg";
 
-import { cityLandmark } from "@/lib/constants/cityLandmark";
 import type { CountryTheme } from "@/lib/constants/countryTheme";
-import { countryLandmark } from "@/lib/constants/countryLandmark";
-import type { DestinationCode } from "@/lib/constants/destinations";
-import { CONDENSED_FONT, useDisplayFont } from "@/lib/hooks/useDisplayFont";
+import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
 
 // ── 태그 치수 ───────────────────────────────────────────────────────────────
 /** 좌우 여백. 시안의 29px */
@@ -67,8 +64,6 @@ const CITY_MAX = 72;
 const CITY_MIN = 34;
 /** Bebas Neue 의 대략적인 글자폭 비율. 폰트 크기를 정하는 데만 쓴다 */
 const GLYPH_RATIO = 0.42;
-/** 랜드마크 스카이라인 높이. 도시명 영역(192)의 아래쪽만 쓴다 */
-const SKYLINE_H = 132;
 
 type Props = {
   /** 좌우 컬러 라인과 강조 색을 국기 색에서 가져온다 */
@@ -78,10 +73,6 @@ type Props = {
   countryCode: string;
   /** 영문 도시명. 태그의 주인공이다 */
   destinationEn: string;
-  /** 도시 랜드마크 스카이라인을 고르는 키 */
-  destinationCode: DestinationCode | null;
-  /** 도시 스카이라인이 없을 때 쓰는 국가 실루엣의 키 */
-  countryKo: string | null;
   /** 도착 공항 IATA 코드 */
   airportCode: string;
   /** 'MM.dd–MM.dd'. 여행 기간이며 **항공편 시각이 아니다** */
@@ -89,8 +80,8 @@ type Props = {
   headcount: number;
   /** 여행계 이름. 없으면 개인 여행 */
   groupLabel: string;
-  /** 'D–9'. 출발일까지 남은 날짜 */
-  dDayLabel: string | null;
+  /** 출발일까지 남은 날짜. 여행 기간 안이면 ongoing 이라 색이 달라진다 */
+  dDay: { label: string; ongoing: boolean } | null;
 
   /** 누적 모금액. 결제로 잔액이 줄어도 이 값은 줄지 않는다 */
   raisedAmount: number;
@@ -129,13 +120,11 @@ export function BaggageTagCard({
   flag,
   countryCode,
   destinationEn,
-  destinationCode,
-  countryKo,
   airportCode,
   dateLabel,
   headcount,
   groupLabel,
-  dDayLabel,
+  dDay,
   raisedAmount,
   targetAmount,
   progress,
@@ -196,6 +185,8 @@ export function BaggageTagCard({
   /** 도시명이 쓸 수 있는 폭. 오른쪽 비행 경로 아래로 들어가지 않게 뺀다 */
   const cityWidth = Math.max(0, width - PAD * 2 - FLIGHT_W - 12);
   const cityFont = citySize(destinationEn, cityWidth);
+  /** 배경 국가명. 도시명이 쓰는 폭 안에서 최대한 크게 */
+  const watermarkFont = citySize(theme.nameEn, cityWidth);
 
   return (
     <View
@@ -299,16 +290,30 @@ export function BaggageTagCard({
         }}
       >
         {/*
-          랜드마크 배경. 도시 스카이라인이 있으면 그것을, 없으면 국가 실루엣을
-          쓰고, 둘 다 없으면 아무것도 그리지 않는다. 어느 경우에도 깨진 이미지나
-          빈 사각형이 남지 않는다.
+          배경에 아주 흐리게 깔리는 영문 국가명.
+
+          ⚠️ 랜드마크 일러스트를 그리지 않는다. 좌표로 그린 실루엣은 낮은
+             불투명도에서 뭉개져 무엇인지 알아볼 수 없었다. 글자는 흐려도
+             읽히고, 도시가 늘어도 손댈 곳이 국가 테마 한 줄뿐이다.
+          ⚠️ 국가를 모르는 목적지(직접 입력)는 이름이 없으므로 그리지 않는다.
         */}
-        {width > 0 ? (
-          <LandmarkBackdrop
-            width={width - PAD * 2}
-            destinationCode={destinationCode}
-            countryKo={countryKo}
-          />
+        {theme.nameEn && width > 0 ? (
+          <Text
+            numberOfLines={1}
+            style={{
+              position: "absolute",
+              left: 0,
+              bottom: -6,
+              fontFamily,
+              fontSize: watermarkFont,
+              lineHeight: watermarkFont,
+              letterSpacing: 1,
+              color: INK,
+              opacity: 0.05,
+            }}
+          >
+            {theme.nameEn}
+          </Text>
         ) : null}
 
         <Text
@@ -458,11 +463,15 @@ export function BaggageTagCard({
           >
             TRAVEL FUND / BALANCE
           </Text>
-          {dDayLabel ? (
+          {/*
+            ⚠️ 여행 중이면 색을 바꾼다. 준비 중(검정)과 여행 중(국기색)이
+               같은 배지면 사용자가 지금 어느 단계인지 배지로 알 수 없다.
+          */}
+          {dDay ? (
             <Text
               style={{
                 borderRadius: 4,
-                backgroundColor: INK,
+                backgroundColor: dDay.ongoing ? theme.primary : INK,
                 color: "#fff",
                 paddingHorizontal: 9,
                 paddingVertical: 7,
@@ -470,7 +479,7 @@ export function BaggageTagCard({
                 fontWeight: "900",
               }}
             >
-              {dDayLabel}
+              {dDay.label}
             </Text>
           ) : null}
         </View>
@@ -519,33 +528,24 @@ export function BaggageTagCard({
             style={{ marginTop: 7 }}
           >
             {/*
-              ⚠️ 도시명(Bebas Neue)과 같은 폰트를 쓰지 않는다. Bebas 는 굵기가
-                 하나뿐이라 큰 금액이 얇아 보인다. 시스템 폰트 900 은 반대로
-                 옆으로 두꺼워 태그 폭을 잡아먹는다. 굵기를 줄 수 있는
-                 콘덴스드 폰트로 그 사이를 잡는다.
-              ⚠️ `원` 은 한글이라 이 폰트에 없으므로 기본 폰트로 되돌린다.
+              ⚠️ 금액은 시스템 폰트로 둔다. 도시명에 쓰는 Bebas Neue 는 굵기가
+                 하나뿐이라 큰 숫자가 얇아지고, 콘덴스드 볼드는 획이 뭉쳐
+                 두꺼워 보인다. 숫자 폭이 흔들리지 않게 tabular-nums 를 준다.
             */}
             <Text
               accessibilityLiveRegion="polite"
               style={{
                 flexShrink: 1,
-                fontFamily: CONDENSED_FONT,
-                fontSize: 42,
-                lineHeight: 46,
-                fontWeight: "700",
-                letterSpacing: -0.2,
+                fontSize: 38,
+                lineHeight: 44,
+                fontWeight: "800",
+                letterSpacing: -1.4,
+                fontVariant: ["tabular-nums"],
                 color: INK,
               }}
             >
               {raised.body}
-              <Text
-                style={{
-                  fontFamily: undefined,
-                  fontSize: 11,
-                  fontWeight: "800",
-                  letterSpacing: 0,
-                }}
-              >
+              <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0 }}>
                 {raised.unit}
               </Text>
             </Text>
@@ -615,87 +615,6 @@ export function BaggageTagCard({
         </View>
       </View>
     </View>
-  );
-}
-
-/**
- * 도시명 뒤에 깔리는 랜드마크.
- *
- * ⚠️ 도시 스카이라인은 **선**, 국가 실루엣은 **면**이다. 원래 쓰임이 달라
- *    같은 방식으로 그리면 한쪽이 뭉치거나 사라진다. 그래서 나눠 그린다.
- *
- * ⚠️ 오른쪽 비행 경로 아래로 들어가지 않게 폭을 줄여 둔다.
- */
-function LandmarkBackdrop({
-  width,
-  destinationCode,
-  countryKo,
-}: {
-  width: number;
-  destinationCode: DestinationCode | null;
-  countryKo: string | null;
-}) {
-  const city = cityLandmark(destinationCode);
-  if (city) {
-    /*
-      ⚠️ 지면선이 도시명 영역의 아래 경계에 정확히 앉게 bottom 을 0 으로 둔다.
-         음수로 내리면 건물 밑동이 잘려 공중에 뜬 것처럼 보인다.
-      ⚠️ 높이를 먼저 정하고 폭을 비율로 맞춘다. 폭을 꽉 채우면 스카이라인이
-         도시명까지 올라와 글자를 덮는다.
-    */
-    const h = Math.min(SKYLINE_H, width * (150 / 260));
-    return (
-      <Svg
-        pointerEvents="none"
-        width={h * (260 / 150)}
-        height={h}
-        viewBox={city.viewBox}
-        style={{ position: "absolute", left: 2, bottom: 0, opacity: 0.075 }}
-      >
-        <G
-          fill="none"
-          stroke={INK}
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          {city.paths.map((d, index) => (
-            <Path key={`skyline-${index}`} d={d} />
-          ))}
-        </G>
-      </Svg>
-    );
-  }
-
-  if (!countryKo) return null;
-  const country = countryLandmark(countryKo);
-  const w = Math.max(0, width - FLIGHT_W - 8);
-  return (
-    <Svg
-      pointerEvents="none"
-      width={w}
-      height={w * 0.6}
-      viewBox={country.viewBox}
-      style={{ position: "absolute", left: 0, bottom: -4, opacity: 0.06 }}
-    >
-      {country.paths.map((shape, index) => (
-        <Path
-          key={`silhouette-p-${index}`}
-          d={shape.d}
-          fill={INK}
-          fillRule={shape.fillRule}
-        />
-      ))}
-      {(country.circles ?? []).map((circle, index) => (
-        <Circle
-          key={`silhouette-c-${index}`}
-          cx={circle.cx}
-          cy={circle.cy}
-          r={circle.r}
-          fill={INK}
-        />
-      ))}
-    </Svg>
   );
 }
 

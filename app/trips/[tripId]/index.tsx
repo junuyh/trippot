@@ -427,18 +427,25 @@ export default function ScreenTripHome() {
     targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;
 
   /**
-   * D-Day.
+   * D-Day 배지.
    *
    * ⚠️ 출발일이 지났다고 사라지게 두지 않는다. 여행이 시작됐는데 배지만
-   *    없어지면 화면이 고장난 것처럼 보인다. 홈 카드와 같은 규칙으로
-   *    D–n / D–DAY / D+n 을 모두 보여준다. (components/home/format.ts)
+   *    없어지면 화면이 고장난 것처럼 보인다.
+   *
+   * ⚠️ **여행 기간 안에 있으면 남은 날짜가 아니라 '여행 중' 이다.**
+   *    이미 떠나온 사람에게 D+3 은 아무 의미가 없다. 색도 바꿔서
+   *    준비 중과 한눈에 구분되게 한다.
    */
   const dDay = (() => {
     if (!trip.start_date) return null;
-    const diff = differenceInCalendarDays(parseISO(trip.start_date), new Date());
-    if (diff > 0) return `D–${diff}`;
-    if (diff === 0) return "D–DAY";
-    return `D+${-diff}`;
+    const today = new Date();
+    const diff = differenceInCalendarDays(parseISO(trip.start_date), today);
+    if (diff > 0) return { label: `D–${diff}`, ongoing: false };
+    const endsIn = trip.end_date
+      ? differenceInCalendarDays(parseISO(trip.end_date), today)
+      : 0;
+    if (endsIn >= 0) return { label: "여행 중", ongoing: true };
+    return { label: `D+${-diff}`, ongoing: false };
   })();
 
   return (
@@ -736,10 +743,6 @@ export default function ScreenTripHome() {
               destinationMeta?.nameEn ??
               (trip.destination ?? "TRIP").toUpperCase()
             }
-            /* 도시 랜드마크 스카이라인 키 */
-            destinationCode={destinationMeta?.code ?? null}
-            /* 도시 스카이라인이 없으면 국가 실루엣으로 떨어진다 */
-            countryKo={destinationMeta?.countryKo ?? null}
             airportCode={destinationMeta?.airportCode ?? "—"}
             /* 여행 기간이다. 항공편 시각이 아니다 (CLAUDE.md 3장) */
             dateLabel={
@@ -749,7 +752,7 @@ export default function ScreenTripHome() {
             }
             headcount={trip.headcount}
             groupLabel={data.groupName ?? "개인 여행"}
-            dDayLabel={dDay}
+            dDay={dDay}
             raisedAmount={raisedAmount}
             targetAmount={targetAmount}
             progress={progress}
