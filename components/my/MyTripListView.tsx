@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { HOME_ACCENT } from '@/components/home/palette';
+import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
 
 import { MyTripCard } from './MyTripCard';
 import type { MyTripFilter, MyTripItem } from './types';
@@ -11,24 +12,39 @@ type Props = {
   onChangeFilter: (filter: MyTripFilter) => void;
   onPressTrip: (tripId: string) => void;
   onPressCreateTrip: () => void;
-  /** 탭에 몇 개씩 있는지 옆에 적는다. 0 이어도 탭은 그린다. */
-  counts: Record<MyTripFilter, number>;
 };
 
-const NUM = { fontVariant: ['tabular-nums' as const] };
-
+/**
+ * 탭 이름.
+ *
+ * ⚠️ 준비 중·여행 중은 상태 라벨을 그대로 쓴다. 화면에 상태값 문자열을 직접
+ *    적지 않는다. (lib/constants/status.ts TRIP_STATUS_LABEL)
+ *    지난 여행은 ENDED·SETTLED 둘을 묶은 이름이라 상태 라벨이 없다.
+ *
+ * ⚠️ 탭에 개수를 적지 않는다. 숫자는 어느 탭을 볼지 고르는 데 도움이 되지 않고,
+ *    빈 탭에 '0' 이 붙으면 없다는 사실만 두 번 말한다. 목록이 곧 개수다.
+ */
 const TABS: { value: MyTripFilter; label: string }[] = [
-  // ⚠️ value 는 'ongoing' 그대로다. 내부 상태값이라 바꾸지 않는다.
-  //    보이는 말만 '준비 중' 이다. (2026-09-04 팀 확정 — 출발 전 상태를
-  //    '진행 중' 이라 부르면 여행 중과 헷갈린다)
-  { value: 'ongoing', label: '준비 중' },
+  // ⚠️ 2026-09-04 팀 확정 — 출발 전 상태를 '진행 중' 이라 부르면 여행 중과
+  //    헷갈린다. develop 은 라벨만 '준비 중' 으로 바꿨고, 여기서는 한 걸음 더
+  //    나아가 **탭 자체를 둘로 갈랐다.** 라벨만 바꾸면 여행 중인 여행이
+  //    여전히 준비 중 탭에 섞여 있어서 헷갈리는 원인이 그대로 남는다.
+  { value: 'planning', label: TRIP_STATUS_LABEL.PLANNING },
+  { value: 'traveling', label: TRIP_STATUS_LABEL.TRAVELING },
   { value: 'past', label: '지난 여행' },
 ];
+
+/** 탭마다 비었을 때 할 말이 다르다. */
+const EMPTY_MESSAGE: Record<MyTripFilter, string> = {
+  planning: '준비 중인 여행이 없어요.',
+  traveling: '지금 여행 중인 여행이 없어요.',
+  past: '아직 다녀온 여행 기록이 없어요.',
+};
 
 /**
  * MY-02 나의 여행 목록. (docs/04_화면목록_v3.md MY-02)
  *
- * 홈의 '진행 중인 여행 — 전체 보기' 가 여기로 들어온다.
+ * 홈의 '준비 중인 여행 — 전체 보기' 가 여기로 들어온다.
  * 그래서 기본 탭이 '준비 중' 이다.
  *
  * 홈은 지금 챙길 것을 추려 보여주는 자리고, 이 화면은 전부 훑는 자리다.
@@ -42,7 +58,6 @@ export function MyTripListView({
   onChangeFilter,
   onPressTrip,
   onPressCreateTrip,
-  counts,
 }: Props) {
   return (
     <View className="flex-1 bg-pot-visual">
@@ -61,9 +76,9 @@ export function MyTripListView({
             >
               <Text
                 className="font-bold"
-                style={{ fontSize: 12.5, color: active ? '#FFFFFF' : '#747B88', ...NUM }}
+                style={{ fontSize: 12.5, color: active ? '#FFFFFF' : '#747B88' }}
               >
-                {`${tab.label} ${counts[tab.value]}`}
+                {tab.label}
               </Text>
             </Pressable>
           );
@@ -74,12 +89,11 @@ export function MyTripListView({
         {trips.length === 0 ? (
           <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-8">
             <Text className="text-pot-mute" style={{ fontSize: 13, lineHeight: 19 }}>
-              {filter === 'ongoing'
-                ? '준비 중인 여행이 없어요.'
-                : '아직 다녀온 여행 기록이 없어요.'}
+              {EMPTY_MESSAGE[filter]}
             </Text>
 
-            {filter === 'ongoing' ? (
+            {/* 여행 중·지난 여행이 비었을 때는 만들기를 권하지 않는다. 준비부터다. */}
+            {filter === 'planning' ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="새 여행 만들기"
@@ -101,7 +115,7 @@ export function MyTripListView({
         )}
 
         {/* 목록 끝에 안내 한 줄. 홈과 역할이 다르다는 걸 알려준다. */}
-        {trips.length > 0 && filter === 'ongoing' ? (
+        {trips.length > 0 && filter !== 'past' ? (
           <Text
             className="mt-4 text-center"
             style={{ fontSize: 11.5, color: HOME_ACCENT }}

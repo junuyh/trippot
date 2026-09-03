@@ -50,6 +50,8 @@ type HomeTripBase = {
 
 /** 1-1. 진행 중인 여행 (PLANNING / TRAVELING) */
 export type OngoingTripCardData = HomeTripBase & {
+  /** trips.headcount. 카드에 'N명' 으로 쓴다. */
+  headcount: number;
   /** trip_budgets.target_amount. 아직 조회하지 못했으면 null. */
   targetAmount: number | null;
   /** fund_sources.current_amount. 단일 소스 기준이라 절대 합산하지 않는다. (CLAUDE.md 3장) */

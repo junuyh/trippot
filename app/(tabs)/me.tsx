@@ -265,10 +265,16 @@ export default function ScreenMY01() {
    *    때문이다. 지금은 홈이 **진행 중인 여행만** 다뤄서
    *    '지난 여행' 을 홈으로 보내면 아무것도 없는 화면에 도착한다.
    *
-   * 목록 화면이 filter 파라미터를 열어 두었다. 기본은 진행 중이고 past 면 지난 여행이다.
-   * (app/me/trips.tsx — params.filter === 'past' ? 'past' : 'ongoing')
-   * 분류 기준도 이 화면의 개수와 같다. 진행 중 = PLANNING·TRAVELING,
-   * 지난 = ENDED·SETTLED 라 카드 숫자와 목록 길이가 어긋나지 않는다.
+   * 목록 화면이 filter 파라미터를 열어 두었다. 기본은 준비 중이고
+   * traveling · past 로 다른 탭을 열 수 있다. (app/me/trips.tsx — toFilter)
+   *
+   * ⚠️ [검토 필요] 목록 화면은 준비 중(PLANNING)과 여행 중(TRAVELING)을
+   *    **탭으로 나눴다.** 반면 이 화면의 '준비 중인 여행' 카드 숫자는 아직 둘을
+   *    합한 값이라, 카드를 눌러 도착한 준비 중 탭의 목록보다 숫자가 클 수 있다.
+   *    (여행 중인 여행이 있을 때)
+   *
+   *    고치는 방법은 둘이다 — 카드 숫자를 PLANNING 만 세거나, 카드를 둘로 나누거나.
+   *    MY-01 은 담당이 다른 화면이라 여기서 정하지 않는다. (CLAUDE.md 13장)
    */
   function handlePressOngoingTrips() {
     router.push('/me/trips');

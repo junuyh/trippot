@@ -63,8 +63,20 @@ function useGradientIds() {
   return { scrim: `scrim-${raw}`, fallback: `fallback-${raw}` };
 }
 
-/** 사진 아래쪽을 덮는 어두운 그라디언트의 진하기. 흰 글자가 읽히는 최소값이다. */
-const SCRIM_OPACITY = 0.62;
+/**
+ * 사진 아래쪽을 덮는 어두운 그라디언트의 진하기. 흰 글자가 읽히는 최소값이다.
+ *
+ * ⚠️ 2026-09-03 그라디언트가 **사진 위쪽까지 덮고 있었다.**
+ *    0.45 지점에서 이미 20% 가 깔려 있어서 어떤 사진을 넣어도 칙칙해 보였다.
+ *    "사진이 다 어둡다" 는 평의 실제 원인이 사진이 아니라 이 막이었다.
+ *
+ *    이제 위 절반은 손대지 않는다. 글자가 놓이는 아래쪽에서만 어두워진다.
+ *    위쪽 칩(공항 코드·D-Day)은 각자 배경을 갖고 있어 막이 필요 없다 —
+ *    공항 코드는 반투명 검정, D-Day 는 흰 알약이다.
+ */
+const SCRIM_OPACITY = 0.6;
+/** 이 지점까지는 사진을 그대로 둔다. 아래로 갈수록 어두워진다. */
+const SCRIM_START = 0.52;
 
 export function DestinationBanner({
   photoUrl,
@@ -107,7 +119,7 @@ export function DestinationBanner({
           <Defs>
             <LinearGradient id={ids.scrim} x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor="#000000" stopOpacity={0} />
-              <Stop offset="0.45" stopColor="#000000" stopOpacity={SCRIM_OPACITY * 0.35} />
+              <Stop offset={SCRIM_START} stopColor="#000000" stopOpacity={0} />
               <Stop offset="1" stopColor="#000000" stopOpacity={SCRIM_OPACITY} />
             </LinearGradient>
           </Defs>

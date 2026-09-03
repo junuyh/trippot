@@ -7,8 +7,19 @@
 // ============================================================================
 import type { TripStatus } from '@/lib/constants/status';
 
-/** 목록에서 어떤 여행을 보여줄지. 홈의 '전체 보기' 는 ongoing 으로 들어온다. */
-export type MyTripFilter = 'ongoing' | 'past';
+/**
+ * 목록에서 어떤 여행을 보여줄지.
+ *
+ *   planning   준비 중 (PLANNING)
+ *   traveling  여행 중 (TRAVELING)
+ *   past       지난 여행 (ENDED · SETTLED)
+ *
+ * ⚠️ 예전에는 준비 중과 여행 중을 'ongoing' 하나로 묶어 두었다.
+ *    묶어 놓으면 지금 떠나 있는 여행이 아직 출발도 안 한 여행 사이에 섞여서,
+ *    가장 급한 여행을 목록에서 찾아야 했다. 상태가 다르면 할 일도 다르다 —
+ *    준비 중은 자금을 모으는 화면으로, 여행 중은 지출을 적는 화면으로 간다.
+ */
+export type MyTripFilter = 'planning' | 'traveling' | 'past';
 
 export type MyTripItem = {
   tripId: string;

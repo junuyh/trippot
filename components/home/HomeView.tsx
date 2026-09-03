@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { CreateTripCard } from './CreateTripCard';
 import { HomeHeader } from './HomeHeader';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
-import { PastTripCarousel } from './PastTripCarousel';
+import { PastTripSection } from './PastTripSection';
 import type { EndedTripCardData, HomeEmptyVariant, OngoingTripCardData } from './types';
 
 type Props = {
@@ -11,7 +11,7 @@ type Props = {
   /** 가장 가까운 여행까지 남은 일수. 인사 문구에 쓴다. */
   daysToNextTrip: number | null;
 
-  /** 진행 중인 여행 전부. 사진 배너 가로 스크롤이 된다. */
+  /** 준비 중인 여행 전부. 티켓 카드 가로 슬라이드가 된다. */
   ongoingTrips: OngoingTripCardData[];
   /** 진행 중 여행이 하나도 없을 때 문구를 고르는 값. (docs/03 REQ-HOME-002) */
   emptyVariant: HomeEmptyVariant;
@@ -34,8 +34,8 @@ type Props = {
  * 홈은 **내 여행이 놓인 선반**이다. 지금 가는 여행과 다녀온 여행을 보여주고,
  * 새 여행을 시작하게 한다. docs/09_IA_v2.md §1 구조 그대로다.
  *
- *   1-1. 진행 중인 여행   큰 사진 배너 가로 슬라이드
- *   1-2. 지난 여행        작은 사진 카드 가로 슬라이드 (결산 전이면 '결산하기')
+ *   1-1. 준비 중인 여행   여행지·일정·여행자금 배너, 가로 슬라이드
+ *   1-2. 지난 여행        빈티지 우표, 가로 슬라이드 (결산 전이면 '결산하기')
  *   1-4. 새 여행 만들기
  *
  * ⚠️ 2026-09-02 대시보드 개편(메인 카드·지금 챙겨야 할 것·여행자금 현황·
@@ -48,7 +48,10 @@ type Props = {
  *    docs/03_요구사항정의서_v1.md REQ-HOME-001 은 Must 이고,
  *    개편 전 홈은 종료 여행을 아예 그리지 않아 이 항목을 채우지 못했다.
  *
- * ⚠️ 바탕은 pot-visual 이다. 카드가 흰색이라 바탕이 흰색이면 경계가 사라진다.
+ * ⚠️ 2026-09-03 바탕을 흰색으로 바꿨다.
+ *    카드도 흰색이라 경계가 약해지는데, 카드마다 1px 테두리(#edf0f2)와 그림자가
+ *    있어서 구분된다. trip-home 카드들이 쓰는 방식과 같다.
+
  *
  * 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
  */
@@ -65,7 +68,7 @@ export function HomeView({
   onPressAllPastTrips,
 }: Props) {
   return (
-    <View className="flex-1 bg-pot-visual">
+    <View className="flex-1 bg-white">
       {/* 상단바에는 만들기 버튼이 없다. 이유는 HomeHeader 주석 참조. */}
       <HomeHeader userName={userName} daysToNextTrip={daysToNextTrip} />
 
@@ -78,7 +81,7 @@ export function HomeView({
         />
 
         <View className="mt-7">
-          <PastTripCarousel
+          <PastTripSection
             trips={pastTrips}
             hasMore={hasMorePastTrips}
             onPressTrip={onPressTrip}
