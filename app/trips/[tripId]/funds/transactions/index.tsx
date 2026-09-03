@@ -27,6 +27,10 @@ import { Swipeable } from "react-native-gesture-handler";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import {
+  TransactionDetailBody,
+  type TransactionDetail,
+} from "@/components/fund";
+import {
   BottomSheet,
   Button,
   EmptyState,
@@ -40,6 +44,8 @@ import {
   CATEGORY_CODE_LABEL,
   CATEGORY_METHOD,
   REFUND_STATUS,
+  type RefundStatus,
+  type TransactionType,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
   type CategoryCode,
@@ -47,6 +53,11 @@ import {
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { CATEGORY_CODE_TO_ANALYTICS, MAPPED_BY } from "@/lib/constants/status";
+import {
+  amountSign,
+  statusLabel,
+  transactionIcon,
+} from "@/lib/constants/transactionIcon";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import {
   getBudgetByTripId,
@@ -86,7 +97,7 @@ type FundsData = {
  *    시안대로 네 가지 보기 중 하나를 고르는 방식으로 되돌린다.
  *    '큰 금액순' 은 필터가 아니라 **보기**다 — 입금을 빼고 금액순으로 세운다.
  */
-type FundView = "ALL" | "MAJOR" | "REVIEW" | "REFUND";
+type FundView = "ALL" | "DEPOSIT" | "SPEND" | "REVIEW";
 
 export default function ScreenFUND01() {
   const {
@@ -168,13 +179,15 @@ export default function ScreenFUND01() {
   /** ?filter= 로 들어오면 그 보기로 시작한다 (SETTLE-01 → 확인 필요 등) */
   const [view, setView] = useState<FundView>(() => {
     const wanted = (filterParam ?? "").toUpperCase();
-    return wanted === "MAJOR" || wanted === "REVIEW" || wanted === "REFUND"
+    return wanted === "DEPOSIT" || wanted === "SPEND" || wanted === "REVIEW"
       ? (wanted as FundView)
       : "ALL";
   });
 
   /** ?transactionId= 로 들어왔을 때 한 번만 상세로 보낸다 */
   const openedRef = useRef(false);
+  /** 상세 시트에 띄울 거래. null 이면 닫는다 (시안 v1) */
+  const [detail, setDetail] = useState<Transaction | null>(null);
 
   /**
    * 행별 Swipeable 참조.
@@ -190,10 +203,135 @@ export default function ScreenFUND01() {
   }, []);
   const [toast, setToast] = useState<string | null>(null);
 
-  /*
-   * ⚠️ 2026-09-03 · 카테고리 변경 · 계획 연결 · 연결 해제는 전부
-   *    거래 상세 화면(FUND-03)으로 옮겼다. 목록은 보여주고 넘기는 일만 한다.
+  /**
+   * 시트에서 쓰는 값. 상세 본문은 components/fund/TransactionDetailBody 가 그린다.
+   *
+   * ⚠️ 카테고리 코드를 화면이 붙여 준다. 컴포넌트가 예산 테이블을 다시 읽지
+   *    않게 한다. (CLAUDE.md 9장)
    */
+  const detailProps: TransactionDetail | null = useMemo(() => {
+    if (!detail) return null;
+    const code = detail.budget_category_id
+      ? ((data?.categories.find((c) => c.id === detail.budget_category_id)
+          ?.category_code as CategoryCode | undefined) ?? null)
+      : null;
+    const reason = reviewReason(detail);
+    return {
+      transactionType: detail.transaction_type as TransactionType,
+      refundStatus: detail.refund_status as RefundStatus,
+      categoryCode: code,
+      name: detail.name ?? "이름 없는 거래",
+      dateLabel: format(parseISO(detail.occurred_at), "yyyy년 M월 d일"),
+      amount: detail.amount,
+      fromAccount:
+        detail.source_type !== TRANSACTION_SOURCE_TYPE.MANUAL ||
+        detail.financial_account_id !== null,
+      maskedAccountNumber: data?.maskedAccountNumber ?? null,
+      planName: detail.budget_plan_item_id
+        ? (data?.planItems.find((p) => p.id === detail.budget_plan_item_id)
+            ?.name ?? "계획에 연결됨")
+        : null,
+      needsReview: reason !== null,
+      reviewNote:
+        reason === "UNCATEGORIZED"
+          ? "분류되지 않은 거래예요. 카테고리를 확인해 주세요."
+          : reason === "REFUND_PENDING"
+            ? "환불이 예정된 거래예요. 아직 돈이 돌아오지 않아 지출에 남아 있어요."
+            : reason === "LOW_CONFIDENCE"
+              ? "자동으로 분류했지만 확신이 낮아요. 맞는지 확인해 주세요."
+              : null,
+    };
+  }, [data, detail]);
+
+  const [sheetBusy, setSheetBusy] = useState(false);
+  /** 카테고리를 바꾸는 중인 거래 */
+  const [editing, setEditing] = useState<Transaction | null>(null);
+
+  const handleChangeCategory = useCallback(
+    async (nextCategoryId: string) => {
+      if (!editing || !data || sheetBusy) return;
+      setSheetBusy(true);
+      try {
+        await updateTransactionMapping(editing.id, {
+          categoryId: nextCategoryId,
+          // 사용자가 직접 고친 분류다. 자동분류 정확도를 재는 기준이 된다
+          categoryMethod: CATEGORY_METHOD.USER,
+        });
+        const nextCode = data.categories.find(
+          (c) => c.id === nextCategoryId,
+        )?.category_code;
+        if (nextCode) {
+          // 자동분류가 틀려서 사용자가 고쳤다는 신호다. (docs/06 §7-3)
+          track(EVENTS.TRANSACTION_CATEGORY_CORRECTED, {
+            trip_id: data.trip.id,
+            category: CATEGORY_CODE_TO_ANALYTICS[nextCode as CategoryCode],
+            mapped_by: MAPPED_BY.USER,
+          });
+        }
+        setEditing(null);
+        await load();
+        setToast("카테고리를 바꿨어요");
+      } catch {
+        setToast("카테고리를 저장하지 못했어요");
+      } finally {
+        setSheetBusy(false);
+      }
+    },
+    [data, editing, load, sheetBusy],
+  );
+
+  /** 계획 연결을 푼다. ⚠️ 여기서만 풀 수 있다 (스펙 9장) */
+  const handleUnlinkPlan = useCallback(async () => {
+    if (!detail || sheetBusy) return;
+    setSheetBusy(true);
+    try {
+      await updateTransactionMapping(detail.id, {
+        categoryId: detail.budget_category_id,
+        budgetItemId: null,
+        categoryMethod: detail.category_method,
+      });
+      setDetail(null);
+      await load();
+      setToast("계획 연결을 풀었어요");
+    } catch {
+      setToast("연결을 풀지 못했어요");
+    } finally {
+      setSheetBusy(false);
+    }
+  }, [detail, load, sheetBusy]);
+
+  /**
+   * 확인 완료. 자동 분류가 맞다고 사용자가 확인한 것이다.
+   *
+   * ⚠️ 카테고리가 없는 거래에는 쓸 수 없다. 무엇으로 확정할지가 없다.
+   *    그때는 카테고리 변경이 먼저다.
+   *
+   * ⚠️ category_method 를 USER 로 올린다. 그래야 reviewReason 이 더는
+   *    '신뢰도 낮음' 으로 잡지 않는다. 자동분류 정확도 지표에도
+   *    '사람이 확인함' 으로 남는다. (docs/06 §7-3)
+   */
+  const handleConfirmReview = useCallback(async () => {
+    if (!detail || sheetBusy) return;
+    if (!detail.budget_category_id) {
+      setToast("먼저 카테고리를 정해 주세요");
+      return;
+    }
+    setSheetBusy(true);
+    try {
+      await updateTransactionMapping(detail.id, {
+        categoryId: detail.budget_category_id,
+        categoryMethod: CATEGORY_METHOD.USER,
+      });
+      setDetail(null);
+      await load();
+      setToast("거래 분류를 완료했어요");
+    } catch {
+      setToast("저장하지 못했어요");
+    } finally {
+      setSheetBusy(false);
+    }
+  }, [detail, load, sheetBusy]);
+
   // 삭제는 되돌릴 수 없다. 먼저 확인한다. (NFR-003)
   const handleDelete = useCallback(
     (transaction: Transaction) => {
@@ -252,13 +390,14 @@ export default function ScreenFUND01() {
     let rows = [...(data?.transactions ?? [])];
 
     if (view === "REVIEW") return rows.filter((t) => reviewReason(t) !== null);
-    if (view === "REFUND") return rows.filter((t) => isRefundRelated(t));
-    if (view === "MAJOR") {
-      // 큰 금액순은 **지출을 크게 쓴 순서**다. 입금이 섞이면 1위가 입금이 된다.
-      return rows
-        .filter((t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL)
-        .sort((a, b) => b.amount - a.amount);
-    }
+    if (view === "DEPOSIT")
+      return rows.filter(
+        (t) => t.transaction_type === TRANSACTION_TYPE.DEPOSIT,
+      );
+    if (view === "SPEND")
+      return rows.filter(
+        (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
+      );
     return rows;
   }, [data?.transactions, view]);
 
@@ -267,8 +406,13 @@ export default function ScreenFUND01() {
     const rows = data?.transactions ?? [];
     return {
       all: rows.length,
+      deposit: rows.filter(
+        (t) => t.transaction_type === TRANSACTION_TYPE.DEPOSIT,
+      ).length,
+      spend: rows.filter(
+        (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
+      ).length,
       review: rows.filter((t) => reviewReason(t) !== null).length,
-      refund: rows.filter((t) => isRefundRelated(t)).length,
     };
   }, [data?.transactions]);
 
@@ -283,20 +427,27 @@ export default function ScreenFUND01() {
     if (view === "REVIEW") {
       return { label: `확인할 거래 ${rows.length}건`, value: "확인 후 반영" };
     }
-    if (view === "REFUND") {
+    if (view === "DEPOSIT") {
       const total = rows.reduce((sum, t) => sum + t.amount, 0);
       return {
-        label: `환불 내역 ${rows.length}건`,
-        value: `${total.toLocaleString("ko-KR")}원`,
+        label: `입금 ${rows.length}건`,
+        value: `+${total.toLocaleString("ko-KR")}원`,
       };
     }
+    /**
+     * ⚠️ 환불 완료·취소는 지출 합계에서 뺀다. getFundTotals() 와 같은 기준이다.
+     *    돌려받은 돈을 쓴 돈으로 세면 화면과 잔액이 어긋난다.
+     */
     const spent = rows
       .filter((t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL)
-      .filter((t) => reviewReason(t) === null)
+      .filter(
+        (t) => !isRefundRelated(t) || t.refund_status === REFUND_STATUS.PENDING,
+      )
       .reduce((sum, t) => sum + t.amount, 0);
     return {
-      label: view === "MAJOR" ? "큰 금액부터 표시" : `전체 ${rows.length}건`,
-      value: `${spent.toLocaleString("ko-KR")}원`,
+      label:
+        view === "SPEND" ? `지출 ${rows.length}건` : `전체 ${rows.length}건`,
+      value: `−${spent.toLocaleString("ko-KR")}원`,
     };
   }, [view, visibleTransactions]);
 
@@ -307,17 +458,7 @@ export default function ScreenFUND01() {
     );
     const groups: { title: string; total: number; data: Transaction[] }[] = [];
 
-    /**
-     * ⚠️ 큰 금액순에서는 날짜로 묶지 않는다.
-     *    금액순으로 세워 놓고 날짜 머리글을 얹으면 4/20 → 4/25 → 5/16 → 5/15
-     *    처럼 날짜가 뒤죽박죽으로 보여, 목록이 정렬돼 있다는 사실 자체가
-     *    안 읽힌다. 이때는 한 덩어리로 둔다.
-     */
-    if (view === "MAJOR") {
-      groups.push({ title: "", total: 0, data: [...visibleTransactions] });
-    }
-
-    for (const transaction of view === "MAJOR" ? [] : visibleTransactions) {
+    for (const transaction of visibleTransactions) {
       const when = parseISO(transaction.occurred_at);
       const last = groups[groups.length - 1];
       if (last && isSameDay(parseISO(last.data[0].occurred_at), when)) {
@@ -332,13 +473,10 @@ export default function ScreenFUND01() {
     }
 
     // 날짜별 출금 합계. 입금은 자금 유입이라 지출 합계에 넣지 않는다.
-    // 큰 금액순은 날짜 묶음이 아니라 합계를 적을 자리가 없다.
-    if (view !== "MAJOR") {
-      for (const group of groups) {
-        group.total = group.data
-          .filter((t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL)
-          .reduce((sum, t) => sum + t.amount, 0);
-      }
+    for (const group of groups) {
+      group.total = group.data
+        .filter((t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL)
+        .reduce((sum, t) => sum + t.amount, 0);
     }
 
     return groups.map((group) => ({
@@ -468,15 +606,18 @@ export default function ScreenFUND01() {
               key: "ALL",
               label: counts.all > 0 ? `전체 ${counts.all}` : "전체",
             },
-            { key: "MAJOR", label: "큰 금액순" },
+            {
+              key: "DEPOSIT",
+              label: counts.deposit > 0 ? `입금 ${counts.deposit}` : "입금",
+            },
+            {
+              key: "SPEND",
+              label: counts.spend > 0 ? `지출 ${counts.spend}` : "지출",
+            },
             {
               key: "REVIEW",
               label:
                 counts.review > 0 ? `확인 필요 ${counts.review}` : "확인 필요",
-            },
-            {
-              key: "REFUND",
-              label: counts.refund > 0 ? `환불 ${counts.refund}` : "환불",
             },
           ] as const
         ).map((chip) => {
@@ -562,10 +703,13 @@ export default function ScreenFUND01() {
         }
         renderItem={({ item }) => {
           const { transaction, categoryCode } = item;
-          const deposit =
-            transaction.transaction_type === TRANSACTION_TYPE.DEPOSIT;
-          const auto = transaction.category_method === CATEGORY_METHOD.AUTO;
           const reason = reviewReason(transaction);
+          const iconInput = {
+            transactionType: transaction.transaction_type as TransactionType,
+            refundStatus: transaction.refund_status as RefundStatus,
+            categoryCode,
+          };
+          const sign = amountSign(iconInput);
 
           return (
             <Swipeable
@@ -631,11 +775,8 @@ export default function ScreenFUND01() {
                 accessibilityRole="button"
                 accessibilityLabel={`${transaction.name ?? "이름 없는 거래"} 상세 보기`}
                 /* 상세는 별도 화면이다 (FUND-03) */
-                onPress={() =>
-                  router.push(
-                    `/trips/${data.trip.id}/funds/transactions/${transaction.id}`,
-                  )
-                }
+                /* 목록에서는 시트로 연다 (시안 v1). 다른 화면에서 오는 딥링크만 전체 화면 */
+                onPress={() => setDetail(transaction)}
                 className="flex-row items-center gap-3 active:bg-gray-50"
                 style={{
                   paddingHorizontal: 16,
@@ -645,31 +786,20 @@ export default function ScreenFUND01() {
                   backgroundColor: "#fff",
                 }}
               >
+                {/* 아이콘 규칙은 한 군데서 정한다 (lib/constants/transactionIcon.ts) */}
                 <View
                   style={{
-                    width: 34,
-                    height: 34,
+                    width: 39,
+                    height: 39,
                     borderRadius: 11,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: deposit
-                      ? "#e8f7f0"
-                      : auto
-                        ? "#fff0e8"
-                        : "#eef2f8",
+                    backgroundColor: "#f5f7f9",
                   }}
                 >
-                  <Ionicons
-                    name={
-                      deposit
-                        ? "arrow-down"
-                        : auto
-                          ? "flash-outline"
-                          : "create-outline"
-                    }
-                    size={15}
-                    color={deposit ? "#2d8a63" : auto ? "#d97a4a" : "#5d6674"}
-                  />
+                  <Text style={{ fontSize: 18 }}>
+                    {transactionIcon(iconInput)}
+                  </Text>
                 </View>
 
                 <View className="flex-1">
@@ -710,21 +840,109 @@ export default function ScreenFUND01() {
                   ) : null}
                 </View>
 
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "700",
-                    color: deposit ? theme.primary : "#121a2a",
-                  }}
-                >
-                  {deposit ? "+" : "−"}
-                  {transaction.amount.toLocaleString("ko-KR")}원
-                </Text>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "700",
+                      color: sign === "+" ? theme.primary : "#121a2a",
+                    }}
+                  >
+                    {sign}
+                    {transaction.amount.toLocaleString("ko-KR")}원
+                  </Text>
+                  <Text
+                    style={{
+                      marginTop: 4,
+                      fontSize: 9,
+                      fontWeight: "700",
+                      color: reason ? "#e83d4d" : "#a3a9b3",
+                    }}
+                  >
+                    {statusLabel({
+                      ...iconInput,
+                      needsReview: reason !== null,
+                    })}
+                  </Text>
+                </View>
               </Pressable>
             </Swipeable>
           );
         }}
       />
+
+      {/*
+        ── 거래 상세 ── (시안 v1)
+        ⚠️ 목록에서는 **시트**로 연다. 목록을 떠나지 않고 하나씩 확인하는
+           흐름이라, 화면으로 밀면 확인할 거래 5건을 보려고 5번 왕복하게 된다.
+           결산·예산에서 곧장 들어오는 딥링크는 전체 화면을 쓴다
+           (funds/transactions/[transactionId]).
+      */}
+      <BottomSheet
+        visible={detail !== null}
+        title="거래 상세"
+        onClose={() => setDetail(null)}
+      >
+        {detailProps ? (
+          <View style={{ paddingTop: 8, paddingBottom: 8 }}>
+            <TransactionDetailBody
+              theme={theme}
+              detail={detailProps}
+              busy={sheetBusy}
+              onChangeCategory={() => {
+                const target = detail;
+                setDetail(null);
+                setEditing(target);
+              }}
+              onUnlinkPlan={() => void handleUnlinkPlan()}
+              onConfirm={() => void handleConfirmReview()}
+            />
+          </View>
+        ) : null}
+      </BottomSheet>
+
+      {/* ── 카테고리 변경 ── */}
+      <BottomSheet
+        visible={editing !== null}
+        title="예산 카테고리"
+        description="바꾸면 이 카테고리의 실제 사용액에 반영돼요."
+        onClose={() => setEditing(null)}
+      >
+        <View className="flex-row flex-wrap" style={{ gap: 8, paddingTop: 14 }}>
+          {(data?.categories ?? []).map((category) => {
+            const active = category.id === editing?.budget_category_id;
+            return (
+              <Pressable
+                key={category.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                disabled={sheetBusy}
+                onPress={() => void handleChangeCategory(category.id)}
+                className="active:opacity-70"
+                style={{
+                  paddingHorizontal: 13,
+                  paddingVertical: 9,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: active ? theme.primary : "#e5e8ec",
+                  backgroundColor: active ? theme.primarySoft : "#fff",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: active ? "800" : "400",
+                    color: active ? theme.primary : "#687281",
+                  }}
+                >
+                  {CATEGORY_EMOJI[category.category_code as CategoryCode]}{" "}
+                  {CATEGORY_CODE_LABEL[category.category_code as CategoryCode]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </BottomSheet>
     </View>
   );
 }

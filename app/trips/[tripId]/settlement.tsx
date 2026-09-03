@@ -461,13 +461,13 @@ export default function ScreenSETTLE01() {
             accessibilityRole="button"
             onPress={() =>
               router.push(
-                `/trips/${data.trip.id}/funds/transactions?filter=major`,
+                `/trips/${data.trip.id}/funds/transactions?filter=spend`,
               )
             }
             className="text-xs font-semibold"
             style={{ color: theme.primary }}
           >
-            큰 금액순으로 보기 ›
+            지출 전체 보기 ›
           </Text>
         </View>
         <MajorExpenseList

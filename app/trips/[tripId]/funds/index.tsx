@@ -55,13 +55,19 @@ import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
   FUND_SOURCE_TYPE,
+  CATEGORY_CODE_LABEL,
+  CATEGORY_METHOD,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
+  type CategoryCode,
+  type RefundStatus,
   type TransactionType,
 } from "@/lib/constants/status";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import {
   getBudgetByTripId,
+  getBudgetCategories,
+  type BudgetCategory,
   type TripBudget,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
@@ -69,6 +75,7 @@ import {
   createTransaction,
   getFundTotals,
   getTransactions,
+  reviewReason,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
@@ -79,6 +86,8 @@ const RECENT_LIMIT = 10;
 type FundData = {
   trip: Trip;
   budget: TripBudget | null;
+  /** 지출 기록에서 고를 카테고리 목록 */
+  categories: BudgetCategory[];
   fund: FundSource | null;
   transactions: Transaction[];
   depositTotal: number;
@@ -110,8 +119,9 @@ export default function ScreenFUND01() {
         setNotFound(true);
         return;
       }
-      const [budget, fund, transactions, totals] = await Promise.all([
-        getBudgetByTripId(trip.id),
+      const budget = await getBudgetByTripId(trip.id);
+      const [categories, fund, transactions, totals] = await Promise.all([
+        budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         getTravelFund(trip.id),
         getTransactions(trip.id, { limit: RECENT_LIMIT }),
         getFundTotals(trip.id),
@@ -119,6 +129,7 @@ export default function ScreenFUND01() {
       setData({
         trip,
         budget,
+        categories,
         fund,
         transactions,
         depositTotal: totals.depositTotal,
@@ -151,9 +162,18 @@ export default function ScreenFUND01() {
   /** 최근 입출금 필터. 전체 / 입금 / 지출 */
   const [listFilter, setListFilter] = useState<"ALL" | "IN" | "OUT">("ALL");
 
+  /**
+   * 지출 기록에서 고른 카테고리. null 이면 안 골랐다는 뜻이다. (시안 v1)
+   *
+   * ⚠️ 안 고르면 미분류로 남기고 '확인 필요' 로 잡는다. 임의로 하나 고르면
+   *    그 카테고리의 실제 사용액이 사용자가 정하지도 않은 근거로 부풀려진다.
+   */
+  const [draftCategoryId, setDraftCategoryId] = useState<string | null>(null);
+
   const openSheet = useCallback((type: TransactionType) => {
     setDraft({ name: "", amount: null });
     setOccurredOn(format(new Date(), "yyyy-MM-dd"));
+    setDraftCategoryId(null);
     setNameError(null);
     setSheetType(type);
   }, []);
@@ -182,13 +202,22 @@ export default function ScreenFUND01() {
         name,
         amount: draft.amount,
         /**
-         * ⚠️ 카테고리 없이 남긴다.
-         *    여기서 임의로 카테고리를 고르면 그 카테고리의 실제 사용액이
-         *    사용자가 정하지도 않은 근거로 부풀려진다.
-         *    지출은 '확인 필요(미분류)' 로 남고, 사용자가 거래 상세에서
-         *    카테고리를 지정하면 그때 예산 실제 사용액에 반영된다.
+         * ⚠️ 입금에는 카테고리를 붙이지 않는다. 예산을 쓴 게 아니라
+         *    자금이 들어온 것이다. 붙이면 그 예산의 실제 사용액이 부풀려진다.
+         *
+         * ⚠️ 지출인데 안 골랐으면 그대로 비워 둔다. 임의로 채우지 않는다.
+         *    reviewReason() 이 '미분류' 로 잡아 확인 필요 목록에 올린다.
          */
-        budget_category_id: null,
+        budget_category_id:
+          sheetType === TRANSACTION_TYPE.WITHDRAWAL ? draftCategoryId : null,
+        /**
+         * 사용자가 직접 고른 분류다.
+         * ⚠️ 안 골랐으면 NONE 이다. 이 칼럼은 not null default 'NONE' 이라
+         *    null 을 넣을 수 없다. NONE 은 '아직 분류 안 함' 을 뜻한다.
+         */
+        category_method: draftCategoryId
+          ? CATEGORY_METHOD.USER
+          : CATEGORY_METHOD.NONE,
       });
       setSheetType(null);
       await load();
@@ -423,9 +452,16 @@ export default function ScreenFUND01() {
               id: transaction.id,
               name: transaction.name,
               amount: transaction.amount,
-              deposit:
-                transaction.transaction_type === TRANSACTION_TYPE.DEPOSIT,
               occurredAt: transaction.occurred_at,
+              transactionType: transaction.transaction_type as TransactionType,
+              refundStatus: transaction.refund_status as RefundStatus,
+              // 카테고리 코드는 화면이 붙여 준다. 컴포넌트가 예산을 다시 읽지 않게
+              categoryCode: transaction.budget_category_id
+                ? ((data.categories.find(
+                    (c) => c.id === transaction.budget_category_id,
+                  )?.category_code as CategoryCode | undefined) ?? null)
+                : null,
+              needsReview: reviewReason(transaction) !== null,
             }))}
             onSelect={(transactionId) =>
               router.push(
@@ -487,6 +523,63 @@ export default function ScreenFUND01() {
             value={draft.amount}
             onChangeValue={(amount) => setDraft({ ...draft, amount })}
           />
+
+          {/*
+            ── 예산 카테고리 ── 지출에만 낸다 (시안 v1)
+            ⚠️ 필수가 아니다. 안 고르면 '확인 필요' 로 남기고 나중에 정하게 한다.
+               지금 억지로 고르게 하면 아무거나 눌러 넘기고, 그 카테고리의
+               실제 사용액이 틀린 채로 결산까지 간다.
+          */}
+          {!deposit && (data?.categories ?? []).length > 0 ? (
+            <View style={{ gap: 7 }}>
+              <Text
+                style={{ fontSize: 12, fontWeight: "700", color: "#141b28" }}
+              >
+                예산 카테고리
+              </Text>
+              <View className="flex-row flex-wrap" style={{ gap: 7 }}>
+                {(data?.categories ?? []).map((category) => {
+                  const active = draftCategoryId === category.id;
+                  return (
+                    <Pressable
+                      key={category.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      onPress={() =>
+                        setDraftCategoryId(active ? null : category.id)
+                      }
+                      className="active:opacity-70"
+                      style={{
+                        paddingHorizontal: 11,
+                        paddingVertical: 8,
+                        borderRadius: 20,
+                        borderWidth: 1,
+                        borderColor: active ? theme.primary : "#e5e8ec",
+                        backgroundColor: active ? theme.primarySoft : "#fff",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: active ? "800" : "400",
+                          color: active ? theme.primary : "#687281",
+                        }}
+                      >
+                        {
+                          CATEGORY_CODE_LABEL[
+                            category.category_code as CategoryCode
+                          ]
+                        }
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={{ fontSize: 10, color: "#a3a9b3" }}>
+                지금 안 골라도 돼요. 나중에 거래 상세에서 정할 수 있어요.
+              </Text>
+            </View>
+          ) : null}
 
           <View style={{ gap: 7 }}>
             <Text style={{ fontSize: 12, fontWeight: "700", color: "#141b28" }}>

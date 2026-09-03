@@ -4,3 +4,7 @@ export { RecentFundList, type RecentFundItem } from "./RecentFundList";
 
 /** 자금 추가·차감 입력값 */
 export type FundDraft = { name: string; amount: number | null };
+export {
+  TransactionDetailBody,
+  type TransactionDetail,
+} from "./TransactionDetailBody";
