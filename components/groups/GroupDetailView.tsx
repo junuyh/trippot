@@ -18,7 +18,9 @@ type Props = {
 /** 섹션 제목 + 본문. 상세 화면의 블록이 전부 같은 리듬을 갖게 한다. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View className="mt-7">
+    // 섹션 사이 mt-8, 제목 아래 mt-3.5. 홈의 mt-7 / mt-2.5 리듬에서
+    // 한 단계씩만 넓혔다. 멤버·계좌가 제목에 붙어 답답해 보였다.
+    <View className="mt-8">
       {/* 홈 섹션 제목과 같은 단이다. (16 / 800 / -0.5)
           HOME 컴포넌트를 가져다 쓰지 않고 값만 맞춘다. */}
       <Text
@@ -27,7 +29,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       >
         {title}
       </Text>
-      <View className="mt-2.5">{children}</View>
+      <View className="mt-3.5">{children}</View>
     </View>
   );
 }

@@ -54,18 +54,17 @@ export function GroupTripCard({ trip, onPress }: Props) {
       {/* 본문 + chevron. items-center 라 chevron 이 카드 높이 기준 가운데 온다. */}
       <View className="flex-row items-center">
         <View className="flex-1 pr-2">
-          {/* 🇯🇵 JP · 도쿄 — 국가를 아는 목적지만 앞에 붙인다. */}
-          <View className="flex-row items-center">
-            {hasCountry ? (
-              <Text className="shrink-0" style={{ fontSize: 13, lineHeight: 21 }}>
-                {`${meta.flag} `}
-                <Text className="font-black text-pot-faint" style={{ fontSize: 11.5 }}>
-                  {code}
-                </Text>
-                <Text className="text-pot-faint" style={{ fontSize: 11.5 }}>{'  ·  '}</Text>
-              </Text>
-            ) : null}
-
+          {/*
+            도쿄  🇯🇵 JP — 도시가 먼저다. 국가는 그 도시를 설명하는 보조 정보다.
+            ⚠️ '·' 로 잇지 않고 gap 으로 띄운다. 가운뎃점은 둘을 같은 무게로
+               읽히게 만든다. 여기서는 위계가 다르다.
+            ⚠️ gap-8(32) 이다. 10 일 때는 둘이 한 덩어리로 붙어 보여
+               국가가 도시명의 일부처럼 읽혔다.
+            ⚠️ 도시명이 shrink, 국가는 shrink-0 이다. 긴 목적지가 와도
+               국가·chevron 이 밀려나지 않고 도시명만 말줄임된다.
+               gap 은 고정이라 폭이 모자라면 도시명 쪽만 줄어든다.
+          */}
+          <View className="flex-row items-center gap-8">
             <Text
               numberOfLines={1}
               className="shrink font-black text-pot-ink"
@@ -73,6 +72,15 @@ export function GroupTripCard({ trip, onPress }: Props) {
             >
               {destination}
             </Text>
+
+            {hasCountry ? (
+              <Text className="shrink-0" style={{ fontSize: 13, lineHeight: 21 }}>
+                {`${meta.flag} `}
+                <Text className="font-black text-pot-faint" style={{ fontSize: 11.5 }}>
+                  {code}
+                </Text>
+              </Text>
+            ) : null}
           </View>
 
           <Text className="mt-1 text-pot-mute" style={{ fontSize: 12, lineHeight: 17 }}>

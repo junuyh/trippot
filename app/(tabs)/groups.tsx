@@ -21,12 +21,11 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   GroupEditActionBar,
-  GroupSortSheet,
   GroupListEmptyNotice,
   GroupListHeader,
   GroupTravelCardList,
@@ -112,7 +111,7 @@ export default function ScreenGROUP01() {
   const [saving, setSaving] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
 
-  const [sortSheetOpen, setSortSheetOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
   const [hiddenSheetOpen, setHiddenSheetOpen] = useState(false);
   const [hiddenGroups, setHiddenGroups] = useState<HiddenGroupItem[]>([]);
   const [hiddenLoading, setHiddenLoading] = useState(false);
@@ -350,17 +349,29 @@ export default function ScreenGROUP01() {
   }
 
   return (
-    // ⚠️ 편집 모드에서 배경색을 바꾸지 않는다. 다른 탭에 없는 장치였고,
-    //    바탕이 이미 pot-visual 이라 구분이 필요 없다.
-    <View className="flex-1 bg-pot-visual">
+    // ⚠️ 편집 모드에서 바탕을 한 단계 어둡게 한다. 같은 pot-visual 이면
+    //    편집으로 들어간 것이 눈에 띄지 않았다. 카드는 흰색 그대로라
+    //    대비가 생기고, 터치를 막는 overlay 는 두지 않는다.
+    //    gray-200(#E5E7EB) 은 pot-line(#E5E8EC) 과 사실상 같은 값이라
+    //    앱의 뉴트럴 단계에서 벗어나지 않는다.
+    <View className={`flex-1 ${editMode ? 'bg-gray-200' : 'bg-pot-visual'}`}>
       {header}
 
-      <GroupListHeader
-        sortMode={sortMode}
-        editMode={editMode}
-        onToggleEdit={handleToggleEdit}
-        onPressSort={() => setSortSheetOpen(true)}
-      />
+      {/* ⚠️ zIndex 로 올린다. 정렬 목록이 뒤에 오는 카드 목록에 가리면 안 된다.
+          RN 은 형제끼리 나중에 그린 것이 위로 올라온다. */}
+      <View style={{ zIndex: 20 }}>
+        <GroupListHeader
+          sortMode={sortMode}
+          editMode={editMode}
+          sortOpen={sortOpen}
+          onToggleEdit={handleToggleEdit}
+          onPressSort={() => setSortOpen((prev) => !prev)}
+          onSelectSort={(mode) => {
+            setSortMode(mode);
+            setSortOpen(false);
+          }}
+        />
+      </View>
 
       {rows.length === 0 ? (
         // 여기 오는 경우는 hiddenCount > 0 뿐이다. 참여 중인 모임이 아예 없는 상태는
@@ -379,6 +390,20 @@ export default function ScreenGROUP01() {
         />
       )}
 
+      {/*
+        정렬 목록 바깥을 눌렀을 때 닫는다.
+        ⚠️ 색을 주지 않는다. dim overlay 를 쓰지 않기로 했다.
+           목록보다 아래(zIndex 10), 카드 목록보다 위에 깔린다.
+      */}
+      {sortOpen ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="정렬 목록 닫기"
+          onPress={() => setSortOpen(false)}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}
+        />
+      ) : null}
+
       {editMode ? (
         <GroupEditActionBar
           selectedCount={selectedIds.length}
@@ -395,16 +420,6 @@ export default function ScreenGROUP01() {
         saving={saving}
         onCancel={() => setRemoveOpen(false)}
         onConfirm={() => void handleConfirmRemove()}
-      />
-
-      <GroupSortSheet
-        visible={sortSheetOpen}
-        current={sortMode}
-        onClose={() => setSortSheetOpen(false)}
-        onSelect={(mode) => {
-          setSortMode(mode);
-          setSortSheetOpen(false);
-        }}
       />
 
       <HiddenGroupsSheet

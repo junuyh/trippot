@@ -21,15 +21,6 @@ const TRIP_LINE_HEIGHT = 20;
  */
 const TRIP_SLOT_HEIGHT = TRIP_LINE_HEIGHT * MAX_VISIBLE_TRIPS;
 
-/**
- * 편집 모드에서 본문이 좌우로 비켜 앉는 폭(px).
- *
- * ⚠️ 가로 여백만 준다. 세로에는 손대지 않는다.
- *    체크와 Chevron 은 absolute 라 레이아웃에서 빠지므로 카드 높이가 그대로다.
- */
-const EDIT_INSET_LEFT = 32;
-const EDIT_INSET_RIGHT = 36;
-
 type Props = {
   group: GroupTravelCardData;
   /** 일반 모드에서 카드를 눌렀을 때. 편집 모드에서는 불리지 않는다. */
@@ -112,37 +103,48 @@ export function GroupTravelCard({
         elevation: 2,
       }}
     >
-      {/* 편집 UI — absolute 라 카드 높이에 관여하지 않는다 */}
-      {editMode ? (
-        <>
-          <View className="absolute bottom-0 left-3 top-0 justify-center">
-            <Ionicons
-              name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-              size={22}
-              color={selected ? '#2563eb' : '#d1d5db'}
-            />
-          </View>
+      <View>
+        {/*
+          제목 줄. 세 요소가 서로의 자리를 밀지 않는다.
 
-        </>
-      ) : null}
+          ⚠️ 모임 이름만 **카드 폭 기준 중앙**이다. 폭을 다 쓰는 Text 에
+             text-center 를 주고, 인원·선택 원은 absolute 로 띄웠다.
+             flex-row + justify-between 으로는 인원 폭만큼 이름이 왼쪽으로
+             밀려 카드 중앙이 되지 않는다.
 
-      <View
-        style={{
-          paddingLeft: editMode ? EDIT_INSET_LEFT : 0,
-          paddingRight: editMode ? EDIT_INSET_RIGHT : 0,
-        }}
-      >
-        <View className="flex-row items-center justify-between">
+          ⚠️ 편집 모드로 들어가도 이름이 좌우로 움직이지 않는다.
+             전에는 선택 원이 뜨면서 본문 전체에 paddingLeft 를 걸어
+             카드 내용이 통째로 오른쪽으로 밀렸다. 그 padding 을 없앴다.
+
+          ⚠️ px-9 는 좌우 대칭이라 중앙을 흐트러뜨리지 않는다.
+             긴 이름이 인원·선택 원 위로 올라타지 않게 자리를 비워 둔다.
+        */}
+        <View className="relative" style={{ height: 23 }}>
           <Text
             numberOfLines={1}
-            className="flex-1 pr-3 font-black text-pot-ink"
+            className="px-9 text-center font-black text-pot-ink"
             style={{ fontSize: 17, lineHeight: 23, letterSpacing: -0.5 }}
           >
             {group.name}
           </Text>
-          <Text className="shrink-0 text-pot-mute" style={{ fontSize: 12.5, lineHeight: 23 }}>
-            {formatMemberCount(group.memberCount)}
-          </Text>
+
+          <View className="absolute bottom-0 right-0 top-0 justify-center">
+            <Text className="text-pot-mute" style={{ fontSize: 12.5 }}>
+              {formatMemberCount(group.memberCount)}
+            </Text>
+          </View>
+
+          {/* 선택 원 — 제목 줄 안에서만 absolute 다. 카드 전체 높이를 덮으면
+              가운데(여행 줄) 위로 올라간다. */}
+          {editMode ? (
+            <View className="absolute bottom-0 left-0 top-0 justify-center">
+              <Ionicons
+                name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                size={22}
+                color={selected ? '#2563eb' : '#d1d5db'}
+              />
+            </View>
+          ) : null}
         </View>
 
         <View className="mt-3.5 border-t border-pot-line pt-3">
