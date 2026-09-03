@@ -31,9 +31,9 @@ import {
 } from "react-native";
 
 import {
+  BaggageTagCard,
   CategoryGrid,
   FundManagerCard,
-  TravelTicketCard,
   TripGuideCards,
   type GridCategory,
 } from "@/components/trip-home";
@@ -339,15 +339,6 @@ export default function ScreenTripHome() {
     };
   }, [data?.transactions]);
 
-  const daysLeft = useMemo(() => {
-    if (!data?.trip.start_date) return null;
-    const left = differenceInCalendarDays(
-      parseISO(data.trip.start_date),
-      new Date(),
-    );
-    return left > 0 ? left : null;
-  }, [data?.trip.start_date]);
-
   // ── 4상태 ─────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -435,13 +426,27 @@ export default function ScreenTripHome() {
   const progress =
     targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;
 
-  const dDay =
-    daysLeft !== null
-      ? `D–${daysLeft}`
-      : trip.start_date &&
-          differenceInCalendarDays(parseISO(trip.start_date), new Date()) === 0
-        ? "D–DAY"
-        : null;
+  /**
+   * D-Day 배지.
+   *
+   * ⚠️ 출발일이 지났다고 사라지게 두지 않는다. 여행이 시작됐는데 배지만
+   *    없어지면 화면이 고장난 것처럼 보인다.
+   *
+   * ⚠️ **여행 기간 안에 있으면 남은 날짜가 아니라 '여행 중' 이다.**
+   *    이미 떠나온 사람에게 D+3 은 아무 의미가 없다. 색도 바꿔서
+   *    준비 중과 한눈에 구분되게 한다.
+   */
+  const dDay = (() => {
+    if (!trip.start_date) return null;
+    const today = new Date();
+    const diff = differenceInCalendarDays(parseISO(trip.start_date), today);
+    if (diff > 0) return { label: `D–${diff}`, ongoing: false };
+    const endsIn = trip.end_date
+      ? differenceInCalendarDays(parseISO(trip.end_date), today)
+      : 0;
+    if (endsIn >= 0) return { label: "여행 중", ongoing: true };
+    return { label: `D+${-diff}`, ongoing: false };
+  })();
 
   return (
     <ScrollView
@@ -459,77 +464,68 @@ export default function ScreenTripHome() {
     >
       <Stack.Screen options={{ title: trip.destination ?? "여행 홈" }} />
 
-      {/* ── 여행 소개 ── */}
-      <View className="px-1 pt-1">
-        <View className="flex-row items-center gap-1.5">
-          <View
-            className="h-[2px] w-5"
-            style={{ backgroundColor: theme.primary }}
-          />
-          <Text
-            className="text-[11px] font-extrabold tracking-widest"
-            style={{ color: theme.primary }}
-          >
-            {ended ? "TRIP COMPLETED" : "NEXT DESTINATION"}
-          </Text>
-        </View>
-
-        <View className="mt-3 flex-row items-start justify-between">
-          <Text
-            className="flex-1 text-[28px] font-extrabold leading-9"
-            style={{ color: theme.neutral }}
-          >
-            {ended
-              ? `${trip.destination ?? "여행"} 여행,\n어떻게 다녀왔을까요?`
-              : `${trip.destination ?? "여행지"}로 떠날\n준비를 시작해요.`}
-          </Text>
-          <View className="mt-2 flex-row items-center gap-1 rounded-full bg-white px-2.5 py-1.5">
-            <Text className="text-[13px]">{destinationMeta?.flag ?? "🌍"}</Text>
+      {/*
+        ── 여행 소개 ──
+        ⚠️ 준비 중인 여행에서는 그리지 않는다. 목적지·기간·인원·여행계·수정
+           버튼이 전부 수하물 태그 안으로 들어갔다. (시안 v4)
+           여기 남겨 두면 같은 정보가 화면에 두 번 나온다.
+      */}
+      {ended ? (
+        <View className="px-1 pt-1">
+          <View className="flex-row items-center gap-1.5">
+            <View
+              className="h-[2px] w-5"
+              style={{ backgroundColor: theme.primary }}
+            />
             <Text
-              className="text-[10px] font-extrabold"
-              style={{ color: theme.neutral }}
+              className="text-[11px] font-extrabold tracking-widest"
+              style={{ color: theme.primary }}
             >
-              {theme.code}
+              {ended ? "TRIP COMPLETED" : "NEXT DESTINATION"}
             </Text>
           </View>
-        </View>
 
-        <View className="mt-2 flex-row items-center" style={{ gap: 8 }}>
-          <Text className="text-[13px] text-gray-500">
-            {[
-              trip.start_date && trip.end_date
-                ? `${format(parseISO(trip.start_date), "M.d")} — ${format(parseISO(trip.end_date), "M.d")}`
-                : null,
-              `${trip.headcount}명`,
-              data.groupName ?? "개인 여행",
-            ]
-              .filter(Boolean)
-              .join("  ·  ")}
-          </Text>
-          {/*
-            여행 일정·인원·여행계를 고친다. (시안 v4)
-            ⚠️ 끝난 여행은 못 고친다. 결산이 그 시점의 기록이라,
-               일정이나 인원을 뒤에서 바꾸면 이미 확정한 결산과 어긋난다.
-          */}
-          {!ended ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="여행 기본 정보 수정"
-              onPress={() => router.push(`/trips/${trip.id}/edit`)}
-              className="items-center justify-center active:bg-gray-100"
-              style={{
-                width: 25,
-                height: 25,
-                borderRadius: 12.5,
-                borderWidth: 1,
-                borderColor: "#e6e9ed",
-              }}
+          <View className="mt-3 flex-row items-start justify-between">
+            <Text
+              className="flex-1 text-[28px] font-extrabold leading-9"
+              style={{ color: theme.neutral }}
             >
-              <Ionicons name="pencil" size={12} color="#657181" />
-            </Pressable>
-          ) : null}
+              {ended
+                ? `${trip.destination ?? "여행"} 여행,\n어떻게 다녀왔을까요?`
+                : `${trip.destination ?? "여행지"}로 떠날\n준비를 시작해요.`}
+            </Text>
+            <View className="mt-2 flex-row items-center gap-1 rounded-full bg-white px-2.5 py-1.5">
+              <Text className="text-[13px]">{destinationMeta?.flag ?? "🌍"}</Text>
+              <Text
+                className="text-[10px] font-extrabold"
+                style={{ color: theme.neutral }}
+              >
+                {theme.code}
+              </Text>
+            </View>
+          </View>
+
+          <View className="mt-2 flex-row items-center" style={{ gap: 8 }}>
+            <Text className="text-[13px] text-gray-500">
+              {[
+                trip.start_date && trip.end_date
+                  ? `${format(parseISO(trip.start_date), "M.d")} — ${format(parseISO(trip.end_date), "M.d")}`
+                  : null,
+                `${trip.headcount}명`,
+                data.groupName ?? "개인 여행",
+              ]
+                .filter(Boolean)
+                .join("  ·  ")}
+            </Text>
+            {/*
+              ⚠️ 수정 버튼을 두지 않는다. 이 영역은 끝난 여행에서만 그려지고,
+                 끝난 여행은 일정·인원을 고칠 수 없다. 결산이 그 시점의
+                 기록이라 뒤에서 바꾸면 이미 확정한 결산과 어긋난다.
+                 준비 중인 여행의 수정 버튼은 수하물 태그 안에 있다.
+            */}
+          </View>
         </View>
-      </View>
+      ) : null}
 
       {ended ? (
         // ── TRIP-HOME-02 종료 상태 ──────────────────────────────────────
@@ -739,35 +735,30 @@ export default function ScreenTripHome() {
       ) : (
         // ── TRIP-HOME-01 준비 중 ────────────────────────────────────────
         <>
-          <TravelTicketCard
+          <BaggageTagCard
             theme={theme}
             flag={destinationMeta?.flag ?? "🌍"}
+            countryCode={theme.code}
             destinationEn={
               destinationMeta?.nameEn ??
               (trip.destination ?? "TRIP").toUpperCase()
             }
-            countryKo={destinationMeta?.countryKo ?? null}
             airportCode={destinationMeta?.airportCode ?? "—"}
-            departLabel={
-              trip.start_date
-                ? format(parseISO(trip.start_date), "MM.dd")
-                : null
-            }
-            arriveLabel={
-              trip.end_date ? format(parseISO(trip.end_date), "MM.dd") : null
-            }
-            ticketDate={
-              trip.start_date
-                ? format(parseISO(trip.start_date), "dd MMM").toUpperCase()
+            /* 여행 기간이다. 항공편 시각이 아니다 (CLAUDE.md 3장) */
+            dateLabel={
+              trip.start_date && trip.end_date
+                ? `${format(parseISO(trip.start_date), "MM.dd")}–${format(parseISO(trip.end_date), "MM.dd")}`
                 : null
             }
             headcount={trip.headcount}
-            dDayLabel={dDay}
+            groupLabel={data.groupName ?? "개인 여행"}
+            dDay={dDay}
             raisedAmount={raisedAmount}
             targetAmount={targetAmount}
             progress={progress}
-            /* 금액을 누르면 여행자금 관리로 간다 (시안 v4) */
+            /* 금액 영역 전체가 FUND-01 로 가는 하나의 버튼이다 (시안 v4) */
             onPressFund={() => router.push(`/trips/${trip.id}/funds`)}
+            onPressEdit={() => router.push(`/trips/${trip.id}/edit`)}
           />
 
           {/* 예산이 없으면 카테고리도 목표도 없다. 먼저 정하게 한다 */}
