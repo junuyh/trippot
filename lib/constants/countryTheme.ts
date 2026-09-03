@@ -21,6 +21,8 @@ export type CountryTheme = {
   onPrimary: string;
   neutral: string;
   code: string;
+  /** [왼쪽, 오른쪽] 순서로 쓰는 국기 두 색 */
+  stripe: readonly [string, string];
 };
 
 /** 국가를 알 수 없을 때(직접 입력 목적지). 국기 색 대신 뉴트럴로 간다. */
@@ -30,23 +32,24 @@ export const DEFAULT_COUNTRY_THEME: CountryTheme = {
   onPrimary: '#FFFFFF',
   neutral: '#1B2540',
   code: '--',
+  stripe: ['#2E4A7D', '#1B2540'],
 };
 
 const THEMES: Record<string, CountryTheme> = {
   // 일본 — 레드 + 화이트 + 딥네이비
-  일본: { primary: '#E1394A', primarySoft: '#FDECEE', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'JP' },
+  일본: { primary: '#E1394A', primarySoft: '#FDECEE', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'JP', stripe: ['#BC002D', '#1B2540'] },
   // 프랑스 — 블루 + 화이트 + 딥네이비
-  프랑스: { primary: '#2A5CAA', primarySoft: '#EBF1FA', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'FR' },
+  프랑스: { primary: '#2A5CAA', primarySoft: '#EBF1FA', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'FR', stripe: ['#0055A4', '#EF4135'] },
   // 이탈리아 — 그린 + 화이트 + 레드. 대표색은 그린으로 잡는다
-  이탈리아: { primary: '#1F9160', primarySoft: '#E8F5EE', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'IT' },
+  이탈리아: { primary: '#1F9160', primarySoft: '#E8F5EE', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'IT', stripe: ['#008C45', '#CD212A'] },
   // 중국 — 레드 + 옐로
-  중국: { primary: '#D8352C', primarySoft: '#FCEBEA', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'CN' },
+  중국: { primary: '#D8352C', primarySoft: '#FCEBEA', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'CN', stripe: ['#DE2910', '#FFDE00'] },
   // 대만 — 블루 + 레드
-  대만: { primary: '#2B4E9B', primarySoft: '#EBEFF9', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'TW' },
+  대만: { primary: '#2B4E9B', primarySoft: '#EBEFF9', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'TW', stripe: ['#000095', '#FE0000'] },
   // 홍콩 — 레드 + 화이트
-  홍콩: { primary: '#D63B3B', primarySoft: '#FDECEC', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'HK' },
+  홍콩: { primary: '#D63B3B', primarySoft: '#FDECEC', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'HK', stripe: ['#DE2910', '#1B2540'] },
   // 필리핀 — 블루 + 레드 + 옐로. 대표색은 블루
-  필리핀: { primary: '#1F5FBF', primarySoft: '#EAF1FC', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'PH' },
+  필리핀: { primary: '#1F5FBF', primarySoft: '#EAF1FC', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'PH', stripe: ['#0038A8', '#CE1126'] },
 };
 
 /**

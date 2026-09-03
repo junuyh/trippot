@@ -34,6 +34,7 @@ import {
 import Svg, { Circle, Defs, G, Line, Path, Pattern, Rect } from "react-native-svg";
 
 import { cityLandmark } from "@/lib/constants/cityLandmark";
+import type { CountryTheme } from "@/lib/constants/countryTheme";
 import { countryLandmark } from "@/lib/constants/countryLandmark";
 import type { DestinationCode } from "@/lib/constants/destinations";
 import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
@@ -51,16 +52,13 @@ const CITY_H = 192;
 // ── 세로 비행 경로 ──────────────────────────────────────────────────────────
 const FLIGHT_W = 49;
 const FLIGHT_H = 190;
-/** 도착 공항 코드 배지 높이 */
-const BADGE_H = 32;
+/** 도착 공항 코드 배지 높이. 위 여백 8 + 글자 상자 26 */
+const BADGE_H = 34;
 const PLANE = 36;
 /** 비행기가 0% → 100% 사이에 실제로 움직이는 거리 */
 const TRAVEL = FLIGHT_H - BADGE_H - PLANE;
 
 const INK = "#101828";
-/** 수하물 태그의 좌우 컬러 라인. 항공사 태그의 관용적인 배색이다 */
-const SIDE_LEFT = "#153e90";
-const SIDE_RIGHT = "#ed3345";
 const LABEL = "#8a94a2";
 const HAIR = "#dfe3e8";
 
@@ -73,6 +71,8 @@ const GLYPH_RATIO = 0.42;
 const SKYLINE_H = 132;
 
 type Props = {
+  /** 좌우 컬러 라인과 강조 색을 국기 색에서 가져온다 */
+  theme: CountryTheme;
   flag: string;
   /** 국가 코드. 국기와 함께 배지에 표시한다 */
   countryCode: string;
@@ -125,6 +125,7 @@ function citySize(name: string, available: number): number {
 }
 
 export function BaggageTagCard({
+  theme,
   flag,
   countryCode,
   destinationEn,
@@ -229,7 +230,7 @@ export function BaggageTagCard({
           top: STRIP,
           bottom: STRIP,
           width: SIDE,
-          backgroundColor: SIDE_LEFT,
+          backgroundColor: theme.stripe[0],
         }}
       />
       <View
@@ -240,7 +241,7 @@ export function BaggageTagCard({
           top: STRIP,
           bottom: STRIP,
           width: SIDE,
-          backgroundColor: SIDE_RIGHT,
+          backgroundColor: theme.stripe[1],
         }}
       />
 
@@ -266,7 +267,7 @@ export function BaggageTagCard({
                (lib/constants/destinations.ts 의 baseline 주석과 같은 전제)
           */}
           <Text
-            style={{ marginTop: 7, fontSize: 16, fontWeight: "900", color: INK }}
+            style={{ marginTop: 7, fontSize: 16, fontWeight: "500", letterSpacing: 0.2, color: INK }}
           >
             SEOUL / ICN
           </Text>
@@ -335,17 +336,26 @@ export function BaggageTagCard({
             height: FLIGHT_H,
           }}
         >
+          {/*
+            ⚠️ 위아래 여백을 같게 주지 않는다. Bebas Neue 는 밑으로 내려가는
+               획이 없어서 글자 상자 아래쪽이 통째로 비어 있다. 여백을 같게
+               주면 글자가 위로 쏠려 검은 배지 아래가 남아 보인다.
+               위 여백을 크게 주고 아래를 0 으로 둬야 글자가 가운데에 온다.
+            ⚠️ lineHeight 를 글자 크기보다 작게 줄이지 않는다. 글자가 검은
+               배경 밖으로 밀려나 흰 바탕에서 아래쪽이 지워진 것처럼 보인다.
+          */}
           <Text
             style={{
               width: FLIGHT_W,
               backgroundColor: INK,
               color: "#fff",
               textAlign: "center",
-              paddingVertical: 3,
+              paddingTop: 8,
               fontFamily,
               fontSize: 26,
               lineHeight: 26,
               letterSpacing: 1,
+              includeFontPadding: false,
             }}
           >
             {airportCode}
@@ -403,6 +413,7 @@ export function BaggageTagCard({
           borderBottomColor: HAIR,
         }}
         className="flex-row items-center"
+        /* ⚠️ 칸 사이 간격이 없으면 구분선이 다음 칸 글자에 붙는다 (시안의 gap:8) */
       >
         <Field label="DATE" value={dateLabel ?? "—"} divider />
         <Field label="TRAVELERS" value={`${String(headcount).padStart(2, "0")}명`} divider />
@@ -434,12 +445,7 @@ export function BaggageTagCard({
       {/* ══════════════ 여행자금 ══════════════ */}
       <View style={{ marginHorizontal: PAD, paddingTop: 14 }}>
         <View
-          style={{
-            paddingBottom: 11,
-            borderBottomWidth: 1,
-            borderStyle: "dashed",
-            borderBottomColor: "#d7dce2",
-          }}
+          style={{ paddingBottom: 11 }}
           className="flex-row items-center justify-between"
         >
           <Text
@@ -470,6 +476,24 @@ export function BaggageTagCard({
         </View>
 
         {/*
+          ⚠️ borderStyle:"dashed" 를 쓰지 않는다. iOS 에서 1px 가로 테두리는
+             점선으로 그려지지 않고 실선이 된다. (세로 비행 경로와 같은 이유)
+        */}
+        {width > 0 ? (
+          <Svg width={width - PAD * 2} height={1}>
+            <Line
+              x1={0}
+              y1={0.5}
+              x2={width - PAD * 2}
+              y2={0.5}
+              stroke="#d7dce2"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+          </Svg>
+        ) : null}
+
+        {/*
           ⚠️ 현재 여행자금부터 앞으로 필요한 금액까지가 **하나의 버튼**이다.
              시안이 `여행자금 현황 보기` 버튼을 따로 두지 말라고 했다.
         */}
@@ -480,40 +504,49 @@ export function BaggageTagCard({
           style={{ borderRadius: 8, paddingHorizontal: 10, paddingTop: 12, paddingBottom: 13 }}
           className="active:bg-gray-50"
         >
-          <View className="flex-row items-center justify-between">
-            <Text
-              style={{
-                fontSize: 8,
-                fontWeight: "700",
-                letterSpacing: 0.5,
-                color: LABEL,
-              }}
-            >
-              현재 여행자금
-            </Text>
-            {/* 달성률. 비행기 위치와 같은 값이다 */}
-            <Text
-              style={{ fontSize: 8, fontWeight: "900", color: SIDE_LEFT }}
-            >
-              {percent}% 달성
-            </Text>
-          </View>
           <Text
-            accessibilityLiveRegion="polite"
             style={{
-              marginTop: 7,
-              fontSize: 38,
-              lineHeight: 42,
-              fontWeight: "900",
-              letterSpacing: -1.2,
-              color: INK,
+              fontSize: 8,
+              fontWeight: "700",
+              letterSpacing: 0.5,
+              color: LABEL,
             }}
           >
-            {raised.body}
-            <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0 }}>
-              {raised.unit}
-            </Text>
+            현재 여행자금
           </Text>
+          <View
+            className="flex-row items-baseline justify-between"
+            style={{ marginTop: 7 }}
+          >
+            <Text
+              accessibilityLiveRegion="polite"
+              style={{
+                flexShrink: 1,
+                fontSize: 38,
+                lineHeight: 42,
+                fontWeight: "900",
+                letterSpacing: -1.2,
+                color: INK,
+              }}
+            >
+              {raised.body}
+              <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0 }}>
+                {raised.unit}
+              </Text>
+            </Text>
+            {/* 달성률. 비행기 위치와 같은 값이다. 금액보다는 작게 둔다 */}
+            <Text
+              style={{
+                marginLeft: 8,
+                fontSize: 20,
+                fontWeight: "900",
+                letterSpacing: -0.5,
+                color: theme.primary,
+              }}
+            >
+              {percent}%
+            </Text>
+          </View>
 
           <View className="flex-row" style={{ marginTop: 17 }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
@@ -540,7 +573,7 @@ export function BaggageTagCard({
                 ⚠️ 목표 − 누적 모금액이다. 잔액으로 계산하지 않는다.
                    쓰면 쓸수록 필요 금액이 늘어나 목표가 멀어져 보인다.
               */}
-              <Text style={{ marginTop: 6, fontSize: 12, fontWeight: "800", color: SIDE_LEFT }}>
+              <Text style={{ marginTop: 6, fontSize: 12, fontWeight: "800", color: theme.primary }}>
                 {shortage > 0 ? (
                   <>
                     {need.body}
@@ -666,6 +699,7 @@ function Field({
       style={{
         flex: 1,
         paddingRight: 8,
+        marginRight: divider ? 8 : 0,
         borderRightWidth: divider ? 1 : 0,
         borderRightColor: "#edf0f3",
       }}

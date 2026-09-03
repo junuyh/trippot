@@ -339,15 +339,6 @@ export default function ScreenTripHome() {
     };
   }, [data?.transactions]);
 
-  const daysLeft = useMemo(() => {
-    if (!data?.trip.start_date) return null;
-    const left = differenceInCalendarDays(
-      parseISO(data.trip.start_date),
-      new Date(),
-    );
-    return left > 0 ? left : null;
-  }, [data?.trip.start_date]);
-
   // ── 4상태 ─────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -435,13 +426,20 @@ export default function ScreenTripHome() {
   const progress =
     targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;
 
-  const dDay =
-    daysLeft !== null
-      ? `D–${daysLeft}`
-      : trip.start_date &&
-          differenceInCalendarDays(parseISO(trip.start_date), new Date()) === 0
-        ? "D–DAY"
-        : null;
+  /**
+   * D-Day.
+   *
+   * ⚠️ 출발일이 지났다고 사라지게 두지 않는다. 여행이 시작됐는데 배지만
+   *    없어지면 화면이 고장난 것처럼 보인다. 홈 카드와 같은 규칙으로
+   *    D–n / D–DAY / D+n 을 모두 보여준다. (components/home/format.ts)
+   */
+  const dDay = (() => {
+    if (!trip.start_date) return null;
+    const diff = differenceInCalendarDays(parseISO(trip.start_date), new Date());
+    if (diff > 0) return `D–${diff}`;
+    if (diff === 0) return "D–DAY";
+    return `D+${-diff}`;
+  })();
 
   return (
     <ScrollView
@@ -731,6 +729,7 @@ export default function ScreenTripHome() {
         // ── TRIP-HOME-01 준비 중 ────────────────────────────────────────
         <>
           <BaggageTagCard
+            theme={theme}
             flag={destinationMeta?.flag ?? "🌍"}
             countryCode={theme.code}
             destinationEn={
