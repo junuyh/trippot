@@ -248,6 +248,27 @@ export const INSURANCE_REFERRAL_STATUS = {
 export type InsuranceReferralStatus =
   (typeof INSURANCE_REFERRAL_STATUS)[keyof typeof INSURANCE_REFERRAL_STATUS];
 
+// ── 알림 ───────────────────────────────────────────────────────────────────
+/**
+ * notifications.type — 받은 알림의 종류.
+ *
+ * ⚠️ 이 목록은 DB 의 `notifications_type_check` 허용값과 정확히 같아야 한다.
+ *    하나라도 다르면 앱이 만든 알림이 DB 에서 거부된다.
+ *
+ * ⚠️ 화면·기능 코드에서는 type 문자열을 직접 쓰지 않고
+ *    반드시 `NOTIFICATION_TYPE` 을 사용한다.
+ */
+export const NOTIFICATION_TYPE = {
+  /** 전체 목표 여행비 100% 최초 달성 */
+  FUND_GOAL_REACHED: "FUND_GOAL_REACHED",
+  /** 여행 시작 7일 전 */
+  TRIP_D7: "TRIP_D7",
+  /** 여행 종료 후 정산 가능 */
+  SETTLEMENT_READY: "SETTLEMENT_READY",
+} as const;
+export type NotificationType =
+  (typeof NOTIFICATION_TYPE)[keyof typeof NOTIFICATION_TYPE];
+
 // ── 로그 ───────────────────────────────────────────────────────────────────
 /** ⚠️ 소문자다. track() 이 자동으로 채우므로 화면에서 직접 쓸 일은 없다. */
 export const EVENT_LOG_ENV = {
