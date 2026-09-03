@@ -11,7 +11,7 @@
 //    3개짜리 라디오를 세워 두면 예산과 같은 무게의 선택처럼 보인다.
 //
 // ⚠️ 여기서 **신규 계좌 연결을 요구하지 않는다.** 이미 연결된 모임통장만 후보다.
-//    새 연결은 여행을 만든 뒤 여행 준비 홈에서 한다.
+//    새 연결은 여행을 만든 뒤 여행 홈에서 한다.
 //
 // ⚠️ financial_accounts 는 group_id 만 갖는다. 개인 여행과 신규 모임에는
 //    붙을 계좌가 없어 계좌 블록이 아예 나오지 않는다.
@@ -168,22 +168,51 @@ export function FundSourceSelector({
         </>
       ) : (
         <>
-          {/* 연결된 계좌가 없다. 여기서 신규 연결을 요구하지 않는다 */}
+          {/*
+            연결된 계좌가 없다. 여기서 신규 연결을 요구하지 않는다.
+
+            ⚠️ 세 가지를 분리해서 쓴다. 섞으면 사용자가 뭘 해야 하는지 모른다.
+                 상태  연결된 계좌가 없어요        — 사실
+                 안내  0원으로 시작해도 괜찮아요   — 안 해도 된다는 안심
+                 액션  이미 모은 금액이 있어요     — 해당되는 사람만 누른다
+
+               이전 문구 '아직 모은 금액이 없다면 0원부터 시작해요' 는 이미 그렇게
+               되어 있다는 상태 설명인데 굵은 글씨라 지시문처럼 읽혔다. 사용자는
+               뭔가 해야 한다고 느끼는데 누를 것이 작은 링크 하나뿐이었다.
+          */}
           <View className="rounded-2xl border border-gray-200 bg-white p-3.5">
-            <Text className="text-[13px] font-extrabold text-gray-800">
-              아직 모은 금액이 없다면 0원부터 시작해요.
-            </Text>
-            <Text className="mt-1 text-[11px] leading-[17px] text-gray-500">
-              여행을 만든 뒤 모임통장을 연결할 수 있어요.
-            </Text>
-            <View className="mt-2 self-start">
-              <AltAction
-                label="모은 금액 직접 입력"
-                active
-                onPress={() => onChange(FUND_SOURCE_TYPE.MANUAL)}
-                disabled={disabled}
-              />
+            <View className="flex-row items-center gap-1.5">
+              <Ionicons name="card-outline" size={15} color="#9ca3af" />
+              <Text className="text-[13px] font-extrabold text-gray-800">
+                연결된 계좌가 없어요
+              </Text>
             </View>
+
+            <Text className="mt-1.5 text-xs leading-[19px] text-gray-600">
+              0원으로 시작해도 괜찮아요. 여행을 만든 뒤 여행 홈에서 모임통장을 연결할 수
+              있어요.
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{
+                selected: value === FUND_SOURCE_TYPE.MANUAL,
+                disabled,
+              }}
+              accessibilityLabel="이미 모은 금액 입력하기"
+              disabled={disabled}
+              onPress={() => onChange(FUND_SOURCE_TYPE.MANUAL)}
+              className={`mt-3 h-11 flex-row items-center justify-center gap-1.5 rounded-xl border ${
+                value === FUND_SOURCE_TYPE.MANUAL
+                  ? 'border-blue-600 bg-blue-50'
+                  : 'border-gray-200 active:bg-gray-100'
+              } ${disabled ? 'opacity-40' : ''}`}
+            >
+              <Ionicons name="wallet-outline" size={15} color="#2563eb" />
+              <Text className="text-[13px] font-bold text-blue-600">
+                이미 모은 금액이 있어요
+              </Text>
+            </Pressable>
           </View>
 
           {value === FUND_SOURCE_TYPE.MANUAL ? (

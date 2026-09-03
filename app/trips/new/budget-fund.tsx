@@ -166,6 +166,14 @@ export default function ScreenTRIP03() {
    *    '이 금액으로 적용' 을 눌렀을 때만 userTotal 로 옮긴다.
    */
   const [userTotalDraft, setUserTotalDraft] = useState<number | null>(null);
+  /**
+   * 총액 입력칸을 열어 둔 상태인가.
+   *
+   * ⚠️ 값으로 유추하지 않는다. 적용 직후에는 draft 와 적용값이 같아서,
+   *    '금액 변경' 으로 다시 열어도 곧바로 닫힌 것으로 판정된다.
+   *    여는 지점과 닫는 지점을 명시적으로 적는다.
+   */
+  const [totalEditing, setTotalEditing] = useState(false);
   const [categories, setCategories] = useState<EditableCategory[]>([]);
   /**
    * 지금 펼쳐 둔 카테고리. 맨 위 한 줄로 시작한다.
@@ -291,13 +299,16 @@ export default function ScreenTRIP03() {
 
     if (next === BUDGET_METHOD.USER_DEFINED) {
       // 지금 화면의 총액을 그대로 이어받는다. 입력칸도 그 값으로 채워 둔다.
+      // 총액을 직접 정하겠다고 막 말한 참이므로 입력칸을 열어 둔다.
       const current = categories.reduce((sum, c) => sum + c.plannedAmount, 0);
       setUserTotal(current);
       setUserTotalDraft(current);
+      setTotalEditing(true);
       applyUserTotal(current);
     } else {
       setUserTotal(recommendation.totalAmount);
       setUserTotalDraft(null);
+      setTotalEditing(false);
       setCategories(toEditable(recommendation));
     }
 
@@ -317,8 +328,16 @@ export default function ScreenTRIP03() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setUserTotal(userTotalDraft);
     setManualCategories(new Set());
+    // 적용된 금액은 위 큰 글씨가 말한다. 입력칸은 할 일을 마쳤으므로 물러난다.
+    setTotalEditing(false);
     applyUserTotal(userTotalDraft);
   }, [applyUserTotal, userTotalDraft]);
+
+  /** '금액 변경' — 닫아 둔 총액 입력칸을 다시 연다. 값은 적용된 금액 그대로다. */
+  const handleStartEditAmount = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setTotalEditing(true);
+  }, []);
 
   /**
    * 앞 단계 조건이 바뀌면 카테고리를 새 추천으로 다시 깐다.
@@ -1119,6 +1138,8 @@ export default function ScreenTRIP03() {
           styleLabel={TRAVEL_STYLE_LABEL[recommendation.basis.style]}
           pastApplied={pastOn}
           onToggleMethod={handleToggleMethod}
+          amountEditing={totalEditing}
+          onStartEditAmount={handleStartEditAmount}
           userTotalDraft={userTotalDraft}
           onChangeUserTotalDraft={setUserTotalDraft}
           onApplyUserTotal={handleApplyUserTotal}
@@ -1195,11 +1216,17 @@ export default function ScreenTRIP03() {
           <Text className="text-base font-semibold text-gray-900">현재 준비한 여행자금</Text>
           <Text className="ml-auto text-[11px] font-medium text-gray-400">선택</Text>
         </View>
-        <Text className="mb-2.5 mt-1 text-xs text-gray-400">
-          {accounts.length > 0
-            ? '이미 연결된 계좌를 사용하거나, 계좌 없이 시작할 수 있어요.'
-            : '연결된 계좌가 없어도 0원으로 바로 여행을 만들 수 있어요.'}
-        </Text>
+        {/*
+          계좌가 없을 때는 FundSourceSelector 의 카드가 상태·안내·액션을 모두
+          말한다. 여기에 같은 말을 한 줄 더 두면 같은 정보가 두 번 나온다.
+        */}
+        {accounts.length > 0 ? (
+          <Text className="mb-2.5 mt-1 text-xs text-gray-400">
+            이미 연결된 계좌를 사용하거나, 계좌 없이 시작할 수 있어요.
+          </Text>
+        ) : (
+          <View className="mb-2.5" />
+        )}
         <FundSourceSelector
           value={fundType}
           onChange={setFundType}
