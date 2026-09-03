@@ -18,12 +18,17 @@
 // ⚠️ 2026-09-02 · 화면을 '추천 결과 먼저' 로 바꿨다. (HTML 시안 반영)
 //    예산 방식을 먼저 고르게 하지 않는다. 들어오면 추천 총액이 이미 나와 있고,
 //    직접 정하고 싶은 사람만 히어로의 액션으로 입력칸을 연다.
-//    카테고리 상세도 기본은 접혀 있고 '수정' 을 눌러야 열린다.
+//
+// ⚠️ 2026-09-03 · 예산 구성의 '수정' 버튼을 없앴다. 고치겠다는 의사표시를 한 번 더
+//    받는 단계였는데, 여기까지 온 사람은 이미 예산을 보러 온 것이다. 들어오면
+//    카테고리 목록이 곧바로 편집 가능한 상태로 놓여 있다. 다만 전부 펼치면
+//    마지막 단계에서 스크롤이 지나치게 길어져서, **맨 위 한 줄(항공)만** 펼쳐 두고
+//    나머지는 닫아 둔다. 그 한 줄이 "눌러서 고칠 수 있다" 를 대신 말해 준다.
 //
 // 단계
 //   ① 추천 결과 (BudgetResultHero) — 직접 입력 전환도 여기서 한다
 //      └ 추천 상태에서만 여행 스타일을 묻는다
-//   ② 예산 구성 — 요약(BudgetPreviewList) ↔ 수정(BudgetCategoryList)
+//   ② 예산 구성 (BudgetCategoryList) — 처음부터 편집 가능. 맨 위 행만 펼쳐 둔다
 //      └ 지난 여행 소비 패턴 카드로 전체 반영을 켜고 끈다
 //   ③ 현재 준비한 여행자금 (선택)
 //   ④ 저장 → 준비 홈으로 이동
@@ -38,7 +43,6 @@ import { LayoutAnimation, Pressable, ScrollView, Text, View } from 'react-native
 import {
   BottomCta,
   BudgetCategoryList,
-  BudgetPreviewList,
   BudgetResultHero,
   FundSourceSelector,
   PastPatternCard,
@@ -162,10 +166,23 @@ export default function ScreenTRIP03() {
    *    '이 금액으로 적용' 을 눌렀을 때만 userTotal 로 옮긴다.
    */
   const [userTotalDraft, setUserTotalDraft] = useState<number | null>(null);
+  /**
+   * 총액 입력칸을 열어 둔 상태인가.
+   *
+   * ⚠️ 값으로 유추하지 않는다. 적용 직후에는 draft 와 적용값이 같아서,
+   *    '금액 변경' 으로 다시 열어도 곧바로 닫힌 것으로 판정된다.
+   *    여는 지점과 닫는 지점을 명시적으로 적는다.
+   */
+  const [totalEditing, setTotalEditing] = useState(false);
   const [categories, setCategories] = useState<EditableCategory[]>([]);
-  const [editingCode, setEditingCode] = useState<CategoryCode | null>(null);
-  /** 예산 구성 수정 모드. 켜면 같은 자리에서 카테고리 목록으로 바뀐다 */
-  const [detailOpen, setDetailOpen] = useState(false);
+  /**
+   * 지금 펼쳐 둔 카테고리. 맨 위 한 줄로 시작한다.
+   *
+   * 목록이 전부 닫힌 채로 시작하면 금액만 늘어서서 눌러 볼 곳이 있다는 걸 모른다.
+   * 그렇다고 다 펼치면 생성 마지막 단계에서 스크롤이 지나치게 길어진다.
+   * 순서 상수의 첫 항목이라 카테고리 순서가 바뀌어도 '맨 위' 가 유지된다.
+   */
+  const [editingCode, setEditingCode] = useState<CategoryCode | null>(CATEGORY_ORDER[0]);
 
   // ── 근거 상품 선택 ────────────────────────────────────────────────────
   //
@@ -274,21 +291,24 @@ export default function ScreenTRIP03() {
 
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMethod(next);
-    setDetailOpen(false);
-    setEditingCode(null);
+    // 펼침 상태도 처음 들어왔을 때로 되돌린다. 맨 위 한 줄만 열려 있다.
+    setEditingCode(CATEGORY_ORDER[0]);
     setSelectedProductIds(getDefaultProductIds(recommendation.basis.style));
     setContingencyChoice(null);
     setManualCategories(new Set());
 
     if (next === BUDGET_METHOD.USER_DEFINED) {
       // 지금 화면의 총액을 그대로 이어받는다. 입력칸도 그 값으로 채워 둔다.
+      // 총액을 직접 정하겠다고 막 말한 참이므로 입력칸을 열어 둔다.
       const current = categories.reduce((sum, c) => sum + c.plannedAmount, 0);
       setUserTotal(current);
       setUserTotalDraft(current);
+      setTotalEditing(true);
       applyUserTotal(current);
     } else {
       setUserTotal(recommendation.totalAmount);
       setUserTotalDraft(null);
+      setTotalEditing(false);
       setCategories(toEditable(recommendation));
     }
 
@@ -308,8 +328,16 @@ export default function ScreenTRIP03() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setUserTotal(userTotalDraft);
     setManualCategories(new Set());
+    // 적용된 금액은 위 큰 글씨가 말한다. 입력칸은 할 일을 마쳤으므로 물러난다.
+    setTotalEditing(false);
     applyUserTotal(userTotalDraft);
   }, [applyUserTotal, userTotalDraft]);
+
+  /** '금액 변경' — 닫아 둔 총액 입력칸을 다시 연다. 값은 적용된 금액 그대로다. */
+  const handleStartEditAmount = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setTotalEditing(true);
+  }, []);
 
   /**
    * 앞 단계 조건이 바뀌면 카테고리를 새 추천으로 다시 깐다.
@@ -330,8 +358,7 @@ export default function ScreenTRIP03() {
     if (!recommendation) return;
 
     setCategories(toEditable(recommendation));
-    setEditingCode(null);
-    setDetailOpen(false);
+    setEditingCode(CATEGORY_ORDER[0]);
 
     // 상품 선택과 예비비 비율도 함께 되돌린다.
     // 스타일을 '보통' → '아낌없이' 로 바꿨는데 상품이 보통 조합 그대로면,
@@ -826,7 +853,19 @@ export default function ScreenTRIP03() {
   );
 
   // ── ④ 여행자금 ────────────────────────────────────────────────────────
-  // ⚠️ 여행자금은 선택사항이다. 기본값은 0원이고, 이것 때문에 CTA 가 막히지 않는다.
+  // ⚠️ 여행자금은 선택사항이다. 이것 때문에 CTA 가 막히지 않는다.
+  //
+  // ⚠️ 2026-09-03 · 연결된 계좌가 있으면 그 계좌를 **자동으로 고른다.**
+  //    붙여 둔 모임통장이 있는데 여행자금을 0원이라고 우기는 것보다 정확하다.
+  //
+  //    ⚠️ 이건 화면 정리가 아니라 **기본 동작 변경**이다. 이 섹션을 지나친
+  //       사용자도 fund_sources 에 mock + 계좌 잔액으로 저장되고, 준비율이
+  //       0% 가 아닌 값으로 시작한다. trip_created 의 fund_type 분포도 바뀐다 —
+  //       'zero' 가 "사용자가 0원을 골랐다" 에서 "고를 계좌가 없었다" 로,
+  //       'mock' 이 "사용자가 계좌를 골랐다" 에서 "계좌가 있었다" 로 옮겨간다.
+  //       (.handoff/L-전달사항.md 에 기록)
+  //
+  //    계좌가 로딩되기 전까지는 0원이다. 계좌 조회가 실패해도 0원으로 남는다.
   const [fundType, setFundType] = useState<FundSourceType>(FUND_SOURCE_TYPE.ZERO);
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
@@ -838,7 +877,15 @@ export default function ScreenTRIP03() {
     if (draft.companionType !== COMPANION_TYPE.EXISTING_GROUP || !draft.groupId) return;
     setAccountsLoading(true);
     getGroupAccounts(draft.groupId)
-      .then(setAccounts)
+      .then((rows) => {
+        setAccounts(rows);
+        // 계좌가 있으면 첫 계좌를 골라 둔다. 조회 직후 한 번만 한다 —
+        // 사용자가 '0원으로 시작' 을 고른 뒤 덮어쓰면 고른 것이 사라진다.
+        if (rows.length > 0) {
+          setAccountId(rows[0].id);
+          setFundType(FUND_SOURCE_TYPE.MOCK);
+        }
+      })
       .catch(() => setAccounts([])) // 계좌 조회 실패로 여행 생성을 막지 않는다
       .finally(() => setAccountsLoading(false));
   }, [draft.companionType, draft.groupId]);
@@ -846,14 +893,26 @@ export default function ScreenTRIP03() {
   const selectedAccount = accounts.find((a) => a.id === accountId) ?? null;
 
   /**
-   * '이 계좌 사용'. 소스 전환과 계좌 선택이 한 동작이다.
+   * 여행자금 소스를 고른다. 셋 중 하나만 켜진다. (CLAUDE.md 3장 · 단일 소스)
    *
    * ⚠️ 여기서 신규 계좌 연결을 열지 않는다. 이미 연결된 모임통장만 후보다.
-   *    새 연결은 여행을 만든 뒤 준비 홈에서 한다.
+   *    새 연결은 여행을 만든 뒤 여행 홈에서 한다.
    */
-  const handleUseAccount = useCallback((id: string) => {
+  const handleChangeFundType = useCallback(
+    (next: FundSourceType) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setFundType(next);
+      // 계좌를 골랐는데 어느 계좌인지 없으면 첫 계좌로 채운다.
+      if (next === FUND_SOURCE_TYPE.MOCK && accountId === null && accounts.length > 0) {
+        setAccountId(accounts[0].id);
+      }
+    },
+    [accountId, accounts],
+  );
+
+  /** 여러 계좌 중 하나를 고른다. 소스는 이미 '연결된 계좌' 다. */
+  const handleSelectAccount = useCallback((id: string) => {
     setAccountId(id);
-    setFundType(FUND_SOURCE_TYPE.MOCK);
   }, []);
 
   // ── ⑤ 저장 ────────────────────────────────────────────────────────────
@@ -1111,6 +1170,8 @@ export default function ScreenTRIP03() {
           styleLabel={TRAVEL_STYLE_LABEL[recommendation.basis.style]}
           pastApplied={pastOn}
           onToggleMethod={handleToggleMethod}
+          amountEditing={totalEditing}
+          onStartEditAmount={handleStartEditAmount}
           userTotalDraft={userTotalDraft}
           onChangeUserTotalDraft={setUserTotalDraft}
           onApplyUserTotal={handleApplyUserTotal}
@@ -1139,68 +1200,32 @@ export default function ScreenTRIP03() {
         </View>
       ) : null}
 
-      {/* ── ② 예산 구성 ── 요약 ↔ 수정이 같은 자리에서 바뀐다 ── */}
+      {/* ── ② 예산 구성 ── 처음부터 고칠 수 있다 ── */}
       {showBudgetDetail ? (
         <View className="mt-6">
-          <View className="mb-2 flex-row items-center">
-            <Text className="text-base font-semibold text-gray-900">예산 구성</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={detailOpen ? '예산 수정 완료' : '예산 수정'}
-              accessibilityState={{ expanded: detailOpen }}
-              disabled={saving}
-              onPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                const next = !detailOpen;
-                setDetailOpen(next);
-                if (!next) setEditingCode(null);
-              }}
-              className={`ml-auto flex-row items-center gap-1 rounded-lg px-2 py-1.5 ${
-                detailOpen ? 'bg-blue-50' : 'active:bg-gray-100'
-              }`}
-            >
-              <Ionicons
-                name={detailOpen ? 'checkmark' : 'create-outline'}
-                size={15}
-                color={detailOpen ? '#2563eb' : '#6b7280'}
-              />
-              <Text
-                className={`text-xs font-bold ${
-                  detailOpen ? 'text-blue-600' : 'text-gray-500'
-                }`}
-              >
-                {detailOpen ? '완료' : '수정'}
-              </Text>
-            </Pressable>
-          </View>
+          <Text className="mb-2 text-base font-semibold text-gray-900">예산 구성</Text>
 
-          {detailOpen ? (
-            <>
-              <Text className="mx-0.5 mb-2 text-[11px] text-gray-400">
-                항목을 눌러 추천 근거와 금액을 조정할 수 있어요.
-              </Text>
-              <BudgetCategoryList
-                categories={categoriesWithProducts}
-                onChangeAmount={handleChangeCategoryAmount}
-                onToggleProduct={handleToggleProduct}
-                onToggleDrop={handleToggleDrop}
-                onToggleManual={handleToggleManual}
-                otherCategoriesTotal={otherCategoriesTotal}
-                contingencyChoice={contingencyChoice}
-                onChangeContingency={handleChangeContingency}
-                editingCode={editingCode}
-                onToggleEditing={(code) => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setEditingCode((prev) => (prev === code ? null : code));
-                }}
-                disabled={saving}
-              />
-            </>
-          ) : (
-            <BudgetPreviewList categories={categories} />
-          )}
+          <Text className="mx-0.5 mb-2 text-[11px] text-gray-400">
+            항목을 눌러 추천 근거와 금액을 조정할 수 있어요.
+          </Text>
+          <BudgetCategoryList
+            categories={categoriesWithProducts}
+            onChangeAmount={handleChangeCategoryAmount}
+            onToggleProduct={handleToggleProduct}
+            onToggleDrop={handleToggleDrop}
+            onToggleManual={handleToggleManual}
+            otherCategoriesTotal={otherCategoriesTotal}
+            contingencyChoice={contingencyChoice}
+            onChangeContingency={handleChangeContingency}
+            editingCode={editingCode}
+            onToggleEditing={(code) => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setEditingCode((prev) => (prev === code ? null : code));
+            }}
+            disabled={saving}
+          />
 
-          {/* 전체 반영은 이 카드가, 카테고리별 제외는 수정 모드가 담당한다 */}
+          {/* 전체 반영은 이 카드가, 카테고리별 제외는 위 목록이 담당한다 */}
           {pastAdjustments.length > 0 ? (
             <PastPatternCard
               applied={pastOn}
@@ -1223,18 +1248,21 @@ export default function ScreenTRIP03() {
           <Text className="text-base font-semibold text-gray-900">현재 준비한 여행자금</Text>
           <Text className="ml-auto text-[11px] font-medium text-gray-400">선택</Text>
         </View>
+        {/*
+          선택지 자체가 무엇을 고르는지 말해 주므로, 여기서는 안 골라도 된다는
+          것만 남긴다. 계좌 유무에 따라 문구를 나누지 않는다 — 이제 아래 UI 가
+          한 벌이다.
+        */}
         <Text className="mb-2.5 mt-1 text-xs text-gray-400">
-          {accounts.length > 0
-            ? '이미 연결된 계좌를 사용하거나, 계좌 없이 시작할 수 있어요.'
-            : '연결된 계좌가 없어도 0원으로 바로 여행을 만들 수 있어요.'}
+          지금 정하지 않아도 괜찮아요. 여행을 만든 뒤에 바꿀 수 있어요.
         </Text>
         <FundSourceSelector
           value={fundType}
-          onChange={setFundType}
+          onChange={handleChangeFundType}
           accounts={accounts}
           accountsLoading={accountsLoading}
           selectedAccountId={accountId}
-          onUseAccount={handleUseAccount}
+          onSelectAccount={handleSelectAccount}
           manualAmount={manualAmount}
           onChangeManualAmount={setManualAmount}
           disabled={saving}

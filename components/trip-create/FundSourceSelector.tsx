@@ -1,20 +1,29 @@
 // TRIP-03 현재 준비한 여행자금.
 //
 // ⚠️ 계좌 연결은 필수가 아니다. (POL-FUND-001, AC-01)
-//    직접 입력이나 0원으로도 여행 생성이 끝나야 한다. 기본값은 0원이다.
+//    직접 입력이나 0원으로도 여행 생성이 끝나야 한다.
 //
 // ⚠️ 직접입력 금액과 계좌 잔액을 절대 합산하지 않는다. (CLAUDE.md 3장)
-//    항상 하나의 소스만 고른다.
+//    항상 하나의 소스만 고른다. 이제 선택 UI 가 그걸 구조로 보장한다 —
+//    셋 중 하나만 켜지므로 합산할 수 있는 상태가 아예 만들어지지 않는다.
 //
-// ⚠️ 2026-09-02 · 라디오 3개 → '이미 연결된 계좌' 우선 + 보조 액션으로 바꿨다.
-//    (HTML 시안 반영, 요청 §4) 여행자금은 이 화면의 필수 결정이 아니다.
-//    3개짜리 라디오를 세워 두면 예산과 같은 무게의 선택처럼 보인다.
+// ⚠️ 2026-09-03 · 선택지 3개로 되돌렸다.
+//    2026-09-02 에 '연결된 계좌 우선 + 보조 액션' 으로 바꿨던 이유는
+//    "3개짜리 라디오를 세우면 예산과 같은 무게로 보인다" 였다. 그 걱정은
+//    맞았지만 원인은 개수가 아니라 크기였다. 카드 3장을 쌓지 않고 한 테두리
+//    안에 얇은 행 3개로 두면 무게가 생기지 않는다.
+//
+//    되돌린 이유는 두 가지다.
+//      · 계좌 유무에 따라 UI 가 두 벌이었다. 같은 질문에 답하는데 생김새가 달랐다.
+//      · 보조 액션이 11px 회색 링크라 사실상 보이지 않았다. '금액 직접 입력' 을
+//        찾지 못한 사용자가 "뭘 어쩌라는 건지 모르겠다" 에서 막혔다.
 //
 // ⚠️ 여기서 **신규 계좌 연결을 요구하지 않는다.** 이미 연결된 모임통장만 후보다.
-//    새 연결은 여행을 만든 뒤 여행 준비 홈에서 한다.
+//    새 연결은 여행을 만든 뒤 여행 홈에서 한다. 그래서 하단 안내는 계좌 유무와
+//    무관하게 항상 남긴다. 실제로 사용자가 갖는 질문이다.
 //
 // ⚠️ financial_accounts 는 group_id 만 갖는다. 개인 여행과 신규 모임에는
-//    붙을 계좌가 없어 계좌 블록이 아예 나오지 않는다.
+//    붙을 계좌가 없어 '연결된 계좌' 행 자체가 나오지 않는다.
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
@@ -27,12 +36,12 @@ type Props = {
   value: FundSourceType;
   onChange: (value: FundSourceType) => void;
 
-  /** 이미 연결된 Mock 계좌. 비어 있으면 계좌 블록을 그리지 않는다 */
+  /** 이미 연결된 Mock 계좌. 비어 있으면 '연결된 계좌' 행을 그리지 않는다 */
   accounts: FinancialAccount[];
   accountsLoading: boolean;
   selectedAccountId: string | null;
-  /** 계좌를 여행자금 소스로 삼는다. 소스 전환과 계좌 선택이 한 동작이다 */
-  onUseAccount: (accountId: string) => void;
+  /** 여러 계좌 중 하나를 고른다. 소스 전환은 onChange 가 담당한다 */
+  onSelectAccount: (accountId: string) => void;
 
   manualAmount: number | null;
   onChangeManualAmount: (value: number | null) => void;
@@ -41,32 +50,77 @@ type Props = {
   disabled?: boolean;
 };
 
-/** 보조 액션 한 개. 작은 글자 링크다. 라디오처럼 보이면 안 된다. */
-function AltAction({
+/** 선택 상태 표시. 골라진 것에만 파란 체크가 찍힌다. */
+function CheckMark({ selected }: { selected: boolean }) {
+  return (
+    <View
+      className={`h-5 w-5 items-center justify-center rounded-full ${
+        selected ? 'bg-blue-600' : 'border border-gray-300 bg-white'
+      }`}
+    >
+      {selected ? <Ionicons name="checkmark" size={12} color="#ffffff" /> : null}
+    </View>
+  );
+}
+
+/**
+ * 선택지 한 행.
+ *
+ * 계좌 카드(2026-09-02)와 같은 언어를 쓴다 — 34px 원형 아이콘, 골라지면 행이
+ * 파랗게 바뀐다. 카드로 띄우지 않고 한 테두리 안에 쌓아서 예산 구성만큼
+ * 무거워 보이지 않게 한다.
+ */
+function OptionRow({
+  icon,
   label,
-  active,
-  onPress,
+  hint,
+  selected,
+  first,
   disabled,
+  onPress,
 }: {
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  active: boolean;
-  onPress: () => void;
+  hint: string;
+  selected: boolean;
+  first: boolean;
   disabled: boolean;
+  onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected: active, disabled }}
-      accessibilityLabel={label}
+      accessibilityState={{ selected, disabled }}
+      accessibilityLabel={`${label} — ${hint}`}
       disabled={disabled}
       onPress={onPress}
-      className={`px-1 py-1.5 active:opacity-60 ${disabled ? 'opacity-40' : ''}`}
+      className={`flex-row items-center gap-3 px-3.5 py-3 ${
+        first ? '' : 'border-t border-gray-100'
+      } ${selected ? 'bg-blue-50' : 'bg-white active:bg-gray-50'} ${
+        disabled ? 'opacity-40' : ''
+      }`}
     >
-      <Text
-        className={`text-[11px] font-bold ${active ? 'text-blue-600' : 'text-gray-500'}`}
+      <View
+        className={`h-[34px] w-[34px] items-center justify-center rounded-full ${
+          selected ? 'bg-white' : 'bg-blue-50'
+        }`}
       >
-        {label}
-      </Text>
+        <Ionicons name={icon} size={18} color="#2563eb" />
+      </View>
+
+      <View className="min-w-0 flex-1">
+        <Text
+          numberOfLines={1}
+          className={`text-[13px] font-extrabold ${selected ? 'text-blue-700' : 'text-gray-900'}`}
+        >
+          {label}
+        </Text>
+        <Text numberOfLines={1} className="mt-0.5 text-[11px] text-gray-500">
+          {hint}
+        </Text>
+      </View>
+
+      <CheckMark selected={selected} />
     </Pressable>
   );
 }
@@ -77,146 +131,128 @@ export function FundSourceSelector({
   accounts,
   accountsLoading,
   selectedAccountId,
-  onUseAccount,
+  onSelectAccount,
   manualAmount,
   onChangeManualAmount,
   manualAmountError = null,
   disabled = false,
 }: Props) {
   const hasAccounts = accounts.length > 0;
+  const usingAccount = value === FUND_SOURCE_TYPE.MOCK;
+  const usingManual = value === FUND_SOURCE_TYPE.MANUAL;
 
   return (
     <View>
       {accountsLoading ? (
-        <Text className="text-sm text-gray-400">연결된 계좌를 확인하는 중…</Text>
+        <Text className="mb-2 text-sm text-gray-400">연결된 계좌를 확인하는 중…</Text>
       ) : null}
 
-      {hasAccounts ? (
-        <>
-          {/*
-            기관명은 lib/constants/bank.ts 의 institutionName() 으로 만든다.
-            FUND-02(계좌 연결)와 같은 함수를 써야 한다. 같은 계좌가 화면마다
-            다른 이름으로 보이면 사용자는 다른 계좌라고 읽는다.
+      <View className="overflow-hidden rounded-2xl border border-gray-200">
+        {/* ── ① 연결된 계좌 ── 붙을 계좌가 없으면 행 자체가 없다 ── */}
+        {hasAccounts ? (
+          <>
+            <OptionRow
+              icon="card-outline"
+              label="연결된 계좌"
+              hint={
+                accounts.length > 1
+                  ? `모임통장 ${accounts.length}개 중에서 고를 수 있어요`
+                  : '모임통장 잔액을 그대로 써요'
+              }
+              selected={usingAccount}
+              first
+              disabled={disabled}
+              onPress={() => onChange(FUND_SOURCE_TYPE.MOCK)}
+            />
 
-            ⚠️ NFR-002 — masked_account_number 는 DB 에 이미 마스킹된 값이다.
-               그대로 쓰고, 원본 계좌번호는 어디에도 두지 않는다.
-          */}
-          {accounts.map((account, index) => {
-            const using = value === FUND_SOURCE_TYPE.MOCK && selectedAccountId === account.id;
-            return (
-              <View
-                key={account.id}
-                className={`flex-row items-center gap-3 rounded-2xl border px-3.5 py-3 ${
-                  using ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'
-                } ${index > 0 ? 'mt-2' : ''}`}
-              >
-                <View
-                  className={`h-[34px] w-[34px] items-center justify-center rounded-full ${
-                    using ? 'bg-white' : 'bg-blue-50'
-                  }`}
-                >
-                  <Ionicons name="card-outline" size={18} color="#2563eb" />
-                </View>
+            {/*
+              계좌 목록은 '연결된 계좌' 를 골랐을 때만 펼친다. 예산 구성의
+              아코디언과 같은 패턴이라 한 화면에서 배울 것이 하나다.
 
-                <View className="min-w-0 flex-1">
-                  <Text numberOfLines={1} className="text-[13px] font-extrabold text-gray-900">
-                    {institutionName(account.institution_code)}
-                  </Text>
-                  <Text numberOfLines={1} className="mt-0.5 text-[11px] text-gray-500">
-                    {account.masked_account_number ?? '계좌'} · 잔액{' '}
-                    {account.current_balance.toLocaleString('ko-KR')}원
-                  </Text>
-                </View>
+              ⚠️ NFR-002 — masked_account_number 는 DB 에 이미 마스킹된 값이다.
+                 그대로 쓰고, 원본 계좌번호는 어디에도 두지 않는다.
 
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: using, disabled: disabled || using }}
-                  accessibilityLabel={using ? '이 계좌를 사용 중' : '이 계좌 사용'}
-                  disabled={disabled || using}
-                  onPress={() => onUseAccount(account.id)}
-                  className={`rounded-lg px-2.5 py-2 ${
-                    using ? 'bg-white' : 'bg-blue-600 active:bg-blue-700'
-                  } ${disabled ? 'opacity-40' : ''}`}
-                >
-                  <Text
-                    className={`text-[11px] font-extrabold ${
-                      using ? 'text-blue-600' : 'text-white'
-                    }`}
-                  >
-                    {using ? '사용 중' : '이 계좌 사용'}
-                  </Text>
-                </Pressable>
+              ⚠️ 기관명은 institutionName() 으로 만든다. FUND-02 와 같은 함수를
+                 써야 한다. 같은 계좌가 화면마다 다른 이름으로 보이면 사용자는
+                 다른 계좌라고 읽는다.
+            */}
+            {usingAccount ? (
+              <View className="gap-1.5 bg-blue-50 px-3.5 pb-3.5">
+                {accounts.map((account) => {
+                  const picked = selectedAccountId === account.id;
+                  return (
+                    <Pressable
+                      key={account.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: picked, disabled }}
+                      accessibilityLabel={`${institutionName(account.institution_code)} ${
+                        account.masked_account_number ?? '계좌'
+                      }`}
+                      disabled={disabled}
+                      onPress={() => onSelectAccount(account.id)}
+                      className={`flex-row items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 ${
+                        picked ? 'border-blue-600' : 'border-gray-200 active:bg-gray-50'
+                      }`}
+                    >
+                      <View className="min-w-0 flex-1">
+                        <Text
+                          numberOfLines={1}
+                          className="text-[12.5px] font-extrabold text-gray-900"
+                        >
+                          {institutionName(account.institution_code)}
+                        </Text>
+                        <Text numberOfLines={1} className="mt-0.5 text-[11px] text-gray-500">
+                          {account.masked_account_number ?? '계좌'} · 잔액{' '}
+                          {account.current_balance.toLocaleString('ko-KR')}원
+                        </Text>
+                      </View>
+                      <CheckMark selected={picked} />
+                    </Pressable>
+                  );
+                })}
               </View>
-            );
-          })}
+            ) : null}
+          </>
+        ) : null}
 
-          <View className="mt-2.5 flex-row items-center justify-center gap-2">
-            <AltAction
-              label="금액 직접 입력"
-              active={value === FUND_SOURCE_TYPE.MANUAL}
-              onPress={() => onChange(FUND_SOURCE_TYPE.MANUAL)}
-              disabled={disabled}
-            />
-            <Text className="text-[10px] text-gray-300">·</Text>
-            <AltAction
-              label="0원부터 시작"
-              active={value === FUND_SOURCE_TYPE.ZERO}
-              onPress={() => onChange(FUND_SOURCE_TYPE.ZERO)}
-              disabled={disabled}
+        {/* ── ② 금액 직접 입력 ── */}
+        <OptionRow
+          icon="wallet-outline"
+          label="금액 직접 입력"
+          hint="이미 모아 둔 금액을 적어요"
+          selected={usingManual}
+          first={!hasAccounts}
+          disabled={disabled}
+          onPress={() => onChange(FUND_SOURCE_TYPE.MANUAL)}
+        />
+
+        {usingManual ? (
+          <View className="bg-blue-50 px-3.5 pb-3.5">
+            <CurrencyInput
+              value={manualAmount}
+              onChangeValue={onChangeManualAmount}
+              error={manualAmountError}
+              editable={!disabled}
+              hint="입력하지 않아도 0원으로 여행을 만들 수 있어요."
             />
           </View>
-        </>
-      ) : (
-        <>
-          {/* 연결된 계좌가 없다. 여기서 신규 연결을 요구하지 않는다 */}
-          <View className="rounded-2xl border border-gray-200 bg-white p-3.5">
-            <Text className="text-[13px] font-extrabold text-gray-800">
-              아직 모은 금액이 없다면 0원부터 시작해요.
-            </Text>
-            <Text className="mt-1 text-[11px] leading-[17px] text-gray-500">
-              여행을 만든 뒤 모임통장을 연결할 수 있어요.
-            </Text>
-            <View className="mt-2 self-start">
-              <AltAction
-                label="모은 금액 직접 입력"
-                active
-                onPress={() => onChange(FUND_SOURCE_TYPE.MANUAL)}
-                disabled={disabled}
-              />
-            </View>
-          </View>
+        ) : null}
 
-          {value === FUND_SOURCE_TYPE.MANUAL ? (
-            <View className="mt-2.5 flex-row items-center justify-center">
-              <AltAction
-                label="0원부터 시작"
-                active={false}
-                onPress={() => onChange(FUND_SOURCE_TYPE.ZERO)}
-                disabled={disabled}
-              />
-            </View>
-          ) : null}
-        </>
-      )}
+        {/* ── ③ 0원으로 시작 ── 아무것도 하지 않는 것도 하나의 선택이다 ── */}
+        <OptionRow
+          icon="time-outline"
+          label="0원으로 시작"
+          hint="여행을 만든 뒤에 정해도 돼요"
+          selected={value === FUND_SOURCE_TYPE.ZERO}
+          first={false}
+          disabled={disabled}
+          onPress={() => onChange(FUND_SOURCE_TYPE.ZERO)}
+        />
+      </View>
 
-      {/* 직접 입력을 고른 경우에만 입력칸을 펼친다 */}
-      {value === FUND_SOURCE_TYPE.MANUAL ? (
-        <View className="mt-2.5">
-          <CurrencyInput
-            value={manualAmount}
-            onChangeValue={onChangeManualAmount}
-            error={manualAmountError}
-            editable={!disabled}
-            hint="입력하지 않아도 0원으로 여행을 만들 수 있어요."
-          />
-        </View>
-      ) : null}
-
-      {value === FUND_SOURCE_TYPE.ZERO && hasAccounts ? (
-        <Text className="mt-2 text-[11px] leading-4 text-gray-400">
-          여행을 만든 뒤에도 계좌나 금액으로 바꿀 수 있어요.
-        </Text>
-      ) : null}
+      <Text className="mt-2 text-[11px] leading-4 text-gray-400">
+        여행을 만든 뒤 여행 홈에서 모임통장을 연결할 수 있어요.
+      </Text>
     </View>
   );
 }

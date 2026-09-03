@@ -25,6 +25,10 @@ type Props = {
  *    빈 탭에 '0' 이 붙으면 없다는 사실만 두 번 말한다. 목록이 곧 개수다.
  */
 const TABS: { value: MyTripFilter; label: string }[] = [
+  // ⚠️ 2026-09-04 팀 확정 — 출발 전 상태를 '진행 중' 이라 부르면 여행 중과
+  //    헷갈린다. develop 은 라벨만 '준비 중' 으로 바꿨고, 여기서는 한 걸음 더
+  //    나아가 **탭 자체를 둘로 갈랐다.** 라벨만 바꾸면 여행 중인 여행이
+  //    여전히 준비 중 탭에 섞여 있어서 헷갈리는 원인이 그대로 남는다.
   { value: 'planning', label: TRIP_STATUS_LABEL.PLANNING },
   { value: 'traveling', label: TRIP_STATUS_LABEL.TRAVELING },
   { value: 'past', label: '지난 여행' },

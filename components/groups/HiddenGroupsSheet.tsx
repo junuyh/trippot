@@ -31,6 +31,8 @@ export function HiddenGroupsSheet({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable className="flex-1 justify-end bg-black/40" onPress={onClose}>
+        {/* 목록이 길어져도 화면을 넘지 않게 70% 로 막는다.
+            PastTripSheet 도 같은 방식(max-h-[82%])을 쓴다. */}
         <Pressable className="max-h-[70%] rounded-t-2xl bg-white px-5 pb-9 pt-5" onPress={() => {}}>
           <Text className="text-base font-bold text-gray-900">숨긴 모임</Text>
 
