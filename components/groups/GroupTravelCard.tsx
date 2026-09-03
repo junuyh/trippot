@@ -187,12 +187,12 @@ export function GroupTravelCard({
         </View>
 
         <View className="mt-4 border-t border-gray-100 pt-3">
-          <Text className="text-xs font-medium leading-4 text-gray-500">진행 중인 여행</Text>
+          <Text className="text-xs font-medium leading-4 text-gray-500">준비 중인 여행</Text>
 
           <View style={{ height: TRIP_SLOT_HEIGHT }} className="mt-1.5">
             {visibleTrips.length === 0 ? (
               <View style={{ height: TRIP_LINE_HEIGHT }} className="justify-center">
-                <Text className="text-sm leading-5 text-gray-400">진행 중인 여행이 없어요.</Text>
+                <Text className="text-sm leading-5 text-gray-400">준비 중인 여행이 없어요.</Text>
               </View>
             ) : (
               visibleTrips.map((trip, index) => {

@@ -56,9 +56,9 @@ export function GroupDetailView({ group, onPressTrip, onPressCreateTrip }: Props
         <GroupAccountList accounts={group.accounts} />
       </Section>
 
-      <Section title="진행 중인 여행">
+      <Section title="준비 중인 여행">
         {group.ongoingTrips.length === 0 ? (
-          <Text className="text-sm text-gray-400">진행 중인 여행이 없어요.</Text>
+          <Text className="text-sm text-gray-400">준비 중인 여행이 없어요.</Text>
         ) : (
           <View className="gap-3">
             {group.ongoingTrips.map((trip) => (
