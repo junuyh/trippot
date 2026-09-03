@@ -17,10 +17,14 @@ import { Platform } from "react-native";
 export const DISPLAY_FONT = "BebasNeue_400Regular";
 
 /**
- * Bebas Neue 를 못 쓸 때 대신 쓸 폰트.
- * 두 플랫폼 모두 기본 탑재된 콘덴스드 계열이라 폭이 비슷하게 유지된다.
+ * 두 플랫폼에 기본 탑재된 콘덴스드 계열.
+ *
+ * 두 곳에 쓴다.
+ *   ① Bebas Neue 를 아직 못 받았을 때의 폴백
+ *   ② 굵기가 필요한 숫자. Bebas 는 굵기가 하나뿐이라 큰 금액이 얇아 보인다.
+ *      이쪽은 굵기를 줄 수 있어 콘덴스드이면서도 무게가 남는다.
  */
-const FALLBACK = Platform.select({
+export const CONDENSED_FONT = Platform.select({
   ios: "AvenirNextCondensed-Bold",
   android: "sans-serif-condensed",
   default: undefined,
@@ -29,5 +33,5 @@ const FALLBACK = Platform.select({
 /** 실제로 적용할 fontFamily 를 돌려준다. 로드 전에는 폴백이다. */
 export function useDisplayFont(): { fontFamily: string | undefined; loaded: boolean } {
   const [loaded] = useFonts({ BebasNeue_400Regular });
-  return { fontFamily: loaded ? DISPLAY_FONT : FALLBACK, loaded };
+  return { fontFamily: loaded ? DISPLAY_FONT : CONDENSED_FONT, loaded };
 }

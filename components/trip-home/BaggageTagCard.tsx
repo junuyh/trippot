@@ -37,7 +37,7 @@ import { cityLandmark } from "@/lib/constants/cityLandmark";
 import type { CountryTheme } from "@/lib/constants/countryTheme";
 import { countryLandmark } from "@/lib/constants/countryLandmark";
 import type { DestinationCode } from "@/lib/constants/destinations";
-import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
+import { CONDENSED_FONT, useDisplayFont } from "@/lib/hooks/useDisplayFont";
 
 // ── 태그 치수 ───────────────────────────────────────────────────────────────
 /** 좌우 여백. 시안의 29px */
@@ -518,19 +518,34 @@ export function BaggageTagCard({
             className="flex-row items-baseline justify-between"
             style={{ marginTop: 7 }}
           >
+            {/*
+              ⚠️ 도시명(Bebas Neue)과 같은 폰트를 쓰지 않는다. Bebas 는 굵기가
+                 하나뿐이라 큰 금액이 얇아 보인다. 시스템 폰트 900 은 반대로
+                 옆으로 두꺼워 태그 폭을 잡아먹는다. 굵기를 줄 수 있는
+                 콘덴스드 폰트로 그 사이를 잡는다.
+              ⚠️ `원` 은 한글이라 이 폰트에 없으므로 기본 폰트로 되돌린다.
+            */}
             <Text
               accessibilityLiveRegion="polite"
               style={{
                 flexShrink: 1,
-                fontSize: 38,
-                lineHeight: 42,
-                fontWeight: "900",
-                letterSpacing: -1.2,
+                fontFamily: CONDENSED_FONT,
+                fontSize: 42,
+                lineHeight: 46,
+                fontWeight: "700",
+                letterSpacing: -0.2,
                 color: INK,
               }}
             >
               {raised.body}
-              <Text style={{ fontSize: 11, fontWeight: "800", letterSpacing: 0 }}>
+              <Text
+                style={{
+                  fontFamily: undefined,
+                  fontSize: 11,
+                  fontWeight: "800",
+                  letterSpacing: 0,
+                }}
+              >
                 {raised.unit}
               </Text>
             </Text>
