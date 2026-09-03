@@ -2,8 +2,11 @@
 // MY-02 나의 여행 · /me/trips · MVP
 // 기준 문서: docs/04_화면목록_v3.md MY-02, docs/09_IA_v2.md §1-1 / §1-2
 //
-// 홈(HOME-01)의 '진행 중인 여행 — 전체 보기' 가 여기로 들어온다.
+// 홈(HOME-01)의 '준비 중인 여행 — 전체 보기' 가 여기로 들어온다.
 // 홈은 지금 챙길 것만 추려 보여주고, 이 화면이 전부 훑는 자리다.
+//
+// 탭은 준비 중 / 여행 중 / 지난 여행 셋이다. 준비 중과 여행 중을 한 탭에 묶으면
+// 지금 떠나 있는 여행이 아직 출발도 안 한 여행 사이에 섞인다. (components/my/types.ts)
 //
 // ⚠️ 화면목록에서 MY-02 담당은 아직 `[미확정]` B 또는 C 다. HOME-01 과 같은 묶음이라
 //    홈 담당자가 이어서 만들었다. 담당이 갈리면 사람에게 알린다. (CLAUDE.md 13장)
@@ -33,19 +36,28 @@ import { getTripsWithSummary, type TripWithSummary } from '@/lib/supabase/querie
 
 type LoadState = 'loading' | 'ready' | 'error';
 
-/** 진행 중으로 볼 상태와 지난 여행으로 볼 상태. DELETED 는 조회에서 이미 빠진다. */
-const ONGOING: TripStatus[] = [TRIP_STATUS.PLANNING, TRIP_STATUS.TRAVELING];
+/** 지난 여행으로 볼 상태. 준비 중·여행 중은 상태 하나씩이다. DELETED 는 조회에서 이미 빠진다. */
 const PAST: TripStatus[] = [TRIP_STATUS.ENDED, TRIP_STATUS.SETTLED];
+
+/**
+ * 어느 탭으로 열지 정한다.
+ *
+ * ⚠️ 'ongoing' 은 준비 중과 여행 중을 함께 부르던 예전 이름이다.
+ *    그 값으로 들어오는 링크가 남아 있을 수 있어 준비 중으로 받는다.
+ */
+function toFilter(value: string | undefined): MyTripFilter {
+  if (value === 'past') return 'past';
+  if (value === 'traveling') return 'traveling';
+  return 'planning';
+}
 
 export default function ScreenMY02() {
   useScreenView(SCREENS.MY_TRIPS);
 
   const router = useRouter();
-  // 홈에서 ?filter=past 로도 들어올 수 있게 열어 둔다. 기본은 진행 중이다.
+  // 홈에서 ?filter=past 로도 들어올 수 있게 열어 둔다. 기본은 준비 중이다.
   const params = useLocalSearchParams<{ filter?: string }>();
-  const [filter, setFilter] = useState<MyTripFilter>(
-    params.filter === 'past' ? 'past' : 'ongoing',
-  );
+  const [filter, setFilter] = useState<MyTripFilter>(() => toFilter(params.filter));
 
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [trips, setTrips] = useState<TripWithSummary[]>([]);
@@ -129,22 +141,26 @@ export default function ScreenMY02() {
     ];
   });
 
-  const ongoing = items.filter((item) => ONGOING.includes(item.status));
+  const planning = items.filter((item) => item.status === TRIP_STATUS.PLANNING);
+  const traveling = items.filter((item) => item.status === TRIP_STATUS.TRAVELING);
   const past = items.filter((item) => PAST.includes(item.status));
 
-  // 진행 중은 출발이 가까운 순, 지난 여행은 최근에 다녀온 순으로 본다.
-  ongoing.sort((a, b) => (a.startDate ?? '9999-12-31').localeCompare(b.startDate ?? '9999-12-31'));
+  // 준비 중은 출발이 가까운 순, 여행 중은 먼저 돌아오는 순,
+  // 지난 여행은 최근에 다녀온 순으로 본다. 탭마다 급한 것이 다르다.
+  planning.sort((a, b) => (a.startDate ?? '9999-12-31').localeCompare(b.startDate ?? '9999-12-31'));
+  traveling.sort((a, b) => (a.endDate ?? '9999-12-31').localeCompare(b.endDate ?? '9999-12-31'));
   past.sort((a, b) => (b.endDate ?? '').localeCompare(a.endDate ?? ''));
+
+  const visible = filter === 'past' ? past : filter === 'traveling' ? traveling : planning;
 
   return (
     <>
       <Stack.Screen options={{ title: '내 여행', headerTitleAlign: 'center' }} />
       <MyTripListView
-        trips={filter === 'ongoing' ? ongoing : past}
+        trips={visible}
         filter={filter}
-        counts={{ ongoing: ongoing.length, past: past.length }}
         onChangeFilter={setFilter}
-        // 진행/종료 모두 같은 라우트다. 도착 화면이 trip.status 로 분기한다. (docs/04_v3 §5)
+        // 준비 중·여행 중·종료 모두 같은 라우트다. 도착 화면이 trip.status 로 분기한다. (docs/04_v3 §5)
         onPressTrip={(tripId) => router.push(`/trips/${tripId}`)}
         // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint param 을 읽어 기록한다.
         onPressCreateTrip={() => router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)}
