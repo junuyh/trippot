@@ -14,7 +14,15 @@
 // 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다.
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
-import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import Svg, { Circle, Defs, Pattern, Rect } from "react-native-svg";
 
 import type { CountryTheme } from "@/lib/constants/countryTheme";
@@ -47,6 +55,10 @@ type Props = {
   /** 예산 정확도. basis point */
   accuracyBp: number;
   evidence: TypeEvidenceRow[];
+  /** 정산 확정 전의 잠정 결과인지. 문구가 달라진다 */
+  provisional: boolean;
+  /** 공유 안내에 쓰는 한글 여행지명 */
+  destinationKo: string;
   onClose: () => void;
 };
 
@@ -59,6 +71,8 @@ export function TypeResultOverlay({
   theme,
   code,
   accuracyBp,
+  provisional,
+  destinationKo,
   evidence,
   onClose,
 }: Props) {
@@ -305,6 +319,56 @@ export function TypeResultOverlay({
             })}
           </View>
 
+          {/*
+            ── 이미지로 공유 ── [검토 필요]
+
+            ⚠️ 버튼만 먼저 둔다. 화면을 이미지로 굽는 것(react-native-view-shot
+               또는 expo 의 캡처 API)과 카카오톡 공유(네이티브 SDK · 개발 빌드
+               필요 · 앱 키 발급은 사람이 해야 함)는 아직 만들지 않았다.
+               눌러도 아무 일이 없으면 고장으로 읽히므로 준비 중임을 말한다.
+
+            ⚠️ 잠정 결과는 공유 대상이 아니다. 확정 전 유형을 이미지로 내보내면
+               나중에 바뀐 뒤에도 그 이미지가 남아 돌아다닌다.
+          */}
+          {provisional ? (
+            <View
+              style={{
+                marginTop: 20,
+                borderRadius: 12,
+                backgroundColor: "#f5f6f8",
+                padding: 14,
+              }}
+            >
+              <Text style={{ fontSize: 11, lineHeight: 17, color: "#5d6674" }}>
+                아직 정산이 끝나지 않아 지금까지의 지출로 계산한 결과예요.
+                정산을 확정하면 이미지로 저장하고 공유할 수 있어요.
+              </Text>
+            </View>
+          ) : (
+            <View className="flex-row" style={{ gap: 10, marginTop: 20 }}>
+              <ShareAction
+                icon="download-outline"
+                label="이미지 저장"
+                onPress={() =>
+                  Alert.alert(
+                    "곧 만나요",
+                    `${destinationKo} 여행 유형을 이미지로 저장하는 기능을 준비하고 있어요.`,
+                  )
+                }
+              />
+              <ShareAction
+                icon="chatbubble-ellipses-outline"
+                label="카카오톡으로 보내기"
+                onPress={() =>
+                  Alert.alert(
+                    "곧 만나요",
+                    "카카오톡 공유는 개발 빌드에서만 동작해요. 연동 준비가 끝나면 알려드릴게요.",
+                  )
+                }
+              />
+            </View>
+          )}
+
           <Text
             style={{
               marginTop: 16,
@@ -313,11 +377,45 @@ export function TypeResultOverlay({
               color: "#a8afb9",
             }}
           >
-            이 결과는 결산을 확정한 시점의 기록이에요. 이후 예산을 고쳐도 바뀌지
-            않아요.
+            {provisional
+              ? "정산을 확정하면 그 시점의 기록으로 고정돼요."
+              : "이 결과는 정산을 확정한 시점의 기록이에요. 이후 예산을 고쳐도 바뀌지 않아요."}
           </Text>
         </ScrollView>
       </View>
     </Modal>
+  );
+}
+
+/** 공유 버튼 한 칸. 아직 준비 중이라 눌리면 안내만 띄운다 */
+function ShareAction({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. 준비 중인 기능이에요`}
+      onPress={onPress}
+      className="flex-1 items-center justify-center active:opacity-70"
+      style={{
+        gap: 6,
+        height: 74,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "#e5e8ec",
+        backgroundColor: "#fff",
+      }}
+    >
+      <Ionicons name={icon} size={18} color="#3d4654" />
+      <Text style={{ fontSize: 11, fontWeight: "800", color: "#3d4654" }}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }

@@ -20,6 +20,7 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
@@ -245,10 +246,6 @@ export default function ScreenSETTLE01() {
     (data?.categories ?? []).reduce((sum, c) => sum + c.actual_amount, 0);
   /** 현재 남은 금액 = 누적 모금액 − 실제 사용액. 음수로 내려가지 않게 둔다 */
   const remainingAmount = Math.max(0, raisedAmount - actualAmount);
-  const rateBp =
-    data?.settlement?.difference_rate_bp ??
-    differenceRateBp(targetAmount, actualAmount);
-
   // ── 결산 유도 로그 ────────────────────────────────────────────────────
   //
   // 아직 확정하지 않은 여행에서 이 화면을 본 순간이 '유도 노출' 이다.
@@ -304,8 +301,8 @@ export default function ScreenSETTLE01() {
   // NFR-003 — 결산 확정은 사전 확인한다. 되돌릴 수 없다.
   const handleConfirmPress = useCallback(() => {
     Alert.alert(
-      "결산을 확정할까요?",
-      "확정하면 지금의 예산과 지출이 그대로 기록돼요. 나중에 예산을 고쳐도 결산 결과는 바뀌지 않아요.",
+      "정산을 확정할까요?",
+      "확정하면 지금의 예산과 지출이 그대로 기록돼요. 나중에 예산을 고쳐도 정산 결과는 바뀌지 않아요.",
       [
         { text: "취소", style: "cancel" },
         {
@@ -321,8 +318,8 @@ export default function ScreenSETTLE01() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "결산" }} />
-        <Loading message="결산을 불러오는 중…" />
+        <Stack.Screen options={{ title: "정산" }} />
+        <Loading message="정산 내역을 불러오는 중…" />
       </View>
     );
   }
@@ -330,7 +327,7 @@ export default function ScreenSETTLE01() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "결산" }} />
+        <Stack.Screen options={{ title: "정산" }} />
         <EmptyState
           icon="receipt-outline"
           title="여행을 찾을 수 없어요"
@@ -345,9 +342,9 @@ export default function ScreenSETTLE01() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "결산" }} />
+        <Stack.Screen options={{ title: "정산" }} />
         <ErrorState
-          message="결산을 불러오지 못했어요."
+          message="정산 내역을 불러오지 못했어요."
           onRetry={() => void load()}
         />
       </View>
@@ -362,10 +359,10 @@ export default function ScreenSETTLE01() {
   if (tooEarly) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "결산" }} />
+        <Stack.Screen options={{ title: "정산" }} />
         <EmptyState
           icon="hourglass-outline"
-          title="아직 결산할 때가 아니에요"
+          title="아직 정산할 때가 아니에요"
           description="여행이 끝나면 계획과 실제를 비교해 드릴게요."
           actionLabel="여행 홈으로"
           onAction={() => router.replace(`/trips/${data.trip.id}`)}
@@ -383,14 +380,16 @@ export default function ScreenSETTLE01() {
       }
     >
       <Stack.Screen
-        options={{ title: `${data.trip.destination ?? "여행"} 결산` }}
+        options={{ title: `${data.trip.destination ?? "여행"} 정산` }}
       />
 
       <SettlementSummaryCard
         targetAmount={targetAmount}
         actualAmount={actualAmount}
-        differenceRateBp={rateBp}
         headcount={data.trip.headcount}
+        confirmedCount={data.funds.confirmedCount}
+        /* 확인할 거래가 남아 있으면 '완료' 라고 말하지 않는다 */
+        allConfirmed={checklist.reviewCount === 0}
       />
 
       {/*
@@ -419,7 +418,7 @@ export default function ScreenSETTLE01() {
       <View className="gap-2.5">
         <View className="flex-row items-end justify-between">
           <Text className="text-base font-semibold text-gray-900">
-            카테고리별 결산
+            카테고리별 정산
           </Text>
           <Text
             accessibilityRole="button"
@@ -552,11 +551,66 @@ export default function ScreenSETTLE01() {
         </View>
       ) : null}
 
+      {/*
+        ── 정산 리포트 공유 ── [검토 필요]
+
+        ⚠️ 버튼만 먼저 둔다. 리포트 생성(모금·예산·실제 지출을 한 장으로 묶은
+           PDF/이미지)과 카카오톡 공유는 아직 만들지 않았다.
+           · PDF/이미지 생성 → expo-print · react-native-view-shot 중 무엇을
+             쓸지 정해야 한다. 둘 다 새 의존성이다.
+           · 카카오톡 공유 → 네이티브 SDK 라 Expo Go 에서 동작하지 않는다.
+             개발 빌드가 필요하고, 앱 키 발급도 사람이 해야 한다.
+           눌러도 아무 일이 없으면 고장으로 읽히므로 준비 중임을 말한다.
+
+        ⚠️ 확정 전에는 그리지 않는다. 아직 바뀔 숫자를 리포트로 내보내면
+           공유받은 사람이 보는 값과 앱의 값이 달라진다.
+      */}
+      {settled ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="정산 리포트 공유하기. 준비 중인 기능이에요"
+          onPress={() =>
+            Alert.alert(
+              "곧 만나요",
+              "모금·예산·실제 지출을 한 장으로 정리한 리포트를 이미지나 PDF 로 저장하고 공유하는 기능을 준비하고 있어요.",
+            )
+          }
+          className="flex-row items-center justify-center active:opacity-70"
+          style={{
+            gap: 7,
+            height: 52,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "#dfe3e8",
+            backgroundColor: "#fff",
+          }}
+        >
+          <Ionicons name="share-outline" size={16} color="#3d4654" />
+          <Text style={{ fontSize: 13, fontWeight: "800", color: "#3d4654" }}>
+            정산 리포트 공유하기
+          </Text>
+          <Text
+            style={{
+              marginLeft: 2,
+              paddingHorizontal: 7,
+              paddingVertical: 3,
+              borderRadius: 6,
+              backgroundColor: "#f1f3f6",
+              fontSize: 9,
+              fontWeight: "800",
+              color: "#8b94a2",
+            }}
+          >
+            준비 중
+          </Text>
+        </Pressable>
+      ) : null}
+
       {settled ? (
         <View className="gap-2.5">
           <View className="flex-row items-start gap-1.5 rounded-xl bg-blue-50 px-3 py-2.5">
             <Text className="flex-1 text-xs leading-4 text-blue-700">
-              결산이 확정됐어요. 이 기록은 다음 여행 예산을 추천할 때 쓰여요.
+              정산이 확정됐어요. 이 기록은 다음 여행 예산을 추천할 때 쓰여요.
             </Text>
           </View>
           <Button
@@ -583,12 +637,12 @@ export default function ScreenSETTLE01() {
             <View className="rounded-xl bg-amber-50 px-3 py-2.5">
               <Text className="text-xs leading-4 text-amber-800">
                 확인할 거래 {checklist.reviewCount}건을 먼저 정리해 주세요.
-                분류되지 않은 지출은 결산에 잡히지 않아요.
+                분류되지 않은 지출은 정산에 잡히지 않아요.
               </Text>
             </View>
           ) : null}
           <Button
-            label="결산 확정하기"
+            label="정산 확정하기"
             onPress={handleConfirmPress}
             loading={confirming}
             disabled={checklist.reviewCount > 0}

@@ -12,7 +12,12 @@
 //
 // ⚠️ 금액을 축약하지 않는다. 영수증은 정확한 숫자가 있는 자리다.
 // ============================================================================
-import { Text, View, type LayoutChangeEvent } from "react-native";
+import {
+  Pressable,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 import { useState } from "react";
 import Svg, { Path } from "react-native-svg";
 
@@ -21,13 +26,14 @@ import { CATEGORY_CODE_LABEL, type CategoryCode } from "@/lib/constants/status";
 
 const GREEN = "#19865f";
 /**
- * 영수증 종이색.
+ * 영수증 종이색. 진짜 영수증처럼 흰색이다.
  *
- * ⚠️ 순백으로 두지 않는다. TRIP-HOME 의 배경이 흰색이라 톱니가 배경에
- *    묻혀 안 보인다. 살짝 따뜻하게 틀어야 종이 한 장이 얹힌 것으로 읽힌다.
+ * ⚠️ 화면 배경도 흰색이라 색만으로는 종이가 안 보인다. 그래서 톱니와
+ *    좌우 변에 **테두리 선을 그리고 그림자를 준다.** 선이 없으면 찢어낸
+ *    윗변·아랫변이 배경에 묻혀 그냥 흰 사각형이 된다.
  */
-const PAPER = "#fffdf6";
-const LINE = "#ece7db";
+const PAPER = "#ffffff";
+const LINE = "#dfe3e8";
 /** 톱니 한 칸의 폭·높이 */
 const TOOTH = 12;
 const TOOTH_H = 7;
@@ -249,21 +255,33 @@ export function TripReceiptCard({
           {withinBudget ? "예산 안에서 여행 완료 ✓" : "예산을 넘겼어요"}
         </Text>
 
+        {/*
+          ⚠️ 9px 오른쪽 정렬 글자로 두지 않는다. 이 영수증에서 사용자가
+             다음으로 갈 곳은 여기 하나뿐인데, 가장 작은 글씨라 아무도
+             누르지 않았다. 영수증 폭을 다 쓰는 버튼으로 만든다.
+        */}
         {onPressDetail ? (
-          <Text
+          <Pressable
             accessibilityRole="button"
-            accessibilityLabel="여행비 결산 자세히 보기"
+            accessibilityLabel="여행비 정산 자세히 보기"
             onPress={onPressDetail}
+            className="flex-row items-center justify-center active:opacity-70"
             style={{
-              textAlign: "right",
-              marginTop: 12,
-              fontSize: 9,
-              fontWeight: "900",
-              color: theme.primary,
+              gap: 5,
+              marginTop: 16,
+              height: 44,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: theme.primary,
             }}
           >
-            여행비 결산 자세히 보기 ›
-          </Text>
+            <Text
+              style={{ fontSize: 12, fontWeight: "900", color: theme.primary }}
+            >
+              여행비 정산 자세히 보기
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.primary }}>›</Text>
+          </Pressable>
         ) : null}
       </View>
 

@@ -50,6 +50,7 @@ import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { allocateVault } from "@/lib/budget/vault";
+import { resolveTravelType } from "@/lib/budget/travelType";
 import { buildTripRecord } from "@/lib/budget/tripRecord";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -74,6 +75,7 @@ import { getGroupById } from "@/lib/supabase/queries/groups";
 import {
   getFundTotals,
   getTransactions,
+  reviewReason,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
 import {
@@ -291,6 +293,65 @@ export default function ScreenTripHome() {
     [destinationMeta?.countryKo],
   );
 
+  /**
+   * 아직 정리되지 않은 거래 수.
+   *
+   * ⚠️ SETTLE-01 의 확인 목록과 **같은 판정**을 쓴다. 두 화면이 다른 기준으로
+   *    세면 여기서 3건이라고 해놓고 정산 화면에서 5건이 나온다.
+   */
+  const reviewCount = useMemo(
+    () =>
+      (data?.transactions ?? []).filter(
+        (transaction) => reviewReason(transaction) !== null,
+      ).length,
+    [data?.transactions],
+  );
+
+  /**
+   * 정산 확정 전에 **미리 보여주는** 여행 유형.
+   *
+   * ⚠️ 저장하지 않는다. resolveTravelType() 은 순수 함수라 화면에서 계산만
+   *    한다. 확정 전 값을 trip_type_results 에 넣으면 그게 '확정 결과' 가
+   *    되어, 이후 분류를 고쳐도 유형이 그대로 남는다. (IA v2 §2-6-3)
+   *
+   * ⚠️ 그래서 화면에는 **잠정값임을 반드시 적는다.** 확정값과 같은 얼굴로
+   *    보여주면 정산 후 유형이 바뀌었을 때 사용자는 앱이 틀렸다고 읽는다.
+   */
+  const provisionalType = useMemo(() => {
+    if (!data || data.trip.status === TRIP_STATUS.SETTLED) return null;
+    const inputs = data.categories
+      .filter((category) => category.planned_amount > 0)
+      .map((category) => ({
+        categoryCode: category.category_code as CategoryCode,
+        plannedAmount: category.planned_amount,
+        actualAmount: category.actual_amount,
+      }));
+    if (inputs.length === 0) return null;
+    return resolveTravelType(inputs);
+  }, [data]);
+
+  /**
+   * 화면에 실제로 그릴 유형. 확정값이 있으면 그것, 없으면 잠정값이다.
+   * 확정값이 생기면 잠정값은 더 이상 쓰이지 않는다.
+   */
+  const shownType = useMemo(() => {
+    if (typeResult) {
+      return {
+        code: typeResult.code,
+        accuracyBp: typeResult.accuracyBp,
+        evidence: typeResult.evidence,
+        provisional: false,
+      };
+    }
+    if (!provisionalType) return null;
+    return {
+      code: provisionalType.type,
+      accuracyBp: provisionalType.accuracyBp,
+      evidence: provisionalType.evidence,
+      provisional: true,
+    };
+  }, [provisionalType, typeResult]);
+
   /** 카테고리별 결산 그리드. 계획이 있는 카테고리만 그린다 */
   const settlementVaults: SettlementVault[] = useMemo(
     () =>
@@ -465,64 +526,63 @@ export default function ScreenTripHome() {
       <Stack.Screen options={{ title: trip.destination ?? "여행 홈" }} />
 
       {/*
-        ── 여행 소개 ──
+        ── 여행 정보 ──
         ⚠️ 준비 중인 여행에서는 그리지 않는다. 목적지·기간·인원·여행계·수정
            버튼이 전부 수하물 태그 안으로 들어갔다. (시안 v4)
-           여기 남겨 두면 같은 정보가 화면에 두 번 나온다.
+
+        ⚠️ "도쿄 여행, 어떻게 다녀왔을까요?" 같은 큰 문구를 두지 않는다.
+           끝난 여행에서 사용자가 찾는 건 질문이 아니라 결과다. 문구가
+           화면 첫 화면의 3분의 1을 먹고 정작 정산 상태는 아래로 밀렸다.
+
+        ⚠️ 국기·국가 코드 자리에 **지금 어느 단계인가**를 놓는다.
+           끝난 여행 화면에서 `JP` 는 이미 아는 정보고,
+           '정산 전' 인지 '정산 완료' 인지가 다음 행동을 정한다.
       */}
       {ended ? (
         <View className="px-1 pt-1">
-          <View className="flex-row items-center gap-1.5">
-            <View
-              className="h-[2px] w-5"
-              style={{ backgroundColor: theme.primary }}
-            />
-            <Text
-              className="text-[11px] font-extrabold tracking-widest"
-              style={{ color: theme.primary }}
-            >
-              {ended ? "TRIP COMPLETED" : "NEXT DESTINATION"}
-            </Text>
-          </View>
-
-          <View className="mt-3 flex-row items-start justify-between">
-            <Text
-              className="flex-1 text-[28px] font-extrabold leading-9"
-              style={{ color: theme.neutral }}
-            >
-              {ended
-                ? `${trip.destination ?? "여행"} 여행,\n어떻게 다녀왔을까요?`
-                : `${trip.destination ?? "여행지"}로 떠날\n준비를 시작해요.`}
-            </Text>
-            <View className="mt-2 flex-row items-center gap-1 rounded-full bg-white px-2.5 py-1.5">
-              <Text className="text-[13px]">{destinationMeta?.flag ?? "🌍"}</Text>
+          <View className="flex-row items-start justify-between">
+            <View className="flex-1">
               <Text
-                className="text-[10px] font-extrabold"
+                className="text-[22px] font-extrabold"
                 style={{ color: theme.neutral }}
               >
-                {theme.code}
+                {trip.destination ?? "여행"}
+              </Text>
+              <Text className="mt-1.5 text-[13px] text-gray-500">
+                {[
+                  trip.start_date && trip.end_date
+                    ? `${format(parseISO(trip.start_date), "M.d")} — ${format(parseISO(trip.end_date), "M.d")}`
+                    : null,
+                  `${trip.headcount}명`,
+                  data.groupName ?? "개인 여행",
+                ]
+                  .filter(Boolean)
+                  .join("  ·  ")}
               </Text>
             </View>
-          </View>
-
-          <View className="mt-2 flex-row items-center" style={{ gap: 8 }}>
-            <Text className="text-[13px] text-gray-500">
-              {[
-                trip.start_date && trip.end_date
-                  ? `${format(parseISO(trip.start_date), "M.d")} — ${format(parseISO(trip.end_date), "M.d")}`
-                  : null,
-                `${trip.headcount}명`,
-                data.groupName ?? "개인 여행",
-              ]
-                .filter(Boolean)
-                .join("  ·  ")}
-            </Text>
-            {/*
-              ⚠️ 수정 버튼을 두지 않는다. 이 영역은 끝난 여행에서만 그려지고,
-                 끝난 여행은 일정·인원을 고칠 수 없다. 결산이 그 시점의
-                 기록이라 뒤에서 바꾸면 이미 확정한 결산과 어긋난다.
-                 준비 중인 여행의 수정 버튼은 수하물 태그 안에 있다.
-            */}
+            <View
+              className="mt-1 flex-row items-center"
+              style={{
+                gap: 5,
+                paddingHorizontal: 10,
+                paddingVertical: 7,
+                borderRadius: 999,
+                backgroundColor:
+                  status === TRIP_STATUS.SETTLED ? "#eef8f2" : theme.primarySoft,
+              }}
+            >
+              <Text style={{ fontSize: 11 }}>{destinationMeta?.flag ?? "🌍"}</Text>
+              <Text
+                style={{
+                  fontSize: 10,
+                  fontWeight: "900",
+                  color:
+                    status === TRIP_STATUS.SETTLED ? "#1c6f4f" : theme.primary,
+                }}
+              >
+                {status === TRIP_STATUS.SETTLED ? "정산 완료" : "정산 전"}
+              </Text>
+            </View>
           </View>
         </View>
       ) : null}
@@ -536,50 +596,103 @@ export default function ScreenTripHome() {
             그 위에서 뽑은 유형을 확정 결과처럼 보여주면 안 된다.
           */}
           {/*
-            ── 결산 유도 ── (CLAUDE.md 3장)
-            여행이 끝났는데 결산을 안 했으면 여기서 붙잡는다.
+            ── 정산 유도 ── (CLAUDE.md 3장)
+            여행이 끝났는데 정산을 안 했으면 여기서 붙잡는다.
             확정은 사용자가 하되, 할 일이 남았다는 건 먼저 알려준다.
+
+            ⚠️ 큰 설명 문단과 큰 버튼을 걷어내고 한 줄짜리 진입점으로 줄였다.
+               이 카드는 "무엇을 해야 하는가" 만 말하면 되고, 설명은 정산
+               화면이 다시 한다. 여기서 두 번 설명하면 첫 화면이 글로 찬다.
+
+            ⚠️ '결산' 이라는 말을 앞세우지 않는다. 사용자가 "결산이 뭔데?" 에서
+               멈춘다. 남은 할 일(정리되지 않은 지출)을 먼저 말한다.
           */}
           {status === TRIP_STATUS.ENDED ? (
-            <View
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="여행비 정산하러 가기"
+              onPress={() => router.push(`/trips/${trip.id}/settlement`)}
+              className="flex-row items-center active:opacity-70"
               style={{
+                gap: 13,
+                borderWidth: 1,
+                borderColor: theme.primary + "33",
                 borderRadius: 16,
                 backgroundColor: theme.primarySoft,
-                padding: 16,
-                gap: 10,
+                paddingHorizontal: 16,
+                paddingVertical: 15,
               }}
             >
-              <Text
+              <View
+                className="items-center justify-center"
                 style={{
-                  fontSize: 15,
-                  fontWeight: "800",
-                  color: theme.neutral,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  backgroundColor: "#fff",
                 }}
               >
-                여행이 끝났어요. 결산할 차례예요
-              </Text>
-              <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
-                지출을 확인하고 결산을 확정하면 이번 여행이 어떤 여행이었는지
-                알려드리고, 다음 여행 예산도 여기에 맞춰 추천해요.
-              </Text>
-              <Button
-                label="여행비 결산 시작하기"
-                onPress={() => router.push(`/trips/${trip.id}/settlement`)}
-              />
-            </View>
+                <Ionicons
+                  name={reviewCount > 0 ? "alert-circle" : "receipt-outline"}
+                  size={19}
+                  color={theme.primary}
+                />
+              </View>
+              <View className="flex-1">
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "800",
+                    color: theme.neutral,
+                  }}
+                >
+                  {reviewCount > 0
+                    ? `정리되지 않은 지출 ${reviewCount}건이 있어요`
+                    : "여행비를 정산할 차례예요"}
+                </Text>
+                <Text
+                  style={{ marginTop: 4, fontSize: 11, color: "#5d6674" }}
+                >
+                  {reviewCount > 0
+                    ? "어디에 쓴 돈인지 정하면 이번 여행 결과가 완성돼요."
+                    : "지출 확인이 끝났어요. 확정하면 다음 여행 예산에 반영돼요."}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.primary} />
+            </Pressable>
           ) : null}
 
-          {typeResult ? (
-            <TravelTypeCard
-              code={typeResult.code}
-              accuracyBp={typeResult.accuracyBp}
-              destinationEn={
-                destinationMeta?.nameEn ??
-                (trip.destination ?? "TRIP").toUpperCase()
-              }
-              /* 라우트로 밀지 않고 오버레이로 연다 (시안 v3) */
-              onPress={() => setTypeOpen(true)}
-            />
+          {/*
+            ⚠️ 정산 확정 전에도 **지금 데이터로** 유형을 보여준다.
+               확정할 때까지 아무것도 안 보여주면, 정작 정산을 미루게 만드는
+               화면에 볼거리가 하나도 없다. 대신 잠정값임을 카드 아래에 적는다.
+          */}
+          {shownType ? (
+            <View style={{ gap: 8 }}>
+              <TravelTypeCard
+                code={shownType.code}
+                accuracyBp={shownType.accuracyBp}
+                destinationEn={
+                  destinationMeta?.nameEn ??
+                  (trip.destination ?? "TRIP").toUpperCase()
+                }
+                /* 라우트로 밀지 않고 오버레이로 연다 (시안 v3) */
+                onPress={() => setTypeOpen(true)}
+              />
+              {shownType.provisional ? (
+                <Text
+                  style={{
+                    paddingHorizontal: 6,
+                    fontSize: 10,
+                    lineHeight: 15,
+                    color: "#98a1ad",
+                  }}
+                >
+                  정산이 끝나지 않아 지금까지의 지출로 계산한 결과예요. 지출을
+                  정리하면 유형이 바뀔 수 있어요.
+                </Text>
+              ) : null}
+            </View>
           ) : (
             <View
               style={{
@@ -608,7 +721,7 @@ export default function ScreenTripHome() {
                   color: "#141b28",
                 }}
               >
-                지출 확인을 마치면 여행 유형이 공개돼요
+                예산을 정하고 지출을 넣으면 여행 유형이 나와요
               </Text>
               <Text
                 style={{
@@ -618,11 +731,11 @@ export default function ScreenTripHome() {
                   color: "#7c8695",
                 }}
               >
-                결산을 확정하면 이번 여행이 어떤 여행이었는지 알려드릴게요.
+                계획한 예산과 실제로 쓴 돈을 비교해 이번 여행이 어떤 여행이었는지
+                알려드릴게요.
               </Text>
             </View>
           )}
-
           <TripReceiptCard
             theme={theme}
             destinationEn={
@@ -701,7 +814,7 @@ export default function ScreenTripHome() {
                   {trip.destination ?? "여행"} 여행, 이렇게 다녀왔어요
                 </Text>
                 <Text className="text-[10px] text-gray-400">
-                  카테고리별 결산
+                  카테고리별 정산
                 </Text>
               </View>
               <SettlementVaultGrid
@@ -721,13 +834,15 @@ export default function ScreenTripHome() {
             TYPE-01 오버레이. 결산이 확정된 여행에만 결과가 있다.
             ⚠️ 근거를 반드시 함께 보여준다. 이름만 던지면 다음 여행 추천도 안 믿는다.
           */}
-          {typeResult ? (
+          {shownType ? (
             <TypeResultOverlay
               visible={typeOpen}
               theme={theme}
-              code={typeResult.code}
-              accuracyBp={typeResult.accuracyBp}
-              evidence={typeResult.evidence as TypeEvidenceRow[]}
+              code={shownType.code}
+              accuracyBp={shownType.accuracyBp}
+              evidence={shownType.evidence as TypeEvidenceRow[]}
+              provisional={shownType.provisional}
+              destinationKo={trip.destination ?? "여행"}
               onClose={() => setTypeOpen(false)}
             />
           ) : null}
