@@ -9,6 +9,7 @@
 // ============================================================================
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { View } from 'react-native';
 
 import { MyPostList } from '@/components/mypage';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
@@ -42,7 +43,8 @@ export default function ScreenMyPosts() {
   );
 
   return (
-    <>
+    // 바탕은 홈과 같은 pot-visual. Loading·Empty·Error 도 같은 바탕 위에 온다.
+    <View className="flex-1 bg-pot-visual">
       <Stack.Screen options={{ title: '작성한 게시글', headerTitleAlign: 'center' }} />
 
       {loadState === 'loading' ? <Loading /> : null}
@@ -62,6 +64,6 @@ export default function ScreenMyPosts() {
           onPressPost={(postId) => router.push(`/community/posts/${postId}`)}
         />
       ) : null}
-    </>
+    </View>
   );
 }
