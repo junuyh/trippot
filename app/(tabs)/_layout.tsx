@@ -1,6 +1,5 @@
 import { Tabs } from 'expo-router';
 
-import { NotificationBellButton } from '@/components/mypage';
 import { FloatingTabBar } from '@/components/navigation/FloatingTabBar';
 
 /**
@@ -25,23 +24,6 @@ import { FloatingTabBar } from '@/components/navigation/FloatingTabBar';
  * title 은 남긴다. 화면 제목이자 탭바가 읽는 접근성 이름이다.
  */
 
-/**
- * 헤더 제목 색. tailwind.config.js 의 `pot.ink` 와 같은 값이다.
- *
- * headerTitleStyle 은 style 객체만 받아 className 을 쓸 수 없다.
- * 토큰을 새로 만들지 않고 기존 값을 그대로 적는다.
- */
-const HEADER_INK = '#111827';
-
-/**
- * 헤더 알림 아이콘(MY-01)을 눌렀을 때.
- *
- * ⚠️ TODO: 갈 화면이 아직 없다. 프로젝트 전체에 알림 목록 화면·route·query·테이블이
- *    하나도 없어서 임의 route 를 만들지 않았다. 목적지가 확정되면 여기만 채운다.
- *    (설정 > 알림 = 수신 여부 설정, 이 버튼 = 받은 알림 목록. 서로 다른 화면이다)
- */
-function handlePressNotifications() {}
-
 export default function TabsLayout() {
   return (
     <Tabs tabBar={(props) => <FloatingTabBar {...props} />}>
@@ -53,7 +35,12 @@ export default function TabsLayout() {
           headerShown: false,
         }}
       />
-      <Tabs.Screen name="groups" options={{ title: '모임' }} />
+      {/*
+        ⚠️ 모임도 기본 헤더를 끈다. 커뮤니티·마이페이지와 같은 방식이다.
+           Tabs 기본 헤더는 본체가 얇아 다른 화면과 높이가 어긋난다.
+           화면이 components/ui/Header 를 직접 그린다. (app/(tabs)/groups.tsx)
+      */}
+      <Tabs.Screen name="groups" options={{ title: '모임', headerShown: false }} />
       <Tabs.Screen
         name="community"
         options={{
@@ -63,26 +50,15 @@ export default function TabsLayout() {
         }}
       />
       {/*
-        ⚠️ 아래 헤더 설정은 마이페이지 탭에만 적용된다. 다른 탭 세 개는 건드리지 않는다.
-           (홈·커뮤니티는 headerShown: false, 모임은 기본 헤더 그대로)
+        ⚠️ 마이페이지도 기본 헤더를 끈다. 커뮤니티와 같은 방식이다.
+           기본 헤더는 높이가 Stack 헤더(116pt)·커뮤니티(110pt)와 달라
+           100.7pt 로 혼자 얇았고, headerStyle 로 맞추려 해도 상태바 여백
+           계산이 겹쳐 값이 그대로 적용되지 않았다.
+           화면이 components/ui/Header 를 직접 그리면 커뮤니티와 같은
+           컴포넌트라 높이·제목 단이 근사치가 아니라 동일해진다.
+           (제목·알림 버튼은 app/(tabs)/me.tsx 에 있다)
       */}
-      <Tabs.Screen
-        name="me"
-        options={{
-          title: '마이페이지',
-          // ⚠️ react-navigation 의 headerTitleAlign 기본값은 iOS 만 'center' 이고
-          //    Android·Web 은 'left' 다. 그래서 시뮬레이터에서는 가운데였는데
-          //    웹에서만 제목이 왼쪽에 붙었다. 플랫폼과 무관하게 중앙으로 고정한다.
-          //
-          //    'center' 를 주면 헤더의 좌/우 컨테이너가 같은 비율로 늘어나므로,
-          //    오른쪽에 알림 아이콘이 있어도 제목은 화면 기준 중앙을 유지한다.
-          headerTitleAlign: 'center',
-          // 디자인 문서에 헤더 전용 font 값이 없다. 정책("중앙 · Bold 계열")만 따르고
-          // 크기는 화면 안 섹션 제목(18)과 같은 단을 쓴다.
-          headerTitleStyle: { fontSize: 18, fontWeight: '700', color: HEADER_INK },
-          headerRight: () => <NotificationBellButton onPress={handlePressNotifications} />,
-        }}
-      />
+      <Tabs.Screen name="me" options={{ title: '마이페이지', headerShown: false }} />
     </Tabs>
   );
 }

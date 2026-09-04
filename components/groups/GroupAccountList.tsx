@@ -17,7 +17,7 @@ type Props = {
  */
 export function GroupAccountList({ accounts }: Props) {
   if (accounts.length === 0) {
-    return <Text className="text-sm text-gray-400">연결된 계좌가 없어요.</Text>;
+    return <Text className="text-pot-faint" style={{ fontSize: 13 }}>연결된 계좌가 없어요.</Text>;
   }
 
   return (
@@ -25,7 +25,7 @@ export function GroupAccountList({ accounts }: Props) {
       {accounts.map((account) => (
         <View key={account.accountId} className="flex-row items-center">
           <Ionicons name="card-outline" size={16} color="#9ca3af" />
-          <Text className="ml-2 text-sm text-gray-800">
+          <Text className="ml-2 text-pot-ink" style={{ fontSize: 13.5 }}>
             {account.maskedAccountNumber ?? '계좌번호 없음'}
           </Text>
         </View>

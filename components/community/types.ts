@@ -93,6 +93,13 @@ export type TripOption = {
 export type CommunityCategory = {
   /** 고유 키. 무엇으로 거를지는 화면 파일이 이 값으로 판단한다. */
   key: string;
+  /**
+   * 어떤 종류의 칸인가. 컴포넌트가 이 값으로 칩과 셀렉트를 가른다.
+   *
+   * ⚠️ 컴포넌트는 key 의 생김새('type:' · 'dest:')를 알지 못한다.
+   *    그 규칙은 화면 파일만 안다. 그래서 종류를 따로 받는다. (CLAUDE.md 9장)
+   */
+  kind: 'all' | 'type' | 'destination';
   label: string;
   /** 국기 이모지. 여행지 칸에만 있고 유형 칸은 null 이다. */
   flag: string | null;

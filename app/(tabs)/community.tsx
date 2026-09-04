@@ -5,9 +5,9 @@
 // IA 4-2 "여행 팁 목록" 은 별도 화면이 아니라 이 화면의 카테고리다.
 //
 // 2026-09-03 카테고리를 여행지 중심으로 바꿨다.
-//   전체 → 자유 → 여행 팁 → 여행지들
-//   한 줄이고 한 번에 하나만 고른다. 유형 줄과 여행지 줄을 따로 뒀더니
-//   지금 무엇으로 걸러진 목록인지 한눈에 안 읽혔다.
+//   [전체] [자유]  [여행지 ▾]
+//   한 번에 하나만 고른다. 여행지는 수가 계속 늘어나 칩으로 두면 줄이 길어져서
+//   셀렉트(바텀시트)로 뺐다.
 //
 // ⚠️ 여행지 칸은 **글이 실제로 있는 여행지만** 나온다. (getPostDestinations)
 //    글을 올리면 그 여행의 목적지 칸이 자동으로 생기거나 숫자가 올라간다.
@@ -70,16 +70,24 @@ const TYPE_PREFIX = 'type:';
 const DEST_PREFIX = 'dest:';
 
 /**
- * 유형 칸. '자유' 가 '여행 팁' 보다 앞이라 전체 바로 다음에 온다.
+ * 유형 칸. 전체 바로 다음에 온다.
  *
- * ⚠️ 유료 팁과 여행 유형 공유(TYPE_SHARE)는 칸에서 뺐다.
+ * ⚠️ 2026-09-03 '여행 팁' 칸을 뺐다.
+ *    여행 팁은 대부분 여행지 이야기라 여행지 칸과 내용이 겹친다.
+ *    같은 글이 두 칸에 걸쳐 있으면 어느 칸을 눌러야 할지 알 수 없다.
+ *    여행 팁은 여행지 칸에서 찾고, 유형은 카드 배지로 구분한다.
+ *
+ * ⚠️ [문서와 어긋남] docs/09_IA_v2.md §4-2 는 '여행 팁 목록' 을 이 화면의
+ *    필터로 두라고 적고 있다. 그 칸이 없어졌다. 다만 팁 글이 사라진 것은 아니고
+ *    전체·여행지 칸에서 그대로 읽힌다. 문서를 임의로 고치지 않았다. (CLAUDE.md 1-1)
+ *
+ * ⚠️ 유료 팁과 여행 유형 공유(TYPE_SHARE)도 칸에 없다.
  *    유료는 2026-08-31 팀 결정, TYPE_SHARE 는 아직 쓸 수 있는 글이 없다
  *    (여행 유형 결과 TYPE-01 이 고도화이고 유형 목록도 미확정 — docs/README §5 6번).
  *    다만 전체 목록과 상세에서는 계속 읽힌다. (IA 4-6)
  */
 const TYPE_CATEGORIES: { postType: PostType; label: string }[] = [
   { postType: POST_TYPE.POST, label: '자유' },
-  { postType: POST_TYPE.FREE_TIP, label: '여행 팁' },
 ];
 
 /** 고른 카테고리 키를 조회 조건으로 바꾼다. */
@@ -215,9 +223,10 @@ export default function ScreenCOMM01() {
   // 카테고리 한 줄. 전체 → 자유 → 여행 팁 → 여행지 순이다.
   // 국기는 목적지 상수에서 온다. 컴포넌트가 상수를 뒤지지 않는다. (CLAUDE.md 9장)
   const categories: CommunityCategory[] = [
-    { key: CATEGORY_ALL, label: '전체', flag: null, count: null },
+    { key: CATEGORY_ALL, kind: 'all', label: '전체', flag: null, count: null },
     ...TYPE_CATEGORIES.map((item) => ({
       key: `${TYPE_PREFIX}${item.postType}`,
+      kind: 'type' as const,
       label: item.label,
       flag: null,
       // 유형별 글 수는 세지 않는다. 세려면 조회가 한 번 더 는다.
@@ -225,6 +234,7 @@ export default function ScreenCOMM01() {
     })),
     ...destinations.map((item) => ({
       key: `${DEST_PREFIX}${item.destination}`,
+      kind: 'destination' as const,
       label: item.destination,
       flag: findDestinationByName(item.destination)?.flag ?? null,
       count: item.count,

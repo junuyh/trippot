@@ -11,7 +11,7 @@ import { HomeButton } from './HomeButton';
  * ⚠️ components/ui 는 CLAUDE.md 5장 [공유] 라 그쪽을 고치지 않았다.
  */
 function Shell({ children }: { children: React.ReactNode }) {
-  return <View className="flex-1 items-center justify-center bg-pot-visual px-8">{children}</View>;
+  return <View className="flex-1 items-center justify-center bg-white px-8">{children}</View>;
 }
 
 export function HomeLoading() {

@@ -25,21 +25,19 @@ type Props = {
   daysToNextTrip: number | null;
 };
 
-const NUM = { fontVariant: ['tabular-nums' as const] };
-
 export function HomeHeader({ userName, daysToNextTrip }: Props) {
   const insets = useSafeAreaInsets();
   const greeting = userName ? `안녕하세요, ${userName}님 👋` : '안녕하세요 👋';
 
   return (
-    <View className="bg-pot-visual px-4 pb-3" style={{ paddingTop: insets.top + 12 }}>
+    <View className="bg-white px-4 pb-3" style={{ paddingTop: insets.top + 12 }}>
       <View className="flex-row items-center">
         <View className="h-8 w-8 items-center justify-center rounded-[10px] bg-pot-ink">
           <Ionicons name="airplane" size={16} color="#FFFFFF" />
         </View>
         <Text
-          className="ml-2.5 flex-1 font-black text-pot-ink"
-          style={{ fontSize: 18, letterSpacing: -0.5 }}
+          className="ml-2.5 flex-1 text-pot-ink"
+          style={{ fontSize: 18, fontWeight: '700', letterSpacing: -0.4 }}
         >
           TripPot
         </Text>
@@ -48,17 +46,14 @@ export function HomeHeader({ userName, daysToNextTrip }: Props) {
       {/* 버튼이 빠져서 인사말이 한 줄을 다 쓴다. 글자를 키우고 여백을 늘렸다. */}
       <View className="mt-4">
         <Text
-          className="font-black text-pot-ink"
-          style={{ fontSize: 19, lineHeight: 25, letterSpacing: -0.6 }}
+          className="text-pot-ink"
+          style={{ fontSize: 19, lineHeight: 25, fontWeight: '700', letterSpacing: -0.4 }}
         >
           {greeting}
         </Text>
-        <Text className="mt-1 text-pot-mute" style={{ fontSize: 12.5, ...NUM }}>
-          {daysToNextTrip === null
-            ? '새 여행을 계획해보세요.'
-            : daysToNextTrip === 0
-              ? '오늘 여행을 떠나요!'
-              : `다음 여행까지 ${daysToNextTrip}일 남았어요!`}
+        {/* 시안 문구. 남은 일수는 카드의 D-Day 가 이미 보여주므로 여기서 반복하지 않는다. */}
+        <Text className="mt-1 text-pot-mute" style={{ fontSize: 12.5 }}>
+          {daysToNextTrip === null ? '멋진 여행을 준비해보세요.' : '떠날 여행을 준비해보세요.'}
         </Text>
       </View>
     </View>

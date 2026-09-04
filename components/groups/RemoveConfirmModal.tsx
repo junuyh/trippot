@@ -12,10 +12,12 @@ type Props = {
 };
 
 /**
- * 목록에서 제거 확인. (NFR-003 — 되돌리기 어려운 동작은 사전 확인)
+ * 목록에서 숨김 확인. (NFR-003 — 되돌리기 어려운 동작은 사전 확인)
  *
- * ⚠️ '삭제' 라고 쓰지 않는다. 실제로 지워지는 데이터가 없기 때문이다.
+ * ⚠️ '삭제' 도 '제거' 도 쓰지 않는다. 실제로 지워지는 데이터가 없기 때문이다.
  *    모임·여행 데이터는 그대로 있고 현재 사용자의 목록에서만 숨겨진다.
+ *    사용자에게 보이는 말은 '숨김 ↔ 다시 표시' 로 통일한다. (2026-09-03)
+ *    내부 코드 이름(hideGroups·RemoveConfirmModal)은 그대로 둔다.
  *
  * 프로젝트에 BottomSheet / Dialog 공통 컴포넌트가 없어 react-native 기본 Modal 로
  * 최소 구현했다. GroupRenameModal 과 같은 패턴이다. 새 라이브러리를 넣지 않는다.
@@ -23,8 +25,8 @@ type Props = {
 export function RemoveConfirmModal({ visible, count, saving, onCancel, onConfirm }: Props) {
   const title =
     count > 1
-      ? `선택한 ${count}개의 모임을 목록에서 제거할까요?`
-      : '내 모임 목록에서 제거할까요?';
+      ? `선택한 ${count}개의 모임을 목록에서 숨길까요?`
+      : '내 모임 목록에서 숨길까요?';
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -43,7 +45,7 @@ export function RemoveConfirmModal({ visible, count, saving, onCancel, onConfirm
               <Button label="취소" variant="secondary" onPress={onCancel} disabled={saving} />
             </View>
             <View className="flex-1">
-              <Button label="목록에서 제거" onPress={onConfirm} loading={saving} />
+              <Button label="목록에서 숨김" onPress={onConfirm} loading={saving} />
             </View>
           </View>
         </Pressable>

@@ -39,6 +39,19 @@ import { getTrips, type Trip } from '@/lib/supabase/queries/trips';
 const TITLE_MIN = 2;
 const CONTENT_MIN = 10;
 
+/**
+ * 여행 선택지로 보여줄 최대 개수.
+ *
+ * 여행이 일곱 개면 칩이 일곱 개 깔려서, 글을 쓰러 온 사람이 먼저 여행 목록을
+ * 훑게 된다. 커뮤니티 글은 대부분 **방금 다녀온 여행** 이야기라 최근 둘이면
+ * 거의 맞는다. 나머지 여행에 글을 달 방법은 아직 없다.
+ *
+ * ⚠️ [검토 필요] 더 예전 여행 이야기를 쓰려는 사람은 여행을 고를 수 없다.
+ *    선택하지 않아도 글은 올라가고 '전체' 목록에는 보인다. 여행지 카테고리에만
+ *    안 잡힌다. 목록이 길어질 때 '더 보기' 를 둘지는 사람이 정한다.
+ */
+const TRIP_OPTION_LIMIT = 2;
+
 const TYPE_OPTIONS = WRITABLE_POST_TYPES.map((value) => ({
   value,
   label: value === POST_TYPE.FREE_TIP ? '여행 팁' : '자유',
@@ -149,6 +162,7 @@ export default function ScreenCOMM04() {
   // 출발일이 없는 여행은 뒤로 보낸다.
   const tripOptions: TripOption[] = [...trips]
     .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''))
+    .slice(0, TRIP_OPTION_LIMIT)
     .map((trip) => ({
       tripId: trip.id,
       label: trip.destination ?? '여행지 미정',
