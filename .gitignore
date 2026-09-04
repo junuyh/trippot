@@ -56,3 +56,6 @@ supabase/.temp/
 
 # 화면 캡처 (공유용, 저장소에 넣지 않는다)
 screenshots/
+
+# 시연 데이터 스크립트 (.env.local 을 읽는다. 커밋 금지)
+.demo/

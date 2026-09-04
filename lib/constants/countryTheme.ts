@@ -52,6 +52,8 @@ const THEMES: Record<string, CountryTheme> = {
   대만: { primary: '#2B4E9B', primarySoft: '#EBEFF9', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'TW', stripe: ['#000095', '#FE0000'], nameEn: 'TAIWAN' },
   // 홍콩 — 레드 + 화이트
   홍콩: { primary: '#D63B3B', primarySoft: '#FDECEC', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'HK', stripe: ['#DE2910', '#1B2540'], nameEn: 'HONG KONG' },
+  // 베트남 — 레드 + 옐로
+  베트남: { primary: '#DA251D', primarySoft: '#FDECEB', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'VN', stripe: ['#DA251D', '#FFCD00'], nameEn: 'VIETNAM' },
   // 필리핀 — 블루 + 레드 + 옐로. 대표색은 블루
   필리핀: { primary: '#1F5FBF', primarySoft: '#EAF1FC', onPrimary: '#FFFFFF', neutral: '#1B2540', code: 'PH', stripe: ['#0038A8', '#CE1126'], nameEn: 'PHILIPPINES' },
 };

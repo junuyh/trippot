@@ -51,6 +51,12 @@ import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { allocateVault } from "@/lib/budget/vault";
 import { resolveTravelType } from "@/lib/budget/travelType";
+import {
+  TRIP_STAGE,
+  TRIP_STAGE_LABEL,
+  isAfterTrip,
+  tripStage,
+} from "@/lib/trip/stage";
 import { buildTripRecord } from "@/lib/budget/tripRecord";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -466,9 +472,27 @@ export default function ScreenTripHome() {
   const topOver = overs[0] ?? null;
   const topSaved = saveds[0] ?? null;
   const status = trip.status as TripStatus;
-  const ended = status === TRIP_STATUS.ENDED || status === TRIP_STATUS.SETTLED;
 
   const targetAmount = budget?.target_amount ?? 0;
+
+  /**
+   * ── 여행 단계 ──
+   *
+   * ⚠️ 화면 분기의 기준을 status 하나에서 **단계**로 옮겼다.
+   *    status 만 보면 "계획도 지출도 없이 끝난 여행" 과 "지출 27건을 다
+   *    정리한 여행" 이 똑같이 ENDED 라 같은 화면을 본다. 그래서 실제 지출이
+   *    0원인 여행에 정산을 들이밀고 절약했다고 말하는 일이 생겼다.
+   *
+   * ⚠️ '계획이 있다' 의 기준은 **목표 예산이 잡혔는가** 다. 세부 계획 항목만
+   *    세면, 추천 예산을 그대로 확정한 대부분의 여행이 '준비 중' 에 머문다.
+   */
+  const hasPlan =
+    targetAmount > 0 || data.categories.some((c) => c.planned_amount > 0);
+  const hasExpense = data.transactions.some(
+    (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
+  );
+  const stage = tripStage({ status, hasPlan, hasExpense });
+  const ended = isAfterTrip(stage);
 
   /**
    * 누적 모금액 — 지금까지 확보한 총 여행자금. (스펙 12장)
@@ -486,7 +510,8 @@ export default function ScreenTripHome() {
    *       그때는 누적 모금액을 따로 보관하거나 입금 합계로 계산해야 한다.
    *       (docs/README.md §5 에 기록)
    */
-  const raisedAmount = (fund?.current_amount ?? 0) + data.depositTotal;
+  const raisedAmount =
+    data.depositTotal > 0 ? data.depositTotal : (fund?.current_amount ?? 0);
   const actualTotal = data.categories.reduce(
     (sum, c) => sum + c.actual_amount,
     0,
@@ -576,7 +601,7 @@ export default function ScreenTripHome() {
                 paddingVertical: 7,
                 borderRadius: 999,
                 backgroundColor:
-                  status === TRIP_STATUS.SETTLED ? "#eef8f2" : theme.primarySoft,
+                  stage === TRIP_STAGE.DONE ? "#eef8f2" : theme.primarySoft,
               }}
             >
               <Text style={{ fontSize: 11 }}>{destinationMeta?.flag ?? "🌍"}</Text>
@@ -585,10 +610,10 @@ export default function ScreenTripHome() {
                   fontSize: 10,
                   fontWeight: "900",
                   color:
-                    status === TRIP_STATUS.SETTLED ? "#1c6f4f" : theme.primary,
+                    stage === TRIP_STAGE.DONE ? "#1c6f4f" : theme.primary,
                 }}
               >
-                {status === TRIP_STATUS.SETTLED ? "정산 완료" : "정산 전"}
+                {TRIP_STAGE_LABEL[stage]}
               </Text>
             </View>
           </View>

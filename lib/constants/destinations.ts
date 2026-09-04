@@ -109,6 +109,7 @@ export const DESTINATION_CODE = {
   MILAN: 'milan',
   VENICE: 'venice',
   CEBU: 'cebu',
+  DA_NANG: 'da_nang',
 } as const;
 export type DestinationCode = (typeof DESTINATION_CODE)[keyof typeof DESTINATION_CODE];
 
@@ -497,6 +498,35 @@ export const DESTINATIONS: readonly Destination[] = [
         // 동남아는 의료·수상레저 특약으로 보험료가 일본보다 높다
         INSURANCE: 4_500,
         CONTINGENCY: 11_000,
+      },
+    },
+  },
+
+  {
+    code: DESTINATION_CODE.DA_NANG,
+    nameKo: '다낭',
+    countryKo: '베트남',
+    nameEn: 'DA NANG',
+    flag: '🇻🇳',
+    airportCode: 'DAD',
+    region: REGION.SOUTHEAST_ASIA,
+    baseline: {
+      // 비행 약 4시간 30분. 세부와 비슷한 거리·가격대다
+      airfarePerPerson: 420_000,
+      // 5성 리조트도 세부보다 저렴하다. 12곳 중 최저
+      lodgingPerNight: 55_000,
+      perPersonPerDay: {
+        // 세부와 함께 최저권. 로컬 식당 단가가 매우 낮다
+        FOOD: 28_000,
+        // 그랩 요금이 저렴하고 시내가 좁아 이동 거리가 짧다
+        TRANSPORT: 10_000,
+        // 바나힐·호이안 투어가 주된 지출이다. 세부보다는 낮다
+        ACTIVITY: 28_000,
+        // 야시장·기념품 중심이라 단가가 낮다
+        SHOPPING: 12_000,
+        // 동남아는 의료 특약으로 일본보다 높다. 세부와 같은 수준
+        INSURANCE: 4_500,
+        CONTINGENCY: 9_000,
       },
     },
   },
@@ -902,6 +932,16 @@ export const DESTINATION_BASIS: Record<DestinationCode, DestinationBasis> = {
     ACTIVITY: '12곳 중 가장 높아요. 호핑투어·다이빙이 방문 목적이에요.',
     SHOPPING: '12곳 중 가장 낮아요. 살 것이 많지 않아요.',
     INSURANCE: '의료·수상레저 특약이 붙어 일본보다 높아요.',
+    CONTINGENCY: '항공·숙소를 뺀 지출의 약 5%예요.',
+  },
+  da_nang: {
+    AIRFARE: '인천–다낭 왕복이에요. LCC 비중이 높아 세부보다 조금 싸요.',
+    LODGING: '미케비치권 4~5성 리조트 기준이에요. 12곳 중 가장 저렴해요.',
+    FOOD: '반미·쌀국수 등 로컬 단가가 매우 낮아요. 리조트 식사와 편차가 커요.',
+    TRANSPORT: '그랩 요금이 저렴하고 시내가 좁아 이동 거리가 짧아요.',
+    ACTIVITY: '바나힐·호이안 투어가 주된 지출이에요.',
+    SHOPPING: '야시장·기념품 중심이라 단가가 낮아요.',
+    INSURANCE: '동남아는 의료 특약이 붙어 일본보다 높아요.',
     CONTINGENCY: '항공·숙소를 뺀 지출의 약 5%예요.',
   },
 };
