@@ -18,6 +18,9 @@
 // ============================================================================
 
 /** 주제별 검색어. 글 제목·본문에 아래 낱말이 있으면 그 주제로 본다. */
+import { findDestinationByName } from '@/lib/constants/destinations';
+import { destinationPhoto } from '@/lib/constants/destinationPhoto';
+
 const TOPICS: { words: string[]; tags: string[] }[] = [
   {
     // 정산 · 예산 · 돈
@@ -27,17 +30,17 @@ const TOPICS: { words: string[]; tags: string[] }[] = [
   {
     // 식비 · 먹거리
     words: ['식비', '먹', '맛집', '음식', '라멘', '스시', '초밥'],
-    tags: ['ramen,japan', 'sushi,japanese', 'streetfood,market'],
+    tags: ['restaurant,table', 'food,plate', 'streetfood,market'],
   },
   {
     // 숙소
     words: ['숙소', '호텔', '숙박', '1실', '트윈', '온천', '료칸'],
-    tags: ['hotel,room', 'hotel,bed', 'ryokan,japan'],
+    tags: ['hotel,room', 'hotel,bed', 'hotel,lobby'],
   },
   {
     // 교통
     words: ['교통', '지하철', '전철', '패스', '이동', '공항'],
-    tags: ['subway,tokyo', 'train,station,japan', 'airport,terminal'],
+    tags: ['subway,metro', 'train,station', 'airport,terminal'],
   },
   {
     // 쇼핑 · 짐
@@ -53,7 +56,7 @@ const DESTINATIONS: Record<string, string[]> = {
   교토: ['kyoto,temple', 'kyoto,street'],
   후쿠오카: ['fukuoka,japan'],
   삿포로: ['sapporo,japan'],
-  파리: ['paris,street', 'paris,eiffel'],
+  파리: ['paris,street', 'paris,eiffel', 'paris,cafe', 'paris,louvre'],
   다낭: ['danang,vietnam', 'vietnam,beach'],
   방콕: ['bangkok,thailand'],
   타이베이: ['taipei,taiwan'],
@@ -81,6 +84,21 @@ function photoUrl(tag: string, lock: number): string {
   return `https://loremflickr.com/640/480/${tag}?lock=${lock}`;
 }
 
+/**
+ * 목적지별로 확인해 둔 사진. (destinationPhoto.ts)
+ *
+ * ⚠️ loremflickr 는 태그가 같아도 **무엇이 나올지 모른다.** 파리 태그에
+ *    흰옷 입은 사람들 사진이 나오는 식이라, 여행 글 옆에 붙으면 무슨
+ *    이야기인지 흐려진다. 목적지를 아는 글은 확인해 둔 사진 한 장을 쓴다.
+ *
+ * ⚠️ 한 장만 쓴다. 두 장을 채우려고 임의 사진을 한 장 더 붙이면 결국
+ *    같은 문제가 생긴다. 좋은 한 장이 애매한 두 장보다 낫다.
+ */
+function curatedPhoto(destination: string | null): string | null {
+  const found = findDestinationByName(destination);
+  return found ? (destinationPhoto(found.code)?.url ?? null) : null;
+}
+
 export type CoverInput = {
   postId: string;
   title: string;
@@ -99,6 +117,10 @@ export type CoverInput = {
  *    목적지를 모르는 글만 주제 사진 두 장을 쓴다.
  */
 export function toCoverUrls({ postId, title, content, destination }: CoverInput): string[] {
+  // 확인해 둔 목적지 사진이 있으면 그것 한 장으로 끝낸다
+  const curated = curatedPhoto(destination);
+  if (curated) return [curated];
+
   const text = `${title} ${content ?? ''}`;
   const seed = seedOf(postId);
 
@@ -110,7 +132,12 @@ export function toCoverUrls({ postId, title, content, destination }: CoverInput)
   const pool = byDestination ?? topic ?? FALLBACK;
   const first = photoUrl(pool[seed % pool.length], seed % 50);
 
-  const secondPool = byDestination && topic ? topic : pool;
+  /*
+    ⚠️ 목적지를 알면 **두 장 다 그 도시 사진**을 쓴다. 주제 사진을 한 장
+       섞으면 파리 여행기 옆에 지하철 사진이 붙어 어디 이야기인지 흐려진다.
+       주제 사진은 목적지를 모르는 글에서만 쓴다.
+  */
+  const secondPool = pool;
   // 같은 검색어가 두 번 나오면 lock 을 달리해 다른 사진이 되게 한다.
   const second = photoUrl(secondPool[(seed + 1) % secondPool.length], (seed % 50) + 1);
 
