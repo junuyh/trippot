@@ -1023,6 +1023,28 @@ export default function ScreenTRIP03() {
             sort_order: index + 1,
           };
         }),
+        /*
+          ⚠️ 예산 구성에서 고른 상품을 세부 계획으로도 남긴다.
+             지금까지는 상품이 금액 계산에만 쓰이고 사라져서, 항공 예산을
+             240만원으로 잡아 놓고도 카테고리 상세에는 세부 계획이 0건이었다.
+             계획과 실제를 비교하는 게 이 서비스의 핵심인데 비교할 '계획' 이
+             저장되지 않고 있었다.
+
+          ⚠️ 뺀 카테고리의 상품은 넣지 않는다. 안 쓰기로 한 카테고리에
+             계획만 남으면 그 계획이 영영 지출과 연결되지 않는다.
+        */
+        planItems: categoriesWithProducts.flatMap((category) =>
+          droppedCategories.has(category.categoryCode)
+            ? []
+            : (category.products ?? [])
+                .filter((product) => product.selected)
+                .map((product, index) => ({
+                  categoryCode: category.categoryCode,
+                  name: product.name,
+                  expectedAmount: product.amount,
+                  sortOrder: index + 1,
+                })),
+        ),
         fund: {
           source_type: fundType,
           current_amount: currentAmount,

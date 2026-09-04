@@ -15,6 +15,7 @@ import { differenceInCalendarDays, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase/client";
 import {
   createBudgetCategories,
+  createBudgetPlanItems,
   createTripBudget,
   type BudgetCategoryInsert,
   type TripBudgetInsert,
@@ -252,6 +253,16 @@ export type CreateTripBundleInput = {
   members: Omit<TripMemberInsert, "trip_id">[];
   budget: Omit<TripBudgetInsert, "trip_id">;
   categories: Omit<BudgetCategoryInsert, "trip_budget_id">[];
+  /**
+   * 예산 구성에서 고른 상품. 카테고리가 만들어진 뒤 계획 항목으로 저장한다.
+   * categoryCode 로 방금 만든 카테고리를 찾는다 — id 는 아직 없기 때문이다.
+   */
+  planItems?: {
+    categoryCode: string;
+    name: string;
+    expectedAmount: number;
+    sortOrder: number;
+  }[];
   fund: Omit<FundSourceInsert, "trip_id">;
 };
 
@@ -270,9 +281,45 @@ export async function createTripBundle(
       trip_id: trip.id,
     });
 
-    await createBudgetCategories(
+    const created = await createBudgetCategories(
       input.categories.map((c) => ({ ...c, trip_budget_id: budget.id })),
     );
+
+    /**
+     * 예산 구성에서 고른 상품을 **세부 계획 항목으로도 남긴다.**
+     *
+     * ⚠️ 지금까지는 상품이 금액 계산에만 쓰이고 사라졌다. '대형항공사 직항'
+     *    을 골라 항공 예산을 240만원으로 잡아 놓고, 카테고리 상세에 들어가면
+     *    세부 계획이 0건이라 무엇을 기준으로 그 금액이 됐는지 알 수 없었다.
+     *    계획한 것과 실제 쓴 것을 비교하는 게 이 서비스의 핵심인데,
+     *    비교할 '계획' 이 저장되지 않고 있던 셈이다.
+     *
+     * ⚠️ 실패해도 여행 생성을 되돌리지 않는다. 계획 항목은 나중에 화면에서
+     *    직접 추가할 수 있다. 이것 때문에 여행이 통째로 안 만들어지면 손해가
+     *    더 크다.
+     */
+    if (input.planItems?.length) {
+      const idByCode = new Map(
+        created.map((row) => [row.category_code, row.id]),
+      );
+      const rows = input.planItems
+        .map((item) => {
+          const categoryId = idByCode.get(item.categoryCode);
+          return categoryId
+            ? {
+                budget_category_id: categoryId,
+                name: item.name,
+                expected_amount: item.expectedAmount,
+                sort_order: item.sortOrder,
+              }
+            : null;
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null);
+
+      if (rows.length > 0) {
+        await createBudgetPlanItems(rows).catch(() => undefined);
+      }
+    }
 
     await createFundSource({ ...input.fund, trip_id: trip.id });
 
