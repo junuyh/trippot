@@ -877,8 +877,21 @@ export default function ScreenBUDGET02() {
   const tripStatus = data?.trip.status as TripStatus | undefined;
   const settled = tripStatus === TRIP_STATUS.SETTLED;
   const closing = tripStatus === TRIP_STATUS.ENDED;
-  /** 예산·계획을 고칠 수 있는가 */
+  /** 세부 계획을 고칠 수 있는가 */
   const canEditPlan = !settled && !closing;
+
+  /**
+   * **설정 예산 금액**을 고칠 수 있는가.
+   *
+   * ⚠️ 세부 계획보다 한 단계 더 잠근다. 예산은 말 그대로 **계획**이라
+   *    여행이 시작된 뒤에는 고칠 수 없다. 떠난 뒤에 예산을 올리면
+   *    "계획 대비 얼마를 썼나" 가 언제든 사후에 맞춰질 수 있게 되고,
+   *    그 비교값이 다음 여행 추천의 입력이라 개인화가 통째로 흔들린다.
+   *
+   * ⚠️ 계획 항목은 여행 중에도 열어 둔다. 현지에서 예정에 없던 지출을
+   *    계획에 붙이는 일이 실제로 일어난다.
+   */
+  const canEditBudget = tripStatus === TRIP_STATUS.PLANNING;
   /** 실제 지출을 넣거나 분류할 수 있는가. 결산 중에도 열어 둔다 */
   const canEditSpending = !settled;
   const spentTotal = useMemo(
@@ -989,7 +1002,7 @@ export default function ScreenBUDGET02() {
           plannedTotal={plannedTotal}
           spentTotal={spentTotal}
           onStartEdit={
-            canEditPlan
+            canEditBudget
               ? () => {
                   setDraftAmount(data.category.planned_amount);
                   setEditingBudget(true);

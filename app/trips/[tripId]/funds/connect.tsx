@@ -43,6 +43,8 @@ import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { FUND_SOURCE_TYPE } from "@/lib/constants/status";
 import {
+  MOCK_BANK,
+  connectMockAccount,
   convertToAccount,
   disconnectAccount,
   getGroupAccounts,
@@ -111,6 +113,9 @@ export default function ScreenFUND02() {
   const [pending, setPending] = useState<FinancialAccount | null>(null);
   const [busy, setBusy] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  /** 은행 고르기 시트 */
+  const [bankOpen, setBankOpen] = useState(false);
+  const [linking, setLinking] = useState(false);
 
   const manualAmount =
     (data?.fund?.current_amount ?? 0) + (data?.depositTotal ?? 0);
@@ -153,6 +158,29 @@ export default function ScreenFUND02() {
       setBusy(false);
     }
   }, [busy, data, pending]);
+
+  /**
+   * 새 계좌를 연결한다. (시연용 Mock)
+   *
+   * ⚠️ 실제 오픈뱅킹 인증이 아니다. 은행을 고르면 준비된 계좌가 조회된 것처럼
+   *    나오고, 누르면 연결과 동시에 그 계좌의 결제 1건이 따라 들어온다.
+   */
+  const handleConnectBank = useCallback(async () => {
+    if (!data || linking) return;
+    setLinking(true);
+    track(EVENTS.FUND_CONVERSION_CONFIRMED, { agreed: true });
+    try {
+      await connectMockAccount(data.trip.id, data.trip.group_id);
+      track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "success" });
+      setBankOpen(false);
+      router.replace(`/trips/${data.trip.id}/funds`);
+    } catch {
+      track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "fail" });
+      setError(true);
+    } finally {
+      setLinking(false);
+    }
+  }, [data, linking]);
 
   const handleDisconnect = useCallback(async () => {
     if (!data || disconnecting) return;
@@ -391,6 +419,43 @@ export default function ScreenFUND02() {
           </View>
         )}
 
+        {/*
+          ── 새 계좌 연결 ──
+          ⚠️ 개인 여행에도 열어 둔다. 계좌는 모임 자산이라는 원칙은 그대로지만,
+             연결 자체를 여기서 시작할 수 있어야 사용자가 모임 화면까지
+             찾아가지 않는다. (시연 범위)
+        */}
+        {!connected ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="다른 은행 계좌 연결하기"
+            onPress={() => setBankOpen(true)}
+            className="flex-row items-center active:bg-gray-50"
+            style={{
+              gap: 12,
+              marginTop: 12,
+              padding: 15,
+              borderWidth: 1,
+              borderStyle: "dashed",
+              borderColor: "#c8ced6",
+              borderRadius: 14,
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}
+              >
+                다른 은행 계좌 연결하기
+              </Text>
+              <Text style={{ marginTop: 3, fontSize: 11, color: "#858e9c" }}>
+                연결하면 이미 결제된 내역도 함께 들어와요
+              </Text>
+            </View>
+            <Text style={{ fontSize: 15, color: "#c2c8d0" }}>›</Text>
+          </Pressable>
+        ) : null}
+
         {connected ? (
           <View style={{ marginTop: 22, gap: 10 }}>
             <Text style={{ fontSize: 11, lineHeight: 17, color: "#858e9c" }}>
@@ -418,6 +483,91 @@ export default function ScreenFUND02() {
           붙습니다.
         </Text>
       </ScrollView>
+
+      {/*
+        ── 은행 고르기 ── (시연용 Mock)
+        ⚠️ 실제 기관 인증이 아니다. 은행을 고르면 준비된 계좌가 조회된 것처럼
+           나오고, 누르면 연결된다. 실서비스에서는 이 자리가 기관 인증 화면이다.
+      */}
+      <BottomSheet
+        visible={bankOpen}
+        title="계좌 연결"
+        description="연결할 은행을 고르면 계좌를 찾아드려요."
+        onClose={() => setBankOpen(false)}
+      >
+        <View style={{ paddingTop: 14, gap: 10 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${institutionName(MOCK_BANK.institutionCode)} ${MOCK_BANK.accountName} 연결하기`}
+            disabled={linking}
+            onPress={() => void handleConnectBank()}
+            className="flex-row items-center active:bg-gray-50"
+            style={{
+              gap: 12,
+              padding: 15,
+              borderWidth: 1,
+              borderColor: "#e8eaee",
+              borderRadius: 14,
+              opacity: linking ? 0.6 : 1,
+            }}
+          >
+            <View
+              className="items-center justify-center"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                backgroundColor: "#e8f3ff",
+              }}
+            >
+              <Ionicons name="wallet-outline" size={19} color="#1868d6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}
+              >
+                {institutionName(MOCK_BANK.institutionCode)}
+              </Text>
+              <Text style={{ marginTop: 3, fontSize: 11, color: "#5d6674" }}>
+                {MOCK_BANK.accountName}
+              </Text>
+              <Text style={{ marginTop: 2, fontSize: 10, color: "#a8afb9" }}>
+                {MOCK_BANK.maskedAccountNumber}
+              </Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text
+                style={{ fontSize: 14, fontWeight: "900", color: "#141b28" }}
+              >
+                {won(MOCK_BANK.balance)}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 3,
+                  fontSize: 10,
+                  fontWeight: "800",
+                  color: theme.primary,
+                }}
+              >
+                {linking ? "연결하는 중…" : "연결하기"}
+              </Text>
+            </View>
+          </Pressable>
+
+          <View
+            style={{
+              borderRadius: 12,
+              backgroundColor: "#f5f6f8",
+              padding: 13,
+            }}
+          >
+            <Text style={{ fontSize: 11, lineHeight: 17, color: "#5d6674" }}>
+              연결하면 이 계좌의 결제 내역이 여행 지출로 들어와요. 카테고리는
+              자동으로 분류하고, 확신이 낮은 건 확인을 요청해요.
+            </Text>
+          </View>
+        </View>
+      </BottomSheet>
 
       {/*
         ── 초기화 안내 ── (CLAUDE.md 3장)

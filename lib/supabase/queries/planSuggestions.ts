@@ -25,10 +25,16 @@ import { supabase } from "@/lib/supabase/client";
 /**
  * 이보다 오래 걸리면 기다리지 않는다. 추천 하나 보려고 화면이 멈추면 안 된다.
  *
- * ⚠️ Edge Function 쪽 제한(40초)보다 넉넉해야 한다. 앱이 먼저 끊으면
- *    함수가 무엇 때문에 실패했는지 로그에도 남지 않는다.
+ * ⚠️ 2026-09-04 · 43초 → 7초로 줄였다.
+ *    원래는 "앱이 먼저 끊으면 함수가 왜 실패했는지 로그에 안 남는다" 는 이유로
+ *    함수 제한보다 넉넉하게 뒀는데, 그건 개발할 때 이야기다. 사용자는
+ *    '계획 항목 추가' 를 누르고 43초를 기다릴 이유가 없다. 모델이 늦으면
+ *    규칙 기반 추천이 곧바로 나오는 편이 낫다.
+ *
+ *    실패 원인은 Edge Function 쪽 로그로 본다. (debug: true 로 호출하면
+ *    응답에 failures 가 함께 온다)
  */
-const TIMEOUT_MS = 43000;
+const TIMEOUT_MS = 7000;
 
 export type PlanSuggestionResult = {
   suggestions: PlanSuggestion[];
