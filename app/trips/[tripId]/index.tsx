@@ -364,6 +364,7 @@ export default function ScreenTripHome() {
       (data?.categories ?? [])
         .filter((category) => category.planned_amount > 0)
         .map((category) => ({
+          categoryId: category.id,
           categoryCode: category.category_code as CategoryCode,
           plannedAmount: category.planned_amount,
           actualAmount: category.actual_amount,
@@ -853,6 +854,10 @@ export default function ScreenTripHome() {
               <SettlementVaultGrid
                 theme={theme}
                 categories={settlementVaults}
+                /* 카테고리를 누르면 그 카테고리 정산 상세로 간다 */
+                onSelect={(categoryId) =>
+                  router.push(`/trips/${trip.id}/budget/${categoryId}`)
+                }
               />
             </View>
           ) : null}

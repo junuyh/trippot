@@ -10,7 +10,12 @@
 // ⚠️ 초과는 국가 포인트 컬러, 절약은 그린이다. 같은 색으로 두면
 //    초과와 절약이 한눈에 안 갈린다.
 // ============================================================================
-import { Text, View, type LayoutChangeEvent } from "react-native";
+import {
+  Pressable,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 import { useState } from "react";
 
 import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
@@ -22,6 +27,8 @@ const GAP = 8;
 const COLUMNS = 4;
 
 export type SettlementVault = {
+  /** 카테고리 정산 화면으로 보낼 때 쓴다. 없으면 눌리지 않는다 */
+  categoryId: string | null;
   categoryCode: CategoryCode;
   plannedAmount: number;
   actualAmount: number;
@@ -30,13 +37,15 @@ export type SettlementVault = {
 type Props = {
   theme: CountryTheme;
   categories: SettlementVault[];
+  /** 카테고리를 누르면 그 카테고리의 정산 상세로 간다 */
+  onSelect?: (categoryId: string) => void;
 };
 
 function won(value: number): string {
   return `${Math.abs(value).toLocaleString("ko-KR")}원`;
 }
 
-export function SettlementVaultGrid({ theme, categories }: Props) {
+export function SettlementVaultGrid({ theme, categories, onSelect }: Props) {
   const [boxWidth, setBoxWidth] = useState(0);
 
   // ⚠️ 퍼센트 폭 + gap 을 함께 쓰면 RN 의 반올림 때문에 마지막 칸이 접힌다.
@@ -68,9 +77,26 @@ export function SettlementVaultGrid({ theme, categories }: Props) {
                 ? `${won(diff)} 절약`
                 : "예산과 동일";
 
+        /*
+          ⚠️ categoryId 가 없으면 누르지 않는다. 정산 확정 후 스냅샷에는
+             카테고리 id 가 없어 갈 곳을 지정할 수 없다.
+        */
+        const canPress = Boolean(onSelect && category.categoryId);
+
         return (
-          <View
+          <Pressable
             key={category.categoryCode}
+            accessibilityRole={canPress ? "button" : undefined}
+            accessibilityLabel={
+              canPress
+                ? `${CATEGORY_CODE_LABEL[category.categoryCode]} 정산 상세 보기`
+                : undefined
+            }
+            disabled={!canPress}
+            onPress={() => {
+              if (category.categoryId) onSelect?.(category.categoryId);
+            }}
+            className={canPress ? "active:opacity-60" : undefined}
             style={{
               width: boxWidth || undefined,
               height: 102,
@@ -106,7 +132,7 @@ export function SettlementVaultGrid({ theme, categories }: Props) {
                 {label}
               </Text>
             </View>
-          </View>
+          </Pressable>
         );
       })}
     </View>

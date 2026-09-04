@@ -5,7 +5,11 @@
 //   - 다른 사용자·모임·여행 데이터에 접근할 수 있는 Query 를 만들지 않는다.
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
-import { GROUP_MEMBER_STATUS, TRIP_STATUS } from "@/lib/constants/status";
+import {
+  GROUP_MEMBER_STATUS,
+  TRANSACTION_TYPE,
+  TRIP_STATUS,
+} from "@/lib/constants/status";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 
 import { supabase } from "@/lib/supabase/client";
@@ -71,14 +75,22 @@ export async function getTrips(userId: string): Promise<Trip[]> {
 /**
  * 홈 카드에 얹는 금액. 값이 없으면 null 이고 화면이 대체 표시를 한다.
  *
- * ⚠️ currentAmount 는 fund_sources.current_amount 하나만 읽는다.
- *    직접입력 금액과 계좌 잔액을 절대 합산하지 않는다. (CLAUDE.md 3장)
- *    current_amount 자체가 이미 단일 소스 기준이다.
+ * ⚠️ currentAmount 는 **누적 모금액**이다. 입금 기록이 있으면 그 합계를 쓰고,
+ *    없을 때만 fund_sources.current_amount 로 떨어진다.
+ *
+ *    current_amount 는 등록·동기화 시점의 **잔액**이라 여행비를 결제하면
+ *    줄어든다. 그 값으로 준비율을 내면 돈을 쓸수록 준비가 뒤로 간다.
+ *    여행 홈의 수하물 태그도 같은 기준을 쓴다 — 두 화면이 다른 값을 쓰면
+ *    같은 여행이 홈에서 0%, 상세에서 50% 로 보인다.
+ *
+ * ⚠️ 직접입력 금액과 계좌 잔액을 **한 여행 안에서** 합산하지 않는다는 규칙은
+ *    그대로다. (CLAUDE.md 3장) 입금 합계는 그 여행의 단일 소스에 들어온
+ *    기록이라 두 소스를 섞는 것이 아니다.
  */
 export type TripWithSummary = Trip & {
   /** trip_budgets.target_amount. 예산 미확정이면 0 이 들어있을 수 있다. */
   targetAmount: number | null;
-  /** fund_sources.current_amount. 여행자금 미등록이면 null. */
+  /** 누적 모금액. 입금 기록도 자금 소스도 없으면 null. */
   currentAmount: number | null;
   /** settlements.actual_amount. 결산 전(ENDED)이면 null. */
   finalAmount: number | null;
@@ -103,7 +115,7 @@ export async function getTripsWithSummary(
 
   const tripIds = trips.map((trip) => trip.id);
 
-  const [budgets, funds, settlements] = await Promise.all([
+  const [budgets, funds, deposits, settlements] = await Promise.all([
     supabase
       .from("trip_budgets")
       .select("trip_id, target_amount")
@@ -113,6 +125,12 @@ export async function getTripsWithSummary(
       .select("trip_id, current_amount")
       .in("trip_id", tripIds),
     supabase
+      .from("transactions")
+      .select("trip_id, amount")
+      .in("trip_id", tripIds)
+      .eq("transaction_type", TRANSACTION_TYPE.DEPOSIT)
+      .is("deleted_at", null),
+    supabase
       .from("settlements")
       .select("trip_id, actual_amount")
       .in("trip_id", tripIds),
@@ -120,15 +138,28 @@ export async function getTripsWithSummary(
 
   if (budgets.error) throw budgets.error;
   if (funds.error) throw funds.error;
+  if (deposits.error) throw deposits.error;
   if (settlements.error) throw settlements.error;
 
   // trip_id 가 셋 다 UNIQUE 라 여행당 최대 한 행이다.
   const targetByTrip = new Map(
     (budgets.data ?? []).map((r) => [r.trip_id, r.target_amount]),
   );
+  // 여행당 여러 건이라 합계를 낸다. 위 셋과 달리 UNIQUE 가 아니다
+  const depositByTrip = new Map<string, number>();
+  for (const row of deposits.data ?? []) {
+    depositByTrip.set(row.trip_id, (depositByTrip.get(row.trip_id) ?? 0) + row.amount);
+  }
   const currentByTrip = new Map(
-    (funds.data ?? []).map((r) => [r.trip_id, r.current_amount]),
+    (funds.data ?? []).map((r) => [
+      r.trip_id,
+      depositByTrip.get(r.trip_id) ?? r.current_amount,
+    ]),
   );
+  // 자금 소스가 아직 없어도 입금이 있으면 그 합계를 쓴다
+  for (const [tripId, total] of depositByTrip) {
+    if (!currentByTrip.has(tripId)) currentByTrip.set(tripId, total);
+  }
   const finalByTrip = new Map(
     (settlements.data ?? []).map((r) => [r.trip_id, r.actual_amount]),
   );
