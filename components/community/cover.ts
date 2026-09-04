@@ -92,8 +92,11 @@ export type CoverInput = {
 /**
  * 글 내용에 어울리는 더미 사진 1~2장.
  *
- * 제목·본문의 낱말로 주제를 먼저 찾고, 없으면 목적지 사진을 쓴다.
- * 주제와 목적지를 둘 다 알면 한 장씩 섞는다 — 같은 주제 글끼리도 달라 보인다.
+ * ⚠️ **목적지를 먼저 본다.** 주제를 먼저 보면, 파리 여행기가 '15만원 아꼈다'
+ *    한 줄 때문에 지폐 사진으로 덮인다. 여행 글에서 사람이 먼저 보는 것은
+ *    돈이 아니라 어디를 다녀왔는가다.
+ *    목적지를 아는 글은 목적지 사진 + 주제 사진을 한 장씩 섞고,
+ *    목적지를 모르는 글만 주제 사진 두 장을 쓴다.
  */
 export function toCoverUrls({ postId, title, content, destination }: CoverInput): string[] {
   const text = `${title} ${content ?? ''}`;
@@ -104,10 +107,10 @@ export function toCoverUrls({ postId, title, content, destination }: CoverInput)
     ? Object.entries(DESTINATIONS).find(([name]) => destination.includes(name))?.[1]
     : undefined;
 
-  const pool = topic ?? byDestination ?? FALLBACK;
+  const pool = byDestination ?? topic ?? FALLBACK;
   const first = photoUrl(pool[seed % pool.length], seed % 50);
 
-  const secondPool = topic && byDestination ? byDestination : pool;
+  const secondPool = byDestination && topic ? topic : pool;
   // 같은 검색어가 두 번 나오면 lock 을 달리해 다른 사진이 되게 한다.
   const second = photoUrl(secondPool[(seed + 1) % secondPool.length], (seed % 50) + 1);
 

@@ -6,6 +6,7 @@
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
 import {
+  CATEGORY_METHOD,
   FUND_SOURCE_TYPE,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
@@ -160,4 +161,148 @@ export async function disconnectAccount(tripId: string): Promise<FundSource> {
     financial_account_id: null,
     last_synced_at: null,
   });
+}
+
+// ============================================================================
+// 새 계좌 연결 (Mock) — FUND-02
+//
+// ⚠️ **시연용 Mock 이다.** 실제 오픈뱅킹 연결이 아니다. 은행을 고르면 미리
+//    준비된 계좌 한 개가 '조회된 것처럼' 나오고, 누르면 연결된다.
+//    실서비스에서는 이 함수를 기관 인증 → 계좌 조회 결과로 바꾼다.
+//
+// ⚠️ 연결과 동시에 그 계좌의 **기존 결제 내역 한 건을 가져온다.**
+//    계좌를 연결하면 거래가 자동으로 들어온다는 것이 이 기능의 핵심이라,
+//    연결 직후 지출 목록이 비어 있으면 무엇이 좋아졌는지 보이지 않는다.
+// ============================================================================
+
+/** 시연용 Mock 계좌. 실제 계좌 조회 결과 자리다 */
+export const MOCK_BANK = {
+  institutionCode: "092",
+  accountName: "주디주씨의 모임통장",
+  maskedAccountNumber: "1000-**-4800480",
+  balance: 4_800_000,
+} as const;
+
+/** 연결과 함께 따라 들어오는 기존 결제. 항공권은 보통 가장 먼저 결제한다 */
+const MOCK_IMPORTED_SPEND = {
+  name: "대한항공",
+  amount: 1_284_000,
+  categoryCode: "AIRFARE",
+  confidence: 98,
+} as const;
+
+export type MockConnectResult = {
+  fund: FundSource;
+  /** 함께 들어온 거래 이름. 화면에서 안내에 쓴다 */
+  importedName: string;
+  importedAmount: number;
+};
+
+/**
+ * Mock 계좌를 만들고 이 여행에 연결한다. 기존 결제 1건도 함께 가져온다.
+ *
+ * ⚠️ 이미 같은 계좌가 있으면 다시 만들지 않는다. 시연에서 연결·해제를
+ *    여러 번 반복해도 계좌 목록이 불어나면 안 된다.
+ */
+export async function connectMockAccount(
+  tripId: string,
+  groupId: string | null,
+): Promise<MockConnectResult> {
+  // ── 계좌 (있으면 재사용) ────────────────────────────────────────────────
+  let accountId: string | null = null;
+  const { data: existing, error: findError } = await supabase
+    .from("financial_accounts")
+    .select("id")
+    .eq("masked_account_number", MOCK_BANK.maskedAccountNumber)
+    .eq("institution_code", MOCK_BANK.institutionCode)
+    .limit(1);
+  if (findError) throw findError;
+  accountId = existing?.[0]?.id ?? null;
+
+  if (!accountId) {
+    const { data: created, error: createError } = await supabase
+      .from("financial_accounts")
+      .insert({
+        group_id: groupId,
+        institution_code: MOCK_BANK.institutionCode,
+        masked_account_number: MOCK_BANK.maskedAccountNumber,
+        current_balance: MOCK_BANK.balance,
+        is_mock: true,
+        connected_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (createError) throw createError;
+    accountId = created.id;
+  }
+
+  // ── 연결 ────────────────────────────────────────────────────────────────
+  const fund = await convertToAccount(tripId, accountId);
+
+  // ── 계좌에 있던 결제 1건을 가져온다 ────────────────────────────────────
+  //    ⚠️ 이미 가져왔으면 다시 넣지 않는다. 연결을 두 번 해도 중복되면 안 된다.
+  const { data: already, error: dupError } = await supabase
+    .from("transactions")
+    .select("id")
+    .eq("trip_id", tripId)
+    .eq("financial_account_id", accountId)
+    .eq("name", MOCK_IMPORTED_SPEND.name)
+    .is("deleted_at", null)
+    .limit(1);
+  if (dupError) throw dupError;
+
+  if (!already?.length) {
+    // 항공 카테고리가 있으면 자동 분류까지 해서 넣는다
+    const { data: budget } = await supabase
+      .from("trip_budgets")
+      .select("id")
+      .eq("trip_id", tripId)
+      .maybeSingle();
+    let categoryId: string | null = null;
+    if (budget) {
+      const { data: category } = await supabase
+        .from("budget_categories")
+        .select("id")
+        .eq("trip_budget_id", budget.id)
+        .eq("category_code", MOCK_IMPORTED_SPEND.categoryCode)
+        .maybeSingle();
+      categoryId = category?.id ?? null;
+    }
+
+    const { error: insertError } = await supabase.from("transactions").insert({
+      trip_id: tripId,
+      financial_account_id: accountId,
+      budget_category_id: categoryId,
+      source_type: TRANSACTION_SOURCE_TYPE.MOCK,
+      transaction_type: TRANSACTION_TYPE.WITHDRAWAL,
+      occurred_at: new Date().toISOString(),
+      name: MOCK_IMPORTED_SPEND.name,
+      amount: MOCK_IMPORTED_SPEND.amount,
+      category_method: categoryId ? CATEGORY_METHOD.AUTO : CATEGORY_METHOD.NONE,
+      category_confidence: categoryId ? MOCK_IMPORTED_SPEND.confidence : null,
+    });
+    if (insertError) throw insertError;
+
+    // 카테고리 실제 사용액에 더한다. 화면끼리 숫자가 어긋나면 안 된다
+    if (categoryId) {
+      const { data: category } = await supabase
+        .from("budget_categories")
+        .select("actual_amount")
+        .eq("id", categoryId)
+        .single();
+      await supabase
+        .from("budget_categories")
+        .update({
+          actual_amount:
+            (category?.actual_amount ?? 0) + MOCK_IMPORTED_SPEND.amount,
+        })
+        .eq("id", categoryId);
+    }
+  }
+
+  return {
+    fund,
+    importedName: MOCK_IMPORTED_SPEND.name,
+    importedAmount: MOCK_IMPORTED_SPEND.amount,
+  };
 }
