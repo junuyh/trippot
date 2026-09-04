@@ -1,11 +1,12 @@
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MyTripCard } from '@/components/my';
+import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
 import { Button } from '@/components/ui';
 
 import { GroupAccountList } from './GroupAccountList';
 import { GroupMemberList } from './GroupMemberList';
-import { GroupTripCard } from './GroupTripCard';
 import { formatCreatedDate, formatMemberCount } from './format';
 import type { GroupDetailData } from './types';
 
@@ -42,6 +43,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  *
  * '누적 여행 유형 / 소비 특성' 은 IA 가 [고도화] 로 표시해 넣지 않는다.
  *
+ * ⚠️ 여행 카드는 MY 의 MyTripCard 를 **그대로** 쓴다. 비슷한 카드를 따로
+ *    만들지 않는다. 같은 여행이 두 화면에서 다르게 보이면 어느 쪽이 맞는지
+ *    사용자가 알 수 없다. 색·D-Day·진행률 규칙도 그 컴포넌트 것을 따른다.
+ *
  * 데이터 조회·로그는 app/groups/[groupId].tsx 가 한다. 여기는 그리기만 한다.
  * (CLAUDE.md 9장)
  */
@@ -49,6 +54,12 @@ export function GroupDetailView({ group, onPressTrip, onPressCreateTrip }: Props
   // 이 화면은 (tabs) 밖 Stack 화면이라 FloatingTabBar 가 없다.
   // 대신 홈 인디케이터 자리는 직접 비켜 준다.
   const insets = useSafeAreaInsets();
+
+  const TRIP_SECTIONS = [
+    { title: TRIP_STATUS_LABEL.PLANNING, trips: group.planningTrips },
+    { title: TRIP_STATUS_LABEL.TRAVELING, trips: group.travelingTrips },
+    { title: '지난 여행', trips: group.pastTrips },
+  ];
 
   return (
     <View className="flex-1 bg-pot-visual">
@@ -75,29 +86,24 @@ export function GroupDetailView({ group, onPressTrip, onPressCreateTrip }: Props
         <GroupAccountList accounts={group.accounts} />
       </Section>
 
-      <Section title="준비 중인 여행">
-        {group.ongoingTrips.length === 0 ? (
-          <Text className="text-pot-faint" style={{ fontSize: 13 }}>준비 중인 여행이 없어요.</Text>
-        ) : (
-          <View className="gap-3">
-            {group.ongoingTrips.map((trip) => (
-              <GroupTripCard key={trip.tripId} trip={trip} onPress={onPressTrip} />
-            ))}
-          </View>
-        )}
-      </Section>
+      {/*
+        상태별 섹션 셋. 이름은 TRIP_STATUS_LABEL 을 쓴다. /me/trips 탭이 쓰는
+        것과 같은 상수라 두 화면의 말이 갈라지지 않는다.
 
-      <Section title="지난 여행">
-        {group.pastTrips.length === 0 ? (
-          <Text className="text-pot-faint" style={{ fontSize: 13 }}>지난 여행이 없어요.</Text>
-        ) : (
-          <View className="gap-3">
-            {group.pastTrips.map((trip) => (
-              <GroupTripCard key={trip.tripId} trip={trip} onPress={onPressTrip} />
-            ))}
-          </View>
-        )}
-      </Section>
+        ⚠️ 0건인 상태는 섹션째 그리지 않는다. 여행이 하나뿐인 모임에서
+           빈 안내 문구 두 줄이 화면을 채우는 것이 더 답답하다.
+      */}
+      {TRIP_SECTIONS.map(({ title, trips }) =>
+        trips.length === 0 ? null : (
+          <Section key={title} title={title}>
+            <View className="gap-3">
+              {trips.map((trip) => (
+                <MyTripCard key={trip.tripId} trip={trip} onPress={onPressTrip} />
+              ))}
+            </View>
+          </Section>
+        ),
+      )}
 
       </ScrollView>
 

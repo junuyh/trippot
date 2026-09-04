@@ -422,3 +422,57 @@ export async function resetGroupOrder(userId: string): Promise<void> {
 
   if (error) throw error;
 }
+
+/**
+ * 여행별 금액 요약. GROUP-02 여행 카드가 MY 카드와 같은 값을 보여주기 위해 쓴다.
+ *
+ * ⚠️ getTripsWithSummary() 와 **같은 세 테이블·같은 칼럼**을 읽는다.
+ *    (trip_budgets.target_amount · fund_sources.current_amount ·
+ *     settlements.actual_amount) 규칙을 새로 만들지 않는다.
+ *    같은 여행이면 MY 목록과 GROUP-02 에서 금액·진행률이 같아야 한다.
+ *
+ * ⚠️ 그쪽 함수를 그대로 쓸 수 없는 이유는 userId 로 시작하기 때문이다.
+ *    여기는 모임의 여행 id 목록에서 시작한다. 조회 방식만 옮겨 왔다.
+ *
+ * ⚠️ getGroupTrips() 는 건드리지 않았다. 필요한 화면만 이 함수를 덧붙여 부른다.
+ */
+export type TripAmountSummary = {
+  /** trip_budgets.target_amount. 예산 미확정이면 null */
+  targetAmount: number | null;
+  /** fund_sources.current_amount. 여행자금 미등록이면 null */
+  currentAmount: number | null;
+  /** settlements.actual_amount. 결산 전이면 null */
+  finalAmount: number | null;
+};
+
+export async function getTripAmountSummaries(
+  tripIds: string[],
+): Promise<Map<string, TripAmountSummary>> {
+  if (tripIds.length === 0) return new Map();
+
+  const [budgets, funds, settlements] = await Promise.all([
+    supabase.from('trip_budgets').select('trip_id, target_amount').in('trip_id', tripIds),
+    supabase.from('fund_sources').select('trip_id, current_amount').in('trip_id', tripIds),
+    supabase.from('settlements').select('trip_id, actual_amount').in('trip_id', tripIds),
+  ]);
+
+  if (budgets.error) throw budgets.error;
+  if (funds.error) throw funds.error;
+  if (settlements.error) throw settlements.error;
+
+  // trip_id 가 셋 다 UNIQUE 라 여행당 최대 한 행이다.
+  const targetByTrip = new Map((budgets.data ?? []).map((r) => [r.trip_id, r.target_amount]));
+  const currentByTrip = new Map((funds.data ?? []).map((r) => [r.trip_id, r.current_amount]));
+  const finalByTrip = new Map((settlements.data ?? []).map((r) => [r.trip_id, r.actual_amount]));
+
+  return new Map(
+    tripIds.map((id) => [
+      id,
+      {
+        targetAmount: targetByTrip.get(id) ?? null,
+        currentAmount: currentByTrip.get(id) ?? null,
+        finalAmount: finalByTrip.get(id) ?? null,
+      },
+    ]),
+  );
+}
