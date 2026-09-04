@@ -26,9 +26,17 @@ export type MyProfile = {
 };
 
 /** 5-2 내 여행 요약. 목록이 아니라 개수만 보여준다. */
+/**
+ * ⚠️ 준비 중과 여행 중을 나눈다. 전에는 'ongoing' 하나로 묶여 있었는데,
+ *    /me/trips 가 이미 세 갈래(planning · traveling · past)로 나뉘어 있어
+ *    카드가 두 개면 눌렀을 때 어느 탭으로 갈지가 애매했다.
+ *    (components/my/types.ts 의 MyTripFilter 와 같은 갈래다)
+ */
 export type MyTripCounts = {
-  /** PLANNING · TRAVELING */
-  ongoing: number;
+  /** PLANNING */
+  planning: number;
+  /** TRAVELING */
+  traveling: number;
   /** ENDED · SETTLED */
   past: number;
 };

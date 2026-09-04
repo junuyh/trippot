@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
+import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
+
 import type { MyTripCounts } from './types';
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
@@ -25,7 +27,7 @@ function CountCard({
       onPress={onPress}
       // py-3 → py-4, 라벨-숫자 간격 6 → 12. 높이 75 → 89 다.
       // 아래에만 빈 자리를 더하지 않고 위·사이·아래가 함께 늘어난다.
-      className="flex-1 rounded-2xl bg-white px-3.5 py-4 active:opacity-70"
+      className="flex-1 rounded-2xl bg-white px-3 py-4 active:opacity-70"
       style={{
         shadowColor: '#111827',
         shadowOpacity: 0.05,
@@ -50,7 +52,8 @@ function CountCard({
 
 type Props = {
   counts: MyTripCounts;
-  onPressOngoing: () => void;
+  onPressPlanning: () => void;
+  onPressTraveling: () => void;
   onPressPast: () => void;
 };
 
@@ -60,7 +63,12 @@ type Props = {
  * MY-01 에서는 목록이 아니라 개수 요약만 보여준다.
  * Figma 의 2열 카드 구조를 유지한다. 폭은 px 로 고정하지 않고 flex-1 로 나눈다.
  */
-export function TripSummaryCards({ counts, onPressOngoing, onPressPast }: Props) {
+export function TripSummaryCards({
+  counts,
+  onPressPlanning,
+  onPressTraveling,
+  onPressPast,
+}: Props) {
   return (
     <View>
       {/* 홈 SectionHeader 와 같은 단. (16 / 800 / -0.5) */}
@@ -71,11 +79,23 @@ export function TripSummaryCards({ counts, onPressOngoing, onPressPast }: Props)
         내 여행
       </Text>
 
-      {/* ⚠️ 카드 폭을 px 로 정하지 않는다. flex-1 이라 gap 을 한 단계 올리면
-          두 카드가 2씩 줄면서 가운데가 4 벌어진다. 폭은 늘 같고 섹션 전체
-          너비와 화면 padding 은 그대로다. */}
-      <View className="mt-2.5 flex-row gap-4">
-        <CountCard label="준비 중인 여행" count={counts.ongoing} onPress={onPressOngoing} />
+      {/* ⚠️ 카드 폭을 px 로 정하지 않는다. flex-1 이라 셋이 같은 폭으로 나뉜다.
+          두 개일 때 gap-4 였는데 셋이 되면서 폭이 좁아져 gap-2.5 로 줄였다.
+          섹션 전체 너비와 화면 padding 은 그대로다.
+
+          ⚠️ 라벨은 TRIP_STATUS_LABEL 을 쓴다. /me/trips 탭이 쓰는 것과 같은
+             상수라 카드와 탭의 이름이 갈라지지 않는다. */}
+      <View className="mt-2.5 flex-row gap-2.5">
+        <CountCard
+          label={TRIP_STATUS_LABEL.PLANNING}
+          count={counts.planning}
+          onPress={onPressPlanning}
+        />
+        <CountCard
+          label={TRIP_STATUS_LABEL.TRAVELING}
+          count={counts.traveling}
+          onPress={onPressTraveling}
+        />
         <CountCard label="지난 여행" count={counts.past} onPress={onPressPast} />
       </View>
     </View>

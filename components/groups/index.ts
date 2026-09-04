@@ -13,7 +13,6 @@ export { GroupMoreMenu } from './GroupMoreMenu';
 export { GroupRenameModal } from './GroupRenameModal';
 export { GroupTravelCard } from './GroupTravelCard';
 export { GroupTravelCardList } from './GroupTravelCardList';
-export { GroupTripCard } from './GroupTripCard';
 export { HiddenGroupsSheet } from './HiddenGroupsSheet';
 export { RemoveConfirmModal } from './RemoveConfirmModal';
 export type {
