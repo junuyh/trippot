@@ -25,6 +25,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   CommentSection,
   POST_TYPE_DISPLAY_LABEL,
+  PostDeleteConfirmModal,
   PostDetailView,
   type PostCommentItem,
   type PostDetailData,
@@ -42,6 +43,7 @@ import {
   addReaction,
   createComment,
   deleteComment,
+  deletePost,
   getComments,
   getPostById,
   removeReaction,
@@ -79,6 +81,11 @@ export default function ScreenCOMM02() {
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** 글 삭제 중. 두 번 눌러 두 번 지우는 일을 막는다. */
+  const [postDeleting, setPostDeleting] = useState(false);
+  /** 삭제 확인창 노출 여부. Alert 를 쓰지 않는 이유는 handleDeletePost 주석 참조. */
+  const [deleteAsking, setDeleteAsking] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!postId) {
@@ -254,6 +261,54 @@ export default function ScreenCOMM02() {
     );
   }
 
+  /**
+   * 내 글 수정. 작성 화면을 수정 모드로 연다.
+   *
+   * 수정 전용 화면을 새로 만들지 않았다. 쓸 때와 고칠 때 필요한 입력이 같아서,
+   * 화면을 두 벌 두면 항목이 하나 늘 때마다 두 곳을 고쳐야 한다. (COMM-04)
+   */
+  function handleEditPost() {
+    if (!post) return;
+    router.push(`/community/write?postId=${post.postId}`);
+  }
+
+  /**
+   * 내 글 삭제.
+   *
+   * ⚠️ 되돌릴 수 없으므로 반드시 한 번 묻는다. (CLAUDE.md 9장 — 사용자 확인)
+   *
+   * ⚠️ **Alert.alert 을 쓰지 않는다.** react-native-web 의 Alert 는 내용이 빈
+   *    함수라 웹에서는 눌러도 아무 일이 없고 에러도 안 난다. 처음에 Alert 로
+   *    만들었다가 "삭제가 안 된다" 는 증상이 바로 여기서 나왔다.
+   *    Modal 은 웹에서도 동작해서 한 벌로 끝난다.
+   *    (components/community/PostDeleteConfirmModal · mypage/LogoutConfirmModal)
+   *
+   * ⚠️ 지운 뒤에는 이 화면에 남을 이유가 없다. 목록으로 돌아간다.
+   *    router.back() 이 아니라 replace 다. 뒤로 가기로 지워진 글에
+   *    다시 들어오면 '없는 글' 화면이 나온다.
+   */
+  function handleDeletePost() {
+    if (!post || postDeleting) return;
+    setDeleteError(null);
+    setDeleteAsking(true);
+  }
+
+  async function handleConfirmDelete() {
+    if (!post || postDeleting) return;
+
+    setPostDeleting(true);
+    setDeleteError(null);
+    try {
+      // TODO: 로그인 연동 시 교체
+      await deletePost(post.postId, DEV_USER_ID);
+      setDeleteAsking(false);
+      router.replace('/community');
+    } catch {
+      setPostDeleting(false);
+      setDeleteError('글을 지우지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
   const data: PostDetailData = {
     postId: post.postId,
     title: post.title,
@@ -272,6 +327,8 @@ export default function ScreenCOMM02() {
     bookmarkedByMe: post.bookmarkedByMe,
     commentCount: post.commentCount,
     accent: toAccent(post.destination),
+    // TODO: 로그인 연동 시 DEV_USER_ID 를 실제 사용자로 교체한다.
+    mine: post.authorUserId === DEV_USER_ID,
     // TODO: 사진 스키마가 생기면 post.imageUrls 로 바꾼다. [임시]
     imageUrls: toCoverUrls({
       postId: post.postId,
@@ -301,6 +358,9 @@ export default function ScreenCOMM02() {
       />
       <PostDetailView
         post={data}
+        onEdit={handleEditPost}
+        onDelete={handleDeletePost}
+        deleting={postDeleting}
         likeBusy={likeBusy}
         onToggleLike={() => void handleToggleOpinion('like')}
         dislikeBusy={dislikeBusy}
@@ -320,6 +380,14 @@ export default function ScreenCOMM02() {
             maxLength={COMMENT_MAX}
           />
         }
+      />
+
+      <PostDeleteConfirmModal
+        visible={deleteAsking}
+        deleting={postDeleting}
+        error={deleteError}
+        onCancel={() => setDeleteAsking(false)}
+        onConfirm={() => void handleConfirmDelete()}
       />
     </>
   );

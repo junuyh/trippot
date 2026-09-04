@@ -55,6 +55,14 @@ export type PostCardData = {
 /** COMM-02 상세가 그리는 데이터. */
 export type PostDetailData = PostCardData & {
   content: string | null;
+  /**
+   * 내가 쓴 글인가. 수정·삭제를 여기에만 보여준다.
+   *
+   * ⚠️ 이 값은 **보여줄지 말지**만 정한다. 실제로 막는 것은 쿼리다.
+   *    updatePost / deletePost 가 author_user_id 로 한 번 더 거른다.
+   *    (lib/supabase/queries/community.ts)
+   */
+  mine: boolean;
 };
 
 /**

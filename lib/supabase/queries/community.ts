@@ -73,8 +73,24 @@ export type PostListItem = {
   commentCount: number;
 };
 
-/** 상세. (COMM-02) — 목록과 같은 모양이다. 본문 전체가 들어 있다. */
-export type PostDetail = PostListItem;
+/**
+ * 상세. (COMM-02) — 목록에 두 가지가 더 붙는다.
+ *
+ * 목록(PostListItem)에는 없는 값이다. 목록은 남의 글을 훑는 자리라 누가 썼는지
+ * '이름' 만 있으면 되지만, 상세에서는 **내 글인지 판정**해야 수정·삭제를 띄운다.
+ * tripId 는 수정 화면이 '어느 여행 이야기인가' 를 원래 값으로 되돌리는 데 쓴다.
+ */
+export type PostDetail = PostListItem & {
+  /**
+   * 작성자 user_id. 이 값과 지금 사용자를 비교해 내 글인지 판정한다.
+   *
+   * ⚠️ nullable 이다. users 를 지우면 FK 가 null 로 풀리도록 되어 있다.
+   *    null 은 '주인 없는 글' 이라 아무의 것도 아니다 — 비교가 자연히 거짓이 된다.
+   */
+  authorUserId: string | null;
+  /** 연결된 여행. 고르지 않은 글이면 null. */
+  tripId: string | null;
+};
 
 // users 는 작성자 FK 와 reactions 경유 두 갈래가 있어 모호하다. FK 를 명시한다.
 const AUTHOR = 'users!community_posts_author_user_id_fkey(name, profile_image_url)';
@@ -217,7 +233,9 @@ export async function getPostDestinations(limit = 500): Promise<PostDestinationC
 export async function getPostById(postId: string, userId: string): Promise<PostDetail | null> {
   const { data, error } = await supabase
     .from('community_posts')
-    .select(`id, title, content, post_type, published_at, ${AUTHOR}, trips(destination)`)
+    .select(
+      `id, title, content, post_type, published_at, author_user_id, trip_id, ${AUTHOR}, trips(destination)`,
+    )
     .eq('id', postId)
     .eq('status', POST_STATUS.PUBLISHED)
     .in('post_type', [...VISIBLE_POST_TYPES])
@@ -235,6 +253,8 @@ export async function getPostById(postId: string, userId: string): Promise<PostD
     postId: data.id,
     title: data.title,
     postType: data.post_type as PostType,
+    authorUserId: data.author_user_id,
+    tripId: data.trip_id,
     authorName: data.users?.name ?? null,
     authorImageUrl: data.users?.profile_image_url ?? null,
     destination: data.trips?.destination ?? null,
@@ -281,6 +301,65 @@ export async function createPost(input: CreatePostInput): Promise<CommunityPost>
 
   if (error) throw error;
   return data;
+}
+
+export type UpdatePostInput = {
+  postId: string;
+  /** 지금 사용자. 이 값이 글의 author_user_id 와 같아야 수정된다. */
+  authorUserId: string;
+  postType: WritablePostType;
+  title: string;
+  content: string;
+  tripId: string | null;
+};
+
+/**
+ * 글 수정. (COMM-04 수정 모드)
+ *
+ * ⚠️ **작성자 본인만 고칠 수 있다.** `.eq('author_user_id', userId)` 가 그 조건이다.
+ *    화면에서 수정 버튼을 감추는 것만으로는 부족하다. 화면은 UI 일 뿐이고,
+ *    남의 글 id 로 이 함수를 부르면 조건에 걸려 아무 행도 바뀌지 않는다.
+ *    (deleteComment 와 같은 방식)
+ *
+ * ⚠️ published_at 을 다시 쓰지 않는다. 고칠 때마다 갱신하면 목록이 최신순이라
+ *    오래된 글을 오타 하나 고쳤다고 맨 위로 끌어올리게 된다.
+ *
+ * ⚠️ status 도 건드리지 않는다. 수정은 '내용을 바꾸는 일' 이지
+ *    '다시 게시하는 일' 이 아니다.
+ */
+export async function updatePost(input: UpdatePostInput): Promise<void> {
+  const { error } = await supabase
+    .from('community_posts')
+    .update({
+      post_type: input.postType,
+      title: input.title,
+      content: input.content,
+      trip_id: input.tripId,
+    })
+    .eq('id', input.postId)
+    .eq('author_user_id', input.authorUserId);
+
+  if (error) throw error;
+}
+
+/**
+ * 글 삭제. (COMM-02)
+ *
+ * ⚠️ 행을 지우지 않는다. status 를 DELETED 로 바꾼다.
+ *    댓글·좋아요가 이 글을 FK 로 참조하고 있어서 실제로 지우면 그것들이 함께
+ *    사라지거나 제약에 걸린다. 목록·상세 조회가 모두 PUBLISHED 만 보므로
+ *    사용자에게는 사라진 것과 같다. (deleteComment 와 같은 방식)
+ *
+ * ⚠️ 여기서도 작성자 본인만 지울 수 있다.
+ */
+export async function deletePost(postId: string, authorUserId: string): Promise<void> {
+  const { error } = await supabase
+    .from('community_posts')
+    .update({ status: POST_STATUS.DELETED })
+    .eq('id', postId)
+    .eq('author_user_id', authorUserId);
+
+  if (error) throw error;
 }
 
 // ── 좋아요 ─────────────────────────────────────────────────────────────────

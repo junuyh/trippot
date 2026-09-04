@@ -64,6 +64,13 @@ type Props = {
    */
   canSubmit: boolean;
   onSubmit: () => void;
+  /**
+   * 버튼에 적을 말. 새 글이면 '게시하기', 고치는 중이면 '수정 완료'.
+   *
+   * ⚠️ 화면이 정해서 넘긴다. 이 컴포넌트는 지금이 새 글인지 수정인지 모른다.
+   *    폼이 모드를 알기 시작하면 모드마다 분기가 늘어난다. (CLAUDE.md 9장)
+   */
+  submitLabel?: string;
 };
 
 /**
@@ -101,6 +108,7 @@ export function PostWriteForm({
   submitting,
   canSubmit,
   onSubmit,
+  submitLabel = '게시하기',
 }: Props) {
   return (
     <ScrollView
@@ -328,7 +336,7 @@ export function PostWriteForm({
             <Text
               className={`text-base font-semibold ${canSubmit ? 'text-white' : 'text-pot-faint'}`}
             >
-              게시하기
+              {submitLabel}
             </Text>
           )}
         </Pressable>

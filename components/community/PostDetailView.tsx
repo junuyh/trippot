@@ -22,6 +22,12 @@ type Props = {
    * props 가 열 개 넘게 늘어난다. 자리만 비워 두고 조립은 화면이 한다.
    */
   commentSection?: React.ReactNode;
+  /** 내 글 수정. post.mine 일 때만 쓰인다. */
+  onEdit?: () => void;
+  /** 내 글 삭제. 확인 절차는 화면 파일이 맡는다. */
+  onDelete?: () => void;
+  /** 삭제 중. 두 번 눌러 두 번 지우는 일을 막는다. */
+  deleting?: boolean;
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
@@ -53,6 +59,9 @@ export function PostDetailView({
   onToggleBookmark,
   bookmarkBusy,
   commentSection,
+  onEdit,
+  onDelete,
+  deleting = false,
 }: Props) {
   const single = post.imageUrls.length === 1;
 
@@ -128,6 +137,60 @@ export function PostDetailView({
             />
           ))}
         </ScrollView>
+      ) : null}
+
+      {/*
+        내 글 수정 · 삭제.
+
+        ⚠️ 남의 글에는 그리지 않는다. mine 은 화면 파일이 작성자 id 와 지금 사용자를
+           비교해 넘긴 값이다. 다만 이 버튼을 감추는 것이 권한의 전부가 아니다.
+           실제로 막는 것은 쿼리 쪽 author_user_id 조건이다.
+
+        ⚠️ 점 세 개(…) 메뉴로 접지 않았다. 항목이 둘뿐이라 메뉴를 열면 누르는
+           횟수만 한 번 늘어난다. 대신 **글자 크기를 작게** 두어 본문보다
+           앞서 보이지 않게 한다.
+
+        ⚠️ 자리는 **사진 아래 오른쪽**이다. 작성자 줄 옆에 뒀다가 옮겼다.
+           위에 두면 글을 읽기도 전에 편집 버튼부터 보이고, 남의 글에서는
+           그 자리가 비어서 글마다 윗머리 모양이 달라진다. 글을 다 읽은 자리에
+           두면 "이제 뭘 할까" 를 묻는 순서가 된다.
+
+        ⚠️ 삭제는 빨간색이다. 되돌릴 수 없는 동작이라 수정과 같은 무게로 보이면 안 된다.
+           확인 절차(정말 지울까요)는 화면 파일이 맡는다.
+      */}
+      {post.mine ? (
+        <View className="mt-3 flex-row justify-end px-5">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="내 글 수정"
+            disabled={deleting}
+            onPress={onEdit}
+            hitSlop={8}
+            className="flex-row items-center active:opacity-60"
+          >
+            <Ionicons name="create-outline" size={13} color="#6B7280" />
+            <Text className="ml-1 font-bold text-pot-mute" style={{ fontSize: 12 }}>
+              수정
+            </Text>
+          </Pressable>
+
+          <View className="mx-3 w-px self-stretch bg-pot-dash" />
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="내 글 삭제"
+            disabled={deleting}
+            onPress={onDelete}
+            hitSlop={8}
+            className="flex-row items-center active:opacity-60"
+            style={{ opacity: deleting ? 0.4 : 1 }}
+          >
+            <Ionicons name="trash-outline" size={13} color="#EF4444" />
+            <Text className="ml-1 font-bold" style={{ fontSize: 12, color: '#EF4444' }}>
+              {deleting ? '지우는 중' : '삭제'}
+            </Text>
+          </Pressable>
+        </View>
       ) : null}
 
       {/* 좋아요 */}

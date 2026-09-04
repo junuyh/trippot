@@ -3,6 +3,7 @@ export { Avatar } from './Avatar';
 export { CommentSection } from './CommentSection';
 export { POST_TYPE_DISPLAY_LABEL } from './label';
 export { PostCard } from './PostCard';
+export { PostDeleteConfirmModal } from './PostDeleteConfirmModal';
 export { PostDetailView } from './PostDetailView';
 export { PostListView } from './PostListView';
 export { PostWriteForm } from './PostWriteForm';
