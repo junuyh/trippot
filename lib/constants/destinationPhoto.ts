@@ -138,6 +138,14 @@ const PHOTOS: Record<DestinationCode, DestinationPhoto> = {
     sourcePage:
       'https://commons.wikimedia.org/wiki/File:Lambug_beach,_Badian,_Cebu,_Philippines_-_Flickr.jpg',
   },
+  [DESTINATION_CODE.DA_NANG]: {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Dragon_Bridge%2C_Da_Nang%2C_Vietnam.jpg/960px-Dragon_Bridge%2C_Da_Nang%2C_Vietnam.jpg',
+    caption: '다낭 용다리',
+    author: 'Nguyen Vu Hung',
+    license: 'CC BY-SA 2.0',
+    sourcePage:
+      'https://commons.wikimedia.org/wiki/File:Dragon_Bridge,_Da_Nang,_Vietnam.jpg',
+  },
 };
 
 /**

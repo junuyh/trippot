@@ -53,12 +53,20 @@ export function SettlementVaultGrid({ theme, categories }: Props) {
     >
       {categories.map((category) => {
         const diff = category.actualAmount - category.plannedAmount;
+        /*
+          ⚠️ 지출 기록이 없으면 '절약' 이라고 말하지 않는다.
+             안 쓴 것과 아직 안 적은 것을 구분할 방법이 없다.
+             계획 전액이 남은 것을 절약으로 세면 기록을 덜 한 사람이
+             가장 알뜰한 여행자가 된다.
+        */
         const label =
-          diff > 0
-            ? `${won(diff)} 초과`
-            : diff < 0
-              ? `${won(diff)} 절약`
-              : "예산과 동일";
+          category.actualAmount === 0
+            ? "지출 기록 없음"
+            : diff > 0
+              ? `${won(diff)} 초과`
+              : diff < 0
+                ? `${won(diff)} 절약`
+                : "예산과 동일";
 
         return (
           <View

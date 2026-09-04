@@ -131,7 +131,16 @@ export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
 
   const tripById = new Map(trips.map((trip) => [trip.id, trip]));
 
-  const [userRow, members, budgets, funds, deposits, contributions, settlements] =
+  const [
+    userRow,
+    members,
+    budgets,
+    funds,
+    deposits,
+    depositTotals,
+    contributions,
+    settlements,
+  ] =
     await Promise.all([
       supabase.from('users').select('name').eq('id', userId).maybeSingle(),
       ongoingIds.length
@@ -153,6 +162,23 @@ export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
             .in('trip_id', ongoingIds)
             .eq('transaction_type', TRANSACTION_TYPE.DEPOSIT)
             .gte('occurred_at', startOfThisMonth())
+            .is('deleted_at', null)
+        : null,
+      /**
+       * 여행별 **누적 입금**. 위 deposits 는 이번 달만 보는 값이라 준비율에 쓸 수 없다.
+       *
+       * ⚠️ 준비율의 분자는 fund_sources.current_amount 가 아니라 누적 입금이다.
+       *    current_amount 는 등록·동기화 시점의 **잔액**이라, 여행비를 결제하면
+       *    줄어든다. 그 값으로 준비율을 내면 돈을 쓸수록 준비가 뒤로 간다.
+       *    여행 홈의 수하물 태그도 같은 기준을 쓴다. 두 화면이 다른 값을 쓰면
+       *    같은 여행이 홈에서 0%, 상세에서 50% 로 보인다.
+       */
+      ongoingIds.length
+        ? supabase
+            .from('transactions')
+            .select('trip_id, amount')
+            .in('trip_id', ongoingIds)
+            .eq('transaction_type', TRANSACTION_TYPE.DEPOSIT)
             .is('deleted_at', null)
         : null,
       ongoingIds.length
@@ -177,6 +203,7 @@ export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
   if (budgets?.error) throw budgets.error;
   if (funds?.error) throw funds.error;
   if (deposits?.error) throw deposits.error;
+  if (depositTotals?.error) throw depositTotals.error;
   if (contributions?.error) throw contributions.error;
   if (settlements?.error) throw settlements.error;
 
@@ -195,12 +222,35 @@ export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
     budgetIdToTripId.set(row.id, row.trip_id);
   }
 
+  /**
+   * 여행별 누적 모금액.
+   *
+   * ⚠️ 입금 기록이 있으면 그 합계를 쓰고, 없을 때만 fund_sources.current_amount
+   *    로 떨어진다. current_amount 는 잔액이라 결제하면 줄어드는데, 준비율은
+   *    줄면 안 된다. (여행 홈 수하물 태그와 같은 기준)
+   *
+   * ⚠️ 서로 다른 여행의 금액을 더하는 것은 CLAUDE.md 3장의
+   *    "직접입력 + 계좌 잔액 합산 금지" 에 해당하지 않는다. 한 여행 안에서
+   *    두 소스를 섞지 않는다는 규칙이다.
+   */
+  const depositTotalByTripId = new Map<string, number>();
+  for (const row of depositTotals?.data ?? []) {
+    depositTotalByTripId.set(
+      row.trip_id,
+      (depositTotalByTripId.get(row.trip_id) ?? 0) + row.amount,
+    );
+  }
+
   const currentByTripId = new Map<string, number>();
   for (const row of funds?.data ?? []) {
-    // 주의: current_amount 자체가 이미 단일 소스(계좌 또는 수기) 기준이다.
-    //       여기서 더하는 건 서로 다른 여행의 금액이라 CLAUDE.md 3장의
-    //       "직접입력 + 계좌 잔액 합산 금지" 에 해당하지 않는다.
-    currentByTripId.set(row.trip_id, row.current_amount);
+    currentByTripId.set(
+      row.trip_id,
+      depositTotalByTripId.get(row.trip_id) ?? row.current_amount,
+    );
+  }
+  // 자금 소스가 아직 없어도 입금이 있으면 그 합계를 쓴다
+  for (const [tripId, total] of depositTotalByTripId) {
+    if (!currentByTripId.has(tripId)) currentByTripId.set(tripId, total);
   }
 
   const currentTotal = [...currentByTripId.values()].reduce((sum, value) => sum + value, 0);

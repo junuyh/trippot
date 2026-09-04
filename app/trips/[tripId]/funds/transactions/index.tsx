@@ -201,6 +201,16 @@ export default function ScreenFUND01() {
       : "ALL";
   });
 
+  /**
+   * 카테고리 필터. 빈 배열이면 전체다.
+   *
+   * ⚠️ 보기(전체·입금·지출·확인 필요)와 **다른 축**이다. 칩 하나로 합치면
+   *    "지출 중 식비" 를 고를 수 없다. 그래서 보기는 칩, 카테고리는 시트다.
+   */
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  /** 시트에서 고르는 중인 값. 적용을 눌러야 위 상태로 넘어간다 */
+  const [filterDraft, setFilterDraft] = useState<string[] | null>(null);
+
   /** ?transactionId= 로 들어왔을 때 한 번만 상세로 보낸다 */
   const openedRef = useRef(false);
   /** 상세 시트에 띄울 거래. null 이면 닫는다 (시안 v1) */
@@ -394,10 +404,27 @@ export default function ScreenFUND01() {
     router.replace(`/trips/${tripId}/funds/transactions/${transactionId}`);
   }, [tripId, transactionId]);
 
+  /**
+   * 카테고리 필터로 좁힌 뒤의 기준 목록.
+   *
+   * ⚠️ 탭 건수도 여기서 센다. 필터를 걸었는데 탭에는 전체 건수가 남아 있으면
+   *    "전체 27" 을 눌러도 3건만 나와 숫자가 거짓말이 된다.
+   *
+   * ⚠️ 카테고리를 고르면 입금은 빠진다. 입금에는 예산 카테고리가 없다.
+   */
+  const scopedTransactions = useMemo(() => {
+    const rows = data?.transactions ?? [];
+    if (selectedCategoryIds.length === 0) return rows;
+    const wanted = new Set(selectedCategoryIds);
+    return rows.filter(
+      (t) => t.budget_category_id && wanted.has(t.budget_category_id),
+    );
+  }, [data?.transactions, selectedCategoryIds]);
+
   const visibleTransactions = useMemo(() => {
     // ⚠️ '전체' 는 입금까지 포함한다. 출금만 남기면 FUND-01 에서 '입출금 전체
     //    내역' 으로 들어왔는데 방금 넣은 입금이 사라져 빈 화면이 된다.
-    let rows = [...(data?.transactions ?? [])];
+    let rows = [...scopedTransactions];
 
     if (view === "REVIEW") return rows.filter((t) => reviewReason(t) !== null);
     if (view === "DEPOSIT")
@@ -409,11 +436,11 @@ export default function ScreenFUND01() {
         (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
       );
     return rows;
-  }, [data?.transactions, view]);
+  }, [scopedTransactions, view]);
 
   /** 탭 배지에 쓸 건수 */
   const counts = useMemo(() => {
-    const rows = data?.transactions ?? [];
+    const rows = scopedTransactions;
     return {
       all: rows.length,
       deposit: rows.filter(
@@ -424,7 +451,7 @@ export default function ScreenFUND01() {
       ).length,
       review: rows.filter((t) => reviewReason(t) !== null).length,
     };
-  }, [data?.transactions]);
+  }, [scopedTransactions]);
 
   /**
    * 목록 위 요약 줄. 보기마다 말이 달라진다.
@@ -501,7 +528,20 @@ export default function ScreenFUND01() {
     }));
   }, [data?.categories, view, visibleTransactions]);
 
-  const title = categoryLabel ? `${categoryLabel} 지출` : "여행자금 내역";
+  /** 필터 칩 옆에 적는 이름들. '식비 · 교통 · 쇼핑' */
+  const selectedCategoryLabels = useMemo(() => {
+    if (selectedCategoryIds.length === 0) return "";
+    const wanted = new Set(selectedCategoryIds);
+    return (data?.categories ?? [])
+      .filter((category) => wanted.has(category.id))
+      .map(
+        (category) =>
+          CATEGORY_CODE_LABEL[category.category_code as CategoryCode],
+      )
+      .join(" · ");
+  }, [data?.categories, selectedCategoryIds]);
+
+  const title = categoryLabel ? `${categoryLabel} 지출` : "전체 지출내역";
 
   if (loading) {
     return (
@@ -536,18 +576,11 @@ export default function ScreenFUND01() {
     );
   }
 
-  if (sections.length === 0) {
-    return (
-      <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
-        <EmptyState
-          icon="receipt-outline"
-          title="아직 거래 내역이 없어요"
-          description="계좌를 연결하거나 지출을 직접 입력하면 여기에 쌓여요."
-        />
-      </View>
-    );
-  }
+  /*
+    ⚠️ 목록이 비었다고 화면 전체를 EmptyState 로 갈아끼우지 않는다.
+       그러면 보기 탭·필터·요약 줄까지 같이 사라져, 방금 고른 조건을 되돌릴
+       방법이 없어진다. 비어 있음은 **목록 자리에서만** 말한다.
+  */
 
   return (
     <View className="flex-1 bg-white">
@@ -662,6 +695,79 @@ export default function ScreenFUND01() {
         })}
       </View>
 
+      {/*
+        ── 카테고리 필터 ──
+        ⚠️ ?categoryId= 로 들어온 화면에는 그리지 않는다. 이미 그 카테고리로
+           좁혀진 목록이라, 여기서 또 카테고리를 고르면 두 조건이 겹쳐
+           무엇 때문에 비었는지 알 수 없다.
+      */}
+      {!categoryId ? (
+        <View
+          className="flex-row items-center"
+          style={{ gap: 8, paddingHorizontal: 16, paddingTop: 10 }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="카테고리로 거르기"
+            onPress={() => setFilterDraft(selectedCategoryIds)}
+            className="flex-row items-center active:opacity-70"
+            style={{
+              gap: 4,
+              paddingHorizontal: 11,
+              paddingVertical: 7,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor:
+                selectedCategoryIds.length > 0 ? theme.primary : "#e5e8ec",
+              backgroundColor:
+                selectedCategoryIds.length > 0 ? theme.primarySoft : "#fff",
+            }}
+          >
+            <Ionicons
+              name="options-outline"
+              size={13}
+              color={selectedCategoryIds.length > 0 ? theme.primary : "#687281"}
+            />
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: selectedCategoryIds.length > 0 ? "800" : "400",
+                color:
+                  selectedCategoryIds.length > 0 ? theme.primary : "#687281",
+              }}
+            >
+              {selectedCategoryIds.length > 0
+                ? `카테고리 ${selectedCategoryIds.length}`
+                : "카테고리"}
+            </Text>
+          </Pressable>
+
+          {selectedCategoryIds.length > 0 ? (
+            <>
+              <Text
+                numberOfLines={1}
+                style={{ flex: 1, fontSize: 11, color: "#8b94a2" }}
+              >
+                {selectedCategoryLabels}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="카테고리 필터 지우기"
+                onPress={() => setSelectedCategoryIds([])}
+                className="active:opacity-70"
+                style={{ paddingHorizontal: 4, paddingVertical: 4 }}
+              >
+                <Text
+                  style={{ fontSize: 11, fontWeight: "800", color: "#687281" }}
+                >
+                  초기화
+                </Text>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      ) : null}
+
       {/* 요약 줄. 지금 보고 있는 게 무엇이고 얼마인지 한 줄로 말한다 */}
       <View
         className="flex-row items-center justify-between"
@@ -681,6 +787,23 @@ export default function ScreenFUND01() {
       </View>
 
       <SectionList
+        ListEmptyComponent={
+          <View style={{ paddingTop: 40 }}>
+            <EmptyState
+              icon="receipt-outline"
+              title={
+                selectedCategoryIds.length > 0 || view !== "ALL"
+                  ? "조건에 맞는 거래가 없어요"
+                  : "아직 거래 내역이 없어요"
+              }
+              description={
+                selectedCategoryIds.length > 0 || view !== "ALL"
+                  ? "보기나 카테고리를 바꿔 보세요."
+                  : "계좌를 연결하거나 지출을 직접 입력하면 여기에 쌓여요."
+              }
+            />
+          </View>
+        }
         sections={sections}
         keyExtractor={(item) => item.transaction.id}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -909,6 +1032,102 @@ export default function ScreenFUND01() {
             />
           </View>
         ) : null}
+      </BottomSheet>
+
+      {/*
+        ── 카테고리 필터 ──
+        ⚠️ 시트 안에서는 draft 로만 고른다. 고를 때마다 목록이 바뀌면
+           시트에 가려 결과가 안 보이고, 취소할 방법도 없다.
+      */}
+      <BottomSheet
+        visible={filterDraft !== null}
+        title="카테고리로 보기"
+        description="여러 개를 고를 수 있어요."
+        onClose={() => setFilterDraft(null)}
+      >
+        <View className="flex-row flex-wrap" style={{ gap: 8, paddingTop: 14 }}>
+          {(data?.categories ?? []).map((category) => {
+            const code = category.category_code as CategoryCode;
+            const picked = (filterDraft ?? []).includes(category.id);
+            return (
+              <Pressable
+                key={category.id}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: picked }}
+                onPress={() =>
+                  setFilterDraft((prev) => {
+                    const current = prev ?? [];
+                    return picked
+                      ? current.filter((id) => id !== category.id)
+                      : [...current, category.id];
+                  })
+                }
+                className="flex-row items-center active:opacity-70"
+                style={{
+                  gap: 6,
+                  paddingHorizontal: 13,
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: picked ? theme.primary : "#e5e8ec",
+                  backgroundColor: picked ? theme.primarySoft : "#fff",
+                }}
+              >
+                <Text style={{ fontSize: 14 }}>{CATEGORY_EMOJI[code]}</Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: picked ? "800" : "500",
+                    color: picked ? theme.primary : "#3d4654",
+                  }}
+                >
+                  {CATEGORY_CODE_LABEL[code]}
+                </Text>
+                {picked ? (
+                  <Ionicons
+                    name="checkmark"
+                    size={13}
+                    color={theme.primary}
+                  />
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View className="flex-row" style={{ gap: 10, paddingTop: 18 }}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setFilterDraft([])}
+            className="items-center justify-center active:opacity-70"
+            style={{
+              flex: 1,
+              height: 48,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: "#e5e8ec",
+            }}
+          >
+            <Text
+              style={{ fontSize: 13, fontWeight: "800", color: "#687281" }}
+            >
+              전체 해제
+            </Text>
+          </Pressable>
+          <View style={{ flex: 2 }}>
+            <Button
+              label={
+                (filterDraft ?? []).length > 0
+                  ? `${(filterDraft ?? []).length}개 적용하기`
+                  : "전체 보기"
+              }
+              onPress={() => {
+                setSelectedCategoryIds(filterDraft ?? []);
+                setFilterDraft(null);
+              }}
+            />
+          </View>
+        </View>
       </BottomSheet>
 
       {/* ── 카테고리 변경 ── */}

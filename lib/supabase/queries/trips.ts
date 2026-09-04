@@ -290,12 +290,32 @@ export async function closeTripIfEnded(trip: Trip): Promise<Trip> {
   ) {
     return trip;
   }
-  if (!trip.end_date) return trip;
+
+  const today = new Date();
 
   // end_date 는 date 타입이라 시각이 없다. 종료일 **다음 날**부터 끝난 것으로 본다.
-  // 종료일 당일에 끝났다고 하면 아직 여행 중인 사람에게 결산을 들이민다.
-  const endedOn = parseISO(trip.end_date);
-  if (differenceInCalendarDays(new Date(), endedOn) <= 0) return trip;
+  // 종료일 당일에 끝났다고 하면 아직 여행 중인 사람에게 정산을 들이민다.
+  if (trip.end_date && differenceInCalendarDays(today, parseISO(trip.end_date)) > 0) {
+    return updateTrip(trip.id, { status: TRIP_STATUS.ENDED });
+  }
 
-  return updateTrip(trip.id, { status: TRIP_STATUS.ENDED });
+  /**
+   * 출발일이 되면 TRAVELING 으로 올린다.
+   *
+   * ⚠️ 지금까지 아무도 이 상태를 쓰지 않아, 여행 중인데도 PLANNING 으로
+   *    남아 있었다. 홈·모임·커뮤니티가 저마다 날짜를 다시 계산해 '여행 중'
+   *    을 판정하면 한 곳이 틀렸을 때 화면끼리 상태가 어긋난다.
+   *    상태를 한 곳에서 올려 두면 모두가 같은 값을 읽는다.
+   *
+   * ⚠️ PLANNING 에서만 올린다. 이미 TRAVELING 이면 쓸 이유가 없다.
+   */
+  if (
+    trip.status === TRIP_STATUS.PLANNING &&
+    trip.start_date &&
+    differenceInCalendarDays(today, parseISO(trip.start_date)) >= 0
+  ) {
+    return updateTrip(trip.id, { status: TRIP_STATUS.TRAVELING });
+  }
+
+  return trip;
 }
