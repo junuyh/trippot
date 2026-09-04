@@ -186,7 +186,7 @@ export const MOCK_BANK = {
 /** 연결과 함께 따라 들어오는 기존 결제. 항공권은 보통 가장 먼저 결제한다 */
 const MOCK_IMPORTED_SPEND = {
   name: "대한항공",
-  amount: 1_284_000,
+  amount: 2_300_000,
   categoryCode: "AIRFARE",
   confidence: 98,
 } as const;
