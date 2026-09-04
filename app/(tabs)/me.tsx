@@ -87,7 +87,7 @@ export default function ScreenMY01() {
    */
   const [pickedImageUri, setPickedImageUri] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
-  const [counts, setCounts] = useState<MyTripCounts>({ ongoing: 0, past: 0 });
+  const [counts, setCounts] = useState<MyTripCounts>({ planning: 0, traveling: 0, past: 0 });
   /** 프로필 사진 업로드 중. 중복 제출을 막는다. */
   const [savingImage, setSavingImage] = useState(false);
   /** 로그아웃 확인창 노출 여부. Alert 대신 Modal 을 쓰는 이유는 아래 주석 참고. */
@@ -105,12 +105,12 @@ export default function ScreenMY01() {
         return;
       }
 
-      // 진행중(PLANNING·TRAVELING) / 지난(ENDED·SETTLED).
-      // HOME-01 과 같은 기준이다. (app/(tabs)/index.tsx)
-      const ongoing = trips.filter(
-        (trip) =>
-          trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING,
-      ).length;
+      // 준비 중(PLANNING) / 여행 중(TRAVELING) / 지난(ENDED·SETTLED).
+      // ⚠️ trips.status 로만 가른다. 날짜로 다시 판정하지 않는다.
+      //    /me/trips 목록이 쓰는 기준과 같아야 카드 숫자와 목록 건수가 맞는다.
+      //    (app/me/trips.tsx:144-146)
+      const planning = trips.filter((trip) => trip.status === TRIP_STATUS.PLANNING).length;
+      const traveling = trips.filter((trip) => trip.status === TRIP_STATUS.TRAVELING).length;
       const past = trips.filter(
         (trip) => trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED,
       ).length;
@@ -120,7 +120,7 @@ export default function ScreenMY01() {
         accountLabel: toAccountLabel(user.auth_provider),
         profileImageUrl: user.profile_image_url,
       });
-      setCounts({ ongoing, past });
+      setCounts({ planning, traveling, past });
       setLoadState('ready');
     } catch {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
@@ -268,16 +268,14 @@ export default function ScreenMY01() {
    * 목록 화면이 filter 파라미터를 열어 두었다. 기본은 준비 중이고
    * traveling · past 로 다른 탭을 열 수 있다. (app/me/trips.tsx — toFilter)
    *
-   * ⚠️ [검토 필요] 목록 화면은 준비 중(PLANNING)과 여행 중(TRAVELING)을
-   *    **탭으로 나눴다.** 반면 이 화면의 '준비 중인 여행' 카드 숫자는 아직 둘을
-   *    합한 값이라, 카드를 눌러 도착한 준비 중 탭의 목록보다 숫자가 클 수 있다.
-   *    (여행 중인 여행이 있을 때)
-   *
-   *    고치는 방법은 둘이다 — 카드 숫자를 PLANNING 만 세거나, 카드를 둘로 나누거나.
-   *    MY-01 은 담당이 다른 화면이라 여기서 정하지 않는다. (CLAUDE.md 13장)
+   * 카드 셋이 목록의 탭 셋과 1:1 이다. 카드 숫자와 그 탭의 목록 건수가 같다.
    */
-  function handlePressOngoingTrips() {
-    router.push('/me/trips');
+  function handlePressPlanningTrips() {
+    router.push('/me/trips?filter=planning');
+  }
+
+  function handlePressTravelingTrips() {
+    router.push('/me/trips?filter=traveling');
   }
 
   function handlePressPastTrips() {
@@ -403,7 +401,8 @@ export default function ScreenMY01() {
         <View className="mt-7">
           <TripSummaryCards
             counts={counts}
-            onPressOngoing={handlePressOngoingTrips}
+            onPressPlanning={handlePressPlanningTrips}
+            onPressTraveling={handlePressTravelingTrips}
             onPressPast={handlePressPastTrips}
           />
         </View>

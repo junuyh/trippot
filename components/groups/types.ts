@@ -7,6 +7,8 @@
 // ============================================================================
 
 /** 카드 안에 한 줄로 들어가는 여행. */
+import type { MyTripItem } from '@/components/my';
+
 export type GroupTripItem = {
   tripId: string;
   /** trips.destination 은 nullable 이다. 없으면 카드가 대체 문구를 쓴다. */
@@ -76,10 +78,19 @@ export type GroupDetailData = {
   memberCount: number;
   members: GroupMemberItem[];
   accounts: GroupAccountItem[];
-  /** 진행 중(PLANNING · TRAVELING). 전체 표시한다. */
-  ongoingTrips: GroupTripItem[];
-  /** 지난 여행(ENDED · SETTLED). 전체 표시한다. */
-  pastTrips: GroupTripItem[];
+  /**
+   * 상태별 여행. 전체 표시한다.
+   *
+   * ⚠️ MY 의 여행 카드(components/my/MyTripCard)를 그대로 쓰려고 MyTripItem 을
+   *    담는다. 같은 여행이면 MY 목록과 여기서 금액·진행률이 같아야 한다.
+   *    카드를 새로 만들면 두 화면이 갈라진다.
+   *
+   * ⚠️ 준비 중과 여행 중을 나눈다. MY 의 /me/trips 가 이미 세 갈래라
+   *    묶어 두면 같은 여행이 두 화면에서 다른 칸에 들어간다.
+   */
+  planningTrips: MyTripItem[];
+  travelingTrips: MyTripItem[];
+  pastTrips: MyTripItem[];
 };
 
 /** 편집 모드 '숨긴 모임' 바텀시트 한 줄. 이름과 다시 표시만 있으면 된다. */

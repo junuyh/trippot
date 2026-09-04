@@ -19,16 +19,25 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-rou
 import { useCallback, useState } from 'react';
 
 import { GroupDetailView, type GroupDetailData } from '@/components/groups';
+import type { MyTripItem } from '@/components/my';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
-import { ENTRY_POINT, GROUP_MEMBER_ROLE } from '@/lib/constants/status';
+import {
+  ENTRY_POINT,
+  GROUP_MEMBER_ROLE,
+  TRIP_STATUS,
+  type TripStatus,
+} from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
+import { countryTheme } from '@/lib/constants/countryTheme';
+import { findDestinationByName } from '@/lib/constants/destinations';
 import { getGroupAccounts } from '@/lib/supabase/queries/funds';
 import {
   getGroupById,
   getGroupMemberCount,
   getGroupMembers,
   getGroupTrips,
+  getTripAmountSummaries,
 } from '@/lib/supabase/queries/groups';
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'error';
@@ -69,6 +78,42 @@ export default function ScreenGROUP02() {
         getGroupTrips(groupId),
       ]);
 
+      // 카드에 금액·진행률을 그리려면 세 테이블이 더 필요하다.
+      // getTripsWithSummary() 와 같은 칼럼을 읽어 MY 목록과 값이 어긋나지 않는다.
+      const all = [...trips.ongoing, ...trips.past];
+      const summaries = await getTripAmountSummaries(all.map((trip) => trip.id));
+
+      /**
+       * DB 행을 MY 여행 카드가 받는 모양으로 바꾼다.
+       *
+       * ⚠️ 변환 규칙을 새로 만들지 않는다. app/me/trips.tsx 가 하는 것과 같다.
+       *    국기·색은 findDestinationByName → countryTheme 경로 그대로다.
+       *
+       * ⚠️ ownerLabel 은 이 모임 이름이다. 모임 상세라 전부 이 모임의 여행이다.
+       */
+      const toItem = (trip: (typeof all)[number]): MyTripItem => {
+        const meta = findDestinationByName(trip.destination);
+        const theme = countryTheme(meta?.countryKo);
+        const amount = summaries.get(trip.id);
+
+        return {
+          tripId: trip.id,
+          destination: trip.destination,
+          flag: meta?.flag ?? '🌍',
+          startDate: trip.start_date,
+          endDate: trip.end_date,
+          status: trip.status as TripStatus,
+          ownerLabel: found.name,
+          currentAmount: amount?.currentAmount ?? null,
+          targetAmount: amount?.targetAmount ?? null,
+          finalAmount: amount?.finalAmount ?? null,
+          color: theme.primary,
+          colorSoft: theme.primarySoft,
+        };
+      };
+
+      const items = all.map(toItem);
+
       setGroup({
         groupId: found.id,
         name: found.name,
@@ -83,18 +128,14 @@ export default function ScreenGROUP02() {
           accountId: account.id,
           maskedAccountNumber: account.masked_account_number,
         })),
-        ongoingTrips: trips.ongoing.map((trip) => ({
-          tripId: trip.id,
-          destination: trip.destination,
-          startDate: trip.start_date,
-          endDate: trip.end_date,
-        })),
-        pastTrips: trips.past.map((trip) => ({
-          tripId: trip.id,
-          destination: trip.destination,
-          startDate: trip.start_date,
-          endDate: trip.end_date,
-        })),
+        // ⚠️ trips.status 로 가른다. /me/trips 목록이 쓰는 기준과 같다.
+        //    (app/me/trips.tsx) 날짜로 다시 판정하면 같은 여행이 두 화면에서
+        //    다른 칸에 들어갈 수 있다.
+        planningTrips: items.filter((item) => item.status === TRIP_STATUS.PLANNING),
+        travelingTrips: items.filter((item) => item.status === TRIP_STATUS.TRAVELING),
+        pastTrips: items.filter(
+          (item) => item.status === TRIP_STATUS.ENDED || item.status === TRIP_STATUS.SETTLED,
+        ),
       });
       setLoadState('ready');
     } catch {
