@@ -35,6 +35,7 @@ import {
   type BudgetCategoryRowData,
   type InsightItem,
 } from "@/components/budget";
+import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -474,7 +475,8 @@ export default function ScreenBUDGET01() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "예산" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
         <Loading message="예산을 불러오는 중…" />
       </View>
     );
@@ -483,7 +485,8 @@ export default function ScreenBUDGET01() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "예산" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
         <EmptyState
           icon="wallet-outline"
           title="예산을 찾을 수 없어요"
@@ -498,7 +501,8 @@ export default function ScreenBUDGET01() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "예산" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
         <ErrorState
           message="예산을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -545,7 +549,8 @@ export default function ScreenBUDGET01() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        <Stack.Screen options={{ title: "예산" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
 
         {confirmed ? (
           <BudgetTicketCard

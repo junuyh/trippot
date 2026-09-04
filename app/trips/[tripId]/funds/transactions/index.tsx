@@ -26,6 +26,7 @@ import { Alert, Modal, Pressable, SectionList, Text, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
+import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import {
   TransactionDetailBody,
   type TransactionDetail,
@@ -598,7 +599,8 @@ export default function ScreenFUND01() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <Loading message="내역을 불러오는 중…" />
       </View>
     );
@@ -606,7 +608,8 @@ export default function ScreenFUND01() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <EmptyState
           icon="receipt-outline"
           title="여행을 찾을 수 없어요"
@@ -619,7 +622,8 @@ export default function ScreenFUND01() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <ErrorState
           message="내역을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -636,7 +640,8 @@ export default function ScreenFUND01() {
 
   return (
     <View className="flex-1 bg-white">
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
 
       {/*
         연결 계좌 안내는 여기서만 보여준다.

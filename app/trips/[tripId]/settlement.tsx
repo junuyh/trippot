@@ -39,6 +39,7 @@ import {
   SettlementSummaryCard,
   type CategoryComparison,
 } from "@/components/settlement";
+import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
@@ -318,7 +319,8 @@ export default function ScreenSETTLE01() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "정산" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <Loading message="정산 내역을 불러오는 중…" />
       </View>
     );
@@ -327,7 +329,8 @@ export default function ScreenSETTLE01() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "정산" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <EmptyState
           icon="receipt-outline"
           title="여행을 찾을 수 없어요"
@@ -342,7 +345,8 @@ export default function ScreenSETTLE01() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "정산" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <ErrorState
           message="정산 내역을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -359,7 +363,8 @@ export default function ScreenSETTLE01() {
   if (tooEarly) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "정산" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <EmptyState
           icon="hourglass-outline"
           title="아직 정산할 때가 아니에요"
@@ -380,7 +385,8 @@ export default function ScreenSETTLE01() {
       }
     >
       <Stack.Screen
-        options={{ title: `${data.trip.destination ?? "여행"} 정산` }}
+        options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: `${data.trip.destination ?? "여행"} 정산` }}
       />
 
       <SettlementSummaryCard
