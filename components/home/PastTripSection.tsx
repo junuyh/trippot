@@ -1,5 +1,5 @@
 // ============================================================================
-// 1-2. 지난 여행 — 빈티지 우표 가로 슬라이드 (2026-09-03)
+// 1-2. 지난 여행 — 빈티지 러기지 태그 가로 목록 (2026-09-03)
 //
 // 왜 홈에 있는가
 //   docs/03_요구사항정의서_v1.md REQ-HOME-001 은 **Must** 다.
@@ -19,7 +19,13 @@
 //    지금은 **똑바로 세워 한 줄로 늘어놓고 옆으로 넘긴다.**
 //    줄이 맞고 겹치지 않으니 각 장이 버튼으로 읽히고, 스크롤 자체가
 //    '만질 수 있다' 는 신호가 된다. 재미는 배치가 아니라 카드 그림
-//    (우표 톱니·크림색 종이·큰 비행기 실루엣·국가색 해와 물결)이 낸다.
+//    (크림색 종이·국가색 띠·나라별 풍경·소인·바코드)이 낸다.
+//
+// ⚠️ **저절로 넘어가지 않는다.** 자동 슬라이드를 넣었다가 뺐다.
+//    지난 여행은 지금 챙길 일이 아니라 남은 기록이라, 사용자가 볼 마음을
+//    먹었을 때만 넘기면 된다. 저절로 움직이면 태그를 들여다보는 중에
+//    화면이 밀려서 보려던 카드를 놓친다. useAutoCarousel 은 준비 중인 여행
+//    배너(OngoingTripCarousel)에만 남아 있다.
 //
 // ⚠️ 홈에는 최근 4개만 둔다. 전체 목록은 MY-02(/me/trips)다.
 //    홈이 여행 목록 페이지가 되면 안 된다. (CLAUDE.md 2장)
@@ -35,7 +41,6 @@ import { HOME_CAPTION, HOME_RADIUS } from './palette';
 import { SectionHeader } from './SectionHeader';
 import { LuggageTagCard } from './LuggageTagCard';
 import type { EndedTripCardData } from './types';
-import { useAutoCarousel } from './useAutoCarousel';
 
 type Props = {
   trips: EndedTripCardData[];
@@ -78,17 +83,6 @@ export function PastTripSection({
   const cardWidth = Math.round(innerWidth * CARD_RATIO);
   const step = cardWidth + CARD_GAP;
 
-  // 카드가 두 장씩 보이므로 마지막 카드까지 스크롤할 수 없다.
-  // 더 갈 곳이 없는 자리에서 처음으로 돌아가야 자동 슬라이드가 멈춘 것처럼 보이지 않는다.
-  const visibleCount = step > 0 ? Math.max(1, Math.floor((innerWidth + CARD_GAP) / step)) : 1;
-  const lastIndex = Math.max(0, trips.length - visibleCount);
-
-  const { ref, handleScroll, handleTouch } = useAutoCarousel({
-    count: trips.length,
-    step,
-    lastIndex,
-  });
-
   return (
     <View>
       <SectionHeader
@@ -108,13 +102,8 @@ export function PastTripSection({
         </View>
       ) : (
         <ScrollView
-          ref={ref}
           horizontal
           showsHorizontalScrollIndicator={false}
-          onScroll={handleScroll}
-          onScrollBeginDrag={handleTouch}
-          onScrollEndDrag={handleTouch}
-          scrollEventThrottle={16}
           snapToInterval={step}
           decelerationRate="fast"
           style={{ marginHorizontal: -SHADOW_PAD }}
