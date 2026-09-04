@@ -488,3 +488,61 @@ export async function getSettlementFunds(
     major: spent.sort((a, b) => b.amount - a.amount).slice(0, majorLimit),
   };
 }
+
+/**
+ * 거래를 세부 계획에 연결한다. (FUND-03 거래 상세)
+ *
+ * ⚠️ 연결만 하고 끝내지 않는다. 계획의 actual_amount 와 status 까지 채워야
+ *    BUDGET-02 가 '결제 완료 · 지출 연결됨' 으로 읽는다. 한쪽만 바꾸면
+ *    거래에는 계획이 붙었는데 계획에는 실적이 없는 상태가 된다.
+ *
+ * ⚠️ 실제 금액은 **그 계획에 연결된 거래의 합**으로 다시 센다. 더하지 않는다.
+ *    더하면 연결을 풀었다 다시 붙일 때마다 금액이 불어난다.
+ */
+export async function linkTransactionToPlanItem(
+  transactionId: string,
+  planItemId: string,
+): Promise<void> {
+  const { error: linkError } = await supabase
+    .from("transactions")
+    .update({ budget_plan_item_id: planItemId })
+    .eq("id", transactionId);
+  if (linkError) throw linkError;
+
+  await syncPlanItemActual(planItemId);
+}
+
+/**
+ * 계획의 실제 금액을 연결된 거래에서 다시 센다.
+ *
+ * ⚠️ 환불 완료·취소된 거래는 빼고 센다. 돌려받은 돈을 쓴 돈으로 세면
+ *    getFundTotals() 와 어긋난다.
+ */
+export async function syncPlanItemActual(planItemId: string): Promise<void> {
+  const { data: rows, error } = await supabase
+    .from("transactions")
+    .select("amount, refund_status")
+    .eq("budget_plan_item_id", planItemId)
+    .eq("transaction_type", TRANSACTION_TYPE.WITHDRAWAL)
+    .is("deleted_at", null);
+  if (error) throw error;
+
+  const total = (rows ?? [])
+    .filter(
+      (row) =>
+        row.refund_status !== REFUND_STATUS.REFUNDED &&
+        row.refund_status !== REFUND_STATUS.CANCELED,
+    )
+    .reduce((sum, row) => sum + row.amount, 0);
+
+  await supabase
+    .from("budget_plan_items")
+    .update({
+      actual_amount: total,
+      status:
+        total > 0
+          ? BUDGET_PLAN_ITEM_STATUS.DONE
+          : BUDGET_PLAN_ITEM_STATUS.PLANNED,
+    })
+    .eq("id", planItemId);
+}
