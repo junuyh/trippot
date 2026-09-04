@@ -171,6 +171,18 @@ export async function createBudgetPlanItem(input: BudgetPlanItemInsert): Promise
   return data;
 }
 
+/**
+ * 계획 항목을 한 번에 만든다. 여행 생성에서 고른 상품을 옮겨 담을 때 쓴다.
+ */
+export async function createBudgetPlanItems(
+  inputs: BudgetPlanItemInsert[],
+): Promise<BudgetPlanItem[]> {
+  if (inputs.length === 0) return [];
+  const { data, error } = await supabase.from('budget_plan_items').insert(inputs).select();
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function updateBudgetPlanItem(
   budgetItemId: string,
   patch: BudgetPlanItemUpdate,

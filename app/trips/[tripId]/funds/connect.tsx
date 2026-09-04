@@ -29,6 +29,7 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
+import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import {
   BottomSheet,
   Button,
@@ -205,7 +206,8 @@ export default function ScreenFUND02() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "계좌 연결" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <Loading message="계좌 정보를 불러오는 중…" />
       </View>
     );
@@ -213,7 +215,8 @@ export default function ScreenFUND02() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "계좌 연결" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <EmptyState
           icon="card-outline"
           title="여행을 찾을 수 없어요"
@@ -227,7 +230,8 @@ export default function ScreenFUND02() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "계좌 연결" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <ErrorState
           message="계좌 정보를 불러오지 못했어요."
           onRetry={() => void load()}
@@ -252,7 +256,8 @@ export default function ScreenFUND02() {
         }}
       >
         <Stack.Screen
-          options={{ title: connected ? "연결 계좌 관리" : "계좌 연결" }}
+          options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: connected ? "연결 계좌 관리" : "계좌 연결" }}
         />
 
         {/* ── 지금 방식 ── */}

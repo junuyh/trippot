@@ -87,7 +87,13 @@ export function CategoryHeroCard({
           }
         </View>
 
-        {
+        {/*
+          ⚠️ onStartEdit 이 없으면 **버튼 자체를 그리지 않는다.**
+             예전에는 onPress 만 undefined 로 넘겨서, 여행이 끝난 뒤에도
+             버튼이 그대로 보이고 눌러도 아무 일이 없었다.
+             누를 수 없는 버튼을 보여주는 것이 없는 것보다 나쁘다.
+        */}
+        {onStartEdit ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="예산 수정"
@@ -104,7 +110,7 @@ export function CategoryHeroCard({
               ✎ 예산 수정
             </Text>
           </Pressable>
-        }
+        ) : null}
       </View>
 
       {/* 설정 예산 수정은 바텀시트에서 한다 (스펙: 별도 적용 버튼 없음) */}
@@ -143,6 +149,47 @@ export function CategoryHeroCard({
           </View>
         ))}
       </View>
+
+      {/*
+        ── 예산 대비 결과 ──
+        ⚠️ 지출이 하나라도 있을 때만 그린다. 아직 아무것도 안 쓴 카테고리에
+           "예산 전액을 아꼈다" 고 말하면, 기록을 안 한 사람이 가장 알뜰한
+           여행자가 된다. (SETTLE-01 · 한 줄 기록과 같은 기준)
+
+        ⚠️ 계획이 아니라 **설정 예산**과 비교한다. 사용자가 이 화면에서 묻는 것은
+           "내가 잡은 예산 안에서 썼나" 이지 "계획대로 썼나" 가 아니다.
+      */}
+      {spentTotal > 0 ? (
+        <View
+          className="flex-row items-center"
+          style={{
+            gap: 7,
+            marginTop: 14,
+            borderRadius: 11,
+            backgroundColor: spentTotal > budgetAmount ? "#fff2f2" : "#eef8f2",
+            paddingHorizontal: 13,
+            paddingVertical: 12,
+          }}
+        >
+          <Text style={{ fontSize: 13 }}>
+            {spentTotal > budgetAmount ? "⚠️" : "✅"}
+          </Text>
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 12,
+              fontWeight: "700",
+              color: spentTotal > budgetAmount ? "#b3403f" : "#1c6f4f",
+            }}
+          >
+            {spentTotal > budgetAmount
+              ? `예산보다 ${won(spentTotal - budgetAmount)} 더 썼어요`
+              : spentTotal === budgetAmount
+                ? "예산에 딱 맞췄어요"
+                : `예산보다 ${won(budgetAmount - spentTotal)} 아꼈어요`}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }

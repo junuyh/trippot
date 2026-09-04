@@ -249,10 +249,19 @@ export function TripReceiptCard({
             marginTop: 8,
             fontSize: 9,
             fontWeight: "900",
-            color: withinBudget ? GREEN : theme.primary,
+            color:
+              actualAmount === 0
+                ? "#98a1ad"
+                : withinBudget
+                  ? GREEN
+                  : theme.primary,
           }}
         >
-          {withinBudget ? "예산 안에서 여행 완료 ✓" : "예산을 넘겼어요"}
+          {actualAmount === 0
+            ? "지출을 기록하면 결과가 채워져요"
+            : withinBudget
+              ? "예산 안에서 여행 완료 ✓"
+              : "예산을 넘겼어요"}
         </Text>
 
         {/*

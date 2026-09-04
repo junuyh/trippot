@@ -26,6 +26,7 @@ import { Alert, Modal, Pressable, SectionList, Text, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
+import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import {
   TransactionDetailBody,
   type TransactionDetail,
@@ -71,6 +72,8 @@ import {
   getTransactions,
   isRefundRelated,
   reviewReason,
+  linkTransactionToPlanItem,
+  syncPlanItemActual,
   updateTransactionMapping,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
@@ -210,6 +213,8 @@ export default function ScreenFUND01() {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   /** 시트에서 고르는 중인 값. 적용을 눌러야 위 상태로 넘어간다 */
   const [filterDraft, setFilterDraft] = useState<string[] | null>(null);
+  /** 계획 연결 시트를 띄울 거래. null 이면 닫는다 */
+  const [linking, setLinking] = useState<Transaction | null>(null);
 
   /** ?transactionId= 로 들어왔을 때 한 번만 상세로 보낸다 */
   const openedRef = useRef(false);
@@ -301,15 +306,63 @@ export default function ScreenFUND01() {
   );
 
   /** 계획 연결을 푼다. ⚠️ 여기서만 풀 수 있다 (스펙 9장) */
+  /**
+   * 이 거래를 붙일 수 있는 계획 후보.
+   *
+   * ⚠️ **같은 카테고리**의 계획만 본다. 다른 카테고리 계획에 붙이면
+   *    카테고리별 실제 금액과 계획의 실적이 서로 다른 곳을 가리킨다.
+   *
+   * ⚠️ 이미 다른 지출이 붙은 계획은 뺀다. 한 계획에 결제가 둘 얹히면
+   *    그 계획의 실제 금액이 부풀려진다.
+   */
+  const planCandidates = useMemo(() => {
+    if (!linking?.budget_category_id) return [];
+    const linkedElsewhere = new Set(
+      (data?.transactions ?? [])
+        .filter((t) => t.budget_plan_item_id && t.id !== linking.id)
+        .map((t) => t.budget_plan_item_id as string),
+    );
+    return (data?.planItems ?? []).filter(
+      (item) =>
+        item.budget_category_id === linking.budget_category_id &&
+        !linkedElsewhere.has(item.id),
+    );
+  }, [data?.planItems, data?.transactions, linking]);
+
+  const handleLinkPlan = useCallback(
+    async (planItemId: string) => {
+      if (!linking || sheetBusy) return;
+      setSheetBusy(true);
+      try {
+        await linkTransactionToPlanItem(linking.id, planItemId);
+        setLinking(null);
+        setDetail(null);
+        await load();
+        setToast("계획에 연결했어요");
+      } catch {
+        setToast("연결하지 못했어요");
+      } finally {
+        setSheetBusy(false);
+      }
+    },
+    [linking, load, sheetBusy],
+  );
+
   const handleUnlinkPlan = useCallback(async () => {
     if (!detail || sheetBusy) return;
     setSheetBusy(true);
+    const previousPlanId = detail.budget_plan_item_id;
     try {
       await updateTransactionMapping(detail.id, {
         categoryId: detail.budget_category_id,
         budgetItemId: null,
         categoryMethod: detail.category_method,
       });
+      /*
+        ⚠️ 풀기만 하면 계획에는 실적이 남는다. 거래는 떨어져 나갔는데
+           계획은 '결제 완료' 인 상태가 되어 BUDGET-02 가 거짓을 말한다.
+      */
+      if (previousPlanId) await syncPlanItemActual(previousPlanId);
       setDetail(null);
       await load();
       setToast("계획 연결을 풀었어요");
@@ -546,7 +599,8 @@ export default function ScreenFUND01() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <Loading message="내역을 불러오는 중…" />
       </View>
     );
@@ -554,7 +608,8 @@ export default function ScreenFUND01() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <EmptyState
           icon="receipt-outline"
           title="여행을 찾을 수 없어요"
@@ -567,7 +622,8 @@ export default function ScreenFUND01() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <ErrorState
           message="내역을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -584,7 +640,8 @@ export default function ScreenFUND01() {
 
   return (
     <View className="flex-1 bg-white">
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
 
       {/*
         연결 계좌 안내는 여기서만 보여준다.
@@ -1027,11 +1084,69 @@ export default function ScreenFUND01() {
                 setDetail(null);
                 setEditing(target);
               }}
+              /* 붙일 계획이 없으면 버튼 자체를 주지 않는다 */
+              onLinkPlan={
+                detail?.budget_category_id
+                  ? () => setLinking(detail)
+                  : undefined
+              }
               onUnlinkPlan={() => void handleUnlinkPlan()}
               onConfirm={() => void handleConfirmReview()}
             />
           </View>
         ) : null}
+      </BottomSheet>
+
+      {/* ── 세부 계획 연결 ── */}
+      <BottomSheet
+        visible={linking !== null}
+        title="세부 계획에 연결"
+        description="이 지출이 어떤 계획의 결제인지 골라 주세요."
+        onClose={() => setLinking(null)}
+      >
+        {planCandidates.length === 0 ? (
+          <View style={{ paddingTop: 18, paddingBottom: 6 }}>
+            <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
+              연결할 계획이 없어요. 카테고리 예산 화면에서 계획을 먼저
+              추가하면 여기에 나타나요.
+            </Text>
+          </View>
+        ) : (
+          <View style={{ paddingTop: 14, gap: 9 }}>
+            {planCandidates.map((item) => (
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name} 계획에 연결`}
+                disabled={sheetBusy}
+                onPress={() => void handleLinkPlan(item.id)}
+                className="flex-row items-center active:bg-gray-50"
+                style={{
+                  gap: 12,
+                  padding: 14,
+                  borderWidth: 1,
+                  borderColor: "#e5e8ec",
+                  borderRadius: 13,
+                  opacity: sheetBusy ? 0.6 : 1,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{ fontSize: 13, fontWeight: "800", color: "#121a2a" }}
+                  >
+                    {item.name}
+                  </Text>
+                  <Text
+                    style={{ marginTop: 4, fontSize: 11, color: "#8b94a2" }}
+                  >
+                    예상 {item.expected_amount.toLocaleString("ko-KR")}원
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 15, color: "#c2c8d0" }}>›</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </BottomSheet>
 
       {/*

@@ -27,6 +27,7 @@ import {
 import { useCallback, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, View } from "react-native";
 
+import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import {
   BottomSheet,
   Button,
@@ -292,7 +293,8 @@ export default function ScreenFUND03() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "거래 상세" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
         <Loading message="거래를 불러오는 중…" />
       </View>
     );
@@ -300,7 +302,8 @@ export default function ScreenFUND03() {
   if (notFound || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "거래 상세" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
         <EmptyState
           icon="receipt-outline"
           title="거래를 찾을 수 없어요"
@@ -314,7 +317,8 @@ export default function ScreenFUND03() {
   if (error) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "거래 상세" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
         <ErrorState
           message="거래를 불러오지 못했어요."
           onRetry={() => void load()}
@@ -390,7 +394,8 @@ export default function ScreenFUND03() {
 
   return (
     <View className="flex-1 bg-white">
-      <Stack.Screen options={{ title: "거래 상세" }} />
+      <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
 
       <ScrollView
         contentContainerStyle={{

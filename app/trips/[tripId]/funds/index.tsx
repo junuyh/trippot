@@ -40,6 +40,7 @@ import {
   RecentFundList,
   type FundDraft,
 } from "@/components/fund";
+import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { DateRangeCalendar } from "@/components/trip-create";
 import {
   BottomSheet,
@@ -317,7 +318,8 @@ export default function ScreenFUND01() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행자금" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "여행자금" }} />
         <Loading message="여행자금을 불러오는 중…" />
       </View>
     );
@@ -325,7 +327,8 @@ export default function ScreenFUND01() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행자금" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "여행자금" }} />
         <EmptyState
           icon="wallet-outline"
           title="여행을 찾을 수 없어요"
@@ -339,7 +342,8 @@ export default function ScreenFUND01() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행자금" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "여행자금" }} />
         <ErrorState
           message="여행자금을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -380,7 +384,8 @@ export default function ScreenFUND01() {
           />
         }
       >
-        <Stack.Screen options={{ title: "여행자금" }} />
+        <Stack.Screen options={{
+          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "여행자금" }} />
 
         <FundSummaryCard
           theme={theme}

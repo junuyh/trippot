@@ -6,6 +6,7 @@
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
 import {
+  BUDGET_PLAN_ITEM_STATUS,
   CATEGORY_METHOD,
   FUND_SOURCE_TYPE,
   TRANSACTION_SOURCE_TYPE,
@@ -269,10 +270,43 @@ export async function connectMockAccount(
       categoryId = category?.id ?? null;
     }
 
+    /**
+     * 카테고리뿐 아니라 **세부 계획 항목까지 연결한다.**
+     *
+     * ⚠️ 카테고리만 붙이면 "항공에 230만원을 썼다" 까지만 알 수 있다.
+     *    사용자가 세운 계획(예: '대형항공사 직항' 240만원)과 이어져야
+     *    "계획보다 10만원 아꼈다" 를 말할 수 있고, 그게 이 서비스가 하려는
+     *    일이다.
+     *
+     * ⚠️ **아직 지출이 붙지 않은 계획**만 고른다. 이미 연결된 계획에 또
+     *    붙이면 한 계획에 두 결제가 얹혀 실제 금액이 부풀려진다.
+     *    후보가 여럿이면 금액이 가장 가까운 것을 고른다 — 같은 카테고리
+     *    안에서 어느 계획의 결제인지는 금액이 가장 잘 말해 준다.
+     */
+    let planItemId: string | null = null;
+    if (categoryId) {
+      const { data: candidates } = await supabase
+        .from("budget_plan_items")
+        .select("id, expected_amount, actual_amount, status")
+        .eq("budget_category_id", categoryId)
+        .neq("status", BUDGET_PLAN_ITEM_STATUS.CANCELED);
+
+      const open = (candidates ?? []).filter((row) => row.actual_amount === 0);
+      if (open.length > 0) {
+        planItemId = open.reduce((best, row) =>
+          Math.abs(row.expected_amount - MOCK_IMPORTED_SPEND.amount) <
+          Math.abs(best.expected_amount - MOCK_IMPORTED_SPEND.amount)
+            ? row
+            : best,
+        ).id;
+      }
+    }
+
     const { error: insertError } = await supabase.from("transactions").insert({
       trip_id: tripId,
       financial_account_id: accountId,
       budget_category_id: categoryId,
+      budget_plan_item_id: planItemId,
       source_type: TRANSACTION_SOURCE_TYPE.MOCK,
       transaction_type: TRANSACTION_TYPE.WITHDRAWAL,
       occurred_at: new Date().toISOString(),
@@ -282,6 +316,17 @@ export async function connectMockAccount(
       category_confidence: categoryId ? MOCK_IMPORTED_SPEND.confidence : null,
     });
     if (insertError) throw insertError;
+
+    // 연결한 계획의 실제 금액과 상태를 채운다. 화면이 '결제 완료' 로 읽는 값이다
+    if (planItemId) {
+      await supabase
+        .from("budget_plan_items")
+        .update({
+          actual_amount: MOCK_IMPORTED_SPEND.amount,
+          status: BUDGET_PLAN_ITEM_STATUS.DONE,
+        })
+        .eq("id", planItemId);
+    }
 
     // 카테고리 실제 사용액에 더한다. 화면끼리 숫자가 어긋나면 안 된다
     if (categoryId) {

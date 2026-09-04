@@ -62,6 +62,8 @@ type Props = {
   detail: TransactionDetail;
   /** 없으면 카테고리 변경을 감춘다 (결산 확정 등) */
   onChangeCategory?: () => void;
+  /** 계획에 연결한다. 연결된 계획이 없고 후보가 있을 때만 넘긴다 */
+  onLinkPlan?: () => void;
   /** 연결된 계획이 있을 때만 쓴다 */
   onUnlinkPlan?: () => void;
   /** 확인 필요 거래에만 낸다 */
@@ -77,6 +79,7 @@ export function TransactionDetailBody({
   theme,
   detail,
   onChangeCategory,
+  onLinkPlan,
   onUnlinkPlan,
   onConfirm,
   busy = false,
@@ -227,6 +230,24 @@ export function TransactionDetailBody({
               />
             </View>
           ) : null}
+        </View>
+      ) : null}
+
+      {/*
+        ⚠️ 계획에 붙이는 것도 여기서 한다. 지금까지는 **푸는 것만** 있었다.
+           계좌에서 들어온 거래는 자동으로 계획에 붙지만, 직접 적었거나
+           자동 연결이 빗나간 거래는 사용자가 붙일 방법이 없었다.
+           계획과 실제를 비교하는 게 이 서비스의 일인데 그 연결을 손으로
+           만들 수 없으면 비교가 반쪽이 된다.
+      */}
+      {!detail.planName && onLinkPlan ? (
+        <View style={{ marginTop: 17 }}>
+          <Button
+            label="세부 계획에 연결"
+            variant="secondary"
+            onPress={onLinkPlan}
+            disabled={busy}
+          />
         </View>
       ) : null}
 

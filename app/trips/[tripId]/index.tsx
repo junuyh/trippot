@@ -325,6 +325,16 @@ export default function ScreenTripHome() {
    */
   const provisionalType = useMemo(() => {
     if (!data || data.trip.status === TRIP_STATUS.SETTLED) return null;
+    /*
+      ⚠️ 지출이 하나도 없으면 유형을 만들지 않는다.
+         계획만 있고 실제가 0 이면 계산상 '절약형' 이 나온다. 아무것도 안 쓴
+         여행이 "적게 쓰고 많이 봤다" 로 불리는 셈이라, 기록을 안 한 사람이
+         가장 알뜰한 여행자가 된다. 영수증·한 줄 기록에 넣은 것과 같은 기준이다.
+    */
+    const spent = data.transactions.some(
+      (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
+    );
+    if (!spent) return null;
     const inputs = data.categories
       .filter((category) => category.planned_amount > 0)
       .map((category) => ({
