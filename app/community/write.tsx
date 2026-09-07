@@ -12,11 +12,17 @@
 //
 // ⚠️ 유료 팁은 2026-08-31 팀 결정으로 뺐다. 유형 선택지에 없다.
 //
-// ⚠️ 사진은 고르고 미리보기까지만 된다. 저장하지 않는다.
-//    여러 장이라 컬럼 하나로는 안 되고 post_images 테이블이나 text[] 가 필요하다.
-//    Storage 버킷도 아직 없다.
-//    둘 다 DB 담당자에게 요청해 둔 상태다. (CLAUDE.md 1장 — 마이그레이션은 담당자만)
-//    TODO: 준비되면 업로드 후 URL 을 createPost 에 넘긴다.
+// ⚠️ 사진은 **글을 저장할 때** 올라간다. 고르는 시점이 아니다. (2026-09-07)
+//    고르고 나서 글을 안 쓰고 나가는 사람이 있고, 그때 올린 파일은 아무도
+//    참조하지 않는 쓰레기로 남는다.
+//    올린 URL 을 community_posts.image_urls 에 넣는다.
+//    파일은 Storage, 파일의 위치는 컬럼 — 역할을 나눈다. (05_ERD_v6 §6-7)
+//
+// ⚠️ 저장 순서를 지킨다. 어긋나면 사진과 글이 따로 논다.
+//    1. local 사진 업로드 → URL
+//    2. 글 저장 (남길 기존 URL + 새 URL)
+//    3. 성공한 뒤에야 빠진 사진 파일 삭제
+//    2에서 실패하면 1에서 올린 파일을 도로 지운다. 아무도 안 쓰는 파일이다.
 //
 // 이 파일은 데이터 조회·상태 관리·로그 기록만 한다.
 // 실제로 보이는 UI 는 components/community/ 에 있다. (CLAUDE.md 9장)
@@ -27,6 +33,12 @@ import { useEffect, useState } from 'react';
 import { PostWriteForm, type TripOption } from '@/components/community';
 import { ErrorState, Loading } from '@/components/ui';
 import { MAX_IMAGES, usePostImages } from '@/components/community/usePostImages';
+import { preparePostImage } from '@/lib/image/postImage';
+import {
+  deletePostImages,
+  PostImageTooLargeError,
+  uploadPostImage,
+} from '@/lib/supabase/storage/communityImage';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import { POST_TYPE } from '@/lib/constants/status';
@@ -146,9 +158,13 @@ export default function ScreenCOMM04() {
    *    (updatePost 의 author_user_id 조건) 남의 글 내용이 편집기에 뜨는 것부터
    *    막는다.
    *
-   * ⚠️ 사진은 되살리지 못한다. 저장된 적이 없기 때문이다. (usePostImages 주석)
+   * ⚠️ 사진도 함께 되살린다. 되살리지 않으면 제목만 고치고 저장한 사람이
+   *    사진을 다 잃는다. 화면에 안 보이던 것이 저장하는 순간 지워지기 때문이다.
    */
   const [loadError, setLoadError] = useState<string | null>(null);
+  const photos = usePostImages();
+  const resetPhotos = photos.reset;
+
   useEffect(() => {
     if (!editing || !postId) return;
 
@@ -179,6 +195,7 @@ export default function ScreenCOMM04() {
         setContent(post.content ?? '');
         setTripId(post.tripId);
         setEditingTripId(post.tripId);
+        resetPhotos(post.imageUrls);
       })
       .catch(() => {
         if (alive) setLoadError('글을 불러오지 못했어요.');
@@ -190,13 +207,12 @@ export default function ScreenCOMM04() {
     return () => {
       alive = false;
     };
-  }, [editing, postId]);
+  }, [editing, postId, resetPhotos]);
 
   const [titleError, setTitleError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const photos = usePostImages();
 
   function validate(): boolean {
     const t = title.trim();
@@ -224,7 +240,31 @@ export default function ScreenCOMM04() {
     if (!validate()) return;
 
     setSubmitting(true);
+
+    // 이번 저장에서 새로 올린 파일. 글 저장이 실패하면 도로 지운다.
+    const uploaded: string[] = [];
+
     try {
+      // ── 1. 사진 업로드 ────────────────────────────────────────────────────
+      //
+      // ⚠️ 한 장씩 차례로 올린다. Promise.all 로 한꺼번에 올리면 사진 다섯 장의
+      //    base64 가 동시에 메모리에 뜬다. 사진첩 원본이 큰 기기에서 위험하다.
+      //    순서도 그대로 지켜져서 사용자가 고른 차례대로 저장된다.
+      const imageUrls: string[] = [];
+      for (const image of photos.images) {
+        // 이미 저장돼 있던 사진은 다시 올리지 않는다. URL 을 그대로 쓴다.
+        if (image.kind === 'remote') {
+          imageUrls.push(image.url);
+          continue;
+        }
+        const prepared = await preparePostImage(image.uri);
+        // TODO: 로그인 연동 시 교체
+        const url = await uploadPostImage(DEV_USER_ID, prepared.base64);
+        uploaded.push(url);
+        imageUrls.push(url);
+      }
+
+      // ── 2. 글 저장 ────────────────────────────────────────────────────────
       if (editing && postId) {
         await updatePost({
           postId,
@@ -234,7 +274,20 @@ export default function ScreenCOMM04() {
           title: title.trim(),
           content: content.trim(),
           tripId,
+          imageUrls,
         });
+
+        // ── 3. 빠진 사진 파일 삭제 ──────────────────────────────────────────
+        //
+        // ⚠️ 저장이 끝난 **뒤에** 지운다. 먼저 지우면 저장이 실패했을 때
+        //    글에는 URL 이 남아 있는데 파일이 없는 상태가 된다.
+        //
+        // ⚠️ await 하지 않는다. 파일이 남는 것은 사용자가 겪는 문제가 아닌데,
+        //    여기서 기다리다 실패하면 이미 성공한 수정이 실패로 보인다.
+        if (photos.removedRemoteUrls.length > 0) {
+          void deletePostImages(photos.removedRemoteUrls);
+        }
+
         // 고친 글을 바로 보여준다. 뒤로 가면 수정 화면이 아니라 목록이 나온다.
         router.replace(`/community/posts/${postId}`);
         return;
@@ -249,16 +302,23 @@ export default function ScreenCOMM04() {
         // 고른 여행. 이 값이 글의 여행지 카테고리를 정한다.
         // 고르지 않았으면 null 이고 그 글은 '전체' 에만 보인다.
         tripId,
+        imageUrls,
       });
 
       // 목록으로 돌아가지 않고 방금 쓴 글을 보여준다.
       // 뒤로 가면 작성 화면이 아니라 목록이 나오도록 replace 를 쓴다.
       router.replace(`/community/posts/${created.id}`);
-    } catch {
+    } catch (error) {
+      // 글이 저장되지 않았으므로 방금 올린 파일은 아무도 참조하지 않는다.
+      // 지우지 않으면 다시 시도할 때마다 같은 사진이 한 벌씩 쌓인다.
+      if (uploaded.length > 0) void deletePostImages(uploaded);
+
       setSubmitError(
-        editing
-          ? '글을 수정하지 못했어요. 잠시 후 다시 시도해 주세요.'
-          : '글을 올리지 못했어요. 잠시 후 다시 시도해 주세요.',
+        error instanceof PostImageTooLargeError
+          ? '사진 용량이 너무 커요. 다른 사진으로 바꿔 주세요.'
+          : editing
+            ? '글을 수정하지 못했어요. 잠시 후 다시 시도해 주세요.'
+            : '글을 올리지 못했어요. 잠시 후 다시 시도해 주세요.',
       );
       setSubmitting(false);
     }
@@ -338,7 +398,7 @@ export default function ScreenCOMM04() {
         titleError={titleError}
         contentError={contentError}
         submitError={submitError}
-        imageUris={photos.images.map((image) => image.uri)}
+        imageUris={photos.uris}
         maxImages={MAX_IMAGES}
         imageError={photos.error}
         imagePicking={photos.picking}

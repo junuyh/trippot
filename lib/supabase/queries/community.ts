@@ -71,6 +71,14 @@ export type PostListItem = {
   /** 내가 찜했는가. 찜은 개수를 공개하지 않는다. */
   bookmarkedByMe: boolean;
   commentCount: number;
+  /**
+   * 글에 붙은 사진의 public URL. 없으면 빈 배열.
+   *
+   * ⚠️ 목록 카드도 사진을 그리므로 상세뿐 아니라 목록에도 필요하다.
+   *    URL 전체를 담는다. 화면이 Image source 에 그대로 넣기 때문이다.
+   *    (users.profile_image_url 과 같은 판단)
+   */
+  imageUrls: string[];
 };
 
 /**
@@ -141,6 +149,7 @@ export async function getPosts(
     dislikedByMe: reactions.get(row.id)?.dislikedByMe ?? false,
     bookmarkedByMe: reactions.get(row.id)?.bookmarkedByMe ?? false,
     commentCount: commentCounts.get(row.id) ?? 0,
+    imageUrls: row.image_urls ?? [],
   }));
 }
 
@@ -155,7 +164,7 @@ export async function getPosts(
 async function selectPosts(types: PostType[], limit: number) {
   const { data, error } = await supabase
     .from('community_posts')
-    .select(`id, title, content, post_type, published_at, ${AUTHOR}, trips(destination)`)
+    .select(`id, title, content, post_type, published_at, image_urls, ${AUTHOR}, trips(destination)`)
     .eq('status', POST_STATUS.PUBLISHED)
     .in('post_type', types)
     .order('published_at', { ascending: false })
@@ -169,7 +178,7 @@ async function selectPosts(types: PostType[], limit: number) {
 async function selectPostsByDestination(types: PostType[], destination: string, limit: number) {
   const { data, error } = await supabase
     .from('community_posts')
-    .select(`id, title, content, post_type, published_at, ${AUTHOR}, trips!inner(destination)`)
+    .select(`id, title, content, post_type, published_at, image_urls, ${AUTHOR}, trips!inner(destination)`)
     .eq('status', POST_STATUS.PUBLISHED)
     .in('post_type', types)
     .eq('trips.destination', destination)
@@ -234,7 +243,7 @@ export async function getPostById(postId: string, userId: string): Promise<PostD
   const { data, error } = await supabase
     .from('community_posts')
     .select(
-      `id, title, content, post_type, published_at, author_user_id, trip_id, ${AUTHOR}, trips(destination)`,
+      `id, title, content, post_type, published_at, author_user_id, trip_id, image_urls, ${AUTHOR}, trips(destination)`,
     )
     .eq('id', postId)
     .eq('status', POST_STATUS.PUBLISHED)
@@ -266,6 +275,7 @@ export async function getPostById(postId: string, userId: string): Promise<PostD
     dislikedByMe: reactions.get(data.id)?.dislikedByMe ?? false,
     bookmarkedByMe: reactions.get(data.id)?.bookmarkedByMe ?? false,
     commentCount: commentCounts.get(data.id) ?? 0,
+    imageUrls: data.image_urls ?? [],
   };
 }
 
@@ -276,6 +286,15 @@ export type CreatePostInput = {
   content: string;
   /** 어느 여행에서 나온 글인지. 고르지 않았으면 null. */
   tripId: string | null;
+  /**
+   * 이미 Storage 에 올린 사진의 public URL. 고르지 않았으면 빈 배열.
+   *
+   * ⚠️ 이 함수는 파일을 올리지 않는다. **올린 결과만 받는다.**
+   *    업로드는 화면이 먼저 끝내고 URL 만 넘긴다.
+   *    (lib/supabase/storage/communityImage.ts · 새 글은 아직 post_id 가 없어
+   *     경로에 넣을 수 없으므로 업로드가 글 저장보다 앞선다)
+   */
+  imageUrls: string[];
 };
 
 /**
@@ -293,6 +312,7 @@ export async function createPost(input: CreatePostInput): Promise<CommunityPost>
       title: input.title,
       content: input.content,
       trip_id: input.tripId,
+      image_urls: input.imageUrls,
       status: POST_STATUS.PUBLISHED,
       published_at: new Date().toISOString(),
     })
@@ -311,6 +331,14 @@ export type UpdatePostInput = {
   title: string;
   content: string;
   tripId: string | null;
+  /**
+   * 저장할 사진의 최종 목록. 남길 기존 URL + 새로 올린 URL 을 순서대로 담는다.
+   *
+   * ⚠️ **빠진 사진은 여기서 지우지 않는다.** 이 함수는 컬럼만 바꾼다.
+   *    Storage 파일 삭제는 이 저장이 성공한 뒤 화면이 부른다.
+   *    (deletePostImages — 먼저 지우면 저장 실패 시 파일만 사라진다)
+   */
+  imageUrls: string[];
 };
 
 /**
@@ -335,6 +363,7 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       title: input.title,
       content: input.content,
       trip_id: input.tripId,
+      image_urls: input.imageUrls,
     })
     .eq('id', input.postId)
     .eq('author_user_id', input.authorUserId);

@@ -30,7 +30,6 @@ import {
   type PostCommentItem,
   type PostDetailData,
 } from '@/components/community';
-import { toCoverUrls } from '@/components/community/cover';
 import { formatPublished } from '@/components/community/format';
 import { ErrorState, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
@@ -329,13 +328,10 @@ export default function ScreenCOMM02() {
     accent: toAccent(post.destination),
     // TODO: 로그인 연동 시 DEV_USER_ID 를 실제 사용자로 교체한다.
     mine: post.authorUserId === DEV_USER_ID,
-    // TODO: 사진 스키마가 생기면 post.imageUrls 로 바꾼다. [임시]
-    imageUrls: toCoverUrls({
-      postId: post.postId,
-      title: post.title,
-      content: post.content,
-      destination: post.destination,
-    }),
+    // ⚠️ 글쓴이가 올린 사진만 그린다. 사진이 없는 글은 사진 없이 보인다.
+    //    전에는 제목·목적지로 loremflickr 에서 아무 사진이나 끌어와 채웠는데,
+    //    글과 상관없는 사진이 그 글의 사진인 것처럼 보였다. (2026-09-07)
+    imageUrls: post.imageUrls,
   };
 
   const commentItems: PostCommentItem[] = comments.map((comment) => ({
