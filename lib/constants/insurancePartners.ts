@@ -30,10 +30,15 @@
 // ============================================================================
 import { INSURANCE_COVERAGE, type InsuranceCoverage } from './status';
 
+/** 보장 한도 한 줄. [항목, 표준 보장 기준 금액(원)] */
+export type CoverageLimit = readonly [string, number];
+
 export type InsurancePartner = {
   id: string;
   /** 가상 브랜드명 */
   name: string;
+  /** 카드 왼쪽 사각형에 들어가는 두 글자. 이모지보다 보험사처럼 읽힌다 */
+  mark: string;
   emoji: string;
   /** 한 줄 소개 */
   tagline: string;
@@ -53,61 +58,107 @@ export type InsurancePartner = {
   commissionBp: number;
   /** 카드 상단 배지. 없으면 표시하지 않는다 */
   badge: string | null;
+  /**
+   * 보장 한도. **표준 보장 기준**이고, 등급에 따라 배수가 곱해진다.
+   * (COVERAGE_TIER.limitMultiplier)
+   *
+   * ⚠️ 보험료(priceFactor)와 따로 둔다. 값이 비싼 상품이 반드시 한도까지
+   *    비례해서 올라가지는 않는다. 두 축을 한 숫자로 묶으면 "왜 비싼가" 를
+   *    설명할 수 없다.
+   */
+  coverage: readonly CoverageLimit[];
 };
 
 export const INSURANCE_PARTNERS: InsurancePartner[] = [
   {
     id: 'partner-blueshield',
     name: '블루실드 여행보험',
+    mark: 'BS',
     emoji: '🛟',
     tagline: '가격을 가장 먼저 보는 분께',
     priceFactor: 0.88,
     features: ['가입 3분', '출발 당일 가입 가능', '휴대폰 본인인증만'],
     commissionBp: 900,
     badge: '최저가',
+    coverage: [
+      ['해외 의료비', 30_000_000],
+      ['휴대품 손해', 500_000],
+      ['항공 지연', 200_000],
+    ],
   },
   {
     id: 'partner-onroad',
     name: '온로드 트래블케어',
+    mark: 'OR',
     emoji: '🧭',
     tagline: '보장과 가격의 균형',
     priceFactor: 1.0,
     features: ['24시간 한국어 상담', '현지 병원 직불', '항공 지연 보상'],
     commissionBp: 1200,
-    badge: '가장 많이 선택',
+    badge: '인기',
+    coverage: [
+      ['해외 의료비', 50_000_000],
+      ['휴대품 손해', 800_000],
+      ['항공 지연', 300_000],
+    ],
   },
   {
     id: 'partner-atlas',
     name: '아틀라스 글로벌',
+    mark: 'AG',
     emoji: '🌐',
     tagline: '장기·유럽 일정에 강한 보장',
     priceFactor: 1.24,
     features: ['의료비 한도 2배', '휴대품 도난 보장', '레저 활동 포함'],
     commissionBp: 1500,
     badge: null,
+    coverage: [
+      ['해외 의료비', 100_000_000],
+      ['휴대품 손해', 1_000_000],
+      ['항공 지연', 400_000],
+    ],
   },
 ];
 
 /** 보장 등급별 배수와 설명. budgetProducts.ts 의 보험 상품 3개와 짝이 맞는다 */
+/**
+ * 보장 등급.
+ *
+ *   ratio            보험료 배수. budgetProducts.ts 의 보험 상품 ratio 와 같은 값
+ *   limitMultiplier  보장 한도 배수. 제휴사의 coverage 에 곱한다
+ *
+ * ⚠️ 둘을 하나로 합치지 않는다. 보험료가 1.8배라고 한도까지 1.8배가 되지는
+ *    않는다. 실제 상품도 그렇고, 합쳐 두면 "돈을 더 내면 뭐가 좋아지나" 를
+ *    화면에서 설명할 수 없다.
+ */
 export const COVERAGE_TIER: Record<
   InsuranceCoverage,
-  { label: string; ratio: number; summary: string; productId: string }
+  {
+    label: string;
+    ratio: number;
+    limitMultiplier: number;
+    summary: string;
+    productId: string;
+  }
 > = {
   [INSURANCE_COVERAGE.BASIC]: {
     label: '기본 보장',
     ratio: 0.7,
+    limitMultiplier: 0.5,
     summary: '의료비 중심의 최소 보장이에요.',
     productId: 'in-basic',
   },
   [INSURANCE_COVERAGE.STANDARD]: {
     label: '표준 보장',
     ratio: 1.0,
+    limitMultiplier: 1,
     summary: '의료비에 휴대품·지연까지 더했어요.',
     productId: 'in-standard',
   },
   [INSURANCE_COVERAGE.PLUS]: {
     label: '고액 보장',
     ratio: 1.8,
+    limitMultiplier: 2,
     summary: '한도를 크게 올린 보장이에요.',
     productId: 'in-plus',
   },

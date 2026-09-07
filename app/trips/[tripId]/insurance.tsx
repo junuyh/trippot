@@ -2,7 +2,7 @@
 // INSURANCE-01 · 보험 제휴 안내 (BM 1)
 //
 // 이 화면은 데이터 조회·상태 관리·로그 기록만 한다. 보이는 것은
-// components/insurance/InsurancePartnerList.tsx 가 그린다. (CLAUDE.md 9장)
+// components/insurance/ 아래 컴포넌트들이 그린다. (CLAUDE.md 9장)
 //
 // ============================================================================
 // 이 화면이 존재하는 이유
@@ -35,14 +35,16 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
-import { InsurancePartnerList } from '@/components/insurance/InsurancePartnerList';
+import { InsuranceDetailSheet } from '@/components/insurance/InsuranceDetailSheet';
+import { InsuranceQuoteList } from '@/components/insurance/InsuranceQuoteList';
+import { InsuranceSelectionBar } from '@/components/insurance/InsuranceSelectionBar';
 import { TripHomeButton } from '@/components/navigation/TripHomeButton';
 import { BottomSheet, EmptyState, ErrorState, HeaderBackButton, Loading } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { findDestinationByName } from '@/lib/constants/destinations';
-import { INSURANCE_PARTNERS } from '@/lib/constants/insurancePartners';
+import { COVERAGE_TIER, INSURANCE_PARTNERS } from '@/lib/constants/insurancePartners';
 import {
   CATEGORY_CODE,
   INSURANCE_COVERAGE,
@@ -113,6 +115,15 @@ export default function ScreenINSURANCE01() {
   const [error, setError] = useState(false);
 
   const [coverage, setCoverage] = useState<InsuranceCoverage>(INSURANCE_COVERAGE.STANDARD);
+  /**
+   * 고른 견적의 제휴사 id.
+   *
+   * ⚠️ 견적 객체가 아니라 id 를 들고 있는다. 보장 범위를 바꾸면 견적이 통째로
+   *    다시 계산되는데, 객체를 붙들고 있으면 하단 바에 옛 금액이 남는다.
+   */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** '보장 상세' 로 열어 둔 제휴사 id */
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [leaving, setLeaving] = useState<PartnerQuote | null>(null);
 
   const load = useCallback(async () => {
@@ -173,17 +184,22 @@ export default function ScreenINSURANCE01() {
         endDate: data.trip.end_date,
         headcount: data.trip.headcount,
         coverage,
+        budgetAmount: data.budgetAmount,
       },
       INSURANCE_PARTNERS,
     );
   }, [coverage, data]);
+
+  // 보장 범위가 바뀌면 금액이 달라진다. id 로 매번 다시 찾는다.
+  const selected = quote?.quotes.find((q) => q.partner.id === selectedId) ?? null;
+  const detail = quote?.quotes.find((q) => q.partner.id === detailId) ?? null;
 
   /**
    * 제휴사로 넘어간다. **BM 1 의 유일한 전환 지점이다.**
    *
    * ⚠️ 로그를 먼저 남기고 이동한다. 이동 뒤에 남기면 이탈한 사용자가 빠진다.
    */
-  const handlePressPartner = useCallback(
+  const handleGoToPartner = useCallback(
     (row: PartnerQuote) => {
       track(EVENTS.INSURANCE_CTA_CLICKED, {
         estimated_premium: row.totalPremium,
@@ -197,6 +213,7 @@ export default function ScreenINSURANCE01() {
         */
         trip_id: data?.trip.id ?? null,
       });
+      setDetailId(null);
       setLeaving(row);
     },
     [data?.trip.id, placement],
@@ -266,33 +283,61 @@ export default function ScreenINSURANCE01() {
     <View className="flex-1 bg-white">
       {header}
 
-      <ScrollView contentContainerClassName="px-5 pb-12 pt-5">
-        <Text className="text-[22px] font-bold leading-7 text-gray-900">
-          {destination} {quote.days}일,{'\n'}
-          {quote.headcount}명의 보험료예요
+      <ScrollView contentContainerClassName="px-5 pb-8 pt-4">
+        {/* 시안의 커버 영역. 배경을 국기색으로 채우지 않고 글자만 쓴다.
+            (countryTheme.ts — 배경과 기본 카드는 항상 화이트) */}
+        <Text
+          className="text-[10px] font-black tracking-[0.8px]"
+          style={{ color: theme.primary }}
+        >
+          YOUR TRIP COVER
         </Text>
-        <Text className="mt-1.5 text-xs text-gray-500">{quote.formula} 기준</Text>
+        <Text className="mt-2 text-[25px] font-bold leading-8 text-gray-900">
+          {destination} {quote.days}일,{'\n'}
+          {quote.headcount}명의 보장을 준비해요.
+        </Text>
+        <Text className="mt-1.5 text-[11px] text-gray-500">
+          {quote.formula} · {COVERAGE_TIER[coverage].label} 기준
+        </Text>
 
         <View className="mt-5">
-          <InsurancePartnerList
+          <InsuranceQuoteList
             quote={quote}
             theme={theme}
             coverage={coverage}
             onChangeCoverage={setCoverage}
-            onPressPartner={handlePressPartner}
+            onSelect={(row) => setSelectedId(row.partner.id)}
+            onOpenDetail={(row) => setDetailId(row.partner.id)}
+            selectedId={selectedId}
             budgetAmount={data.budgetAmount}
           />
         </View>
       </ScrollView>
 
+      {/* 하단 고정. 카드를 바꿔 누를 때마다 금액과 예산 차액이 여기서 움직인다 */}
+      <InsuranceSelectionBar
+        theme={theme}
+        selected={selected}
+        onPress={() => selected && handleGoToPartner(selected)}
+      />
+
+      <InsuranceDetailSheet
+        row={detail}
+        theme={theme}
+        headcount={quote.headcount}
+        days={quote.days}
+        onClose={() => setDetailId(null)}
+        onGo={handleGoToPartner}
+      />
+
       {/*
         ⚠️ 실제 제휴가 붙으면 이 시트 대신 제휴사 링크로 보낸다.
-           로그는 이미 handlePressPartner 에서 남겼으므로 여기는 안 건드린다.
+           로그는 이미 handleGoToPartner 에서 남겼으므로 여기는 안 건드린다.
       */}
       <BottomSheet
         visible={leaving !== null}
         onClose={() => setLeaving(null)}
-        title={leaving ? `${leaving.partner.emoji} ${leaving.partner.name}` : ''}
+        title={leaving ? leaving.partner.name : ''}
       >
         <View className="gap-3 px-5 pb-6 pt-2">
           <Text className="text-sm leading-5 text-gray-600">

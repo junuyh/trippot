@@ -29,9 +29,13 @@ import {
 } from '@/lib/constants/destinations';
 import {
   COVERAGE_TIER,
+  type CoverageLimit,
   type InsurancePartner,
 } from '@/lib/constants/insurancePartners';
 import { CATEGORY_CODE, type InsuranceCoverage } from '@/lib/constants/status';
+
+/** 보장 한도 한 줄. 등급 배수까지 곱한 최종 금액이다 */
+export type CoverageRow = { label: string; amount: number };
 
 export type QuoteInput = {
   /** 목록에서 고른 목적지. 직접 입력이면 null */
@@ -43,6 +47,11 @@ export type QuoteInput = {
   endDate: string;
   headcount: number;
   coverage: InsuranceCoverage;
+  /**
+   * 예산에 잡아 둔 여행자보험 금액. 없으면 null.
+   * 있으면 견적마다 '얼마 남음 / 얼마 초과' 를 함께 낸다.
+   */
+  budgetAmount?: number | null;
 };
 
 export type PartnerQuote = {
@@ -56,6 +65,13 @@ export type PartnerQuote = {
    * ⚠️ 화면에 노출하지 않는다. BM 1 규모를 가늠하는 값이다.
    */
   expectedCommission: number;
+  /**
+   * 예산 대비 차액. 양수면 남고 음수면 초과다. 예산이 없으면 null.
+   * 화면이 '20,000원 남음' / '19,000원 초과' 로 그린다.
+   */
+  budgetDiff: number | null;
+  /** 등급 배수까지 곱한 보장 한도. 바텀시트가 그대로 그린다 */
+  coverage: CoverageRow[];
 };
 
 export type InsuranceQuote = {
@@ -65,9 +81,12 @@ export type InsuranceQuote = {
   baseAmount: number;
   /** 계산 근거 한 줄. 화면에 그대로 쓴다 */
   formula: string;
+  /** 낮은 가격순. 시안이 '낮은 가격순' 이라고 적어 두었다 */
   quotes: PartnerQuote[];
   /** 가장 싼 견적. 없으면 null */
   cheapest: PartnerQuote | null;
+  /** 예산 안에 들어오는 견적 수. 예산이 없으면 null */
+  withinBudgetCount: number | null;
 };
 
 /** 1,000원 단위로 끊는다. 43,712원 같은 보험료는 사람이 못 읽는다 */
@@ -79,7 +98,15 @@ export function buildInsuranceQuote(
   input: QuoteInput,
   partners: InsurancePartner[],
 ): InsuranceQuote {
-  const { destinationCode, region, startDate, endDate, headcount, coverage } = input;
+  const {
+    destinationCode,
+    region,
+    startDate,
+    endDate,
+    headcount,
+    coverage,
+    budgetAmount = null,
+  } = input;
 
   const nights = Math.max(0, differenceInCalendarDays(parseISO(endDate), parseISO(startDate)));
   const days = nights + 1;
@@ -103,22 +130,28 @@ export function buildInsuranceQuote(
   const baseAmount = perPersonPerDay * people * days;
   const tier = COVERAGE_TIER[coverage];
 
-  const quotes: PartnerQuote[] = partners.map((partner) => {
-    const totalPremium = round1k(baseAmount * tier.ratio * partner.priceFactor);
-    return {
-      partner,
-      totalPremium,
-      // ⚠️ 총액을 반올림한 뒤 나눈다. 1인 금액을 반올림해 곱하면 인원수만큼
-      //    오차가 쌓여 카드의 총액과 '1인당' 이 서로 안 맞는다.
-      perPersonPremium: Math.round(totalPremium / people),
-      expectedCommission: Math.round((totalPremium * partner.commissionBp) / 10000),
-    };
-  });
+  const quotes: PartnerQuote[] = partners
+    .map((partner) => {
+      const totalPremium = round1k(baseAmount * tier.ratio * partner.priceFactor);
+      return {
+        partner,
+        totalPremium,
+        // ⚠️ 총액을 반올림한 뒤 나눈다. 1인 금액을 반올림해 곱하면 인원수만큼
+        //    오차가 쌓여 카드의 총액과 '1인당' 이 서로 안 맞는다.
+        perPersonPremium: Math.round(totalPremium / people),
+        expectedCommission: Math.round((totalPremium * partner.commissionBp) / 10000),
+        budgetDiff: budgetAmount === null ? null : budgetAmount - totalPremium,
+        coverage: partner.coverage.map(([label, amount]) => ({
+          label,
+          amount: amount * tier.limitMultiplier,
+        })),
+      };
+    })
+    // 낮은 가격순. 목록 위에 그렇게 써 있으므로 실제로도 그래야 한다.
+    .sort((a, b) => a.totalPremium - b.totalPremium);
 
-  const cheapest =
-    quotes.length > 0
-      ? quotes.reduce((a, b) => (b.totalPremium < a.totalPremium ? b : a))
-      : null;
+  // 정렬했으므로 맨 앞이 가장 싸다.
+  const cheapest = quotes[0] ?? null;
 
   return {
     days,
@@ -127,5 +160,9 @@ export function buildInsuranceQuote(
     formula: `1인 1일 ${perPersonPerDay.toLocaleString('ko-KR')}원 × ${people}명 × ${days}일`,
     quotes,
     cheapest,
+    withinBudgetCount:
+      budgetAmount === null
+        ? null
+        : quotes.filter((q) => q.totalPremium <= budgetAmount).length,
   };
 }

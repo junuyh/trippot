@@ -1023,6 +1023,8 @@ export default function ScreenBUDGET02() {
             endDate: data.trip.end_date,
             headcount: data.trip.headcount,
             coverage: INSURANCE_COVERAGE.STANDARD,
+            // 팝업에서 '잡아둔 예산' 과 견적을 나란히 보여준다
+            budgetAmount: data.category.planned_amount,
           },
           INSURANCE_PARTNERS,
         )
@@ -1637,7 +1639,9 @@ export default function ScreenBUDGET02() {
           destination={data.trip.destination ?? "여행"}
           days={promoQuote.days}
           headcount={promoQuote.headcount}
+          budgetAmount={data.category.planned_amount}
           fromPremium={promoQuote.cheapest?.totalPremium ?? null}
+          quoteCount={promoQuote.quotes.length}
         />
       ) : null}
     </View>
