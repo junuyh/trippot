@@ -14,12 +14,37 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
+import type { CountryTheme } from '@/lib/constants/countryTheme';
+
 import { COVERAGE_ORDER, COVERAGE_TIER } from '@/lib/constants/insurancePartners';
 import type { InsuranceCoverage } from '@/lib/constants/status';
 import type { InsuranceQuote, PartnerQuote } from '@/lib/insurance/quote';
 
+/**
+ * 국기 색을 그대로 쓰지 않고 한 단계 눅인다.
+ *
+ * ⚠️ countryTheme.ts 의 규칙 — "배경과 기본 카드는 항상 화이트·쿨그레이,
+ *    포인트 컬러는 의미가 있는 곳에만" 을 지킨다. 이 화면은 카드 세 장이
+ *    세로로 이어져서, 국기 원색을 그대로 CTA 세 개에 쓰면 화면이 그 색으로
+ *    덮인다. 특히 일본·중국처럼 채도가 높은 빨강이 그렇다.
+ *
+ * @param ratio 흰색에 섞는 비율. 0 이면 원색, 1 이면 흰색
+ */
+function soften(hex: string, ratio: number): string {
+  const value = hex.replace('#', '');
+  if (value.length !== 6) return hex;
+  const mix = (start: number) =>
+    Math.round(start + (255 - start) * ratio)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${mix(parseInt(value.slice(0, 2), 16))}${mix(
+    parseInt(value.slice(2, 4), 16),
+  )}${mix(parseInt(value.slice(4, 6), 16))}`;
+}
+
 type Props = {
   quote: InsuranceQuote;
+  theme: CountryTheme;
   coverage: InsuranceCoverage;
   onChangeCoverage: (coverage: InsuranceCoverage) => void;
   /** 제휴사로 넘어간다. 화면 파일이 로그를 남기고 이동시킨다 */
@@ -35,6 +60,7 @@ function won(value: number): string {
 
 export function InsurancePartnerList({
   quote,
+  theme,
   coverage,
   onChangeCoverage,
   onPressPartner,
@@ -42,6 +68,8 @@ export function InsurancePartnerList({
   disabled = false,
 }: Props) {
   const tier = COVERAGE_TIER[coverage];
+  // 선택 상태·CTA 는 눅인 국기색, 옅은 배경은 테마가 이미 가진 primarySoft 를 쓴다.
+  const accent = soften(theme.primary, 0.18);
 
   return (
     <View className="gap-4">
@@ -60,14 +88,15 @@ export function InsurancePartnerList({
                 accessibilityLabel={COVERAGE_TIER[value].label}
                 disabled={disabled}
                 onPress={() => onChangeCoverage(value)}
-                className={`flex-1 items-center rounded-xl border py-2.5 ${
-                  selected ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'
-                }`}
+                className="flex-1 items-center rounded-xl border py-2.5"
+                style={{
+                  borderColor: selected ? accent : '#e5e8ec',
+                  backgroundColor: selected ? theme.primarySoft : '#ffffff',
+                }}
               >
                 <Text
-                  className={`text-[13px] font-bold ${
-                    selected ? 'text-blue-700' : 'text-gray-600'
-                  }`}
+                  className="text-[13px] font-bold"
+                  style={{ color: selected ? accent : '#596272' }}
                 >
                   {COVERAGE_TIER[value].label}
                 </Text>
@@ -90,9 +119,8 @@ export function InsurancePartnerList({
               accessibilityLabel={`${row.partner.name} 예상 보험료 ${won(row.totalPremium)} 확인하기`}
               disabled={disabled}
               onPress={() => onPressPartner(row)}
-              className={`gap-3 rounded-2xl border bg-white p-4 active:opacity-90 ${
-                cheapest ? 'border-blue-600' : 'border-gray-200'
-              }`}
+              className="gap-3 rounded-2xl border bg-white p-4 active:opacity-90"
+              style={{ borderColor: cheapest ? accent : '#e5e8ec' }}
             >
               <View className="flex-row items-start gap-3">
                 <Text className="text-2xl">{row.partner.emoji}</Text>
@@ -103,8 +131,11 @@ export function InsurancePartnerList({
                       {row.partner.name}
                     </Text>
                     {row.partner.badge ? (
-                      <View className="rounded-full bg-blue-50 px-1.5 py-0.5">
-                        <Text className="text-[10px] font-bold text-blue-700">
+                      <View
+                        className="rounded-full px-1.5 py-0.5"
+                        style={{ backgroundColor: theme.primarySoft }}
+                      >
+                        <Text className="text-[10px] font-bold" style={{ color: accent }}>
                           {row.partner.badge}
                         </Text>
                       </View>
@@ -136,9 +167,17 @@ export function InsurancePartnerList({
                 ))}
               </View>
 
-              <View className="flex-row items-center justify-center gap-1 rounded-xl bg-blue-600 py-2.5">
-                <Text className="text-[13px] font-bold text-white">보험료 확인하기</Text>
-                <Ionicons name="arrow-forward" size={13} color="#ffffff" />
+              <View
+                className="flex-row items-center justify-center gap-1 rounded-xl py-2.5"
+                style={{ backgroundColor: accent }}
+              >
+                <Text
+                  className="text-[13px] font-bold"
+                  style={{ color: theme.onPrimary }}
+                >
+                  보험료 확인하기
+                </Text>
+                <Ionicons name="arrow-forward" size={13} color={theme.onPrimary} />
               </View>
             </Pressable>
           );
@@ -164,9 +203,10 @@ export function InsurancePartnerList({
           </View>
           {budgetAmount !== quote.cheapest.totalPremium ? (
             <Text
-              className={`mt-0.5 text-right text-[11px] font-semibold ${
-                quote.cheapest.totalPremium > budgetAmount ? 'text-red-500' : 'text-blue-600'
-              }`}
+              className="mt-0.5 text-right text-[11px] font-semibold"
+              style={{
+                color: quote.cheapest.totalPremium > budgetAmount ? '#ef4444' : accent,
+              }}
             >
               예산보다 {quote.cheapest.totalPremium > budgetAmount ? '+' : '−'}
               {won(Math.abs(quote.cheapest.totalPremium - budgetAmount))}

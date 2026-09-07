@@ -65,6 +65,7 @@ import {
   type TransactionType,
 } from "@/lib/constants/status";
 import { useScreenView } from "@/lib/hooks/useScreenView";
+import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -99,6 +100,8 @@ type FundData = {
 
 export default function ScreenFUND01() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
   useScreenView(SCREENS.TRANSACTION_LIST);
 
   const [data, setData] = useState<FundData | null>(null);

@@ -25,10 +25,11 @@
 //    **로그는 실제 제휴 때와 같은 자리에서 쏜다.** 그래야 제휴가 붙는 날
 //    이동 코드만 갈아 끼우면 되고, 그전까지 쌓인 전환 데이터도 이어진다.
 //
-// ⚠️ useScreenView 를 부르지 않는다. lib/analytics/events.ts 의 SCREENS 에
-//    이 화면 값이 없다. docs/06 §7-0 이 "화면 구현 시점에 다음 버전으로
-//    추가한다" 고 정해 뒀다. 이벤트 상수를 임의로 만들지 않는다. (CLAUDE.md 8장)
-//    → docs/06 을 v4 로 올릴지 사람에게 확인한 뒤 붙인다.
+// ⚠️ useScreenView 가 이 화면의 **분모**다. 진입을 세지 않으면 클릭 수만 남아
+//    견적 확인률을 낼 수 없다.
+//      screen_viewed(insurance)  들어온 사람   ← 분모
+//      insurance_cta_clicked     넘어간 사람   ← 분자
+//    SCREENS.INSURANCE 는 docs/06 을 v4 로 올리면서 추가했다. (§7-0)
 // ============================================================================
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -37,8 +38,9 @@ import { ScrollView, Text, View } from 'react-native';
 import { InsurancePartnerList } from '@/components/insurance/InsurancePartnerList';
 import { TripHomeButton } from '@/components/navigation/TripHomeButton';
 import { BottomSheet, EmptyState, ErrorState, Loading } from '@/components/ui';
+import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
-import { EVENTS } from '@/lib/analytics/events';
+import { countryTheme } from '@/lib/constants/countryTheme';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import { INSURANCE_PARTNERS } from '@/lib/constants/insurancePartners';
 import {
@@ -52,6 +54,8 @@ import {
   getBudgetCategories,
 } from '@/lib/supabase/queries/budgets';
 import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
+import { useScreenView } from '@/lib/hooks/useScreenView';
+import { useTripContext } from '@/lib/hooks/useTripContext';
 
 /**
  * 어디서 들어왔는가. insurance_cta_clicked.placement 로 그대로 나간다.
@@ -81,6 +85,9 @@ export default function ScreenINSURANCE01() {
     tripId: string;
     placement?: string;
   }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
+  useScreenView(SCREENS.INSURANCE);
   const placement = toPlacement(placementParam);
 
   const [data, setData] = useState<Loaded | null>(null);
@@ -234,6 +241,8 @@ export default function ScreenINSURANCE01() {
   }
 
   const destination = data.trip.destination ?? '여행';
+  // 국기 색. 목적지를 모르면 뉴트럴 테마로 떨어진다.
+  const theme = countryTheme(findDestinationByName(data.trip.destination)?.countryKo);
 
   return (
     <View className="flex-1 bg-white">
@@ -249,6 +258,7 @@ export default function ScreenINSURANCE01() {
         <View className="mt-5">
           <InsurancePartnerList
             quote={quote}
+            theme={theme}
             coverage={coverage}
             onChangeCoverage={setCoverage}
             onPressPartner={handlePressPartner}

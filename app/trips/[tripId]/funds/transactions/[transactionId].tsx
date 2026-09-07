@@ -67,6 +67,7 @@ import {
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import { useTripContext } from '@/lib/hooks/useTripContext';
 
 /**
  * 확인이 필요한 이유별 안내 문구.
@@ -100,6 +101,8 @@ export default function ScreenFUND03() {
     tripId: string;
     transactionId: string;
   }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(true);

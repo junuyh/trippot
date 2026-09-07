@@ -70,6 +70,7 @@ import {
   type PersonalizedBudgetSuggestion,
 } from "@/lib/supabase/queries/personalization";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import { useTripContext } from '@/lib/hooks/useTripContext';
 
 type BudgetData = {
   trip: Trip;
@@ -82,6 +83,8 @@ type BudgetData = {
 
 export default function ScreenBUDGET01() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<BudgetData | null>(null);
   const [loading, setLoading] = useState(true);

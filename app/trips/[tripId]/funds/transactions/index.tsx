@@ -60,6 +60,7 @@ import {
   transactionIcon,
 } from "@/lib/constants/transactionIcon";
 import { useScreenView } from "@/lib/hooks/useScreenView";
+import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -132,6 +133,8 @@ export default function ScreenFUND01() {
     /** all | major | review | refund */
     filter?: string;
   }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<FundsData | null>(null);
   const [loading, setLoading] = useState(true);

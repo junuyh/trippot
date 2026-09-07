@@ -26,6 +26,7 @@ import {
 } from "@/lib/constants/status";
 import { TRAVEL_TYPE_COPY } from "@/lib/constants/travelTypeCopy";
 import { useScreenView } from "@/lib/hooks/useScreenView";
+import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
   getTripTypeResult,
   type TripTypeResult,
@@ -36,6 +37,8 @@ const GREEN = "#19865f";
 
 export default function ScreenTYPE01() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
   useScreenView(SCREENS.TRIP_HOME);
 
   const [trip, setTrip] = useState<Trip | null>(null);

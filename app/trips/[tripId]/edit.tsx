@@ -27,6 +27,7 @@ import { EmptyState, ErrorState, Loading } from "@/components/ui";
 import { DEV_USER_ID } from "@/lib/constants/devUser";
 import { TRIP_OWNER_TYPE, TRIP_STATUS } from "@/lib/constants/status";
 import { getMyGroups, type Group } from "@/lib/supabase/queries/groups";
+import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
   getTripById,
   updateTrip,
@@ -35,6 +36,8 @@ import {
 
 export default function ScreenTripEdit() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
