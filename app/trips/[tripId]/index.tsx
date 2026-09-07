@@ -1065,8 +1065,13 @@ export default function ScreenTripHome() {
               destination={trip.destination ?? "여행"}
               theme={theme}
               onPressTips={() => router.push("/community")}
+              /*
+                ⚠️ placement 를 반드시 실어 보낸다. insurance_cta_clicked 는
+                   이 값으로 "어느 자리의 배너가 전환을 만드는가" 를 가른다.
+                   빠지면 BM 1 의 전환을 자리별로 못 나눈다. (docs/06 §7-7)
+              */
               onPressInsurance={() =>
-                router.push(`/trips/${trip.id}/insurance`)
+                router.push(`/trips/${trip.id}/insurance?placement=trip_home`)
               }
             />
           </View>

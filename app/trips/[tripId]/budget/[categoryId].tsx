@@ -14,6 +14,7 @@
 //
 // 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/budget/.
 // ============================================================================
+import { Ionicons } from "@expo/vector-icons";
 import { format } from "date-fns";
 import {
   Stack,
@@ -1116,6 +1117,45 @@ export default function ScreenBUDGET02() {
                 : "결산 중이라 예산과 계획은 고칠 수 없어요. 실제 지출 확인과 분류는 그대로 할 수 있어요."}
             </Text>
           </View>
+        ) : null}
+
+        {/*
+          ── 여행자보험 제휴 (BM 1) ──
+          이 카테고리에서만 나온다. 여기가 사용자가 "그래서 보험 얼마지" 를
+          가장 먼저 궁금해하는 자리다.
+
+          ⚠️ placement=budget_detail 을 실어 보낸다. 여행 홈 배너와 이 자리 중
+             무엇이 전환을 만드는지 나눠 봐야 BM 1 을 키울 수 있다. (docs/06 §7-7)
+        */}
+        {code === CATEGORY_CODE.INSURANCE ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="여행자보험 예상 보험료 비교하기"
+            onPress={() =>
+              router.push(`/trips/${tripId}/insurance?placement=budget_detail`)
+            }
+            style={{
+              marginTop: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 11,
+              borderRadius: 14,
+              backgroundColor: "#fff2ef",
+              padding: 14,
+            }}
+            className="active:opacity-90"
+          >
+            <Text style={{ fontSize: 22 }}>🛟</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: "#111827" }}>
+                보험료 얼마인지 확인해 볼까요?
+              </Text>
+              <Text style={{ marginTop: 3, fontSize: 11, color: "#7d6a63" }}>
+                이 여행 일정·인원으로 계산한 예상 보험료를 비교해요.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#b9a9a3" />
+          </Pressable>
         ) : null}
 
         {/* 세부 계획 */}
