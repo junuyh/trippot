@@ -37,7 +37,7 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { InsurancePartnerList } from '@/components/insurance/InsurancePartnerList';
 import { TripHomeButton } from '@/components/navigation/TripHomeButton';
-import { BottomSheet, EmptyState, ErrorState, Loading } from '@/components/ui';
+import { BottomSheet, EmptyState, ErrorState, HeaderBackButton, Loading } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
 import { countryTheme } from '@/lib/constants/countryTheme';
@@ -81,14 +81,31 @@ type Loaded = {
 };
 
 export default function ScreenINSURANCE01() {
-  const { tripId, placement: placementParam } = useLocalSearchParams<{
+  const {
+    tripId,
+    placement: placementParam,
+    fromCategory,
+  } = useLocalSearchParams<{
     tripId: string;
     placement?: string;
+    /** 카테고리 상세에서 왔다면 그 카테고리 id. 뒤로 갈 곳을 정하는 데 쓴다 */
+    fromCategory?: string;
   }>();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
   useScreenView(SCREENS.INSURANCE);
   const placement = toPlacement(placementParam);
+
+  /*
+    뒤로 갈 곳은 **어디서 들어왔느냐**로 정한다. 이 화면은 부모가 하나가 아니다.
+      여행 홈 배너에서 왔으면  → 여행 홈
+      카테고리 상세에서 왔으면 → 그 카테고리
+    히스토리(router.back)에 맡기면 스택에 쌓인 옛 사본으로 돌아가는 일이 생긴다.
+  */
+  const parentHref =
+    placement === PLACEMENT.BUDGET_DETAIL && fromCategory
+      ? `/trips/${tripId}/budget/${fromCategory}`
+      : `/trips/${tripId}`;
 
   const [data, setData] = useState<Loaded | null>(null);
   const [loading, setLoading] = useState(true);
@@ -190,6 +207,7 @@ export default function ScreenINSURANCE01() {
     <Stack.Screen
       options={{
         title: '여행자보험',
+        headerLeft: () => <HeaderBackButton parentHref={parentHref} />,
         headerRight: () => <TripHomeButton tripId={tripId as string} />,
       }}
     />

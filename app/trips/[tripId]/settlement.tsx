@@ -40,7 +40,7 @@ import {
   type CategoryComparison,
 } from "@/components/settlement";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
-import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
+import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -323,6 +323,9 @@ export default function ScreenSETTLE01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <Loading message="정산 내역을 불러오는 중…" />
       </View>
@@ -333,6 +336,9 @@ export default function ScreenSETTLE01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <EmptyState
           icon="receipt-outline"
@@ -349,6 +355,9 @@ export default function ScreenSETTLE01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <ErrorState
           message="정산 내역을 불러오지 못했어요."
@@ -367,6 +376,9 @@ export default function ScreenSETTLE01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <EmptyState
           icon="hourglass-outline"
@@ -389,6 +401,9 @@ export default function ScreenSETTLE01() {
     >
       <Stack.Screen
         options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: `${data.trip.destination ?? "여행"} 정산` }}
       />
 

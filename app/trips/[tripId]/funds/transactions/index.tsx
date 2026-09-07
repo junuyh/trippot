@@ -36,8 +36,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  Loading,
-} from "@/components/ui";
+  Loading, HeaderBackButton } from "@/components/ui";
 import { SCREENS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -603,6 +602,9 @@ export default function ScreenFUND01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <Loading message="내역을 불러오는 중…" />
       </View>
@@ -612,6 +614,9 @@ export default function ScreenFUND01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <EmptyState
           icon="receipt-outline"
@@ -626,6 +631,9 @@ export default function ScreenFUND01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
         <ErrorState
           message="내역을 불러오지 못했어요."
@@ -644,6 +652,9 @@ export default function ScreenFUND01() {
   return (
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
 
       {/*

@@ -49,8 +49,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  Loading,
-} from "@/components/ui";
+  Loading, HeaderBackButton } from "@/components/ui";
 import { SCREENS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -322,6 +321,9 @@ export default function ScreenFUND01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "여행자금" }} />
         <Loading message="여행자금을 불러오는 중…" />
       </View>
@@ -331,6 +333,9 @@ export default function ScreenFUND01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "여행자금" }} />
         <EmptyState
           icon="wallet-outline"
@@ -346,6 +351,9 @@ export default function ScreenFUND01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "여행자금" }} />
         <ErrorState
           message="여행자금을 불러오지 못했어요."
@@ -388,6 +396,9 @@ export default function ScreenFUND01() {
         }
       >
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "여행자금" }} />
 
         <FundSummaryCard

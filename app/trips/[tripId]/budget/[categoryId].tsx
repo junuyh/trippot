@@ -48,8 +48,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  Loading,
-} from "@/components/ui";
+  Loading, HeaderBackButton } from "@/components/ui";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { DateRangeCalendar } from "@/components/trip-create";
 import { EVENTS } from "@/lib/analytics/events";
@@ -954,6 +953,9 @@ export default function ScreenBUDGET02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
         <Loading message="불러오는 중…" />
       </View>
@@ -963,6 +965,9 @@ export default function ScreenBUDGET02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
         <EmptyState
           icon="pricetag-outline"
@@ -978,6 +983,9 @@ export default function ScreenBUDGET02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
         <ErrorState message="불러오지 못했어요." onRetry={() => void load()} />
       </View>
@@ -1023,6 +1031,9 @@ export default function ScreenBUDGET02() {
   return (
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: label }} />
 
       <ScrollView
@@ -1195,7 +1206,7 @@ export default function ScreenBUDGET02() {
             accessibilityRole="button"
             accessibilityLabel="여행자보험 예상 보험료 비교하기"
             onPress={() =>
-              router.push(`/trips/${tripId}/insurance?placement=budget_detail`)
+              router.push(`/trips/${tripId}/insurance?placement=budget_detail&fromCategory=${categoryId}`)
             }
             style={{
               marginTop: 12,
@@ -1620,7 +1631,7 @@ export default function ScreenBUDGET02() {
           onClose={() => setPromoOpen(false)}
           onCompare={() => {
             setPromoOpen(false);
-            router.push(`/trips/${tripId}/insurance?placement=budget_detail`);
+            router.push(`/trips/${tripId}/insurance?placement=budget_detail&fromCategory=${categoryId}`);
           }}
           theme={theme}
           destination={data.trip.destination ?? "여행"}
