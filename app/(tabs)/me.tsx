@@ -38,7 +38,8 @@ import {
 } from '@/components/mypage';
 import { ErrorState, Header, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
+import { signOut } from '@/lib/auth/kakao';
 import { AUTH_PROVIDER, TRIP_STATUS } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { getTrips } from '@/lib/supabase/queries/trips';
@@ -76,6 +77,8 @@ export default function ScreenMY01() {
   useScreenView(SCREENS.MY_PAGE);
 
   const router = useRouter();
+  // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
+  const userId = useCurrentUserId();
   // 탭 헤더를 껐다. 상태바 높이만큼은 여기서 띄운다. (커뮤니티와 같은 방식)
   const insets = useSafeAreaInsets();
   const [loadState, setLoadState] = useState<LoadState>('loading');
@@ -95,8 +98,7 @@ export default function ScreenMY01() {
 
   const load = useCallback(async () => {
     try {
-      // TODO: 로그인 연동 시 교체
-      const userId = DEV_USER_ID;
+      if (!userId) return;
 
       const [user, trips] = await Promise.all([getUserProfile(userId), getTrips(userId)]);
 
@@ -126,7 +128,7 @@ export default function ScreenMY01() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   // 여행을 만들거나 끝내고 돌아오면 개수가 달라져 있다.
   useFocusEffect(
@@ -192,8 +194,7 @@ export default function ScreenMY01() {
 
     const asset = result.assets[0];
 
-    // TODO: 로그인 연동 시 교체
-    const userId = DEV_USER_ID;
+    if (!userId) return;
     const previousUrl = profile?.profileImageUrl ?? null;
 
     setSavingImage(true);
@@ -250,7 +251,7 @@ export default function ScreenMY01() {
     } finally {
       setSavingImage(false);
     }
-  }, [savingImage, profile]);
+  }, [savingImage, profile, userId]);
 
   /**
    * 여행 카드 두 개는 '내 여행' 목록(/me/trips)으로 보낸다.
@@ -334,12 +335,17 @@ export default function ScreenMY01() {
   /**
    * 확인창에서 '로그아웃' 을 눌렀을 때.
    *
-   * ⚠️ TODO: 실제 Auth 가 구현되면 여기서 signOut 을 부른다.
-   *    지금은 로그인·세션이 없어 확인창을 닫기만 한다. 화면도 그대로 둔다.
-   *    가짜 성공 처리나 navigation reset 을 넣지 않는다.
+   * 세션을 지우면 AuthProvider 가 signedOut 을 받고 가드가 /login 으로 옮긴다.
+   * 여기서 router 를 부르지 않는다. 두 곳이 같이 옮기면 화면이 두 번 바뀐다.
    */
-  function handleConfirmLogout() {
+  async function handleConfirmLogout() {
     setLogoutAsking(false);
+    try {
+      await signOut();
+    } catch {
+      // 세션 삭제에 실패하면 로그인 상태가 유지된다. 화면은 그대로 둔다.
+      Alert.alert('로그아웃하지 못했어요', '잠시 후 다시 시도해 주세요.');
+    }
   }
 
   // 상단바는 로딩·오류일 때도 같은 자리에 있어야 한다.
@@ -448,7 +454,7 @@ export default function ScreenMY01() {
       <LogoutConfirmModal
         visible={logoutAsking}
         onCancel={() => setLogoutAsking(false)}
-        onConfirm={handleConfirmLogout}
+        onConfirm={() => void handleConfirmLogout()}
       />
       </ScrollView>
     </View>

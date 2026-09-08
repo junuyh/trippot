@@ -1,0 +1,111 @@
+// ============================================================================
+// 로그인 세션 하나만 들고 있는 곳. 앱 전체의 유일한 기준이다.
+//
+// ⚠️ 현재 사용자 id 의 Source of Truth 는 **session.user.id** 하나뿐이다.
+//    화면이 각자 사용자를 알아내려 하면 로그아웃 뒤에도 남의 데이터가
+//    남아 있는 화면이 생긴다.
+//
+// ⚠️ DEV_USER_ID 를 fallback 으로 돌려주지 않는다. 로그인하지 않았으면 null 이다.
+//    fallback 을 두면 미로그인 상태에서 seed 사용자의 여행·모임이 자기 것처럼
+//    보인다. 그건 버그가 아니라 사고다.
+//    (lib/constants/devUser.ts 는 아직 다른 담당 화면이 쓰고 있어 남겨 둔다)
+// ============================================================================
+import type { Session } from '@supabase/supabase-js';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import { supabase } from '@/lib/supabase/client';
+import { ensureUserProfile } from '@/lib/supabase/queries/users';
+
+/**
+ * 세 가지뿐이다.
+ *   loading   아직 저장된 세션을 읽는 중. 아무 화면도 보여주면 안 된다
+ *   signedIn  세션이 있다
+ *   signedOut 세션이 없다
+ */
+export type AuthStatus = 'loading' | 'signedIn' | 'signedOut';
+
+type AuthValue = {
+  status: AuthStatus;
+  session: Session | null;
+  /** 로그인한 사용자의 id. 없으면 null. */
+  userId: string | null;
+};
+
+const AuthContext = createContext<AuthValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+
+    // 저장된 세션을 먼저 읽는다. (client.ts 가 AsyncStorage 를 쓰고 있어
+    // 앱을 껐다 켜도 여기서 복원된다)
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!alive) return;
+      setSession(data.session);
+      setReady(true);
+    });
+
+    // 로그인·로그아웃·토큰 갱신이 전부 여기로 온다.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      if (!alive) return;
+      setSession(next);
+      // getSession 보다 이쪽이 먼저 올 수도 있다. 그때도 대기를 푼다.
+      setReady(true);
+
+      // ⚠️ 로그인한 순간 public.users 행이 있는지 확인한다. Supabase 는
+      //    auth.users 만 만들고 public.users 는 아무도 만들지 않는다.
+      //    이미 있으면 아무것도 하지 않는다. (ensureUserProfile)
+      //
+      //    실패해도 로그인을 막지 않는다. 여기서 throw 하면 앱이 통째로 죽는다.
+      //
+      // ⚠️ SIGNED_IN 만 보면 안 된다. 저장된 세션이 복원될 때 오는 이벤트는
+      //    SIGNED_IN 이 아니라 INITIAL_SESSION 이다.
+      //    (@supabase/auth-js GoTrueClient _emitInitialSession)
+      //    SIGNED_IN 만 보면, 최초 로그인 때 네트워크 문제로 INSERT 가
+      //    실패한 사용자는 앱을 몇 번 다시 켜도 영영 public.users 행이
+      //    생기지 않는다. 두 이벤트를 함께 봐야 다음 실행에서 다시 시도된다.
+      //
+      //    TOKEN_REFRESHED 까지 넓히지 않는다. 토큰 갱신은 수시로 일어나고,
+      //    그때마다 SELECT 를 한 번씩 더 하는 값어치가 없다.
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && next?.user) {
+        void ensureUserProfile(next.user).catch(() => {});
+      }
+    });
+
+    return () => {
+      alive = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const value = useMemo<AuthValue>(
+    () => ({
+      status: !ready ? 'loading' : session ? 'signedIn' : 'signedOut',
+      session,
+      userId: session?.user.id ?? null,
+    }),
+    [ready, session],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthValue {
+  const value = useContext(AuthContext);
+  if (!value) throw new Error('useAuth 는 AuthProvider 안에서만 쓴다.');
+  return value;
+}
+
+/**
+ * 화면이 데이터를 조회할 때 쓰는 사용자 id.
+ *
+ * ⚠️ 로그인하지 않았으면 **null** 이다. DEV_USER_ID 로 대체하지 않는다.
+ *    쓰는 쪽에서 null 을 반드시 다뤄야 한다. 라우트 가드가 미로그인 상태를
+ *    이미 막고 있으므로 화면 안에서는 사실상 항상 값이 있다.
+ */
+export function useCurrentUserId(): string | null {
+  return useAuth().userId;
+}
