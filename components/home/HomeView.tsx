@@ -35,8 +35,14 @@ type Props = {
  * 새 여행을 시작하게 한다. docs/09_IA_v2.md §1 구조 그대로다.
  *
  *   1-1. 준비 중인 여행   여행지·일정·여행자금 배너, 가로 슬라이드
- *   1-2. 지난 여행        빈티지 우표, 가로 슬라이드 (결산 전이면 '결산하기')
  *   1-4. 새 여행 만들기
+ *   1-2. 지난 여행        빈티지 우표, 가로 슬라이드 (결산 전이면 '결산하기')
+ *
+ * ⚠️ **[문서와 어긋남] 새 여행 만들기를 지난 여행 위로 올렸다.** (2026-09-07)
+ *    docs/09_IA_v2.md §1-4 는 이 카드를 맨 아래에 두라고 적고 있다.
+ *    지난 여행은 되돌아보는 자리고 새 여행 만들기는 지금 할 일이라, 할 일이
+ *    기록보다 아래에 있으면 스크롤을 끝까지 내려야 닿는다.
+ *    문서를 임의로 고치지 않았다. (CLAUDE.md 1-1)
  *
  * ⚠️ 2026-09-02 대시보드 개편(메인 카드·지금 챙겨야 할 것·여행자금 현황·
  *    모임 바로가기·지난 여행 인사이트)을 되돌렸다.
@@ -81,6 +87,10 @@ export function HomeView({
         />
 
         <View className="mt-7">
+          <CreateTripCard onPress={onPressCreateTrip} />
+        </View>
+
+        <View className="mt-7">
           <PastTripSection
             trips={pastTrips}
             hasMore={hasMorePastTrips}
@@ -88,10 +98,6 @@ export function HomeView({
             onPressSettle={onPressSettle}
             onPressSeeAll={onPressAllPastTrips}
           />
-        </View>
-
-        <View className="mt-7">
-          <CreateTripCard onPress={onPressCreateTrip} />
         </View>
       </ScrollView>
     </View>
