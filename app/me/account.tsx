@@ -17,7 +17,6 @@ import { Alert, ScrollView } from 'react-native';
 
 import { AccountView, NAME_MAX_LENGTH, WithdrawConfirmModal } from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
-import { signOut } from '@/lib/auth/kakao';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { AUTH_PROVIDER } from '@/lib/constants/status';
 import {
@@ -32,7 +31,8 @@ type LoadState = 'loading' | 'ready' | 'error';
 export default function ScreenMyAccount() {
   const userId = useCurrentUserId();
   // 카카오 닉네임은 DB 가 아니라 세션에 있다. 아래 toAccountLabel 주석 참고.
-  const { session } = useAuth();
+  // signOut 은 미리보기와 실제 로그인을 알아서 가른다. (lib/auth/AuthProvider)
+  const { session, isPreview, signOut } = useAuth();
 
   const [loadState, setLoadState] = useState<LoadState>('loading');
   /** 저장된 이름. 입력값과 비교해 '바뀐 게 있는지' 를 판단한다. */
@@ -141,6 +141,16 @@ export default function ScreenMyAccount() {
    */
   async function handleConfirmWithdraw() {
     if (!userId || withdrawing) return;
+
+    // ⚠️ 개발용 미리보기에서는 DB 를 건드리지 않는다. 여기서 막지 않으면
+    //    seed 사용자(지수)에게 deleted_at 이 박혀 이후 MY / GROUP 화면
+    //    확인용 데이터가 통째로 사라진다.
+    //    이름 변경 등 다른 기능까지 막지는 않는다. 되돌릴 수 있는 값이다.
+    if (isPreview) {
+      setWithdrawAsking(false);
+      Alert.alert('개발용 미리보기에서는 회원 탈퇴를 실행할 수 없어요.');
+      return;
+    }
 
     setWithdrawing(true);
     try {

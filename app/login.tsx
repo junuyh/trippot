@@ -12,10 +12,12 @@ import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 
 import { LoginView } from '@/components/auth/LoginView';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { signInWithKakao } from '@/lib/auth/kakao';
 
 export default function ScreenLogin() {
   const router = useRouter();
+  const { enterPreview } = useAuth();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -50,6 +52,11 @@ export default function ScreenLogin() {
         onPressKakao={() => void handlePressKakao()}
         onPressTerms={() => router.push('/me/settings/terms')}
         onPressPrivacy={() => router.push('/me/settings/privacy')}
+        // ⚠️ __DEV__ 는 production 번들에서 false 로 굳는다. 그래서 개발용
+        //    미리보기는 배포된 앱에 아예 그려지지 않는다. (AuthProvider 가
+        //    enterPreview 안에서도 한 번 더 막는다)
+        showDevPreview={__DEV__}
+        onPressDevPreview={enterPreview}
       />
     </>
   );
