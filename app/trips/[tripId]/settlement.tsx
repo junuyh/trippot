@@ -54,7 +54,6 @@ import {
   SETTLEMENT_TRIGGER,
   FUND_SOURCE_TYPE,
   TRIP_STATUS,
-  CATEGORY_CODE_LABEL,
   type CategoryCode,
   type TripStatus,
 } from "@/lib/constants/status";
@@ -323,7 +322,7 @@ export default function ScreenSETTLE01() {
       actualAmount,
       categories: toReportCategories(snapshot ?? data.categories),
       /*
-        확정 지출 전체. 명세서의 거래 내역과 카드·명세서의 '언제 썼나' 에 쓴다.
+        확정 지출 전체. 명세서의 거래 내역(날짜별 묶음)에 쓴다.
         환불 완료·취소·확인 필요는 getSettlementFunds 가 이미 뺐다.
       */
       transactions: data.funds.spent.map((row) => {
@@ -334,7 +333,7 @@ export default function ScreenSETTLE01() {
           name: row.name ?? "이름 없는 지출",
           amount: row.amount,
           occurredAt: row.occurred_at,
-          categoryLabel: code ? (CATEGORY_CODE_LABEL[code] ?? null) : null,
+          categoryCode: code ?? null,
         };
       }),
       typeLabel: null,
@@ -380,7 +379,11 @@ export default function ScreenSETTLE01() {
     if (!report || shareBusy) return;
     setShareBusy("pdf");
     try {
-      const html = buildSettlementReportHtml(report, reportTheme.primary);
+      const html = buildSettlementReportHtml(report, {
+        accent: reportTheme.primary,
+        flag: destinationMeta?.flag ?? "🌏",
+        nameEn: destinationMeta?.nameEn ?? "",
+      });
 
       const { uri } = await Print.printToFileAsync({ html });
 
@@ -417,7 +420,7 @@ export default function ScreenSETTLE01() {
     } finally {
       setShareBusy(null);
     }
-  }, [report, reportTheme.primary, shareBusy]);
+  }, [destinationMeta?.flag, destinationMeta?.nameEn, report, reportTheme.primary, shareBusy]);
 
   // ── 결산 확정 ─────────────────────────────────────────────────────────
   const confirmSettlement = useCallback(async () => {

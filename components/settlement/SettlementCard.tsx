@@ -1,233 +1,405 @@
 // ============================================================================
-// 결산 카드 (SETTLE-01 · v3 · 2026-09-08)
+// 정산 영수증 이미지 (SETTLE-01 · v4 · 2026-09-08)
 //
 // 카톡·인스타에 올리는 세로 이미지 한 장. react-native-view-shot 이 이
 // 컴포넌트를 그대로 캡처한다.
 //
-// v2 는 총액 + 도넛이었다. 도넛은 조각 각도를 눈으로 비교해야 해서 한눈에
-// 안 읽혔고, 나머지는 여섯 자리 숫자였다. v3 는 **읽는 순서**로 다시 짰다.
-//   ① 결론 한 문장 + 총액 + 사용률 게이지
-//   ② 1인당 · 하루 · 1인 하루
-//   ③ 어디에 썼나 (가로 누적 막대)
-//   ④ 계획과 얼마나 달랐나 (좌우 막대, 상위 4개)
-//   ⑤ 언제 썼나 (일자별 막대)
-// 숫자는 총액 한 곳만 원 단위고 나머지는 만원이다.
+// **프린터에서 영수증이 막 뽑혀 나온 장면**이다. 여행이 끝났고, 계산이 끝났고,
+// 종이 한 장이 나왔다. "잘 다녀왔다" 는 느낌은 그림이 아니라 이 장면이 낸다.
+//
+//   위      TRIP COMPLETE · 도시명(디스플레이 폰트) · 기간 · 인원
+//   슬롯    은색 프린터 투입구. 종이가 이 밑에서 나온다
+//   영수증  머리글 · 카테고리별 금액 · 이중선 · 합계 · 목표/남은 금액 · 1인당 ·
+//           비고(가장 큰 초과·절약) · 결과 도장 · 바코드 · 톱니 아랫변
+//   아래    @TRIPPOT
+//
+// 홈의 여행 영수증(TripReceiptCard)과 같은 종이·점선·톱니·등폭 숫자다.
+// 색은 거의 없다. 잉크와 회색, 그리고 결과 도장 한 곳(절약 초록 / 초과 국기색).
+// 국기 색을 면으로 깔지 않는다. (countryTheme 원칙) 금액은 축약하지 않는다.
+//
+// v3(게이지·누적 막대·편차 막대·일자별 막대)은 걷어냈다. 두껍고, 그림마다 읽는
+// 법이 달랐고, 앱 어디에도 없는 모양이었다.
 //
 // ⚠️ 이 컴포넌트는 supabase 도 track() 도 부르지 않는다. (CLAUDE.md 9장)
 // ⚠️ **캡처 대상이라 화면 밖 요소를 넣지 않는다.** 버튼·스크롤·터치가 들어가면
 //    이미지에 눌리지 않는 버튼이 찍힌다. 여기는 보여줄 것만 있다.
-// ⚠️ 여행 유형 신분증(TypeIdCard)·수하물 태그와 같은 톤을 쓴다. 공유된 이미지를
-//    본 사람이 앱에 들어왔을 때 같은 서비스로 읽혀야 한다.
 // ⚠️ 실제 사용액이 0이면 이 카드를 만들지 않는다. 화면이 그 판단을 한다.
 // ============================================================================
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
+import { CATEGORY_EMOJI } from '@/lib/constants/categoryEmoji';
 import type { CountryTheme } from '@/lib/constants/countryTheme';
-import { manwon } from '@/lib/settlement/format';
+import { useDisplayFont } from '@/lib/hooks/useDisplayFont';
+import { won } from '@/lib/settlement/format';
 import type { SettlementReport } from '@/lib/settlement/report';
-import { toDonutSlices } from '@/lib/settlement/reportChart';
 
-import { CategoryDeviationChart } from './CategoryDeviationChart';
-import { DailySpendChart } from './DailySpendChart';
-import { SpendCompositionBar } from './SpendCompositionBar';
+/** 캡처 폭. 기기 배율(3x)로 810px 이다. 높이는 내용에 따르되 9:16 보다 짧지 않다 */
+export const SETTLEMENT_CARD_WIDTH = 270;
+const MIN_HEIGHT = Math.round((SETTLEMENT_CARD_WIDTH * 16) / 9);
+/** 종이 폭. 슬롯보다 좁아야 슬롯에서 나온 것으로 보인다 */
+const PAPER_W = 204;
+const SLOT_W = 244;
+const SLOT_H = 22;
+/** 종이 윗부분이 슬롯 안으로 들어가 있는 깊이 */
+const SLOT_OVERLAP = 12;
+const PAD = 15;
 
-const INK = '#121a2a';
-const SAVED = '#18865e';
-const OVER = '#d64550';
-const MUTED = '#8b94a2';
+const CANVAS = '#e6e8eb';
+const PAPER = '#ffffff';
+const LINE = '#d9dee4';
+const DASH = '#cfd5dc';
+const INK = '#141b28';
+const MUTED = '#6f7885';
+const FAINT = '#9aa3af';
+const SAVED = '#19865f';
+const TOOTH = 12;
+const TOOTH_H = 7;
+/** 등폭 숫자. 자릿수가 줄마다 흔들리면 영수증으로 안 읽힌다 */
+const NUM = { fontVariant: ['tabular-nums' as const] };
+/** 영수증 프린터 글꼴. 한글은 시스템 글꼴로 떨어진다 */
+const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: undefined });
+
+/** 바코드 막대. [막대 폭, 뒤 여백]. 고정 패턴이라 캡처마다 같다 */
+const BARS: readonly [number, number][] = [
+  [2, 1], [1, 1], [3, 2], [1, 1], [1, 2], [2, 1], [1, 1], [3, 1], [2, 2], [1, 1],
+  [1, 1], [2, 2], [3, 1], [1, 1], [2, 1], [1, 2], [1, 1], [3, 1], [1, 2], [2, 1],
+  [2, 1], [1, 1], [3, 2], [1, 1], [1, 1], [2, 2], [1, 1], [2, 1], [3, 1], [1, 2],
+  [1, 1], [2, 1], [1, 1], [3, 1], [2, 2], [1, 1], [2, 1], [1, 1], [3, 1], [2, 0],
+];
+
+/** 톱니 아랫변. 아래로 처진 이빨 */
+function toothPath(width: number): string {
+  const count = Math.ceil(width / TOOTH);
+  const parts = ['M 0,0'];
+  for (let i = 0; i < count; i += 1) {
+    parts.push(`L ${i * TOOTH + TOOTH / 2},${TOOTH_H}`);
+    parts.push(`L ${(i + 1) * TOOTH},0`);
+  }
+  parts.push(`L ${count * TOOTH},0 Z`);
+  return parts.join(' ');
+}
+
+function Dashed() {
+  return (
+    <View style={{ marginTop: 10, borderTopWidth: 1, borderStyle: 'dashed', borderColor: DASH }} />
+  );
+}
+
+/** 굵은 선 두 줄. 영수증의 합계 앞 구분선 */
+function DoubleRule() {
+  return (
+    <View style={{ marginTop: 11 }}>
+      <View style={{ height: 1.5, backgroundColor: INK }} />
+      <View style={{ height: 1, backgroundColor: INK, marginTop: 2 }} />
+    </View>
+  );
+}
+
+/** 영수증 한 줄. 이름은 왼쪽, 금액은 오른쪽 */
+function Line({
+  emoji,
+  label,
+  value,
+  tone,
+  bold,
+}: {
+  emoji?: string;
+  label: string;
+  value: string;
+  tone?: string;
+  bold?: boolean;
+}) {
+  return (
+    <View
+      style={{
+        marginTop: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 }}>
+        {emoji ? <Text style={{ fontSize: 10 }}>{emoji}</Text> : null}
+        <Text
+          numberOfLines={1}
+          style={{ fontSize: 10, fontWeight: bold ? '800' : '500', color: bold ? INK : MUTED }}
+        >
+          {label}
+        </Text>
+      </View>
+      <Text style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: '700', color: tone ?? INK, ...NUM }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
 
 type Props = {
   report: SettlementReport;
   theme: CountryTheme;
   /** 국기 이모지. 없으면 지구본 */
   flag: string;
-  /** 'OSAKA' */
+  /** 'TOKYO' */
   nameEn: string;
 };
 
 export function SettlementCard({ report, theme, flag, nameEn }: Props) {
-  const tone = report.verdict.tone === 'saved' ? SAVED : report.verdict.tone === 'over' ? OVER : INK;
-  const slices = toDonutSlices(report.categories, theme.primary);
-  const over = report.usageRateBp > 10000;
-  const targetRatio = over ? 10000 / report.usageRateBp : 1;
-  const fillRatio = over ? 1 : report.usageRateBp / 10000;
-  const rate = (report.usageRateBp / 100).toFixed(1).replace(/\.0$/, '');
-  const deviations = report.byDeviation.map((c) => ({
-    categoryId: null,
-    categoryCode: c.categoryCode,
-    plannedAmount: c.plannedAmount,
-    actualAmount: c.actualAmount,
-  }));
-  const showDaily = report.dailySpends.some((b) => b.amount > 0);
+  const { fontFamily: displayFont } = useDisplayFont();
+  const withinBudget = report.difference <= 0;
+  const resultTone = withinBudget ? SAVED : theme.primary;
+  const city = nameEn || report.destination;
+  const stay = report.nights > 0 ? `${report.nights}박 ${report.days}일` : null;
+  /** 도시명 크기. 긴 이름은 줄인다 (HONG KONG · PHILIPPINES) */
+  const cityFont = city.length > 8 ? 46 : city.length > 6 ? 56 : 66;
 
-  return (
-    <View className="w-[320px] overflow-hidden rounded-3xl bg-white">
-      {/* ── 머리 ─────────────────────────────────────────────────────── */}
-      <View className="px-6 pb-5 pt-6" style={{ backgroundColor: theme.neutral }}>
-        <View className="flex-row items-center justify-between">
-          <Text className="text-[9px] font-black tracking-[1.5px] text-white/60">
-            TRIPPOT · TRIP REPORT
-          </Text>
-          <Text className="text-[11px]">{flag}</Text>
-        </View>
-        <Text className="mt-3 text-[34px] font-black leading-9 text-white">{nameEn}</Text>
-        <Text className="mt-1 text-[11px] text-white/60">
-          {report.periodLabel} · {report.nights}박 {report.days}일 · {report.headcount}명
-        </Text>
-      </View>
-
-      {/* ── ① 결론 + 총액 + 게이지 ─────────────────────────────────── */}
-      <View className="px-6 pt-5">
-        <Text style={{ fontSize: 17, fontWeight: '900', color: tone }}>{report.verdict.title}</Text>
-        <Text
-          style={{
-            marginTop: 4,
-            fontSize: 30,
-            lineHeight: 36,
-            fontWeight: '900',
-            letterSpacing: -1,
-            color: INK,
-            fontVariant: ['tabular-nums'],
-          }}
-        >
-          {report.actualAmount.toLocaleString('ko-KR')}
-          <Text style={{ fontSize: 13, fontWeight: '800', letterSpacing: 0 }}>원</Text>
-        </Text>
-        <Text style={{ marginTop: 2, fontSize: 11, color: MUTED }}>
-          목표 {manwon(report.targetAmount)}
-          {report.difference !== 0 ? (
-            <Text style={{ fontWeight: '800', color: tone }}>
-              {'  '}
-              {report.difference < 0
-                ? `${manwon(-report.difference)} 남김`
-                : `${manwon(report.difference)} 초과`}
-            </Text>
-          ) : null}
-        </Text>
-
-        <View style={{ marginTop: 12 }}>
-          <View style={{ height: 9, borderRadius: 5, backgroundColor: '#eef0f3', overflow: 'hidden' }}>
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: `${fillRatio * 100}%`,
-                borderRadius: 5,
-                backgroundColor: over ? OVER : tone,
-              }}
-            />
-            {over ? (
-              <View
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: `${targetRatio * 100}%`,
-                  borderRadius: 5,
-                  backgroundColor: INK,
-                }}
-              />
-            ) : null}
-          </View>
-          <View
-            style={{
-              position: 'absolute',
-              top: -3,
-              left: `${targetRatio * 100}%`,
-              marginLeft: -1,
-              width: 2,
-              height: 15,
-              backgroundColor: INK,
-              borderRadius: 1,
-            }}
-          />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
-            <Text style={{ fontSize: 9, fontWeight: '800', color: tone }}>예산의 {rate}% 사용</Text>
-            <Text style={{ fontSize: 9, color: MUTED }}>목표 100%</Text>
-          </View>
-        </View>
-
-        {/* ── ② 나눠 보기 ───────────────────────────────────────────── */}
-        <View
-          style={{
-            marginTop: 14,
-            paddingTop: 12,
-            borderTopWidth: 1,
-            borderTopColor: '#eef0f3',
-            flexDirection: 'row',
-          }}
-        >
-          <Stat label="1인당 지출" value={manwon(report.perPersonAmount)} />
-          <Stat label="일평균 지출" value={manwon(report.perDayAmount)} divider />
-          <Stat label="1인 일평균" value={manwon(report.perPersonPerDayAmount)} divider />
-        </View>
-      </View>
-
-      {/* ── ③ 어디에 썼나 ────────────────────────────────────────────── */}
-      {slices.length > 0 ? (
-        <View className="px-6 pt-5">
-          <SectionLabel title="지출 구성" hint="카테고리별 비중" />
-          <SpendCompositionBar slices={slices} embedded />
-        </View>
-      ) : null}
-
-      {/* ── ④ 계획과 얼마나 달랐나 ───────────────────────────────────── */}
-      {deviations.length > 0 ? (
-        <View className="px-6 pt-5">
-          <SectionLabel title="계획 대비 편차" hint="편차가 큰 순 · 상위 4개" />
-          <CategoryDeviationChart categories={deviations} embedded limit={4} />
-        </View>
-      ) : null}
-
-      {/* ── ⑤ 언제 썼나 ─────────────────────────────────────────────── */}
-      {showDaily ? (
-        <View className="px-6 pt-4">
-          <SectionLabel title="일자별 지출" hint="여행 전 결제 포함" />
-          <DailySpendChart theme={theme} buckets={report.dailySpends} embedded />
-        </View>
-      ) : null}
-
-      {/* ── 톱니 절취선 ──────────────────────────────────────────────── */}
-      <View className="mt-6 flex-row justify-between px-3">
-        {Array.from({ length: 22 }).map((_, index) => (
-          <View key={index} className="h-1 w-2 rounded-sm bg-gray-200" />
-        ))}
-      </View>
-      <View className="flex-row items-center justify-between px-6 pb-6 pt-4">
-        <Text className="text-[9px] tracking-[1px] text-gray-300">
-          {report.confirmedLabel ? `확정 ${report.confirmedLabel}` : '확정 시점의 기록'}
-        </Text>
-        <Text className="text-[9px] tracking-[1px] text-gray-300">TRIPPOT TRIP REPORT</Text>
-      </View>
-    </View>
-  );
-}
-
-function SectionLabel({ title, hint }: { title: string; hint: string }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
-      <Text style={{ fontSize: 12, fontWeight: '900', color: INK }}>{title}</Text>
-      <Text style={{ fontSize: 9, color: MUTED }}>{hint}</Text>
-    </View>
-  );
-}
-
-function Stat({ label, value, divider }: { label: string; value: string; divider?: boolean }) {
   return (
     <View
       style={{
-        flex: 1,
-        paddingLeft: divider ? 10 : 0,
-        borderLeftWidth: divider ? 1 : 0,
-        borderLeftColor: '#eef0f3',
+        width: SETTLEMENT_CARD_WIDTH,
+        minHeight: MIN_HEIGHT,
+        backgroundColor: CANVAS,
+        alignItems: 'center',
+        paddingTop: 30,
+        paddingBottom: 22,
       }}
     >
-      <Text style={{ fontSize: 9, color: MUTED }}>{label}</Text>
-      <Text numberOfLines={1} style={{ marginTop: 3, fontSize: 13, fontWeight: '900', color: INK }}>
-        {value}
+      {/* ── 위: 여행 끝 ────────────────────────────────────────────── */}
+      <Text style={{ fontSize: 8, fontWeight: '900', letterSpacing: 2.4, color: MUTED }}>
+        TRIP COMPLETE
+      </Text>
+      <Text
+        numberOfLines={1}
+        style={{
+          marginTop: 6,
+          fontFamily: displayFont,
+          fontSize: cityFont,
+          lineHeight: cityFont,
+          letterSpacing: 1,
+          color: INK,
+        }}
+      >
+        {city}
+      </Text>
+      <Text style={{ marginTop: 6, fontSize: 9, letterSpacing: 0.6, color: MUTED, ...NUM }}>
+        {flag} {report.periodLabel}
+        {stay ? ` · ${stay}` : ''} · {report.headcount}명
+      </Text>
+
+      {/* ── 슬롯 + 영수증 ──────────────────────────────────────────── */}
+      <View style={{ marginTop: 18, width: SLOT_W, alignItems: 'center' }}>
+        {/* 종이. 슬롯보다 먼저 그려서 슬롯 밑으로 들어간다 */}
+        <View style={{ width: PAPER_W, marginTop: SLOT_H - SLOT_OVERLAP }}>
+          <View
+            style={{
+              backgroundColor: PAPER,
+              paddingHorizontal: PAD,
+              paddingTop: SLOT_OVERLAP + 14,
+              paddingBottom: 12,
+              shadowColor: '#0f172a',
+              shadowOpacity: 0.16,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 10 },
+              elevation: 4,
+            }}
+          >
+            {/* 머리글 */}
+            <Text
+              style={{
+                textAlign: 'center',
+                fontSize: 9,
+                fontWeight: '900',
+                letterSpacing: 2,
+                color: INK,
+              }}
+            >
+              TRIPPOT
+            </Text>
+            <Text
+              style={{
+                textAlign: 'center',
+                marginTop: 3,
+                fontSize: 7.5,
+                letterSpacing: 1.6,
+                color: FAINT,
+              }}
+            >
+              TRIP RECEIPT
+            </Text>
+            <Text
+              style={{
+                textAlign: 'center',
+                marginTop: 6,
+                fontFamily: MONO,
+                fontSize: 7.5,
+                color: FAINT,
+                ...NUM,
+              }}
+            >
+              {report.periodLabel.replaceAll('.', '/')}
+              {report.confirmedLabel ? `  ·  ${report.confirmedLabel.replaceAll('.', '/')} 확정` : ''}
+            </Text>
+
+            {/* 품목 */}
+            <Dashed />
+            <View style={{ marginTop: 2 }}>
+              {report.bySpent.map((c) => (
+                <Line
+                  key={c.categoryCode}
+                  emoji={CATEGORY_EMOJI[c.categoryCode]}
+                  label={c.label}
+                  value={won(c.actualAmount)}
+                />
+              ))}
+            </View>
+
+            {/* 합계 */}
+            <DoubleRule />
+            <View
+              style={{
+                marginTop: 10,
+                flexDirection: 'row',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '900', letterSpacing: 1, color: INK }}>
+                TOTAL
+              </Text>
+              <Text
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 15,
+                  fontWeight: '700',
+                  letterSpacing: -0.3,
+                  color: INK,
+                  ...NUM,
+                }}
+              >
+                {won(report.actualAmount)}
+              </Text>
+            </View>
+            <Line label="목표 여행비" value={won(report.targetAmount)} />
+            <Line
+              label={withinBudget ? '남은 금액' : '초과 금액'}
+              value={won(Math.abs(report.difference))}
+              tone={report.difference === 0 ? INK : resultTone}
+              bold
+            />
+            {report.headcount > 1 ? (
+              <Line label={`1인당 · ${report.headcount}명`} value={won(report.perPersonAmount)} />
+            ) : null}
+
+            {/* 비고 */}
+            {report.biggestOver || report.biggestSaved ? (
+              <>
+                <Dashed />
+                {report.biggestOver ? (
+                  <Line
+                    label={`가장 큰 초과 · ${report.biggestOver.label}`}
+                    value={`+${won(report.biggestOver.diff)}`}
+                    tone={theme.primary}
+                  />
+                ) : null}
+                {report.biggestSaved ? (
+                  <Line
+                    label={`가장 큰 절약 · ${report.biggestSaved.label}`}
+                    value={`-${won(-report.biggestSaved.diff)}`}
+                    tone={SAVED}
+                  />
+                ) : null}
+              </>
+            ) : null}
+
+            {/* 결과 도장 */}
+            <View style={{ alignItems: 'center', marginTop: 14 }}>
+              <View
+                style={{
+                  paddingHorizontal: 9,
+                  paddingVertical: 4,
+                  borderWidth: 1.5,
+                  borderRadius: 4,
+                  borderColor: resultTone,
+                  transform: [{ rotate: '-5deg' }],
+                }}
+              >
+                <Text
+                  style={{ fontSize: 8.5, fontWeight: '900', letterSpacing: 0.8, color: resultTone }}
+                >
+                  {report.verdict.title}
+                  {withinBudget ? ' ✓' : ''}
+                </Text>
+              </View>
+            </View>
+
+            {/* 바코드 */}
+            <View style={{ marginTop: 12, height: 20, flexDirection: 'row' }}>
+              {BARS.map(([bar, gap], index) => (
+                <View key={index} style={{ flexDirection: 'row', flex: bar + gap }}>
+                  <View style={{ flex: bar, backgroundColor: INK }} />
+                  {gap > 0 ? <View style={{ flex: gap }} /> : null}
+                </View>
+              ))}
+            </View>
+            <Text
+              style={{
+                textAlign: 'center',
+                marginTop: 6,
+                fontFamily: MONO,
+                fontSize: 7,
+                letterSpacing: 1.2,
+                color: FAINT,
+              }}
+            >
+              {city} · {report.headcount} TRAVELERS
+            </Text>
+          </View>
+
+          {/* 찢어낸 아랫변. 그림자 없이 종이색만 */}
+          <Svg width={PAPER_W} height={TOOTH_H}>
+            <Path d={toothPath(PAPER_W)} fill={PAPER} />
+          </Svg>
+        </View>
+
+        {/* 프린터 슬롯. 종이 위에 얹힌다 */}
+        <View style={{ position: 'absolute', top: 0, left: 0, width: SLOT_W, height: SLOT_H }}>
+          <Svg width={SLOT_W} height={SLOT_H}>
+            <Defs>
+              <LinearGradient id="slot-metal" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#f4f5f7" />
+                <Stop offset="0.45" stopColor="#c9ced5" />
+                <Stop offset="1" stopColor="#9aa1ab" />
+              </LinearGradient>
+            </Defs>
+            <Rect x={0} y={0} width={SLOT_W} height={SLOT_H} rx={6} fill="url(#slot-metal)" />
+            <Rect x={0.5} y={0.5} width={SLOT_W - 1} height={SLOT_H - 1} rx={6} fill="none" stroke="#8f97a2" strokeWidth={1} />
+            {/* 투입구 */}
+            <Rect
+              x={(SLOT_W - PAPER_W) / 2 - 6}
+              y={SLOT_H / 2 - 2.5}
+              width={PAPER_W + 12}
+              height={5}
+              rx={2.5}
+              fill="#2b3340"
+            />
+          </Svg>
+        </View>
+      </View>
+
+      {/* ── 아래: 유입 ────────────────────────────────────────────── */}
+      <View style={{ flex: 1 }} />
+      <Text
+        style={{
+          marginTop: 22,
+          fontSize: 10,
+          fontWeight: '900',
+          letterSpacing: 2,
+          color: INK,
+          textDecorationLine: 'underline',
+        }}
+      >
+        @TRIPPOT
       </Text>
     </View>
   );
