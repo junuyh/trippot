@@ -4,7 +4,7 @@ export {
   type SettlementVault,
 } from "./SettlementVaultGrid";
 export { TravelTypeCard, TYPE_COUNT } from "./TravelTypeCard";
-export { TypeIdCard, typeIdNumber } from "./TypeIdCard";
+export { TypeIdCard } from "./TypeIdCard";
 export { TripRecordCard } from "./TripRecordCard";
 export { TripReceiptCard } from "./TripReceiptCard";
 export { TypeResultOverlay, type TypeEvidenceRow } from "./TypeResultOverlay";

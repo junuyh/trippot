@@ -8,6 +8,8 @@
 //
 // 흰 카드 고정. 어떤 유형색 바탕 위에서도 글자가 읽힌다.
 // 사진칸(이모지) · 항목(유형·별명·여행지) · 영수증 줄 · 바코드 · VERIFIED 도장.
+// 바코드는 카드 하단에 가로로 꽉 채운다. 짧게 한쪽에 두면 어정쩡해 보인다.
+// 일련번호(TP-01-…)는 뺐다. 의미 없는 문자열이 두 번 찍혀 있었다. (2026-09-08)
 // 영수증 줄이 여행 금융 서비스라는 걸 드러낸다. 다른 유형 테스트에는 없는 것.
 //
 // ⚠️ 숫자는 전부 부모가 넘겨준다. 여기서 다시 계산하지 않는다.
@@ -27,8 +29,16 @@ const MUTED = '#6b7280';
 const IVORY_BG = '#F1EDE4';
 const IVORY_ACCENT = '#FF6A78';
 
-/** 바코드 막대 폭. 고정 패턴이라 캡처마다 같다 */
-const BARS = [2, 1, 3, 1, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1, 1, 3, 1, 2, 2, 1, 3, 1, 1, 2, 1, 2, 3, 1, 1, 2];
+/**
+ * 바코드 막대. [막대 폭, 뒤 여백] 비율. 카드 폭에 맞춰 flex 로 늘어난다.
+ * 고정 패턴이라 캡처마다 같다.
+ */
+const BARS: readonly [number, number][] = [
+  [2, 1], [1, 1], [3, 2], [1, 1], [1, 2], [2, 1], [1, 1], [3, 1], [2, 2], [1, 1],
+  [1, 1], [2, 2], [3, 1], [1, 1], [2, 1], [1, 2], [1, 1], [3, 1], [1, 2], [2, 1],
+  [2, 1], [1, 1], [3, 2], [1, 1], [1, 1], [2, 2], [1, 1], [2, 1], [3, 1], [1, 2],
+  [1, 1], [2, 1], [1, 1], [3, 1], [2, 2], [1, 1], [2, 1], [1, 1], [3, 1], [2, 0],
+];
 
 export type TypeIdCardProps = {
   code: SpendingProfileType;
@@ -46,12 +56,6 @@ export type TypeIdCardProps = {
   tilted?: boolean;
 };
 
-/** 유형 코드 → 카드에 찍는 일련번호 */
-export function typeIdNumber(code: SpendingProfileType): string {
-  const theme = travelTypeTheme(code);
-  return `TP-${TRAVEL_TYPE_COPY[code].no}-${theme.nameEn.replace(/\s+/g, '')}`;
-}
-
 export function TypeIdCard({
   code,
   accuracyBp,
@@ -65,7 +69,6 @@ export function TypeIdCard({
   const copy = TRAVEL_TYPE_COPY[code];
   const label = SPENDING_PROFILE_TYPE_LABEL[code];
   const accuracy = (accuracyBp / 100).toFixed(1).replace(/\.0$/, '');
-  const idNumber = typeIdNumber(code);
   /** 카드 안에서 유형색으로 강조할 때 쓰는 색 */
   const stampColor = theme.bg === IVORY_BG ? IVORY_ACCENT : theme.bg;
 
@@ -100,8 +103,8 @@ export function TypeIdCard({
             TRAVELER ID
           </Text>
         </View>
-        <Text style={{ fontSize: 8, fontWeight: '700', letterSpacing: 1, color: '#fff' }}>
-          {idNumber}
+        <Text style={{ fontSize: 8, fontWeight: '900', letterSpacing: 2, color: '#fff' }}>
+          TRIPPOT
         </Text>
       </View>
 
@@ -157,15 +160,26 @@ export function TypeIdCard({
         <Stat label="절약 1위" value={topSavedLabel ?? '—'} />
       </View>
 
-      {/* 바코드 */}
-      <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 1.5, height: 18 }}>
-          {BARS.map((width, index) => (
-            <View key={index} style={{ width, height: 18, backgroundColor: ID_CARD_INK }} />
+      {/* 바코드. 카드 폭에 맞춰 가로로 꽉 채운다 */}
+      <View style={{ paddingHorizontal: 12, paddingBottom: 10, paddingTop: 2 }}>
+        <View style={{ flexDirection: 'row', height: 22 }}>
+          {BARS.map(([bar, gap], index) => (
+            <View key={index} style={{ flexDirection: 'row', flex: bar + gap }}>
+              <View style={{ flex: bar, backgroundColor: ID_CARD_INK }} />
+              <View style={{ flex: gap }} />
+            </View>
           ))}
         </View>
-        <Text style={{ marginTop: 3, fontSize: 6.5, letterSpacing: 2, color: MUTED }}>
-          {idNumber} · ISSUED BY TRIPPOT
+        <Text
+          style={{
+            marginTop: 4,
+            fontSize: 6.5,
+            letterSpacing: 2,
+            color: MUTED,
+            textAlign: 'center',
+          }}
+        >
+          ISSUED BY TRIPPOT · TRAVEL TYPE NO. {copy.no}
         </Text>
       </View>
 
