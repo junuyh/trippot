@@ -463,7 +463,10 @@ export default function ScreenMY01() {
               onPress={handlePressLogout}
               suppressHighlighting
               // py-3 + lineHeight 19 → 높이 43. 터치 영역을 지킨다.
-              className="py-3 text-pot-mute"
+              // ⚠️ 색은 위 설정 메뉴(MenuRow)와 같은 text-pot-ink 다. pot-mute 는
+              //    비활성처럼 읽혀서, 실제로 눌리는 동작인데 못 누르는 것처럼 보였다.
+              //    빨강으로 강조하지는 않는다. 로그아웃은 파괴적 동작이 아니다.
+              className="py-3 text-pot-ink"
               style={{ fontSize: 13.5, lineHeight: 19 }}
             >
               로그아웃
