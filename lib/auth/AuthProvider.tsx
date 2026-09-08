@@ -11,8 +11,18 @@
 //    (lib/constants/devUser.ts 는 아직 다른 담당 화면이 쓰고 있어 남겨 둔다)
 // ============================================================================
 import type { Session } from '@supabase/supabase-js';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
+import { signOut as supabaseSignOut } from '@/lib/auth/kakao';
+import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { supabase } from '@/lib/supabase/client';
 import { ensureUserProfile } from '@/lib/supabase/queries/users';
 
@@ -29,6 +39,24 @@ type AuthValue = {
   session: Session | null;
   /** 로그인한 사용자의 id. 없으면 null. */
   userId: string | null;
+  /**
+   * 개발용 미리보기 상태. (__DEV__ 전용)
+   *
+   * ⚠️ 실제 로그인이 아니다. Supabase 세션을 만들지 않고, DEV_USER_ID seed
+   *    사용자의 데이터를 보여줄 뿐이다. 자세한 내용은 enterPreview 참고.
+   */
+  isPreview: boolean;
+  /** 개발용 미리보기 시작. __DEV__ 가 아니면 아무 일도 하지 않는다. */
+  enterPreview: () => void;
+  /** 개발용 미리보기 종료. */
+  exitPreview: () => void;
+  /**
+   * 로그아웃. 미리보기면 미리보기만 끝내고, 실제 로그인이면 세션을 지운다.
+   *
+   * ⚠️ 화면마다 분기를 두지 않으려고 여기서 한 번에 처리한다.
+   *    (MY-01 · 계정관리가 같은 함수를 쓴다)
+   */
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -36,6 +64,14 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  /**
+   * 개발용 미리보기.
+   *
+   * ⚠️ 저장하지 않는다. AsyncStorage 를 쓰지 않는다. 앱을 다시 켜면 로그인
+   *    화면으로 돌아온다. 버튼 한 번이면 다시 들어올 수 있어서, 저장해 두는
+   *    쪽이 오히려 '개발용 상태로 켜져 있는 줄 모르는' 위험을 만든다.
+   */
+  const [isPreview, setIsPreview] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -90,13 +126,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /**
+   * 개발용 미리보기 시작.
+   *
+   * ⚠️ __DEV__ 가 아니면 아무 일도 하지 않는다. 이중 방어다. 진입 버튼도
+   *    __DEV__ 에서만 그려지지만(components/auth/LoginView), 호출 경로가
+   *    하나 더 생겨도 production 에서는 켜지지 않아야 한다.
+   *
+   * ⚠️ 가짜 Supabase 세션을 만들지 않는다. setSession 을 부르지 않고
+   *    public.users 도 만들지 않는다. 세션은 실제 로그인만 만든다.
+   */
+  const enterPreview = useCallback(() => {
+    if (!__DEV__) return;
+    setIsPreview(true);
+  }, []);
+
+  const exitPreview = useCallback(() => {
+    setIsPreview(false);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    // 미리보기는 세션이 없다. supabase.auth.signOut() 을 부를 이유가 없다.
+    if (isPreview) {
+      setIsPreview(false);
+      return;
+    }
+    await supabaseSignOut();
+  }, [isPreview]);
+
   const value = useMemo<AuthValue>(
     () => ({
       status: !ready ? 'loading' : session ? 'signedIn' : 'signedOut',
       session,
-      userId: session?.user.id ?? null,
+      // ⚠️ 세션이 없다고 자동으로 DEV_USER_ID 를 주지 않는다. 사용자가 직접
+      //    미리보기를 켠 경우에만 준다. 자동 fallback 은 미로그인 상태에서
+      //    seed 사용자의 여행·모임이 자기 것처럼 보이게 만든다.
+      userId: session?.user.id ?? (isPreview ? DEV_USER_ID : null),
+      isPreview,
+      enterPreview,
+      exitPreview,
+      signOut,
     }),
-    [ready, session],
+    [ready, session, isPreview, enterPreview, exitPreview, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -111,9 +182,14 @@ export function useAuth(): AuthValue {
 /**
  * 화면이 데이터를 조회할 때 쓰는 사용자 id.
  *
- * ⚠️ 로그인하지 않았으면 **null** 이다. DEV_USER_ID 로 대체하지 않는다.
- *    쓰는 쪽에서 null 을 반드시 다뤄야 한다. 라우트 가드가 미로그인 상태를
- *    이미 막고 있으므로 화면 안에서는 사실상 항상 값이 있다.
+ * ⚠️ 로그인하지 않았으면 **null** 이다. 세션이 없다는 이유만으로 DEV_USER_ID 를
+ *    돌려주지 않는다. 쓰는 쪽에서 null 을 반드시 다뤄야 한다. 라우트 가드가
+ *    미로그인 상태를 이미 막고 있으므로 화면 안에서는 사실상 항상 값이 있다.
+ *
+ * 값이 정해지는 순서는 셋뿐이다.
+ *   실제 세션이 있으면        session.user.id
+ *   개발용 미리보기가 켜졌으면  DEV_USER_ID  (__DEV__ + 사용자가 직접 켠 경우만)
+ *   그 외                    null
  */
 export function useCurrentUserId(): string | null {
   return useAuth().userId;

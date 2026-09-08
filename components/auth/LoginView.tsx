@@ -9,6 +9,14 @@ type Props = {
   onPressKakao: () => void;
   onPressTerms: () => void;
   onPressPrivacy: () => void;
+  /**
+   * 개발용 미리보기 진입을 그릴지.
+   *
+   * ⚠️ 화면 파일이 __DEV__ 를 넘긴다. production 번들에서는 false 로 굳어
+   *    이 블록 전체가 그려지지 않는다. (app/login.tsx)
+   */
+  showDevPreview: boolean;
+  onPressDevPreview: () => void;
 };
 
 /** 카카오 브랜드 색. 카카오가 지정한 값이라 pot 토큰을 쓰지 않는다. */
@@ -29,6 +37,8 @@ export function LoginView({
   onPressKakao,
   onPressTerms,
   onPressPrivacy,
+  showDevPreview,
+  onPressDevPreview,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -135,6 +145,30 @@ export function LoginView({
             </Text>
           </Pressable>
         </View>
+
+        {/*
+          개발용 미리보기.
+
+          ⚠️ 실제 사용자 기능이 아니다. '둘러보기' 처럼 읽히면 안 되므로
+             '개발용' 을 문구에 그대로 둔다.
+          ⚠️ 카카오 버튼과 약관 줄의 디자인·위치를 건드리지 않는다. 이 블록만
+             맨 아래에 덧붙인다. showDevPreview 가 false 면 통째로 사라지고
+             레이아웃도 원래대로 돌아간다.
+        */}
+        {showDevPreview ? (
+          <View className="mt-4 items-center">
+            <Text
+              accessibilityRole="button"
+              accessibilityLabel="개발용으로 둘러보기"
+              onPress={onPressDevPreview}
+              suppressHighlighting
+              className="px-2 py-2 text-pot-faint"
+              style={{ fontSize: 11.5, lineHeight: 16, textDecorationLine: 'underline' }}
+            >
+              개발용으로 둘러보기
+            </Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );

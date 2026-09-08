@@ -25,17 +25,26 @@ const PUBLIC_SEGMENT = 'login';
  * ⚠️ /login 에서 다시 /login 으로 보내지 않는다. 무한 반복이 된다.
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { status } = useAuth();
+  const { status, isPreview } = useAuth();
   const segments = useSegments();
   const params = useLocalSearchParams<{ next?: string }>();
   const router = useRouter();
 
   const onLoginScreen = segments[0] === PUBLIC_SEGMENT;
 
+  /**
+   * 내부 화면을 볼 수 있는 상태인가.
+   *
+   * ⚠️ 개발용 미리보기(__DEV__)도 여기에 포함된다. 실제 로그인은 아니지만
+   *    Expo Go 에서 MY / GROUP 화면을 확인하려면 통과시켜야 한다.
+   *    미리보기 자체는 AuthProvider 가 __DEV__ 에서만 켜준다.
+   */
+  const canEnter = status === 'signedIn' || isPreview;
+
   useEffect(() => {
     if (status === 'loading') return;
 
-    if (status === 'signedOut' && !onLoginScreen) {
+    if (!canEnter && !onLoginScreen) {
       // ⚠️ 어디로 가려던 길이었는지 남긴다. 나중에 카카오톡 초대 링크로
       //    들어온 사람이 로그인 뒤 원래 링크로 돌아가야 한다.
       //    (초대 기능 자체는 이번 범위가 아니다)
@@ -44,7 +53,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (status === 'signedIn' && onLoginScreen) {
+    if (canEnter && onLoginScreen) {
       // 남겨 둔 목적지가 있으면 그리로, 없으면 홈으로.
       //
       // ⚠️ '/' 로 시작하는지만 보면 '//example.com' 이 통과한다. 그건 내부
@@ -54,7 +63,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       const isInternalPath = next !== null && next.startsWith('/') && !next.startsWith('//');
       router.replace(isInternalPath ? (next as never) : '/');
     }
-  }, [status, onLoginScreen, segments, params.next, router]);
+  }, [status, canEnter, onLoginScreen, segments, params.next, router]);
 
   if (status === 'loading') {
     return (

@@ -39,7 +39,6 @@ import {
 import { ErrorState, Header, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
-import { signOut } from '@/lib/auth/kakao';
 import { AUTH_PROVIDER, TRIP_STATUS } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { getTrips } from '@/lib/supabase/queries/trips';
@@ -88,7 +87,8 @@ export default function ScreenMY01() {
   // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
   const userId = useCurrentUserId();
   // 카카오 닉네임은 DB 가 아니라 세션에 있다. toAccountLabel 주석 참고.
-  const { session } = useAuth();
+  // signOut 은 미리보기와 실제 로그인을 알아서 가른다. (lib/auth/AuthProvider)
+  const { session, signOut } = useAuth();
   // 탭 헤더를 껐다. 상태바 높이만큼은 여기서 띄운다. (커뮤니티와 같은 방식)
   const insets = useSafeAreaInsets();
   const [loadState, setLoadState] = useState<LoadState>('loading');
@@ -354,6 +354,9 @@ export default function ScreenMY01() {
    *
    * 세션을 지우면 AuthProvider 가 signedOut 을 받고 가드가 /login 으로 옮긴다.
    * 여기서 router 를 부르지 않는다. 두 곳이 같이 옮기면 화면이 두 번 바뀐다.
+   *
+   * ⚠️ 개발용 미리보기에서도 같은 함수를 쓴다. 그때는 Supabase 를 부르지 않고
+   *    미리보기만 끝낸다. 분기는 AuthProvider 안에 한 번만 둔다.
    */
   async function handleConfirmLogout() {
     setLogoutAsking(false);
