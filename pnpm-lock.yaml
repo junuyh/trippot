@@ -11,7 +11,40 @@ importers:
       '@amplitude/analytics-react-native':
         specifier: ^1.7.0
         version: 1.7.0(react-native@0.81.5(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.87.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.1.17)(react@19.1.0)(supports-color@8.1.1))(react@19.1.0)
+      '@expo-google-fonts/abril-fatface':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@expo-google-fonts/anton':
+        specifier: ^0.4.2
+        version: 0.4.2
       '@expo-google-fonts/bebas-neue':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@expo-google-fonts/black-han-sans':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@expo-google-fonts/caveat':
+        specifier: ^0.4.2
+        version: 0.4.2
+      '@expo-google-fonts/gaegu':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@expo-google-fonts/jua':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@expo-google-fonts/nanum-pen-script':
+        specifier: ^0.4.0
+        version: 0.4.0
+      '@expo-google-fonts/pacifico':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@expo-google-fonts/permanent-marker':
+        specifier: ^0.4.0
+        version: 0.4.0
+      '@expo-google-fonts/playfair-display':
+        specifier: ^0.4.2
+        version: 0.4.2
+      '@expo-google-fonts/righteous':
         specifier: ^0.4.1
         version: 0.4.1
       '@expo/metro-runtime':
@@ -657,8 +690,41 @@ packages:
     resolution: {integrity: sha512-XQsZgjm2EcVUiZQf11UBJQfmZeEmOW8DpI1gsFeln6w0ae0ii4dMQEQ0kjl6DspdWX1aGY1/loyXnP0JS06e/A==}
     engines: {node: '>=0.8.0'}
 
+  '@expo-google-fonts/abril-fatface@0.4.1':
+    resolution: {integrity: sha512-OFschWuI/9M9JP2/ppdnlAHTF24UiZXMYBSbZhWq8lY5t8K4Fi9o+fJl5hseEGN+P8Rr+FMLUlaNR1FLXPmbJw==}
+
+  '@expo-google-fonts/anton@0.4.2':
+    resolution: {integrity: sha512-VXxS6ZppH1W/0ch06c52iVpZhVwHX9sXEctyFy/NiF/gb3i697R4va+qpiDQHB71NI8pLyecdBjNrc5FA9qKrw==}
+
   '@expo-google-fonts/bebas-neue@0.4.1':
     resolution: {integrity: sha512-Ibnf0EQgMUj01tT/ws64RlsMQmOvDP+UDFW93bld0C/WwaOaCGWKgNnqxNkKxmL73y2kpT8EB4dkSNUOyAOEJA==}
+
+  '@expo-google-fonts/black-han-sans@0.4.1':
+    resolution: {integrity: sha512-82C84aqDOb/tzWj7fkfchAg/RreBlWuvl8nLO6FPFgG6bCxeUDWocxoRqzW3p2VLLPPM6mwHJOQGuQMTpyHqNA==}
+
+  '@expo-google-fonts/caveat@0.4.2':
+    resolution: {integrity: sha512-kCG35tRUX8Wi+u0Jh5ck3K1u7vZkdLnwRTuKMrEnlVmikvxQFXN1KjF5cL2vqRG7Hwm7648Zl8xe1BWAoIsPCA==}
+
+  '@expo-google-fonts/gaegu@0.4.1':
+    resolution: {integrity: sha512-qaT0EdguT/3GkC4iZyC8RXuoJaqhVDqjntVxAtyGH2TaBcotHpFd2RcaAY8cGm/mtKeGGOJbRR9A68ZQ8zYOXQ==}
+
+  '@expo-google-fonts/jua@0.4.1':
+    resolution: {integrity: sha512-I6x3U8BSeMr8m+j7GMcI+3jkfnF6Umrn/moCdB0QrvUX/ecXN0yVse/sznE7uru/4VCDE5/3vsCIS9/zLRsGTQ==}
+
+  '@expo-google-fonts/nanum-pen-script@0.4.0':
+    resolution: {integrity: sha512-Gvu4TjorCmhLVN/+xX2OAaX2bNAHbUN5L7qBFOlrk8AYbt/OsUufLCaQn1B8J8NcQg2e166YiTcahFS9Rjg06A==}
+
+  '@expo-google-fonts/pacifico@0.4.1':
+    resolution: {integrity: sha512-w21ZIeNdwVWPH173HNszX8ML1deogOsHcxhJ0ghpbyBzr7R6PGSJ6yWL5jBixvWV/E34xDk28aNn/cX+gqzf3Q==}
+
+  '@expo-google-fonts/permanent-marker@0.4.0':
+    resolution: {integrity: sha512-yqKSFt3Wu/06XAGFNlT4z5iLmnjtAuSV/vkeumnM/2cgbEv3dQVKDbcdQnowW8N3vNOABGqWxbs4KEiewNOzqA==}
+
+  '@expo-google-fonts/playfair-display@0.4.2':
+    resolution: {integrity: sha512-mWhBV59RUjSS3aYpytUb7UyHHTnXcHh7epAn7gq+M4XAEh5PuMKUrP8eiUfkJLb6UwHZCi7EhQpUzxHu5OL96w==}
+
+  '@expo-google-fonts/righteous@0.4.1':
+    resolution: {integrity: sha512-oWlxXmRNYRN5aHW2cLJopUTr7T+mNRGfKjBeQlYLbOIf1yn6UF5kcg9PqkD6gG8BG1pKxzT3jXzcRvFSRL1HKA==}
 
   '@expo/cli@54.0.27':
     resolution: {integrity: sha512-BxKOr6e8wmUwhGSyEVKY+CHWgS3Cre9ibgx1QWcdCenKTVKAz62qGmYL51q0lCcKg6vQY+4Usw9RK5Il4ZFaIA==}
@@ -4828,7 +4894,29 @@ snapshots:
     dependencies:
       '@types/hammerjs': 2.0.46
 
+  '@expo-google-fonts/abril-fatface@0.4.1': {}
+
+  '@expo-google-fonts/anton@0.4.2': {}
+
   '@expo-google-fonts/bebas-neue@0.4.1': {}
+
+  '@expo-google-fonts/black-han-sans@0.4.1': {}
+
+  '@expo-google-fonts/caveat@0.4.2': {}
+
+  '@expo-google-fonts/gaegu@0.4.1': {}
+
+  '@expo-google-fonts/jua@0.4.1': {}
+
+  '@expo-google-fonts/nanum-pen-script@0.4.0': {}
+
+  '@expo-google-fonts/pacifico@0.4.1': {}
+
+  '@expo-google-fonts/permanent-marker@0.4.0': {}
+
+  '@expo-google-fonts/playfair-display@0.4.2': {}
+
+  '@expo-google-fonts/righteous@0.4.1': {}
 
   '@expo/cli@54.0.27(expo-router@6.0.24)(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.87.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.1.17)(react@19.1.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)':
     dependencies:

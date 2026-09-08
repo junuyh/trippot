@@ -21,14 +21,18 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import type ViewShot from "react-native-view-shot";
 
 import {
   BaggageTagCard,
@@ -46,6 +50,7 @@ import {
   type SettlementVault,
   type TypeEvidenceRow,
 } from "@/components/trip-type";
+import { TripStorySheet } from "@/components/trip-record";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -58,7 +63,10 @@ import {
   tripStage,
 } from "@/lib/trip/stage";
 import { buildTripRecord } from "@/lib/budget/tripRecord";
+import { romanizeName } from "@/lib/trip/romanize";
+import { CITY_PIN, countryOutline } from "@/lib/constants/countryOutline";
 import { countryTheme } from "@/lib/constants/countryTheme";
+import { destinationPhoto } from "@/lib/constants/destinationPhoto";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
   FUND_SOURCE_TYPE,
@@ -79,7 +87,7 @@ import {
   countPlanItems,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
-import { getGroupById } from "@/lib/supabase/queries/groups";
+import { getGroupById, getGroupMembers } from "@/lib/supabase/queries/groups";
 import {
   getFundTotals,
   getTransactions,
@@ -108,6 +116,8 @@ type TripHomeData = {
   /** 입금 거래 합계. 누적 모금액 계산에 쓴다 */
   depositTotal: number;
   groupName: string | null;
+  /** 함께 간 사람 이름. 개인 여행이면 빈 배열. 스토리 이미지에 쓴다 */
+  memberNames: string[];
 };
 
 export default function ScreenTripHome() {
@@ -124,6 +134,19 @@ export default function ScreenTripHome() {
   const [typeResult, setTypeResult] = useState<TripTypeResult | null>(null);
   /** 이번 진입에서 금고 배분을 이미 저장했는지 */
   const syncedRef = useRef(false);
+  /**
+   * 여행 기록 스토리 이미지 시트. (2026-09-08 시안)
+   * ⚠️ 사용자에게 받는 건 배경 사진 하나뿐이다. 나머지는 여행 데이터로 채운다.
+   */
+  const [storyOpen, setStoryOpen] = useState(false);
+  const [storyPhoto, setStoryPhoto] = useState<string | null>(null);
+  const [storyBusy, setStoryBusy] = useState(false);
+  /**
+   * 함께 간 사람. 자유 입력이라 줄바꿈까지 그대로 카드에 들어간다.
+   * null 은 "아직 손대지 않음" 이고, 그때는 영문 시작값을 보여준다.
+   */
+  const [storyMembersText, setStoryMembersText] = useState<string | null>(null);
+  const storyRef = useRef<ViewShot>(null);
   /**
    * TYPE-01 오버레이 열림 여부. (시안 v3)
    * ⚠️ 별도 라우트로 밀지 않는다. 유형은 결산 결과를 다르게 읽은 것이라
@@ -161,15 +184,18 @@ export default function ScreenTripHome() {
 
       // 여행을 찾은 뒤에야 나머지를 붙인다. 예산·자금이 없어도 화면은 떠야 한다.
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, fund, transactions, totals, group] = await Promise.all(
-        [
+      const [categories, fund, transactions, totals, group, members] =
+        await Promise.all([
           budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
           getTravelFund(trip.id),
           getTransactions(trip.id),
           getFundTotals(trip.id),
           trip.group_id ? getGroupById(trip.group_id) : Promise.resolve(null),
-        ],
-      );
+          // 이름은 스토리 이미지에만 쓴다. 못 가져와도 화면은 떠야 해서 빈 배열로 떨어뜨린다.
+          trip.group_id
+            ? getGroupMembers(trip.group_id).catch(() => [])
+            : Promise.resolve([]),
+        ]);
 
       setData({
         trip,
@@ -179,6 +205,7 @@ export default function ScreenTripHome() {
         transactions,
         depositTotal: totals.depositTotal,
         groupName: group?.name ?? null,
+        memberNames: members.map((member) => member.user.name),
       });
     } catch {
       setError(true);
@@ -408,6 +435,63 @@ export default function ScreenTripHome() {
       ),
     [data?.categories],
   );
+
+  /**
+   * 함께 간 사람 시작값. 영문(로마자)은 제목이 영문이라 톤이 맞고, 한글은 그대로.
+   * 사용자가 고쳐 쓰기 전까지 영문을 보여준다.
+   */
+  const storyMemberPresets = useMemo(() => {
+    const names = data?.memberNames ?? [];
+    if (names.length === 0) return [];
+    return [
+      { label: "영문", text: names.map((name) => romanizeName(name).toUpperCase()).join(" · ") },
+      { label: "한글", text: names.join(" · ") },
+    ];
+  }, [data?.memberNames]);
+  const storyMembers = storyMembersText ?? storyMemberPresets[0]?.text ?? "";
+
+  /** 스토리 이미지의 배경 사진 고르기. 사진 하나만 받는다. */
+  const handlePickStoryPhoto = useCallback(async () => {
+    if (storyBusy) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("사진 접근 권한이 필요해요", "설정에서 사진 접근을 허용해 주세요.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      // 미리보기에 바로 띄우는 용도라 HEIC 도 상관없다. 캡처 결과는 PNG 로 나간다.
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    setStoryPhoto(result.assets[0].uri);
+  }, [storyBusy]);
+
+  /**
+   * 미리보기 카드를 그대로 캡처해서 공유 시트로 넘긴다.
+   * ⚠️ [검토 필요] 공유 완료 이벤트. events.ts 에 없어서 아직 track() 하지 않는다.
+   *    TRIP_RECORD_SHARED 같은 이름으로 승인되면 여기서 기록한다. (CLAUDE.md 8장)
+   */
+  const handleShareStory = useCallback(async () => {
+    if (storyBusy) return;
+    setStoryBusy(true);
+    try {
+      const uri = await storyRef.current?.capture?.();
+      if (!uri) throw new Error("capture failed");
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("공유할 수 없어요", "이 기기에서는 공유 기능을 쓸 수 없어요.");
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/png",
+        dialogTitle: "여행 기록 이미지 공유",
+      });
+    } catch {
+      Alert.alert("만들지 못했어요", "잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setStoryBusy(false);
+    }
+  }, [storyBusy]);
 
   const gridCategories: GridCategory[] = useMemo(
     () =>
@@ -834,9 +918,23 @@ export default function ScreenTripHome() {
                 >
                   이번 여행의 한 줄 기록
                 </Text>
-                <Text className="text-[10px] tracking-wider text-gray-400">
-                  TRAVEL RECORD
-                </Text>
+                {/*
+                  스토리 이미지 만들기. (2026-09-08 시안)
+                  큰 버튼을 카드 아래 두지 않는다. 기록 카드가 끝나는 자리가 흐려진다.
+                  제목 줄 오른쪽의 작은 진입점 하나로 둔다.
+                */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="여행 기록 이미지 만들기"
+                  onPress={() => setStoryOpen(true)}
+                  className="flex-row items-center gap-1 rounded-full px-2.5 py-1 active:opacity-70"
+                  style={{ backgroundColor: theme.primarySoft }}
+                >
+                  <Ionicons name="image-outline" size={12} color={theme.primary} />
+                  <Text className="text-[11px] font-bold" style={{ color: theme.primary }}>
+                    이미지 만들기
+                  </Text>
+                </Pressable>
               </View>
               <TripRecordCard
                 theme={theme}
@@ -908,6 +1006,32 @@ export default function ScreenTripHome() {
               onClose={() => setTypeOpen(false)}
             />
           ) : null}
+
+          {/* 여행 기록 스토리 이미지 시트 */}
+          <TripStorySheet
+            ref={storyRef}
+            visible={storyOpen}
+            onClose={() => setStoryOpen(false)}
+            busy={storyBusy}
+            onPickPhoto={handlePickStoryPhoto}
+            onShare={handleShareStory}
+            onChangeMembersText={setStoryMembersText}
+            memberPresets={storyMemberPresets}
+            card={{
+              theme,
+              flag: destinationMeta?.flag ?? "🌍",
+              destinationEn:
+                destinationMeta?.nameEn ??
+                (trip.destination ?? "TRIP").toUpperCase(),
+              photoUri: storyPhoto,
+              fallbackPhotoUrl: destinationPhoto(destinationMeta?.code)?.url ?? null,
+              outline: countryOutline(destinationMeta?.countryKo),
+              pin: destinationMeta ? CITY_PIN[destinationMeta.code] : null,
+              startDate: trip.start_date,
+              endDate: trip.end_date,
+              membersText: storyMembers,
+            }}
+          />
         </>
       ) : (
         // ── TRIP-HOME-01 준비 중 ────────────────────────────────────────
