@@ -38,12 +38,16 @@ import {
 } from '@/components/mypage';
 import { ErrorState, Header, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { AUTH_PROVIDER, TRIP_STATUS } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { getTrips } from '@/lib/supabase/queries/trips';
 import { prepareProfileImage } from '@/lib/image/profileImage';
-import { getUserProfile, updateProfileImageUrl } from '@/lib/supabase/queries/users';
+import {
+  getUserProfile,
+  readOAuthProfile,
+  updateProfileImageUrl,
+} from '@/lib/supabase/queries/users';
 import {
   ProfileImageTooLargeError,
   deleteProfileImage,
@@ -60,22 +64,31 @@ type LoadState = 'loading' | 'ready' | 'error';
  *    다른 서비스와 대조 가능한 값이라 화면에 내보내지 않는다.
  *    users 에 email 칼럼도 없다. 그래서 "무엇으로 로그인했는지" 만 알려준다.
  *
- * ⚠️ TODO: 실제 Kakao Auth 연동 후, 사용자에게 보여줄 계정 정보(카카오 닉네임 ·
- *    이메일 등)를 무엇으로 할지 정책이 확정되면 그 값으로 교체한다.
- *    그 전까지 임의의 Kakao ID 나 email 을 만들어 넣지 않는다.
+ * ⚠️ 닉네임은 users.name 이 아니라 **세션의 user_metadata** 에서 읽는다.
+ *    users.name 은 계정관리에서 사용자가 바꿀 수 있는 값이라, 그걸 쓰면 바로
+ *    위에 큰 글씨로 있는 이름과 같은 값이 두 번 보인다. 그리고 이름을 바꾼
+ *    뒤에는 '어떤 카카오 계정인지' 를 알려주지 못한다.
+ *    (같은 판단이 app/me/account.tsx 에도 있다)
+ *
+ * 닉네임을 못 받았으면(동의항목 미설정·거부) 무엇으로 로그인했는지만 알려준다.
  *
  * MVP 는 kakao 만 구현한다. (lib/constants/status.ts AUTH_PROVIDER)
  * 그 외 값이면 null 을 주고 화면에서 줄 자체를 그리지 않는다.
  */
-function toAccountLabel(authProvider: string | null): string | null {
-  if (authProvider === AUTH_PROVIDER.KAKAO) return '카카오 로그인';
-  return null;
+function toAccountLabel(authProvider: string | null, nickname: string | null): string | null {
+  if (authProvider !== AUTH_PROVIDER.KAKAO) return null;
+  return nickname ? `카카오 로그인 · ${nickname}` : '카카오 로그인';
 }
 
 export default function ScreenMY01() {
   useScreenView(SCREENS.MY_PAGE);
 
   const router = useRouter();
+  // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
+  const userId = useCurrentUserId();
+  // 카카오 닉네임은 DB 가 아니라 세션에 있다. toAccountLabel 주석 참고.
+  // signOut 은 미리보기와 실제 로그인을 알아서 가른다. (lib/auth/AuthProvider)
+  const { session, signOut } = useAuth();
   // 탭 헤더를 껐다. 상태바 높이만큼은 여기서 띄운다. (커뮤니티와 같은 방식)
   const insets = useSafeAreaInsets();
   const [loadState, setLoadState] = useState<LoadState>('loading');
@@ -95,8 +108,7 @@ export default function ScreenMY01() {
 
   const load = useCallback(async () => {
     try {
-      // TODO: 로그인 연동 시 교체
-      const userId = DEV_USER_ID;
+      if (!userId) return;
 
       const [user, trips] = await Promise.all([getUserProfile(userId), getTrips(userId)]);
 
@@ -117,7 +129,10 @@ export default function ScreenMY01() {
 
       setProfile({
         name: user.name,
-        accountLabel: toAccountLabel(user.auth_provider),
+        accountLabel: toAccountLabel(
+          user.auth_provider,
+          session?.user ? readOAuthProfile(session.user).name : null,
+        ),
         profileImageUrl: user.profile_image_url,
       });
       setCounts({ planning, traveling, past });
@@ -126,7 +141,7 @@ export default function ScreenMY01() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId, session]);
 
   // 여행을 만들거나 끝내고 돌아오면 개수가 달라져 있다.
   useFocusEffect(
@@ -192,8 +207,7 @@ export default function ScreenMY01() {
 
     const asset = result.assets[0];
 
-    // TODO: 로그인 연동 시 교체
-    const userId = DEV_USER_ID;
+    if (!userId) return;
     const previousUrl = profile?.profileImageUrl ?? null;
 
     setSavingImage(true);
@@ -250,7 +264,7 @@ export default function ScreenMY01() {
     } finally {
       setSavingImage(false);
     }
-  }, [savingImage, profile]);
+  }, [savingImage, profile, userId]);
 
   /**
    * 여행 카드 두 개는 '내 여행' 목록(/me/trips)으로 보낸다.
@@ -320,6 +334,10 @@ export default function ScreenMY01() {
     router.push('/me/settings/privacy');
   }
 
+  function handlePressAccount() {
+    router.push('/me/account');
+  }
+
   /**
    * 로그아웃 확인.
    *
@@ -334,12 +352,20 @@ export default function ScreenMY01() {
   /**
    * 확인창에서 '로그아웃' 을 눌렀을 때.
    *
-   * ⚠️ TODO: 실제 Auth 가 구현되면 여기서 signOut 을 부른다.
-   *    지금은 로그인·세션이 없어 확인창을 닫기만 한다. 화면도 그대로 둔다.
-   *    가짜 성공 처리나 navigation reset 을 넣지 않는다.
+   * 세션을 지우면 AuthProvider 가 signedOut 을 받고 가드가 /login 으로 옮긴다.
+   * 여기서 router 를 부르지 않는다. 두 곳이 같이 옮기면 화면이 두 번 바뀐다.
+   *
+   * ⚠️ 개발용 미리보기에서도 같은 함수를 쓴다. 그때는 Supabase 를 부르지 않고
+   *    미리보기만 끝낸다. 분기는 AuthProvider 안에 한 번만 둔다.
    */
-  function handleConfirmLogout() {
+  async function handleConfirmLogout() {
     setLogoutAsking(false);
+    try {
+      await signOut();
+    } catch {
+      // 세션 삭제에 실패하면 로그인 상태가 유지된다. 화면은 그대로 둔다.
+      Alert.alert('로그아웃하지 못했어요', '잠시 후 다시 시도해 주세요.');
+    }
   }
 
   // 상단바는 로딩·오류일 때도 같은 자리에 있어야 한다.
@@ -418,6 +444,7 @@ export default function ScreenMY01() {
 
         <View className="mt-7">
           <MenuSection title="설정">
+            <MenuRow label="계정 관리" onPress={handlePressAccount} />
             <MenuRow label="알림 설정" onPress={handlePressNotification} />
             <MenuRow label="이용약관" onPress={handlePressTerms} />
             <MenuRow label="개인정보처리방침" onPress={handlePressPrivacy} isLast />
@@ -436,7 +463,10 @@ export default function ScreenMY01() {
               onPress={handlePressLogout}
               suppressHighlighting
               // py-3 + lineHeight 19 → 높이 43. 터치 영역을 지킨다.
-              className="py-3 text-pot-mute"
+              // ⚠️ 색은 위 설정 메뉴(MenuRow)와 같은 text-pot-ink 다. pot-mute 는
+              //    비활성처럼 읽혀서, 실제로 눌리는 동작인데 못 누르는 것처럼 보였다.
+              //    빨강으로 강조하지는 않는다. 로그아웃은 파괴적 동작이 아니다.
+              className="py-3 text-pot-ink"
               style={{ fontSize: 13.5, lineHeight: 19 }}
             >
               로그아웃
@@ -448,7 +478,7 @@ export default function ScreenMY01() {
       <LogoutConfirmModal
         visible={logoutAsking}
         onCancel={() => setLogoutAsking(false)}
-        onConfirm={handleConfirmLogout}
+        onConfirm={() => void handleConfirmLogout()}
       />
       </ScrollView>
     </View>
