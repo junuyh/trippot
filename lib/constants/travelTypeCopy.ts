@@ -8,8 +8,9 @@
 //    시안의 'TYPE 09 · 야무지게 놀고 야무지게 아끼고' 는 코드가 아니라 표현이다.
 //    여기서 균형형(balanced)의 문구로 살렸다.
 //
-// ⚠️ 캐릭터 이미지는 지금 균형형 한 장뿐이다.
-//    나머지 다섯은 이모지로 대신하고, 에셋이 오면 image 에 넣는다.
+// ⚠️ **지금은 아홉 개 모두 캐릭터가 없다.** 한 장만 있으면 그 하나만 튀어
+//    나머지 여덟이 미완성으로 읽힌다. 에셋이 다 오면 그때 한꺼번에 넣는다.
+//    (09 캐릭터 PNG 는 assets/characters/ 에 그대로 둔다)
 // ============================================================================
 import { SPENDING_PROFILE_TYPE, type SpendingProfileType } from '@/lib/constants/status';
 
@@ -73,8 +74,34 @@ export const TRAVEL_TYPE_COPY: Record<SpendingProfileType, TravelTypeCopy> = {
     headline: '야무지게 놀고\n야무지게 아끼고',
     description: '쓸 곳에는 쓰고, 아낄 곳은 정확히 아는 균형 감각 좋은 여행자',
     emoji: '⚖️',
-    // 전달받은 캐릭터. PNG 를 base64 로 감싼 SVG 였던 것을 벗겨 줄였다
-    image: require('@/assets/characters/09-smart-spender.png'),
+    // 에셋은 assets/characters/09-smart-spender.png 에 있다. 아홉 개가 다
+    // 준비되면 그때 함께 연결한다.
+    image: null,
     hashtags: ['#쓸땐쓴다', '#균형여행', '#계획대로'],
+  },
+
+  [SPENDING_PROFILE_TYPE.BIG_SPENDER]: {
+    no: '06',
+    headline: '쓸 땐\n쓰는 거지',
+    description: '아끼자고 떠난 게 아니라는 걸 아는 여행자',
+    emoji: '💸',
+    image: null,
+    hashtags: ['#쓸땐쓴다', '#후회없이', '#플렉스여행'],
+  },
+  [SPENDING_PROFILE_TYPE.SPONTANEOUS]: {
+    no: '07',
+    headline: '일단 가서\n정한다',
+    description: '계획표 대신 그날의 기분을 따라가는 여행자',
+    emoji: '🎲',
+    image: null,
+    hashtags: ['#무계획이계획', '#발길닿는대로', '#즉흥여행'],
+  },
+  [SPENDING_PROFILE_TYPE.PLANNER]: {
+    no: '08',
+    headline: '적어둔 대로\n다녀왔다',
+    description: '세운 예산과 쓴 돈이 거의 같은, 계획이 곧 결과인 여행자',
+    emoji: '📋',
+    image: null,
+    hashtags: ['#계획대로', '#예산적중', '#계획파'],
   },
 };

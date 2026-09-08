@@ -21,6 +21,11 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { File, Paths } from "expo-file-system";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
+import { useRef } from "react";
+import ViewShot from "react-native-view-shot";
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
@@ -49,6 +54,7 @@ import {
   SETTLEMENT_TRIGGER,
   FUND_SOURCE_TYPE,
   TRIP_STATUS,
+  CATEGORY_CODE_LABEL,
   type CategoryCode,
   type TripStatus,
 } from "@/lib/constants/status";
@@ -66,6 +72,12 @@ import {
 } from "@/lib/supabase/queries/settlements";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import { ShareReportSheet } from "@/components/settlement/ShareReportSheet";
+import {
+  buildSettlementReport,
+  toReportCategories,
+} from "@/lib/settlement/report";
+import { buildSettlementReportHtml } from "@/lib/settlement/reportHtml";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
   getFundTotals,
@@ -263,6 +275,134 @@ export default function ScreenSETTLE01() {
     });
   }
 
+  // ── 정산 리포트 ───────────────────────────────────────────────────────
+  //
+  // 한 버튼에서 둘 중 하나를 고른다. 카드(이미지) / 명세서(PDF).
+  // 쓰임이 달라서 한 버튼에 묶지 않는다.
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareBusy, setShareBusy] = useState<"card" | "pdf" | null>(null);
+  const cardRef = useRef<ViewShot>(null);
+
+  /**
+   * 리포트에 담을 값.
+   *
+   * ⚠️ 확정 스냅샷을 **우선**한다. 확정 뒤에 예산을 고쳐도 이미 공유한 문서와
+   *    값이 달라지면 그 문서는 증빙 구실을 못 한다.
+   */
+  const report = useMemo(() => {
+    if (!data) return null;
+
+    const snapshot = (
+      data.settlement?.category_snapshot_json as
+        | { categories?: CategorySnapshot[] }
+        | null
+        | undefined
+    )?.categories;
+
+    return buildSettlementReport({
+      destination: data.trip.destination ?? "여행",
+      startDate: data.trip.start_date,
+      endDate: data.trip.end_date,
+      headcount: data.trip.headcount,
+      groupName: null,
+      confirmedAt: data.settlement?.confirmed_at ?? null,
+      raisedAmount,
+      targetAmount,
+      actualAmount,
+      categories: toReportCategories(snapshot ?? data.categories),
+      typeLabel: null,
+      typeSummary: null,
+    });
+  }, [actualAmount, data, raisedAmount, targetAmount]);
+
+  const reportTheme = useMemo(
+    () => countryTheme(findDestinationByName(data?.trip.destination)?.countryKo),
+    [data?.trip.destination],
+  );
+  const destinationMeta = findDestinationByName(data?.trip.destination);
+
+  /** 결산 카드를 PNG 로 캡처해 공유한다 */
+  const handleShareCard = useCallback(async () => {
+    if (shareBusy) return;
+    setShareBusy("card");
+    try {
+      const uri = await cardRef.current?.capture?.();
+      if (!uri) throw new Error("capture failed");
+
+      /*
+        ⚠️ 공유 시트를 못 여는 기기가 있다. 그때 조용히 끝내면 사용자는
+           버튼이 고장 났다고 읽는다. 무엇이 안 되는지 말한다.
+      */
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("공유할 수 없어요", "이 기기에서는 공유 기능을 쓸 수 없어요.");
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/png",
+        dialogTitle: "정산 카드 공유",
+      });
+    } catch {
+      Alert.alert("만들지 못했어요", "잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setShareBusy(null);
+    }
+  }, [shareBusy]);
+
+  /** 정산 명세서를 PDF 로 만들어 공유한다 */
+  const handleSharePdf = useCallback(async () => {
+    if (!report || shareBusy) return;
+    setShareBusy("pdf");
+    try {
+      const html = buildSettlementReportHtml(
+        report,
+        majorExpenses.map((row) => ({
+          name: row.name,
+          amount: row.amount,
+          occurredAt: row.occurredAt,
+          categoryLabel: row.categoryCode
+            ? (CATEGORY_CODE_LABEL[row.categoryCode] ?? null)
+            : null,
+        })),
+        reportTheme.primary,
+      );
+
+      const { uri } = await Print.printToFileAsync({ html });
+
+      /*
+        ⚠️ 파일 이름을 바꿔 준다. printToFileAsync 는 임의의 이름을 주는데,
+           그대로 공유하면 상대가 받는 파일이 '5f3a-....pdf' 다. 무슨 문서인지
+           알 수 없고, 여러 여행을 받으면 구분도 안 된다.
+      */
+      const safeName = `TripPot_${report.destination}_정산명세서.pdf`.replace(
+        /[/\\?%*:|"<>]/g,
+        "_",
+      );
+      const printed = new File(uri);
+      const target = new File(Paths.cache, safeName);
+      // 같은 이름이 남아 있으면 move 가 실패한다. 먼저 치운다.
+      try {
+        if (target.exists) target.delete();
+        printed.move(target);
+      } catch {
+        // 이름을 못 바꿔도 공유 자체는 되어야 한다. 원본으로 간다.
+      }
+
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("공유할 수 없어요", "이 기기에서는 공유 기능을 쓸 수 없어요.");
+        return;
+      }
+      await Sharing.shareAsync(target.exists ? target.uri : uri, {
+        mimeType: "application/pdf",
+        UTI: "com.adobe.pdf",
+        dialogTitle: "정산 명세서 공유",
+      });
+    } catch {
+      Alert.alert("만들지 못했어요", "잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setShareBusy(null);
+    }
+  }, [majorExpenses, report, reportTheme.primary, shareBusy]);
+
   // ── 결산 확정 ─────────────────────────────────────────────────────────
   const confirmSettlement = useCallback(async () => {
     if (!data || confirming) return;
@@ -392,6 +532,7 @@ export default function ScreenSETTLE01() {
   }
 
   return (
+    <>
     <ScrollView
       className="flex-1 bg-gray-50"
       contentContainerClassName="px-5 pb-10 pt-4 gap-6"
@@ -576,56 +717,40 @@ export default function ScreenSETTLE01() {
       ) : null}
 
       {/*
-        ── 정산 리포트 공유 ── [검토 필요]
+        ── 정산 리포트 공유 ──
 
-        ⚠️ 버튼만 먼저 둔다. 리포트 생성(모금·예산·실제 지출을 한 장으로 묶은
-           PDF/이미지)과 카카오톡 공유는 아직 만들지 않았다.
-           · PDF/이미지 생성 → expo-print · react-native-view-shot 중 무엇을
-             쓸지 정해야 한다. 둘 다 새 의존성이다.
-           · 카카오톡 공유 → 네이티브 SDK 라 Expo Go 에서 동작하지 않는다.
-             개발 빌드가 필요하고, 앱 키 발급도 사람이 해야 한다.
-           눌러도 아무 일이 없으면 고장으로 읽히므로 준비 중임을 말한다.
-
-        ⚠️ 확정 전에는 그리지 않는다. 아직 바뀔 숫자를 리포트로 내보내면
+        ⚠️ 확정 전에는 그리지 않는다. 아직 바뀔 숫자를 문서로 내보내면
            공유받은 사람이 보는 값과 앱의 값이 달라진다.
+
+        ⚠️ 실제 사용액이 0이면 그리지 않는다. 지출을 하나도 안 적은 여행의
+           리포트는 "예산만큼 다 아꼈다" 는 거짓말이 된다.
+           안 쓴 것과 아직 안 적은 것은 다르다.
+
+        [Future] 카카오톡 직접 공유는 네이티브 SDK 라 개발 빌드가 필요하다.
+                 지금은 OS 공유 시트로 보낸다 — 카톡·메일·저장 모두 된다.
       */}
-      {settled ? (
+      {settled && report && actualAmount > 0 ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="정산 리포트 공유하기. 준비 중인 기능이에요"
-          onPress={() =>
-            Alert.alert(
-              "곧 만나요",
-              "모금·예산·실제 지출을 한 장으로 정리한 리포트를 이미지나 PDF 로 저장하고 공유하는 기능을 준비하고 있어요.",
-            )
-          }
-          className="flex-row items-center justify-center active:opacity-70"
+          accessibilityLabel="정산 리포트 공유하기"
+          onPress={() => setShareOpen(true)}
           style={{
-            gap: 7,
-            height: 52,
-            borderRadius: 14,
+            marginTop: 14,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            height: 46,
+            borderRadius: 12,
             borderWidth: 1,
-            borderColor: "#dfe3e8",
+            borderColor: "#e2e6eb",
             backgroundColor: "#fff",
           }}
+          className="active:bg-gray-50"
         >
           <Ionicons name="share-outline" size={16} color="#3d4654" />
-          <Text style={{ fontSize: 13, fontWeight: "800", color: "#3d4654" }}>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: "#3d4654" }}>
             정산 리포트 공유하기
-          </Text>
-          <Text
-            style={{
-              marginLeft: 2,
-              paddingHorizontal: 7,
-              paddingVertical: 3,
-              borderRadius: 6,
-              backgroundColor: "#f1f3f6",
-              fontSize: 9,
-              fontWeight: "800",
-              color: "#8b94a2",
-            }}
-          >
-            준비 중
           </Text>
         </Pressable>
       ) : null}
@@ -674,5 +799,21 @@ export default function ScreenSETTLE01() {
         </View>
       )}
     </ScrollView>
+
+      {report ? (
+        <ShareReportSheet
+          ref={cardRef}
+          visible={shareOpen}
+          onClose={() => setShareOpen(false)}
+          report={report}
+          theme={reportTheme}
+          flag={destinationMeta?.flag ?? "🌍"}
+          nameEn={destinationMeta?.nameEn ?? report.destination}
+          onShareCard={handleShareCard}
+          onSharePdf={handleSharePdf}
+          busy={shareBusy}
+        />
+      ) : null}
+    </>
   );
 }
