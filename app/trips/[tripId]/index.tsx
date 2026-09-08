@@ -90,6 +90,7 @@ import {
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
 import { getGroupById, getGroupMembers } from "@/lib/supabase/queries/groups";
 import {
+  getFundReadyAt,
   getFundTotals,
   getTransactions,
   reviewReason,
@@ -107,6 +108,21 @@ import {
 
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
 const PAGE_COLOR = "#ffffff";
+
+/**
+ * 입금이 목표액(계획 합계)에 닿은 날부터 출발일까지 며칠인지.
+ * 못 닿았거나 출발일이 없으면 undefined. 미리미리형 판정에 쓴다.
+ */
+async function fundReadyDaysBefore(data: TripHomeData): Promise<number | undefined> {
+  if (!data.trip.start_date) return undefined;
+  const target = data.categories.reduce(
+    (sum, category) => sum + category.planned_amount,
+    0,
+  );
+  const readyAt = await getFundReadyAt(data.trip.id, target);
+  if (!readyAt) return undefined;
+  return differenceInCalendarDays(parseISO(data.trip.start_date), parseISO(readyAt));
+}
 
 type TripHomeData = {
   trip: Trip;
@@ -302,10 +318,19 @@ export default function ScreenTripHome() {
       ⚠️ 개수를 못 세면 넘기지 않는다. 세어 보지도 않고 '계획을 안 세웠다' 고
          단정하면 안 된다. 그 경우 나머지 여덟 유형으로만 판정된다.
     */
-    void countPlanItems(data.categories.map((category) => category.id))
-      .catch(() => undefined)
-      .then((planItemCount) =>
-        ensureTripTypeResult(data.trip.id, inputs, planItemCount),
+    void Promise.all([
+      countPlanItems(data.categories.map((category) => category.id)).catch(
+        () => undefined,
+      ),
+      /*
+        여행자금을 언제 다 모았는지도 함께 넘긴다. '미리미리형' 은 지출이 아니라
+        준비 행동을 보는 유형이라 이 값이 없으면 절대 나오지 않는다.
+        ⚠️ 못 구하면 넘기지 않는다. 즉흥형과 같은 원칙이다.
+      */
+      fundReadyDaysBefore(data).catch(() => undefined),
+    ])
+      .then(([planItemCount, readyDays]) =>
+        ensureTripTypeResult(data.trip.id, inputs, planItemCount, readyDays),
       )
       .then(setTypeResult)
       // 유형은 부가 정보다. 실패해도 결산 영수증은 그대로 보여준다.

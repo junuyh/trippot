@@ -560,6 +560,14 @@ export const SPENDING_PROFILE_TYPE = {
    *    균형형에 섞이면 그 성취가 드러나지 않는다.
    */
   PLANNER: "planner",
+  /**
+   * 여행자금을 출발 한 달 전에 다 모은 여행. (2026-09-08 추가)
+   *
+   * ⚠️ 지출이 아니라 **자금 준비** 를 보는 유일한 유형이다.
+   *    핵심 루프(계획 → 준비 → 소비 → 결산)에서 '준비' 단계만 유형이 없었다.
+   *    입금 거래가 목표액에 닿은 날과 출발일의 간격으로 판정한다.
+   */
+  EARLY_SAVER: "early_saver",
 
   /** 뚜렷한 편차가 없을 때의 기본값 */
   BALANCED: "balanced",
@@ -902,5 +910,6 @@ export const SPENDING_PROFILE_TYPE_LABEL: Record<SpendingProfileType, string> =
     big_spender: "통 큰 여행자",
     spontaneous: "즉흥형",
     planner: "계획파",
+    early_saver: "미리미리형",
     balanced: "균형형",
   };

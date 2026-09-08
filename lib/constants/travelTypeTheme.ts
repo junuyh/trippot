@@ -96,6 +96,14 @@ export const TRAVEL_TYPE_THEME: Record<SpendingProfileType, TravelTypeTheme> = {
     nickname: '적어둔 대로 다녀온 사람',
     hook: '예산과 지출이 소수점까지 만났다.',
   },
+  [SPENDING_PROFILE_TYPE.EARLY_SAVER]: {
+    bg: '#5B8DEF',
+    ink: '#FFFFFF',
+    accent: '#FFE27A',
+    nameEn: 'EARLY SAVER',
+    nickname: '미리 다 모아둔 사람',
+    hook: '출발 한 달 전, 통장은 이미 준비 완료.',
+  },
   [SPENDING_PROFILE_TYPE.BALANCED]: {
     bg: '#F1EDE4',
     ink: '#1B2540',

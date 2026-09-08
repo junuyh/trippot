@@ -134,7 +134,11 @@ values
   -- 를 갈라 냈다. 자세한 근거는 lib/budget/travelType.ts 주석에 있다.
   ('0d000000-0000-4000-8000-000000000007', 'big_spender',     '통 큰 여행자', '계획을 15% 넘게 초과해 쓴 여행',          'type_big_spender', 'v2', true),
   ('0d000000-0000-4000-8000-000000000008', 'spontaneous',     '즉흥형',      '세부 계획을 거의 세우지 않고 다녀온 여행',   'type_spontaneous', 'v2', true),
-  ('0d000000-0000-4000-8000-000000000009', 'planner',         '계획파',      '계획과 실제가 ±5% 이내로 일치한 여행',     'type_planner',     'v2', true)
+  ('0d000000-0000-4000-8000-000000000009', 'planner',         '계획파',      '계획과 실제가 ±5% 이내로 일치한 여행',     'type_planner',     'v2', true),
+  -- 2026-09-08 추가 (rule_version v3)
+  -- 핵심 루프에서 '준비(자금 모으기)' 만 유형이 없었다. 입금이 목표액에 닿은 날이
+  -- 출발 30일 전이면 미리미리형. 지출이 아니라 준비 행동을 보는 두 번째 유형이다.
+  ('0d000000-0000-4000-8000-000000000010', 'early_saver',     '미리미리형',   '여행자금을 출발 한 달 전에 다 모은 여행',   'type_early_saver', 'v3', true)
 on conflict (code) do update
 set name         = excluded.name,
     description  = excluded.description,
