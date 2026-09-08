@@ -480,6 +480,13 @@ export default function ScreenTripHome() {
   }, [data?.memberNames]);
   const storyMembers = storyMembersText ?? storyMemberPresets[0]?.text ?? "";
 
+  /** 유형 신분증에 적는 기간. "2026.05.14 – 05.17" */
+  const tripPeriodLabel = useMemo(() => {
+    const trip = data?.trip;
+    if (!trip?.start_date || !trip?.end_date) return null;
+    return `${format(parseISO(trip.start_date), "yyyy.MM.dd")} – ${format(parseISO(trip.end_date), "MM.dd")}`;
+  }, [data?.trip]);
+
   /** 스토리 카드에 넘길 데이터. 티저(작은 미리보기)와 시트가 같은 값을 쓴다 */
   const storyCardBase = useMemo(() => {
     const trip = data?.trip;
@@ -887,6 +894,9 @@ export default function ScreenTripHome() {
               <TravelTypeCard
                 code={shownType.code}
                 accuracyBp={shownType.accuracyBp}
+                periodLabel={tripPeriodLabel}
+                topSpentLabel={record.topSpentLabel}
+                topSavedLabel={record.topSavedLabel}
                 destinationEn={
                   destinationMeta?.nameEn ??
                   (trip.destination ?? "TRIP").toUpperCase()
@@ -1071,6 +1081,10 @@ export default function ScreenTripHome() {
               evidence={shownType.evidence as TypeEvidenceRow[]}
               provisional={shownType.provisional}
               destinationKo={trip.destination ?? "여행"}
+              destinationEn={destinationMeta?.nameEn ?? ""}
+              periodLabel={tripPeriodLabel}
+              topSpentLabel={record.topSpentLabel}
+              topSavedLabel={record.topSavedLabel}
               onClose={() => setTypeOpen(false)}
               /*
                 확정 결과만 이미지로 만든다. 오버레이(pageSheet)를 닫고 시트를 연다.
@@ -1099,10 +1113,7 @@ export default function ScreenTripHome() {
                 code: shownType.code,
                 accuracyBp: shownType.accuracyBp,
                 destinationEn: destinationMeta?.nameEn ?? "",
-                periodLabel:
-                  trip.start_date && trip.end_date
-                    ? `${format(parseISO(trip.start_date), "yyyy.MM.dd")} – ${format(parseISO(trip.end_date), "MM.dd")}`
-                    : null,
+                periodLabel: tripPeriodLabel,
                 topSpentLabel: record.topSpentLabel,
                 topSavedLabel: record.topSavedLabel,
               }}

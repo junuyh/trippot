@@ -18,14 +18,14 @@
 // ⚠️ 이 컴포넌트는 supabase 도 track() 도 부르지 않는다. (CLAUDE.md 9장)
 // ⚠️ 잠정 결과는 이 카드로 만들지 않는다. 화면이 확정된 유형에만 시트를 연다.
 // ============================================================================
-import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
 
 import type { SpendingProfileType } from '@/lib/constants/status';
-import { SPENDING_PROFILE_TYPE_LABEL } from '@/lib/constants/status';
 import { TRAVEL_TYPE_COPY } from '@/lib/constants/travelTypeCopy';
 import { travelTypeTheme } from '@/lib/constants/travelTypeTheme';
+
+import { ID_CARD_INK, TypeIdCard } from './TypeIdCard';
 
 /** 미리보기 가로. 세로는 9:16. 캡처는 기기 배율(3x)로 810×1440 이다 */
 export const TYPE_STORY_WIDTH = 270;
@@ -34,14 +34,7 @@ export const TYPE_STORY_HEIGHT = Math.round((TYPE_STORY_WIDTH * 16) / 9);
 /** 열 유형 중 몇 번째인지 표시할 때 쓰는 총 개수 */
 const TYPE_COUNT = 10;
 const CARD_W = TYPE_STORY_WIDTH - 40;
-const INK = '#141b28';
-const MUTED = '#6b7280';
-/** 균형형은 바탕이 아이보리라 바탕색을 강조색으로 못 쓴다. 그때의 대체색 */
-const IVORY_BG = '#F1EDE4';
-const IVORY_ACCENT = '#FF6A78';
-
-/** 바코드 막대 폭. 고정 패턴이라 캡처마다 같다 */
-const BARS = [2, 1, 3, 1, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1, 1, 3, 1, 2, 2, 1, 3, 1, 1, 2, 1, 2, 3, 1, 1, 2];
+const INK = ID_CARD_INK;
 
 type Props = {
   code: SpendingProfileType;
@@ -67,11 +60,6 @@ export function TypeStoryCard({
 }: Props) {
   const theme = travelTypeTheme(code);
   const copy = TRAVEL_TYPE_COPY[code];
-  const label = SPENDING_PROFILE_TYPE_LABEL[code];
-  const accuracy = (accuracyBp / 100).toFixed(1).replace(/\.0$/, '');
-  const idNumber = `TP-${copy.no}-${theme.nameEn.replace(/\s+/g, '')}`;
-  /** 카드 안에서 유형색으로 강조할 때 쓰는 색 */
-  const stampColor = theme.bg === IVORY_BG ? IVORY_ACCENT : theme.bg;
 
   return (
     <View
@@ -138,127 +126,16 @@ export function TypeStoryCard({
       </View>
 
       {/* ── 신분증 ───────────────────────────────────────────────── */}
-      <View
-        style={{
-          position: 'absolute',
-          top: 136,
-          left: 20,
-          width: CARD_W,
-          borderRadius: 14,
-          backgroundColor: '#fff',
-          overflow: 'hidden',
-          transform: [{ rotate: '-2deg' }],
-          shadowColor: '#000',
-          shadowOpacity: 0.25,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 8,
-        }}
-      >
-        {/* 카드 머리띠 */}
-        <View
-          style={{
-            height: 26,
-            paddingHorizontal: 12,
-            backgroundColor: INK,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <Ionicons name="airplane" size={10} color="#fff" />
-            <Text style={{ fontSize: 8, fontWeight: '900', letterSpacing: 1.5, color: '#fff' }}>
-              TRAVELER ID
-            </Text>
-          </View>
-          <Text style={{ fontSize: 8, fontWeight: '700', letterSpacing: 1, color: '#fff' }}>
-            {idNumber}
-          </Text>
-        </View>
-
-        <View style={{ padding: 12, flexDirection: 'row', gap: 12 }}>
-          {/* 사진칸 */}
-          <View style={{ alignItems: 'center', gap: 4 }}>
-            <View
-              style={{
-                width: 64,
-                height: 78,
-                borderRadius: 8,
-                backgroundColor: theme.accent,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderWidth: 1,
-                borderColor: '#e5e7eb',
-              }}
-            >
-              <Text style={{ fontSize: 36 }}>{copy.emoji}</Text>
-            </View>
-            <Text style={{ fontSize: 7, fontWeight: '800', letterSpacing: 1, color: MUTED }}>
-              {theme.nameEn}
-            </Text>
-          </View>
-
-          {/* 항목 */}
-          <View style={{ flex: 1, gap: 6 }}>
-            <Field label="TYPE" value={label} big />
-            <Field label="NICKNAME" value={theme.nickname} />
-            <Field
-              label="TRIP"
-              value={[destinationEn, periodLabel].filter(Boolean).join('\n') || '—'}
-              lines={2}
-            />
-          </View>
-        </View>
-
-        {/* 영수증 줄 */}
-        <View
-          style={{
-            marginHorizontal: 12,
-            borderTopWidth: 1,
-            borderColor: '#e5e7eb',
-            borderStyle: 'dashed',
-            paddingVertical: 8,
-            flexDirection: 'row',
-          }}
-        >
-          <Stat label="예산 정확도" value={`${accuracy}%`} color={stampColor} />
-          <StatDivider />
-          <Stat label="최대 지출" value={topSpentLabel ?? '—'} />
-          <StatDivider />
-          <Stat label="절약 1위" value={topSavedLabel ?? '—'} />
-        </View>
-
-        {/* 바코드 */}
-        <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 1.5, height: 18 }}>
-            {BARS.map((width, index) => (
-              <View key={index} style={{ width, height: 18, backgroundColor: INK }} />
-            ))}
-          </View>
-          <Text style={{ marginTop: 3, fontSize: 6.5, letterSpacing: 2, color: MUTED }}>
-            {idNumber} · ISSUED BY TRIPPOT
-          </Text>
-        </View>
-
-        {/* VERIFIED 도장 */}
-        <View
-          style={{
-            position: 'absolute',
-            right: 10,
-            top: 34,
-            paddingHorizontal: 7,
-            paddingVertical: 3,
-            borderRadius: 4,
-            borderWidth: 1.5,
-            borderColor: stampColor,
-            transform: [{ rotate: '12deg' }],
-          }}
-        >
-          <Text style={{ fontSize: 7, fontWeight: '900', letterSpacing: 1, color: stampColor }}>
-            VERIFIED ✓
-          </Text>
-        </View>
+      <View style={{ position: 'absolute', top: 136, left: 20, width: CARD_W }}>
+        <TypeIdCard
+          code={code}
+          accuracyBp={accuracyBp}
+          destinationEn={destinationEn}
+          periodLabel={periodLabel}
+          topSpentLabel={topSpentLabel}
+          topSavedLabel={topSavedLabel}
+          tilted
+        />
       </View>
 
       {/* ── 한 줄 훅 + 해시태그 ─────────────────────────────────── */}
@@ -304,49 +181,4 @@ export function TypeStoryCard({
       </View>
     </View>
   );
-}
-
-function Field({
-  label,
-  value,
-  big = false,
-  lines = 1,
-}: {
-  label: string;
-  value: string;
-  big?: boolean;
-  lines?: number;
-}) {
-  return (
-    <View>
-      <Text style={{ fontSize: 6.5, fontWeight: '800', letterSpacing: 1, color: MUTED }}>{label}</Text>
-      <Text
-        style={{
-          marginTop: 1,
-          fontSize: big ? 15 : 10,
-          lineHeight: big ? 19 : 14,
-          fontWeight: big ? '900' : '700',
-          color: INK,
-        }}
-        numberOfLines={lines}
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function Stat({ label, value, color = INK }: { label: string; value: string; color?: string }) {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', gap: 1 }}>
-      <Text style={{ fontSize: 7, fontWeight: '700', color: MUTED }}>{label}</Text>
-      <Text style={{ fontSize: 12, fontWeight: '900', color }} numberOfLines={1}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function StatDivider() {
-  return <View style={{ width: 1, backgroundColor: '#e5e7eb', marginVertical: 2 }} />;
 }
