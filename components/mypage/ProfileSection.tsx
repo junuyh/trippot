@@ -27,7 +27,8 @@ type Props = {
  * Figma 의 좌/우 배치와 정보 위계(이름이 가장 큼)를 따른다.
  *
  * ⚠️ 계정 줄은 navigation 이 아니다. Pressable 도 chevron 도 두지 않는다.
- *    계정관리 화면이 확정되지 않아 이동할 곳이 없다.
+ *    계정관리(/me/account)는 아래 설정 메뉴에서 들어간다. 프로필 영역은
+ *    보여주는 곳이고, 고치는 곳은 한 군데여야 한다.
  */
 export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: Props) {
   // 이번 세션에서 고른 이미지가 최우선. 없으면 저장된 이미지, 그것도 없으면 기본 아이콘.
