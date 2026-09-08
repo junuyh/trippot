@@ -144,3 +144,96 @@ export async function updateNotificationSettings(
 
   if (error) throw error;
 }
+
+// ============================================================================
+// 최초 로그인 시 public.users 행 만들기
+//
+// ⚠️ public.users.id 는 auth.users(id) 를 참조한다. (init_schema.sql:37)
+//    그래서 별도 매핑 칼럼이 필요 없고 migration 도 필요 없다.
+//    Supabase 가 auth.users 를 만들지만 public.users 는 아무도 안 만든다.
+//
+// ⚠️ **매번 덮어쓰지 않는다.** 이미 행이 있으면 그대로 둔다.
+//    upsert 로 매 로그인마다 카카오 값을 밀어 넣으면, 앱에서 바꾼 프로필
+//    사진(MY-01 기능)이 로그인할 때마다 카카오 사진으로 되돌아간다.
+// ============================================================================
+
+/** 카카오가 준 값 중 우리가 쓰는 것만. */
+type OAuthProfile = {
+  name: string | null;
+  imageUrl: string | null;
+  provider: string | null;
+  providerUserId: string | null;
+};
+
+/**
+ * 세션에서 프로필을 뽑는다.
+ *
+ * ⚠️ 키 이름을 하나로 단정하지 않는다. Supabase 는 provider 응답을 정규화하면서
+ *    이름을 name / full_name / preferred_username 중 하나로, 사진을
+ *    avatar_url / picture 중 하나로 넣는다. 실제로 들어온 것을 쓴다.
+ *
+ * ⚠️ email · phone 은 읽지 않는다. 서비스에 필요하지 않은 개인정보를
+ *    저장하지 않는다.
+ */
+function readOAuthProfile(user: {
+  user_metadata?: Record<string, unknown>;
+  identities?: { provider: string; id: string }[] | null;
+}): OAuthProfile {
+  const meta = user.user_metadata ?? {};
+  const pick = (...keys: string[]): string | null => {
+    for (const key of keys) {
+      const value = meta[key];
+      if (typeof value === 'string' && value.trim() !== '') return value;
+    }
+    return null;
+  };
+
+  // 로그인에 쓴 provider 하나. 카카오만 쓰므로 사실상 첫 항목이다.
+  const identity = user.identities?.[0] ?? null;
+
+  return {
+    name: pick('name', 'full_name', 'preferred_username', 'nickname'),
+    imageUrl: pick('avatar_url', 'picture', 'profile_image_url'),
+    provider: identity?.provider ?? null,
+    providerUserId: identity?.id ?? null,
+  };
+}
+
+/**
+ * 로그인한 사용자의 public.users 행을 보장한다.
+ *
+ * 1. 있으면 아무것도 하지 않는다
+ * 2. 없을 때만 만든다
+ *
+ * ⚠️ name 은 NOT NULL 이다. 카카오가 닉네임을 주지 않는 경우
+ *    (동의항목 미설정·거부) 를 대비해 '여행자' 를 쓴다. 빈 문자열이나
+ *    id 조각을 넣지 않는다 — 화면 곳곳에 그대로 노출되는 값이다.
+ *    사용자는 나중에 프로필에서 바꿀 수 있다.
+ */
+export async function ensureUserProfile(user: {
+  id: string;
+  user_metadata?: Record<string, unknown>;
+  identities?: { provider: string; id: string }[] | null;
+}): Promise<void> {
+  const { data: existing, error: readError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (readError) throw readError;
+  if (existing) return;
+
+  const profile = readOAuthProfile(user);
+
+  const { error } = await supabase.from('users').insert({
+    id: user.id,
+    name: profile.name ?? '여행자',
+    profile_image_url: profile.imageUrl,
+    auth_provider: profile.provider,
+    auth_provider_user_id: profile.providerUserId,
+  });
+
+  // 같은 순간에 두 번 들어와 이미 만들어졌으면 그대로 둔다. (23505 = unique_violation)
+  if (error && error.code !== '23505') throw error;
+}

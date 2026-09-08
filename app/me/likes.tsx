@@ -14,27 +14,28 @@ import { View } from 'react-native';
 
 import { MyPostList } from '@/components/mypage';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { getMyLikedPosts, type MyPostListItem } from '@/lib/supabase/queries/community';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
 export default function ScreenMyLikes() {
+  const userId = useCurrentUserId();
   const router = useRouter();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [posts, setPosts] = useState<MyPostListItem[]>([]);
 
   const load = useCallback(async () => {
     try {
-      // TODO: 로그인 연동 시 교체
-      const rows = await getMyLikedPosts(DEV_USER_ID);
+      if (!userId) return;
+      const rows = await getMyLikedPosts(userId);
       setPosts(rows);
       setLoadState('ready');
     } catch {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   // 상세에서 좋아요를 누르거나 취소하고 돌아오면 목록이 달라져 있다.
   useFocusEffect(

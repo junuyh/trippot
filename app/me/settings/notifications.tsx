@@ -12,7 +12,7 @@ import { Alert } from 'react-native';
 
 import { NotificationSettingsList } from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import type { NotificationType } from '@/lib/constants/status';
 import {
   getNotificationSettings,
@@ -23,14 +23,15 @@ import {
 type LoadState = 'loading' | 'ready' | 'error';
 
 export default function ScreenNotificationSettings() {
+  const userId = useCurrentUserId();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      // TODO: 로그인 연동 시 교체
-      const stored = await getNotificationSettings(DEV_USER_ID);
+      if (!userId) return;
+      const stored = await getNotificationSettings(userId);
       if (!stored) {
         setLoadState('error');
         return;
@@ -41,7 +42,7 @@ export default function ScreenNotificationSettings() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -65,8 +66,8 @@ export default function ScreenNotificationSettings() {
     setSettings(updated);
     setSaving(true);
     try {
-      // TODO: 로그인 연동 시 교체
-      await updateNotificationSettings(DEV_USER_ID, updated);
+      if (!userId) return;
+      await updateNotificationSettings(userId, updated);
     } catch {
       setSettings(previous);
       Alert.alert('설정을 저장하지 못했어요', '잠시 후 다시 시도해 주세요.');
