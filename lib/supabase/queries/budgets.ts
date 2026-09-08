@@ -149,6 +149,27 @@ export async function updateBudgetCategory(
  * ⚠️ 관광지 추천 목록이 아니다. **이번 여행에서 돈을 쓸 계획 항목**이다. (docs/09 §2-3)
  *    '스시로 시부야 70,000원' 처럼 사용자가 직접 적는다.
  */
+/**
+ * 여행 전체의 세부 계획 개수.
+ *
+ * 여행 유형의 '즉흥형' 판정에 쓴다. (lib/budget/travelType.ts)
+ * 항목 내용은 필요 없고 개수만 필요해서 head 요청으로 센다.
+ *
+ * ⚠️ '여유 예산' 은 화면이 만들어 그리는 줄이라 여기 잡히지 않는다.
+ *    사용자가 실제로 넣은 계획만 센다. 그게 이 판정이 보려는 값이다.
+ */
+export async function countPlanItems(categoryIds: string[]): Promise<number> {
+  if (categoryIds.length === 0) return 0;
+
+  const { count, error } = await supabase
+    .from('budget_plan_items')
+    .select('id', { count: 'exact', head: true })
+    .in('budget_category_id', categoryIds);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function getBudgetPlanItems(categoryId: string): Promise<BudgetPlanItem[]> {
   const { data, error } = await supabase
     .from('budget_plan_items')

@@ -127,7 +127,14 @@ values
   ('0d000000-0000-4000-8000-000000000003', 'experience',      '체험형',      '액티비티·체험 지출 비중이 높은 여행',      'type_experience', 'v1', true),
   ('0d000000-0000-4000-8000-000000000004', 'shopping',        '쇼핑 중심형',  '쇼핑 지출 비중이 높은 여행',             'type_shopping',   'v1', true),
   ('0d000000-0000-4000-8000-000000000005', 'frugal',          '절약형',      '전 카테고리에서 계획보다 적게 쓴 여행',    'type_frugal',     'v1', true),
-  ('0d000000-0000-4000-8000-000000000006', 'balanced',        '균형형',      '뚜렷한 편차가 없을 때의 기본값',          'type_balanced',   'v1', true)
+  ('0d000000-0000-4000-8000-000000000006', 'balanced',        '균형형',      '뚜렷한 편차가 없을 때의 기본값',          'type_balanced',   'v1', true),
+  -- 2026-09-08 추가 (rule_version v2)
+  -- 축이 '어디에 더 썼나' 하나뿐이라 나머지가 전부 균형형으로 떨어졌다.
+  -- 얼마나 썼나(big_spender) · 얼마나 맞췄나(planner) · 어떻게 준비했나(spontaneous)
+  -- 를 갈라 냈다. 자세한 근거는 lib/budget/travelType.ts 주석에 있다.
+  ('0d000000-0000-4000-8000-000000000007', 'big_spender',     '통 큰 여행자', '계획을 15% 넘게 초과해 쓴 여행',          'type_big_spender', 'v2', true),
+  ('0d000000-0000-4000-8000-000000000008', 'spontaneous',     '즉흥형',      '세부 계획을 거의 세우지 않고 다녀온 여행',   'type_spontaneous', 'v2', true),
+  ('0d000000-0000-4000-8000-000000000009', 'planner',         '계획파',      '계획과 실제가 ±5% 이내로 일치한 여행',     'type_planner',     'v2', true)
 on conflict (code) do update
 set name         = excluded.name,
     description  = excluded.description,

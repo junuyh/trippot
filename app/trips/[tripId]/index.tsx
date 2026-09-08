@@ -76,6 +76,7 @@ import {
   updateBudgetCategoriesPrepared,
   type BudgetCategory,
   type TripBudget,
+  countPlanItems,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
 import { getGroupById } from "@/lib/supabase/queries/groups";
@@ -256,14 +257,24 @@ export default function ScreenTripHome() {
    */
   useEffect(() => {
     if (!data || data.trip.status !== TRIP_STATUS.SETTLED) return;
-    void ensureTripTypeResult(
-      data.trip.id,
-      data.categories.map((category) => ({
-        categoryCode: category.category_code as CategoryCode,
-        plannedAmount: category.planned_amount,
-        actualAmount: category.actual_amount,
-      })),
-    )
+    const inputs = data.categories.map((category) => ({
+      categoryCode: category.category_code as CategoryCode,
+      plannedAmount: category.planned_amount,
+      actualAmount: category.actual_amount,
+    }));
+
+    /*
+      세부 계획 개수를 함께 넘긴다. '즉흥형' 은 지출이 아니라 준비 행동을 보는
+      유일한 유형이라 이 값이 없으면 절대 나오지 않는다.
+
+      ⚠️ 개수를 못 세면 넘기지 않는다. 세어 보지도 않고 '계획을 안 세웠다' 고
+         단정하면 안 된다. 그 경우 나머지 여덟 유형으로만 판정된다.
+    */
+    void countPlanItems(data.categories.map((category) => category.id))
+      .catch(() => undefined)
+      .then((planItemCount) =>
+        ensureTripTypeResult(data.trip.id, inputs, planItemCount),
+      )
       .then(setTypeResult)
       // 유형은 부가 정보다. 실패해도 결산 영수증은 그대로 보여준다.
       .catch(() => undefined);
