@@ -21,7 +21,7 @@ import { MyTripListView, type MyTripFilter, type MyTripItem } from '@/components
 import { ErrorState, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
 import { countryTheme } from '@/lib/constants/countryTheme';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import {
   ENTRY_POINT,
@@ -52,6 +52,7 @@ function toFilter(value: string | undefined): MyTripFilter {
 }
 
 export default function ScreenMY02() {
+  const userId = useCurrentUserId();
   useScreenView(SCREENS.MY_TRIPS);
 
   const router = useRouter();
@@ -66,8 +67,7 @@ export default function ScreenMY02() {
   const load = useCallback(async () => {
     setLoadState('loading');
     try {
-      // TODO: 로그인 연동 시 교체
-      const userId = DEV_USER_ID;
+      if (!userId) return;
 
       const [nextTrips, nextGroups] = await Promise.all([
         getTripsWithSummary(userId),
@@ -80,7 +80,7 @@ export default function ScreenMY02() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     void load();

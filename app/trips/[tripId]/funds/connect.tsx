@@ -35,8 +35,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  Loading,
-} from "@/components/ui";
+  Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { institutionName } from "@/lib/constants/bank";
@@ -55,6 +54,7 @@ import {
 } from "@/lib/supabase/queries/funds";
 import { getFundTotals } from "@/lib/supabase/queries/transactions";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import { useTripContext } from '@/lib/hooks/useTripContext';
 
 type ConnectData = {
   trip: Trip;
@@ -70,6 +70,8 @@ function won(value: number): string {
 
 export default function ScreenFUND02() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<ConnectData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -207,6 +209,9 @@ export default function ScreenFUND02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <Loading message="계좌 정보를 불러오는 중…" />
       </View>
@@ -216,6 +221,9 @@ export default function ScreenFUND02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <EmptyState
           icon="card-outline"
@@ -231,6 +239,9 @@ export default function ScreenFUND02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <ErrorState
           message="계좌 정보를 불러오지 못했어요."
@@ -257,6 +268,9 @@ export default function ScreenFUND02() {
       >
         <Stack.Screen
           options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: connected ? "연결 계좌 관리" : "계좌 연결" }}
         />
 

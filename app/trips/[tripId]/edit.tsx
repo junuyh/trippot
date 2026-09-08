@@ -23,10 +23,11 @@ import { useCallback, useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 
 import { TripEditForm } from "@/components/trip-edit";
-import { EmptyState, ErrorState, Loading } from "@/components/ui";
+import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { DEV_USER_ID } from "@/lib/constants/devUser";
 import { TRIP_OWNER_TYPE, TRIP_STATUS } from "@/lib/constants/status";
 import { getMyGroups, type Group } from "@/lib/supabase/queries/groups";
+import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
   getTripById,
   updateTrip,
@@ -35,6 +36,8 @@ import {
 
 export default function ScreenTripEdit() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -124,7 +127,10 @@ export default function ScreenTripEdit() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 정보 수정" }} />
+        <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 정보 수정" }} />
         <Loading message="여행 정보를 불러오는 중…" />
       </View>
     );
@@ -132,7 +138,10 @@ export default function ScreenTripEdit() {
   if (notFound || !trip) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 정보 수정" }} />
+        <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 정보 수정" }} />
         <EmptyState
           icon="airplane-outline"
           title="여행을 찾을 수 없어요"
@@ -146,7 +155,10 @@ export default function ScreenTripEdit() {
   if (error) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 정보 수정" }} />
+        <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 정보 수정" }} />
         <ErrorState
           message="여행 정보를 불러오지 못했어요."
           onRetry={() => void load()}
@@ -162,7 +174,10 @@ export default function ScreenTripEdit() {
   ) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 정보 수정" }} />
+        <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 정보 수정" }} />
         <EmptyState
           icon="lock-closed-outline"
           title="끝난 여행은 고칠 수 없어요"
@@ -190,7 +205,10 @@ export default function ScreenTripEdit() {
       }}
       keyboardShouldPersistTaps="handled"
     >
-      <Stack.Screen options={{ title: "여행 정보 수정" }} />
+      <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 정보 수정" }} />
       <TripEditForm
         destination={trip.destination ?? "여행"}
         startDate={startDate}

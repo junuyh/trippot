@@ -36,7 +36,7 @@ import {
 } from '@/components/groups';
 import { EmptyState, ErrorState, Header, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { ENTRY_POINT } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import {
@@ -94,6 +94,8 @@ type Row = {
 };
 
 export default function ScreenGROUP01() {
+  // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
+  const userId = useCurrentUserId();
   useScreenView(SCREENS.GROUP_LIST);
 
   const router = useRouter();
@@ -122,8 +124,7 @@ export default function ScreenGROUP01() {
 
   const load = useCallback(async () => {
     try {
-      // TODO: 로그인 연동 시 교체
-      const userId = DEV_USER_ID;
+      if (!userId) return;
 
       // 숨김 제외·정렬·정렬 모드 판정까지 쿼리가 끝낸다.
       // getMyGroups() 는 HOME-01·TRIP-01 도 쓰므로 건드리지 않는다.
@@ -171,7 +172,7 @@ export default function ScreenGROUP01() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   // 여행 생성에서 모임을 새로 만들고 탭으로 돌아오면 목록이 달라져 있다.
   // ⚠️ 편집 중에는 다시 읽지 않는다. 선택과 순서를 잡아둔 상태가 초기화된다.
@@ -239,8 +240,7 @@ export default function ScreenGROUP01() {
 
     setSaving(true);
     try {
-      // TODO: 로그인 연동 시 교체
-      const userId = DEV_USER_ID;
+      if (!userId) return;
 
       // sort_order 를 함께 보낸다. upsert 는 빠뜨린 칼럼을 기본값으로 덮어쓴다.
       const items = rows
@@ -257,21 +257,21 @@ export default function ScreenGROUP01() {
     } finally {
       setSaving(false);
     }
-  }, [load, recoverFromFailure, rows, saving, selectedIds]);
+  }, [load, recoverFromFailure, rows, saving, selectedIds, userId]);
 
   // ── 숨긴 모임 ──────────────────────────────────────────────────────────
   const loadHiddenGroups = useCallback(async () => {
     setHiddenLoading(true);
     try {
-      // TODO: 로그인 연동 시 교체
-      const groups = await getHiddenGroups(DEV_USER_ID);
+      if (!userId) return;
+      const groups = await getHiddenGroups(userId);
       setHiddenGroups(groups.map((group) => ({ groupId: group.id, name: group.name })));
     } catch {
       setHiddenGroups([]);
     } finally {
       setHiddenLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   function handleOpenHidden() {
     setHiddenSheetOpen(true);
@@ -284,8 +284,7 @@ export default function ScreenGROUP01() {
 
       setSaving(true);
       try {
-        // TODO: 로그인 연동 시 교체
-        const userId = DEV_USER_ID;
+        if (!userId) return;
 
         // 원래 위치로 되돌리지 않는다. '목록에 다시 추가' 다.
         // ⚠️ sort_order 는 항상 null 로 둔다. GROUP-01 정렬에서 더 이상 쓰지 않는다.
@@ -299,7 +298,7 @@ export default function ScreenGROUP01() {
         setSaving(false);
       }
     },
-    [load, loadHiddenGroups, recoverFromFailure, saving],
+    [load, loadHiddenGroups, recoverFromFailure, saving, userId],
   );
 
   // ── 4상태 ──────────────────────────────────────────────────────────────

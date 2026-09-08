@@ -15,7 +15,7 @@ import { useCallback, useState } from 'react';
 
 import { NotificationList } from '@/components/mypage';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { buildDemoNotifications, isDemoNotification } from '@/lib/notifications/demoMock';
 import {
   deleteNotification,
@@ -27,14 +27,15 @@ import {
 type LoadState = 'loading' | 'ready' | 'error';
 
 export default function ScreenNotifications() {
+  const userId = useCurrentUserId();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const load = useCallback(async () => {
     try {
-      // TODO: 로그인 연동 시 교체
+      if (!userId) return;
       // 이미 created_at DESC 로 정렬돼 온다. 화면에서 다시 정렬하지 않는다.
-      const rows = await getNotifications(DEV_USER_ID);
+      const rows = await getNotifications(userId);
 
       // ⚠️ [중간점검 발표용] 개발 환경에서 **실제 알림이 0건일 때만** 목업을 띄운다.
       //    실제 데이터가 있으면 언제나 그쪽이 우선이고, 배포 빌드에서는
@@ -46,7 +47,7 @@ export default function ScreenNotifications() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -84,9 +85,9 @@ export default function ScreenNotifications() {
     );
 
     try {
-      // TODO: 로그인 연동 시 교체
+      if (!userId) return;
       // 화면 시각이 아니라 DB 가 돌려준 값으로 맞춘다.
-      const readAt = await markNotificationAsRead(notification.id, DEV_USER_ID);
+      const readAt = await markNotificationAsRead(notification.id, userId);
       setNotifications((prev) =>
         prev.map((row) => (row.id === notification.id ? { ...row, read_at: readAt } : row)),
       );
@@ -113,8 +114,8 @@ export default function ScreenNotifications() {
     if (isDemoNotification(notification.id)) return;
 
     try {
-      // TODO: 로그인 연동 시 교체
-      await deleteNotification(notification.id, DEV_USER_ID);
+      if (!userId) return;
+      await deleteNotification(notification.id, userId);
     } catch {
       setNotifications(previous);
     }

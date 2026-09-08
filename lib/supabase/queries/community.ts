@@ -712,3 +712,51 @@ export async function getMyLikedPosts(
     publishedAt: row.community_posts.published_at,
   }));
 }
+
+/** MY '작성한 댓글' 목록 한 줄. */
+export type MyCommentListItem = {
+  commentId: string;
+  content: string;
+  createdAt: string;
+  /** 이 댓글이 달린 글. 누르면 그 글로 간다. */
+  postId: string;
+  postTitle: string;
+};
+
+/**
+ * 내가 쓴 댓글. 최신순으로.
+ *
+ * ⚠️ getComments 와 다르다. 그쪽은 글 하나의 댓글을 오래된 것부터 주고,
+ *    여기는 한 사람이 여러 글에 쓴 댓글을 최신순으로 준다.
+ *
+ * ⚠️ community_posts 를 **!inner** 로 붙인다. 바깥 조인이면 지워진 글에 달린
+ *    댓글이 글 제목 없이 남아 빈 줄이 된다. (getMyLikedPosts 와 같은 이유)
+ *
+ * ⚠️ 글 쪽도 PUBLISHED · VISIBLE_POST_TYPES 로 거른다. 상세가 열리지 않는
+ *    글의 댓글을 목록에 두면 눌렀을 때 '찾을 수 없는 글' 로 떨어진다.
+ *    (getMyPosts · getMyLikedPosts 와 같은 판단)
+ */
+export async function getMyComments(
+  userId: string,
+  limit = 50,
+): Promise<MyCommentListItem[]> {
+  const { data, error } = await supabase
+    .from('comments')
+    .select('id, content, created_at, community_posts!inner(id, title, post_type, status)')
+    .eq('author_user_id', userId)
+    .eq('status', COMMENT_STATUS.PUBLISHED)
+    .eq('community_posts.status', POST_STATUS.PUBLISHED)
+    .in('community_posts.post_type', [...VISIBLE_POST_TYPES])
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    commentId: row.id,
+    content: row.content,
+    createdAt: row.created_at,
+    postId: row.community_posts.id,
+    postTitle: row.community_posts.title,
+  }));
+}

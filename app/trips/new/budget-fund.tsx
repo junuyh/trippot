@@ -59,9 +59,13 @@ import { buildPastAdjustments, bpToPercent, applyBp, type PastAdjustment } from 
 import { CATEGORY_ORDER, perPerson } from '@/lib/budget/recommendation';
 import {
   getDefaultProductIds,
-  getProductCategory,
-  sumSelectedRatio,
 } from '@/lib/constants/budgetProducts';
+import {
+  resolveProductCategory,
+  sumResolvedRatio,
+  type CategoryBase,
+  type ProductOverrides,
+} from '@/lib/budget/productLocalization';
 import { buildBudgetRecommendation } from '@/lib/budget/recommendation';
 // TODO: 로그인 연동 시 교체
 import { DEV_USER_ID } from '@/lib/constants/devUser';
@@ -93,6 +97,7 @@ import {
   type SpendingProfile,
 } from '@/lib/supabase/queries/personalization';
 import { createTripBundle, getMyTripCount } from '@/lib/supabase/queries/trips';
+import { getLocalizedBudgetProducts } from '@/lib/supabase/queries/budgetProducts';
 
 export default function ScreenTRIP03() {
   useScreenView(SCREENS.TRIP_CREATE_BUDGET);
@@ -225,17 +230,120 @@ export default function ScreenTRIP03() {
   // 사용자가 개별로 뺀 카테고리. '빼기' 를 누른 것만 들어간다.
   const [droppedCategories, setDroppedCategories] = useState<Set<CategoryCode>>(new Set());
 
-  const toEditable = useCallback(
-    (source: NonNullable<typeof recommendation>): EditableCategory[] =>
-      source.categories.map((c) => ({
+  // ── 근거 상품 여행지 맞춤 ─────────────────────────────────────────────
+  //
+  // 카탈로그의 '4성급 호텔' 을 '파리 시내 3성 호텔' 로, 금액까지 함께 받아온다.
+  // 응답이 없으면 빈 Map 이고, 그러면 화면은 카탈로그 그대로 돈다.
+  // (lib/budget/productLocalization.ts)
+  const [aiProducts, setAiProducts] = useState<ProductOverrides>(() => new Map());
+  /*
+    ⚠️ pastLoading 과 같은 이유로 로딩 중에는 금액을 보여주지 않는다.
+       AI 응답이 도착하면 상품 이름도 금액도 바뀐다. 사용자가 이미 큰 숫자를
+       본 뒤에 그게 조용히 달라지면, 무엇이 진짜 추천인지 알 수 없다.
+  */
+  const [aiLoading, setAiLoading] = useState(false);
+
+  /**
+   * 카테고리별 기준 금액. 가드레일의 분모이자 AI 에게 주는 자릿수 기준점이다.
+   * 예비비는 상품이 없어 요청에서 알아서 빠진다.
+   */
+  const productBases = useMemo<CategoryBase[]>(
+    () =>
+      (recommendation?.categories ?? []).map((c) => ({
         categoryCode: c.categoryCode,
-        recommendedAmount: c.recommendedAmount,
-        plannedAmount: c.recommendedAmount,
-        basis: c.basis,
-        formula: c.formula,
         baseAmount: c.baseAmount,
-        multiplier: c.multiplier,
+        formula: c.formula,
       })),
+    [recommendation],
+  );
+
+  useEffect(() => {
+    if (!recommendation || !draft.destinationName || !draft.travelStyle) {
+      setAiProducts(new Map());
+      setAiLoading(false);
+      return;
+    }
+
+    // ⚠️ 늦게 도착한 응답이 새 조건의 결과를 덮지 않게 한다. 스타일을 바꾸면
+    //    이 효과가 다시 도는데, 먼저 건 요청이 나중에 올 수 있다.
+    let alive = true;
+    setAiLoading(true);
+
+    getLocalizedBudgetProducts(
+      {
+        destination: draft.destinationName,
+        // 목록에서 고른 목적지면 그 코드, 직접 입력이면 지역이 캐시 열쇠다.
+        destinationKey: draft.destinationCode ?? `region:${draft.region ?? 'asia'}`,
+        days: recommendation.days,
+        nights: recommendation.nights,
+        headcount: draft.headcount,
+        travelStyle: draft.travelStyle,
+      },
+      productBases,
+    )
+      .then((result) => {
+        if (!alive) return;
+        setAiProducts(result.overrides);
+      })
+      .catch(() => {
+        // 실패로 여행 생성을 막지 않는다. 카탈로그로 간다.
+        if (!alive) return;
+        setAiProducts(new Map());
+      })
+      .finally(() => {
+        if (alive) setAiLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [
+    draft.destinationCode,
+    draft.destinationName,
+    draft.headcount,
+    draft.region,
+    draft.travelStyle,
+    productBases,
+    recommendation,
+  ]);
+
+  /**
+   * 추천 결과를 편집 가능한 형태로 옮긴다.
+   *
+   * ⚠️ AI 가 상품 금액을 다시 매겼으면 **추천 원본도 그 조합으로 다시 낸다.**
+   *    buildBudgetRecommendation 의 값은 카탈로그 배수로 계산된 것이라,
+   *    그대로 두면 화면에 '추천 158만원' 이라고 적혀 있는데 아래 상품 카드
+   *    합계는 172만원인 상태가 된다. 두 숫자가 서로 다른 말을 한다.
+   *
+   *    이렇게 해도 recommended_amount 규칙은 그대로다. 이 값은 사용자가
+   *    금액을 보기 전에 정해지고, 저장된 뒤에는 바뀌지 않는다. (CLAUDE.md 4장)
+   *    사용자가 화면에서 본 추천이 곧 저장되는 추천 원본이다.
+   */
+  const toEditable = useCallback(
+    (
+      source: NonNullable<typeof recommendation>,
+      overrides: ProductOverrides,
+    ): EditableCategory[] => {
+      const defaults = getDefaultProductIds(source.basis.style);
+
+      return source.categories.map((c) => {
+        // 상품이 없는 카테고리(예비비)와 AI 응답이 없을 때는 원래 값 그대로다.
+        const ratio =
+          overrides.size > 0 ? sumResolvedRatio(c.categoryCode, defaults, overrides) : 0;
+        const recommendedAmount =
+          ratio > 0 ? Math.round((c.baseAmount * ratio) / 1000) * 1000 : c.recommendedAmount;
+
+        return {
+          categoryCode: c.categoryCode,
+          recommendedAmount,
+          plannedAmount: recommendedAmount,
+          basis: c.basis,
+          formula: c.formula,
+          baseAmount: c.baseAmount,
+          multiplier: c.multiplier,
+        };
+      });
+    },
     [],
   );
 
@@ -250,15 +358,19 @@ export default function ScreenTRIP03() {
     (total: number) => {
       if (!recommendation || recommendation.totalAmount === 0) return;
 
-      const ratio = total / recommendation.totalAmount;
-      const next = recommendation.categories.map((c) => ({
-        categoryCode: c.categoryCode,
-        recommendedAmount: c.recommendedAmount,
+      /*
+        ⚠️ recommendation.categories 를 직접 쓰지 않는다. AI 가 상품 금액을
+           다시 매겼으면 추천 원본도 달라져 있다. 옛 비율로 나누면 배분 결과가
+           화면의 추천 금액과 어긋난다.
+      */
+      const base = toEditable(recommendation, aiProducts);
+      const baseTotal = base.reduce((sum, c) => sum + c.recommendedAmount, 0);
+      if (baseTotal === 0) return;
+
+      const ratio = total / baseTotal;
+      const next = base.map((c) => ({
+        ...c,
         plannedAmount: Math.round((c.recommendedAmount * ratio) / 1000) * 1000,
-        basis: c.basis,
-        formula: c.formula,
-        baseAmount: c.baseAmount,
-        multiplier: c.multiplier,
       }));
 
       const drift = total - next.reduce((sum, c) => sum + c.plannedAmount, 0);
@@ -269,7 +381,7 @@ export default function ScreenTRIP03() {
 
       setCategories(next);
     },
-    [recommendation],
+    [aiProducts, recommendation, toEditable],
   );
 
   /**
@@ -306,16 +418,17 @@ export default function ScreenTRIP03() {
       setTotalEditing(true);
       applyUserTotal(current);
     } else {
-      setUserTotal(recommendation.totalAmount);
+      const back = toEditable(recommendation, aiProducts);
+      setUserTotal(back.reduce((sum, c) => sum + c.recommendedAmount, 0));
       setUserTotalDraft(null);
       setTotalEditing(false);
-      setCategories(toEditable(recommendation));
+      setCategories(back);
     }
 
     track(EVENTS.BUDGET_METHOD_SELECTED, {
       method: BUDGET_METHOD_TO_ANALYTICS[next],
     });
-  }, [applyUserTotal, categories, method, recommendation, toEditable]);
+  }, [aiProducts, applyUserTotal, categories, method, recommendation, toEditable]);
 
   /**
    * '이 금액으로 적용'. **여기서만** 입력값이 예산에 반영된다.
@@ -351,13 +464,28 @@ export default function ScreenTRIP03() {
    *    되면서 카테고리를 깔아 줄 사람이 사라졌기 때문이다. 예전에는 예산 방식을
    *    고르는 순간 handleSelectMethod 가 깔았다.
    */
-  const syncedRef = useRef<typeof recommendation>(null);
+  /*
+    ⚠️ 추천뿐 아니라 **AI 상품 응답이 도착했을 때도** 다시 깔아야 한다.
+       응답은 추천이 만들어진 뒤에 온다. recommendation 만 보고 있으면
+       상품 카드 이름은 '파리 시내 3성 호텔' 로 바뀌었는데 카테고리 금액은
+       카탈로그 배수로 계산된 옛 숫자가 그대로 남는다.
+  */
+  const syncedRef = useRef<unknown>(null);
   useEffect(() => {
-    if (syncedRef.current === recommendation) return;
-    syncedRef.current = recommendation;
+    const key = { recommendation, aiProducts };
+    const previous = syncedRef.current as typeof key | null;
+    if (
+      previous &&
+      previous.recommendation === recommendation &&
+      previous.aiProducts === aiProducts
+    ) {
+      return;
+    }
+    syncedRef.current = key;
     if (!recommendation) return;
 
-    setCategories(toEditable(recommendation));
+    const next = toEditable(recommendation, aiProducts);
+    setCategories(next);
     setEditingCode(CATEGORY_ORDER[0]);
 
     // 상품 선택과 예비비 비율도 함께 되돌린다.
@@ -371,9 +499,11 @@ export default function ScreenTRIP03() {
       // 사용자가 정한 총액은 조건이 바뀌어도 그대로다. 새 추천 비율로 다시 나눈다.
       applyUserTotal(userTotal);
     } else {
-      setUserTotal(recommendation.totalAmount);
+      // ⚠️ recommendation.totalAmount 가 아니라 방금 깐 카테고리의 합이다.
+      //    AI 가 상품 금액을 다시 매겼으면 둘이 다르다.
+      setUserTotal(next.reduce((sum, c) => sum + c.recommendedAmount, 0));
     }
-  }, [applyUserTotal, method, recommendation, toEditable, userTotal]);
+  }, [aiProducts, applyUserTotal, method, recommendation, toEditable, userTotal]);
 
   const handleChangeCategoryAmount = useCallback((categoryCode: CategoryCode, amount: number) => {
     setCategories((prev) =>
@@ -422,7 +552,7 @@ export default function ScreenTRIP03() {
       adjustments: Map<CategoryCode, PastAdjustment>,
     ): number => {
       const adjustment = adjustments.get(category.categoryCode);
-      const catalog = getProductCategory(category.categoryCode);
+      const catalog = resolveProductCategory(category.categoryCode, aiProducts);
 
       // 예비비는 상품이 없다. 기준 금액에 바로 편차를 얹는다.
       //
@@ -435,13 +565,14 @@ export default function ScreenTRIP03() {
       }
 
       const fromProducts =
-        Math.round((category.baseAmount * sumSelectedRatio(category.categoryCode, ids)) / 1000) *
-        1000;
+        Math.round(
+          (category.baseAmount * sumResolvedRatio(category.categoryCode, ids, aiProducts)) / 1000,
+        ) * 1000;
 
       if (!adjustment || dropped.has(category.categoryCode)) return fromProducts;
       return applyBp(fromProducts, adjustment.appliedBp);
     },
-    [contingencyChoice],
+    [aiProducts, contingencyChoice],
   );
 
   /**
@@ -514,7 +645,7 @@ export default function ScreenTRIP03() {
   const methodLoggedRef = useRef(false);
   useEffect(() => {
     if (methodLoggedRef.current) return;
-    if (!recommendation || pastLoading) return;
+    if (!recommendation || pastLoading || aiLoading) return;
     methodLoggedRef.current = true;
 
     track(EVENTS.BUDGET_METHOD_SELECTED, {
@@ -523,7 +654,7 @@ export default function ScreenTRIP03() {
     // method 는 진입 시점 값(기본 recommended)만 필요하다. 이후 변경은
     // handleToggleMethod 가 따로 쏜다. 여기서 다시 돌면 중복이라 deps 에 넣지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pastLoading, recommendation]);
+  }, [aiLoading, pastLoading, recommendation]);
 
   /**
    * 개인화 제안 노출. 흐름당 1회다.
@@ -692,7 +823,7 @@ export default function ScreenTRIP03() {
    */
   const handleToggleProduct = useCallback(
     (categoryCode: CategoryCode, productId: string) => {
-      const catalog = getProductCategory(categoryCode);
+      const catalog = resolveProductCategory(categoryCode, aiProducts);
       if (!catalog) return;
 
       // ⚠️ setState 업데이터 안에서 계산하지 않는다. 로그를 남겨야 하는데
@@ -732,7 +863,7 @@ export default function ScreenTRIP03() {
         to_amount: toAmount,
       });
     },
-    [adjustmentByCode, categories, computeAmount, droppedCategories, selectedProductIds],
+    [adjustmentByCode, aiProducts, categories, computeAmount, droppedCategories, selectedProductIds],
   );
 
   /**
@@ -782,14 +913,14 @@ export default function ScreenTRIP03() {
       categories.map((category) => {
         const adjustment = adjustmentByCode.get(category.categoryCode);
         const dropped = droppedCategories.has(category.categoryCode);
-        const catalog = getProductCategory(category.categoryCode);
+        const catalog = resolveProductCategory(category.categoryCode, aiProducts);
 
         // 편차를 얹기 전 금액. 화면의 '선택한 상품 합계' 와 같은 값이다.
         // 예비비는 상품이 없으므로 기준 금액이 곧 추천 금액이다.
         const adjustmentBase = catalog
           ? Math.round(
               (category.baseAmount *
-                sumSelectedRatio(category.categoryCode, selectedProductIds)) /
+                sumResolvedRatio(category.categoryCode, selectedProductIds, aiProducts)) /
                 1000,
             ) * 1000
           : category.recommendedAmount;
@@ -831,16 +962,31 @@ export default function ScreenTRIP03() {
           isManual: manualCategories.has(category.categoryCode),
           // 지난 여행 반영을 얹기 전, 고른 상품만의 합계다.
           productSubtotal: adjustmentBase,
+          /*
+            ⚠️ 화면 단위가 아니라 **카테고리 단위**로 판정한다.
+               쿼터나 시간 초과로 일부 카테고리만 오는 일이 흔한데,
+               화면 단위로 켜면 카탈로그 이름이 그대로인 교통 카드에도
+               '이 여행지에 맞춰 만들었다' 가 붙는다. 거짓말이 된다.
+          */
+          productsFromAi: catalog.products.some((product) => aiProducts.has(product.id)),
           products: catalog.products.map((product) => ({
             id: product.id,
             name: product.name,
             emoji: product.emoji,
+            note: aiProducts.get(product.id)?.note || undefined,
             amount: Math.round((category.baseAmount * product.ratio) / 1000) * 1000,
             selected: selectedProductIds.has(product.id),
           })),
         };
       }),
-    [adjustmentByCode, categories, droppedCategories, manualCategories, selectedProductIds],
+    [
+      adjustmentByCode,
+      aiProducts,
+      categories,
+      droppedCategories,
+      manualCategories,
+      selectedProductIds,
+    ],
   );
 
   const targetTotal = useMemo(
@@ -925,7 +1071,7 @@ export default function ScreenTRIP03() {
    *
    * 과거 집계를 기다리는 동안에는 열지 않는다. 금액이 조용히 달라지면 안 된다.
    */
-  const showBudgetDetail = !pastLoading && categories.length > 0;
+  const showBudgetDetail = !pastLoading && !aiLoading && categories.length > 0;
 
   /*
     ⚠️ 여행자금 때문에 CTA 를 막지 않는다.
@@ -1179,9 +1325,15 @@ export default function ScreenTRIP03() {
       </Pressable>
 
       {/* ── ① 추천 결과 ── 고르기 전에 답을 먼저 준다 ── */}
-      {pastLoading ? (
+      {pastLoading || aiLoading ? (
         <View className="mt-5 items-center rounded-2xl border border-gray-200 py-8">
-          <Text className="text-sm text-gray-400">지난 여행 기록을 확인하는 중…</Text>
+          {/*
+            무엇을 기다리는지 그대로 말한다. 둘 다 도는 동안 '지난 여행' 만
+            보여주면 여행 기록이 없는 사용자는 왜 기다리는지 알 수 없다.
+          */}
+          <Text className="text-sm text-gray-400">
+            {pastLoading ? '지난 여행 기록을 확인하는 중…' : '여행지에 맞는 예산을 짜는 중…'}
+          </Text>
         </View>
       ) : (
         <BudgetResultHero
