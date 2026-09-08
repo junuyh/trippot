@@ -12,11 +12,12 @@
 // ============================================================================
 
 /**
- * 화면 진입 로깅에 쓰는 screen_name 값. docs/06 v2 §7-0 — 17개.
+ * 화면 진입 로깅에 쓰는 screen_name 값. docs/06 v4 §7-0 — 18개.
  *
- * ⚠️ 아래 고도화 7화면은 아직 값이 없다. 임의로 추가하지 않는다.
- *    FUND-02 · CONTRIB-01 · TYPE-01 · COMM-03 · COMM-04 · INSURANCE-01 · MY-03
- *    해당 화면 구현(2026-09-07~) 시점에 docs/06 을 v3로 갱신한 뒤 추가한다.
+ * ⚠️ 아래 고도화 6화면은 아직 값이 없다. 임의로 추가하지 않는다.
+ *    FUND-02 · CONTRIB-01 · TYPE-01 · COMM-03 · COMM-04 · MY-03
+ *    (INSURANCE-01 은 2026-09-07 화면 구현과 함께 SCREENS.INSURANCE 로 추가됨)
+ *    해당 화면을 구현하는 시점에 docs/06 을 다음 버전으로 갱신한 뒤 추가한다.
  */
 export const SCREENS = {
   HOME: "home",
@@ -31,6 +32,14 @@ export const SCREENS = {
   TRANSACTION_LIST: "transaction_list",
   TRANSACTION_DETAIL: "transaction_detail",
   SETTLEMENT: "settlement",
+  /**
+   * INSURANCE-01. 보험 제휴 안내.
+   *
+   * ⚠️ 이 값이 insurance_cta_clicked 의 **분모**다. 화면 진입을 세지 않으면
+   *    클릭 수만 남아 BM 1 의 견적 확인률을 낼 수 없다.
+   *    (docs/06_이벤트로그정의서_v4.md §7-7)
+   */
+  INSURANCE: "insurance",
   TIP_LIST: "tip_list",
   TIP_DETAIL: "tip_detail",
   GROUP_LIST: "group_list",

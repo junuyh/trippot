@@ -496,6 +496,24 @@ export const TRAVEL_STYLE = {
 export type TravelStyle = (typeof TRAVEL_STYLE)[keyof typeof TRAVEL_STYLE];
 
 /**
+ * 여행자보험 보장 등급 (INSURANCE-01)
+ *
+ * lib/constants/budgetProducts.ts 의 보험 상품 3개(in-basic / in-standard /
+ * in-plus)와 짝이 맞는다. 예산 구성에서 고른 보장이 보험 화면에 그대로
+ * 이어지려면 두 곳이 같은 값을 봐야 한다.
+ *
+ * ⚠️ DB 칼럼이 아니다. 화면 안에서만 쓰는 값이고 저장하지 않는다.
+ *    사용자가 어떤 보장을 골랐는지는 예산 카테고리의 상품 선택이 갖는다.
+ */
+export const INSURANCE_COVERAGE = {
+  BASIC: "basic",
+  STANDARD: "standard",
+  PLUS: "plus",
+} as const;
+export type InsuranceCoverage =
+  (typeof INSURANCE_COVERAGE)[keyof typeof INSURANCE_COVERAGE];
+
+/**
  * spending_profile_generated.profile_type
  * balanced 는 뚜렷한 편차가 없을 때의 기본값이다.
  *

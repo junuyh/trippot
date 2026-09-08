@@ -14,6 +14,7 @@
 //
 // 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/budget/.
 // ============================================================================
+import { Ionicons } from "@expo/vector-icons";
 import { format } from "date-fns";
 import {
   Stack,
@@ -47,8 +48,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  Loading,
-} from "@/components/ui";
+  Loading, HeaderBackButton } from "@/components/ui";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { DateRangeCalendar } from "@/components/trip-create";
 import { EVENTS } from "@/lib/analytics/events";
@@ -102,6 +102,11 @@ import {
 import { TRIP_OWNER_TYPE } from "@/lib/constants/status";
 // TODO: 로그인 연동 시 교체
 import { DEV_USER_ID } from "@/lib/constants/devUser";
+import { InsurancePromoModal } from "@/components/insurance/InsurancePromoModal";
+import { useTripContext } from "@/lib/hooks/useTripContext";
+import { INSURANCE_PARTNERS } from "@/lib/constants/insurancePartners";
+import { INSURANCE_COVERAGE } from "@/lib/constants/status";
+import { buildInsuranceQuote } from "@/lib/insurance/quote";
 
 /** 카테고리별 대표 이모지. 계획 항목 썸네일 기본값으로도 쓴다 */
 const CATEGORY_EMOJI: Record<CategoryCode, string> = {
@@ -133,6 +138,8 @@ export default function ScreenBUDGET02() {
     tripId: string;
     categoryId: string;
   }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<CategoryData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -649,6 +656,19 @@ export default function ScreenBUDGET02() {
         setSuggestions((prev) =>
           prev.filter((row) => row.key !== suggestion.key),
         );
+
+        /*
+          여행자보험 제휴 팝업. 바텀시트로 직접 넣는 경로와 **같은 조건**이다.
+          어느 쪽으로 계획을 넣었든 사용자가 한 일은 "보험을 챙기기로 했다" 로
+          같다. 한쪽에만 붙이면 AI 추천으로 넣은 사람은 견적을 못 본다.
+        */
+        if (
+          data.category.category_code === CATEGORY_CODE.INSURANCE &&
+          !promoShownRef.current
+        ) {
+          promoShownRef.current = true;
+          setPromoOpen(true);
+        }
       } catch {
         setToast("추가하지 못했어요");
       } finally {
@@ -767,10 +787,32 @@ export default function ScreenBUDGET02() {
       // 계획이 늘면 설정 예산도 그만큼 늘린다. 여유 예산은 그대로 유지된다.
       syncBudgetFromPlans(nextPlans);
       resetDraft();
+
+      // 여행자보험 카테고리에서만, 이 화면에서 한 번만 띄운다.
+      if (
+        data.category.category_code === CATEGORY_CODE.INSURANCE &&
+        !promoShownRef.current
+      ) {
+        promoShownRef.current = true;
+        setPromoOpen(true);
+      }
     } catch {
       setToast("추가하지 못했어요");
     }
   }, [data, editingPlanId, planDraft, plans, syncBudgetFromPlans]);
+
+  /**
+   * 여행자보험 제휴 팝업 (BM 1).
+   *
+   * 세부 계획을 **추가한 직후**에만 띄운다. 화면에 들어오자마자 띄우면
+   * 광고를 먼저 보여주고 기능을 나중에 주는 꼴이 된다. 계획을 넣었다는 건
+   * "보험을 챙겨야겠다" 고 방금 스스로 정했다는 뜻이라, 그때가 자연스럽다.
+   *
+   * ⚠️ 한 번 닫으면 이 화면에 머무는 동안 다시 뜨지 않는다. 계획을 세 개
+   *    넣었다고 팝업이 세 번 뜨면 그건 방해다.
+   */
+  const [promoOpen, setPromoOpen] = useState(false);
+  const promoShownRef = useRef(false);
 
   // ── 지출 직접 입력 (로컬) ─────────────────────────────────────────────
   const [addingExpense, setAddingExpense] = useState(false);
@@ -911,6 +953,9 @@ export default function ScreenBUDGET02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
         <Loading message="불러오는 중…" />
       </View>
@@ -920,6 +965,9 @@ export default function ScreenBUDGET02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
         <EmptyState
           icon="pricetag-outline"
@@ -935,6 +983,9 @@ export default function ScreenBUDGET02() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
         <ErrorState message="불러오지 못했어요." onRetry={() => void load()} />
       </View>
@@ -956,9 +1007,35 @@ export default function ScreenBUDGET02() {
         )
       : null;
 
+  /*
+    팝업에 쓸 '가장 저렴한 예상 보험료'. 보험 카테고리가 아니거나 일정이
+    없으면 null 이고, 그러면 팝업이 금액 줄을 그리지 않는다.
+    ⚠️ INSURANCE-01 과 같은 함수를 쓴다. 여기서 따로 계산하면 팝업의 금액과
+       실제 화면의 견적이 서로 다른 말을 한다.
+  */
+  const promoQuote =
+    code === CATEGORY_CODE.INSURANCE && data.trip.start_date && data.trip.end_date
+      ? buildInsuranceQuote(
+          {
+            destinationCode: destinationMeta?.code ?? null,
+            region: destinationMeta?.region ?? null,
+            startDate: data.trip.start_date,
+            endDate: data.trip.end_date,
+            headcount: data.trip.headcount,
+            coverage: INSURANCE_COVERAGE.STANDARD,
+            // 팝업에서 '잡아둔 예산' 과 견적을 나란히 보여준다
+            budgetAmount: data.category.planned_amount,
+          },
+          INSURANCE_PARTNERS,
+        )
+      : null;
+
   return (
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: label }} />
 
       <ScrollView
@@ -1116,6 +1193,45 @@ export default function ScreenBUDGET02() {
                 : "결산 중이라 예산과 계획은 고칠 수 없어요. 실제 지출 확인과 분류는 그대로 할 수 있어요."}
             </Text>
           </View>
+        ) : null}
+
+        {/*
+          ── 여행자보험 제휴 (BM 1) ──
+          이 카테고리에서만 나온다. 여기가 사용자가 "그래서 보험 얼마지" 를
+          가장 먼저 궁금해하는 자리다.
+
+          ⚠️ placement=budget_detail 을 실어 보낸다. 여행 홈 배너와 이 자리 중
+             무엇이 전환을 만드는지 나눠 봐야 BM 1 을 키울 수 있다. (docs/06 §7-7)
+        */}
+        {code === CATEGORY_CODE.INSURANCE ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="여행자보험 예상 보험료 비교하기"
+            onPress={() =>
+              router.push(`/trips/${tripId}/insurance?placement=budget_detail&fromCategory=${categoryId}`)
+            }
+            style={{
+              marginTop: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 11,
+              borderRadius: 14,
+              backgroundColor: "#fff2ef",
+              padding: 14,
+            }}
+            className="active:opacity-90"
+          >
+            <Text style={{ fontSize: 22 }}>🛟</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: "#111827" }}>
+                보험료 얼마인지 확인해 볼까요?
+              </Text>
+              <Text style={{ marginTop: 3, fontSize: 11, color: "#7d6a63" }}>
+                이 여행 일정·인원으로 계산한 예상 보험료를 비교해요.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#b9a9a3" />
+          </Pressable>
         ) : null}
 
         {/* 세부 계획 */}
@@ -1502,6 +1618,31 @@ export default function ScreenBUDGET02() {
         >
           <Text style={{ color: "#fff", fontSize: 11 }}>{toast}</Text>
         </View>
+      ) : null}
+
+      {/*
+        ── 여행자보험 제휴 팝업 (BM 1) ──
+        세부 계획을 추가한 직후 한 번만 뜬다. CTA 는 INSURANCE-01 로 보낸다.
+        ⚠️ 여기서 로그를 남기지 않는다. 넘어간 뒤 그 화면이
+           screen_viewed(insurance) → insurance_cta_clicked 로 잡는다.
+           팝업에서 한 번 더 쏘면 같은 사람이 두 번 세어진다. (docs/06 v4 §7-7)
+      */}
+      {promoQuote ? (
+        <InsurancePromoModal
+          visible={promoOpen}
+          onClose={() => setPromoOpen(false)}
+          onCompare={() => {
+            setPromoOpen(false);
+            router.push(`/trips/${tripId}/insurance?placement=budget_detail&fromCategory=${categoryId}`);
+          }}
+          theme={theme}
+          destination={data.trip.destination ?? "여행"}
+          days={promoQuote.days}
+          headcount={promoQuote.headcount}
+          budgetAmount={data.category.planned_amount}
+          fromPremium={promoQuote.cheapest?.totalPremium ?? null}
+          quoteCount={promoQuote.quotes.length}
+        />
       ) : null}
     </View>
   );
