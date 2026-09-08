@@ -47,6 +47,7 @@ import {
   TripReceiptCard,
   TripRecordCard,
   TypeResultOverlay,
+  TypeStorySheet,
   type SettlementVault,
   type TypeEvidenceRow,
 } from "@/components/trip-type";
@@ -147,6 +148,10 @@ export default function ScreenTripHome() {
    */
   const [storyMembersText, setStoryMembersText] = useState<string | null>(null);
   const storyRef = useRef<ViewShot>(null);
+  /** 여행 유형 공유 시트. 확정된 유형에서만 연다 */
+  const [typeStoryOpen, setTypeStoryOpen] = useState(false);
+  const [typeStoryBusy, setTypeStoryBusy] = useState(false);
+  const typeStoryRef = useRef<ViewShot>(null);
   /**
    * TYPE-01 오버레이 열림 여부. (시안 v3)
    * ⚠️ 별도 라우트로 밀지 않는다. 유형은 결산 결과를 다르게 읽은 것이라
@@ -510,6 +515,31 @@ export default function ScreenTripHome() {
       setStoryBusy(false);
     }
   }, [storyBusy]);
+
+  /**
+   * 유형 결과지를 캡처해서 공유 시트로 넘긴다.
+   * ⚠️ [검토 필요] 공유 완료 이벤트. events.ts 에 없어서 아직 track() 하지 않는다.
+   */
+  const handleShareTypeStory = useCallback(async () => {
+    if (typeStoryBusy) return;
+    setTypeStoryBusy(true);
+    try {
+      const uri = await typeStoryRef.current?.capture?.();
+      if (!uri) throw new Error("capture failed");
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("공유할 수 없어요", "이 기기에서는 공유 기능을 쓸 수 없어요.");
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/png",
+        dialogTitle: "내 여행 유형 공유",
+      });
+    } catch {
+      Alert.alert("만들지 못했어요", "잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setTypeStoryBusy(false);
+    }
+  }, [typeStoryBusy]);
 
   const gridCategories: GridCategory[] = useMemo(
     () =>
@@ -1017,6 +1047,40 @@ export default function ScreenTripHome() {
               provisional={shownType.provisional}
               destinationKo={trip.destination ?? "여행"}
               onClose={() => setTypeOpen(false)}
+              /*
+                확정 결과만 이미지로 만든다. 오버레이(pageSheet)를 닫고 시트를 연다.
+                모달 위에 모달을 쌓으면 닫는 순서가 꼬인다.
+              */
+              onSaveImage={
+                shownType.provisional
+                  ? undefined
+                  : () => {
+                      setTypeOpen(false);
+                      setTypeStoryOpen(true);
+                    }
+              }
+            />
+          ) : null}
+
+          {/* 여행 유형 공유 시트 */}
+          {shownType && !shownType.provisional ? (
+            <TypeStorySheet
+              ref={typeStoryRef}
+              visible={typeStoryOpen}
+              onClose={() => setTypeStoryOpen(false)}
+              busy={typeStoryBusy}
+              onShare={handleShareTypeStory}
+              card={{
+                code: shownType.code,
+                accuracyBp: shownType.accuracyBp,
+                destinationEn: destinationMeta?.nameEn ?? "",
+                periodLabel:
+                  trip.start_date && trip.end_date
+                    ? `${format(parseISO(trip.start_date), "yyyy.MM.dd")} – ${format(parseISO(trip.end_date), "MM.dd")}`
+                    : null,
+                topSpentLabel: record.topSpentLabel,
+                topSavedLabel: record.topSavedLabel,
+              }}
             />
           ) : null}
 

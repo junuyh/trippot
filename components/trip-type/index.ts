@@ -7,3 +7,5 @@ export { TravelTypeCard } from "./TravelTypeCard";
 export { TripRecordCard } from "./TripRecordCard";
 export { TripReceiptCard } from "./TripReceiptCard";
 export { TypeResultOverlay, type TypeEvidenceRow } from "./TypeResultOverlay";
+export { TypeStoryCard, TYPE_STORY_WIDTH, TYPE_STORY_HEIGHT } from "./TypeStoryCard";
+export { TypeStorySheet } from "./TypeStorySheet";

@@ -60,6 +60,8 @@ type Props = {
   /** 공유 안내에 쓰는 한글 여행지명 */
   destinationKo: string;
   onClose: () => void;
+  /** 이미지 저장. 확정 결과에서만 보인다. 없으면 준비 중 안내를 띄운다 */
+  onSaveImage?: () => void;
 };
 
 function won(value: number): string {
@@ -75,6 +77,7 @@ export function TypeResultOverlay({
   destinationKo,
   evidence,
   onClose,
+  onSaveImage,
 }: Props) {
   const copy = TRAVEL_TYPE_COPY[code];
   const accuracy = (accuracyBp / 100).toFixed(1).replace(/\.0$/, "");
@@ -347,13 +350,15 @@ export function TypeResultOverlay({
           ) : (
             <View className="flex-row" style={{ gap: 10, marginTop: 20 }}>
               <ShareAction
-                icon="download-outline"
-                label="이미지 저장"
-                onPress={() =>
-                  Alert.alert(
-                    "곧 만나요",
-                    `${destinationKo} 여행 유형을 이미지로 저장하는 기능을 준비하고 있어요.`,
-                  )
+                icon="image-outline"
+                label="이미지로 공유"
+                onPress={
+                  onSaveImage ??
+                  (() =>
+                    Alert.alert(
+                      "곧 만나요",
+                      `${destinationKo} 여행 유형을 이미지로 저장하는 기능을 준비하고 있어요.`,
+                    ))
                 }
               />
               <ShareAction
