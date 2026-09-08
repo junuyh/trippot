@@ -69,6 +69,7 @@ import {
   type TripStatus,
 } from "@/lib/constants/status";
 import { useScreenView } from "@/lib/hooks/useScreenView";
+import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -110,6 +111,8 @@ type TripHomeData = {
 
 export default function ScreenTripHome() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<TripHomeData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1065,8 +1068,13 @@ export default function ScreenTripHome() {
               destination={trip.destination ?? "여행"}
               theme={theme}
               onPressTips={() => router.push("/community")}
+              /*
+                ⚠️ placement 를 반드시 실어 보낸다. insurance_cta_clicked 는
+                   이 값으로 "어느 자리의 배너가 전환을 만드는가" 를 가른다.
+                   빠지면 BM 1 의 전환을 자리별로 못 나눈다. (docs/06 §7-7)
+              */
               onPressInsurance={() =>
-                router.push(`/trips/${trip.id}/insurance`)
+                router.push(`/trips/${trip.id}/insurance?placement=trip_home`)
               }
             />
           </View>

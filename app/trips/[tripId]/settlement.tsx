@@ -40,7 +40,7 @@ import {
   type CategoryComparison,
 } from "@/components/settlement";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
-import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
+import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -66,6 +66,7 @@ import {
 } from "@/lib/supabase/queries/settlements";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
   getFundTotals,
   getSettlementChecklist,
@@ -96,6 +97,8 @@ type CategorySnapshot = {
 
 export default function ScreenSETTLE01() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<SettlementData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -320,6 +323,9 @@ export default function ScreenSETTLE01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <Loading message="정산 내역을 불러오는 중…" />
       </View>
@@ -330,6 +336,9 @@ export default function ScreenSETTLE01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <EmptyState
           icon="receipt-outline"
@@ -346,6 +355,9 @@ export default function ScreenSETTLE01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <ErrorState
           message="정산 내역을 불러오지 못했어요."
@@ -364,6 +376,9 @@ export default function ScreenSETTLE01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
         <EmptyState
           icon="hourglass-outline"
@@ -386,6 +401,9 @@ export default function ScreenSETTLE01() {
     >
       <Stack.Screen
         options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: `${data.trip.destination ?? "여행"} 정산` }}
       />
 

@@ -36,7 +36,7 @@ import {
   type InsightItem,
 } from "@/components/budget";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
-import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
+import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { perPerson } from "@/lib/budget/recommendation";
@@ -70,6 +70,7 @@ import {
   type PersonalizedBudgetSuggestion,
 } from "@/lib/supabase/queries/personalization";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import { useTripContext } from '@/lib/hooks/useTripContext';
 
 type BudgetData = {
   trip: Trip;
@@ -82,6 +83,8 @@ type BudgetData = {
 
 export default function ScreenBUDGET01() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<BudgetData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -476,6 +479,9 @@ export default function ScreenBUDGET01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
         <Loading message="예산을 불러오는 중…" />
       </View>
@@ -486,6 +492,9 @@ export default function ScreenBUDGET01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
         <EmptyState
           icon="wallet-outline"
@@ -502,6 +511,9 @@ export default function ScreenBUDGET01() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
         <ErrorState
           message="예산을 불러오지 못했어요."
@@ -550,6 +562,9 @@ export default function ScreenBUDGET01() {
         }
       >
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
 
         {confirmed ? (

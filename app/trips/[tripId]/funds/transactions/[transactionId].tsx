@@ -33,8 +33,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  Loading,
-} from "@/components/ui";
+  Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
@@ -67,6 +66,7 @@ import {
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
+import { useTripContext } from '@/lib/hooks/useTripContext';
 
 /**
  * 확인이 필요한 이유별 안내 문구.
@@ -100,6 +100,8 @@ export default function ScreenFUND03() {
     tripId: string;
     transactionId: string;
   }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
 
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -294,6 +296,9 @@ export default function ScreenFUND03() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
         <Loading message="거래를 불러오는 중…" />
       </View>
@@ -303,6 +308,9 @@ export default function ScreenFUND03() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
         <EmptyState
           icon="receipt-outline"
@@ -318,6 +326,9 @@ export default function ScreenFUND03() {
     return (
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
         <ErrorState
           message="거래를 불러오지 못했어요."
@@ -395,6 +406,9 @@ export default function ScreenFUND03() {
   return (
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+          ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
 
       <ScrollView

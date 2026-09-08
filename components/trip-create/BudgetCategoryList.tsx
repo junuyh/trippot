@@ -29,6 +29,8 @@ export type CategoryProduct = {
   /** 인원·박수·일수까지 곱한 이 상품의 금액 */
   amount: number;
   selected: boolean;
+  /** 어떤 선택지인지 한 줄. 여행지 맞춤 항목에만 붙는다 */
+  note?: string;
 };
 
 export type EditableCategory = {
@@ -51,6 +53,13 @@ export type EditableCategory = {
   products?: CategoryProduct[];
   /** 상품 목록 위 한 줄 안내 */
   productHint?: string;
+  /**
+   * 상품이 이 여행지에 맞춰 만들어졌는가.
+   *
+   * 카탈로그 기본값('4성급 호텔')과 여행지 맞춤('파리 시내 3성 호텔')은
+   * 카드만 봐서는 구분되지 않는다. 사용자가 그 차이를 알아야 금액을 믿는다.
+   */
+  productsFromAi?: boolean;
   /** true 면 상품을 하나만 고를 수 있다 */
   singleSelect?: boolean;
   /**
@@ -173,6 +182,11 @@ function ProductCard({
         <Text numberOfLines={2} className="text-[11.5px] font-bold leading-4 text-gray-900">
           {product.name}
         </Text>
+        {product.note ? (
+          <Text numberOfLines={1} className="mt-0.5 text-[10px] leading-3.5 text-gray-400">
+            {product.note}
+          </Text>
+        ) : null}
         <Text className="mt-1.5 text-[12.5px] font-black text-gray-900">{won(product.amount)}</Text>
       </View>
     </Pressable>
@@ -372,6 +386,15 @@ export function BudgetCategoryList({
                   /* ── 길 A · AI 추천 ── 상품을 골라 금액을 만든다 ── */
                   <>
                     {/* 카드 줄은 좌우 여백까지 흘러 잘린 카드가 보이게 한다 */}
+                    {category.productsFromAi && category.products?.length ? (
+                      <View className="flex-row items-center gap-1 px-4">
+                        <Ionicons name="sparkles" size={12} color="#2563eb" />
+                        <Text className="text-[11px] font-semibold text-blue-600">
+                          이 여행지에 맞춰 만든 선택지예요
+                        </Text>
+                      </View>
+                    ) : null}
+
                     {category.products && category.products.length > 0 ? (
                       <ScrollView
                         horizontal

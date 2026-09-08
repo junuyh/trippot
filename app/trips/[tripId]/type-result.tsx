@@ -15,7 +15,7 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Image, ScrollView, Text, View } from "react-native";
 
-import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
+import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { SCREENS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/constants/status";
 import { TRAVEL_TYPE_COPY } from "@/lib/constants/travelTypeCopy";
 import { useScreenView } from "@/lib/hooks/useScreenView";
+import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
   getTripTypeResult,
   type TripTypeResult,
@@ -36,6 +37,8 @@ const GREEN = "#19865f";
 
 export default function ScreenTYPE01() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
+  useTripContext(tripId);
   useScreenView(SCREENS.TRIP_HOME);
 
   const [trip, setTrip] = useState<Trip | null>(null);
@@ -73,7 +76,10 @@ export default function ScreenTYPE01() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 유형" }} />
+        <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 유형" }} />
         <Loading message="여행 유형을 불러오는 중…" />
       </View>
     );
@@ -81,7 +87,10 @@ export default function ScreenTYPE01() {
   if (notFound || !trip) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 유형" }} />
+        <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 유형" }} />
         <EmptyState
           icon="sparkles-outline"
           title="여행을 찾을 수 없어요"
@@ -95,7 +104,10 @@ export default function ScreenTYPE01() {
   if (error) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 유형" }} />
+        <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 유형" }} />
         <ErrorState
           message="여행 유형을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -112,7 +124,10 @@ export default function ScreenTYPE01() {
   if (!result) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 유형" }} />
+        <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 유형" }} />
         <EmptyState
           icon="hourglass-outline"
           title="아직 유형이 나오지 않았어요"
@@ -142,7 +157,10 @@ export default function ScreenTYPE01() {
         paddingBottom: 40,
       }}
     >
-      <Stack.Screen options={{ title: "여행 유형" }} />
+      <Stack.Screen options={{
+          headerLeft: () => (
+            <HeaderBackButton parentHref={`/trips/${tripId}`} />
+          ), title: "여행 유형" }} />
 
       <Text
         style={{
