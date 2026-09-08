@@ -4,11 +4,28 @@ import { FlatList, Pressable, Text, View } from 'react-native';
 import { POST_TYPE_DISPLAY_LABEL } from '@/components/community/label';
 import type { MyPostListItem } from '@/lib/supabase/queries/community';
 
+import { SwipeToAction } from './SwipeToAction';
 import { formatNotifiedAt } from './format';
+
+/**
+ * 왼쪽으로 밀었을 때 나올 액션. 없으면 스와이프 자체가 없다.
+ *
+ * 화면마다 하는 일이 다르다.
+ *   작성한 게시글  글 삭제       (되돌릴 수 없음 · 확인창 있음)
+ *   좋아요        좋아요 취소   (되돌릴 수 있음 · 확인창 없음)
+ */
+type SwipeAction = {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  onPress: (postId: string) => void;
+};
 
 type Props = {
   posts: MyPostListItem[];
   onPressPost: (postId: string) => void;
+  /** 없으면 밀리지 않는다. */
+  swipeAction?: SwipeAction;
 };
 
 /**
@@ -28,7 +45,7 @@ type Props = {
  *    큰 레이아웃 변경은 하지 않았다.
  * ⚠️ supabase · track() 을 직접 부르지 않는다. 화면 파일이 부른다. (CLAUDE.md 9장)
  */
-export function MyPostList({ posts, onPressPost }: Props) {
+export function MyPostList({ posts, onPressPost, swipeAction }: Props) {
   return (
     <FlatList
       className="flex-1 bg-pot-visual"
@@ -39,12 +56,16 @@ export function MyPostList({ posts, onPressPost }: Props) {
       renderItem={({ item }) => {
         const at = item.publishedAt ? formatNotifiedAt(item.publishedAt) : null;
 
-        return (
+        const row = (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={item.title}
             onPress={() => onPressPost(item.postId)}
-            className="flex-row items-center rounded-2xl bg-white px-3.5 py-3.5 active:opacity-90"
+            // ⚠️ 스와이프가 붙으면 모서리를 둥글게 두지 않는다. 카드가 밀려도
+            //    뒤 액션이 둥근 틈으로 비쳐 보인다. 액션이 없을 때만 rounded-2xl.
+            className={`flex-row items-center bg-white px-3.5 py-3.5 active:opacity-90 ${
+              swipeAction ? '' : 'rounded-2xl'
+            }`}
             style={{
               shadowColor: '#111827',
               shadowOpacity: 0.05,
@@ -84,6 +105,24 @@ export function MyPostList({ posts, onPressPost }: Props) {
 
             <Ionicons name="chevron-forward" size={14} color="#C3C9D2" />
           </Pressable>
+        );
+
+        if (!swipeAction) return row;
+
+        return (
+          // 스와이프로 감싸면 그 안에서 모서리를 자른다. 카드 자체의 radius 를
+          // 없애는 대신 바깥에서 잘라야 밀 때 액션이 각지게 붙는다.
+          <View className="overflow-hidden rounded-2xl">
+            <SwipeToAction
+              label={swipeAction.label}
+              accessibilityLabel={`${item.title} ${swipeAction.label}`}
+              icon={swipeAction.icon}
+              color={swipeAction.color}
+              onPress={() => swipeAction.onPress(item.postId)}
+            >
+              {row}
+            </SwipeToAction>
+          </View>
         );
       }}
     />
