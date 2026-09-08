@@ -155,3 +155,35 @@ export type HomePastInsightData = {
   /** 계획보다 더 쓴 금액. 원 단위 정수. */
   overAmount: number;
 };
+
+/**
+ * 신규 사용자 홈의 여행지 추천 배너 한 장. (2026-09-07)
+ *
+ * 여행이 하나도 없는 사람에게는 보여줄 여행이 없다. 대신 "어디 가지?" 에
+ * 답이 될 만한 후보를 보여준다.
+ *
+ * ⚠️ **금액을 넣지 않는다.** 항공료 기준값(Destination.baseline)이 있지만
+ *    쓰지 않는다. 홈이 "얼마 있지?" 에 답하기 시작하면 계좌관리 앱이 된다.
+ *    (2026-09-03 팀 리뷰 · CLAUDE.md 2장 · HomeView 주석)
+ *    금액은 여행을 만든 뒤 예산 화면에서 본다.
+ *
+ * ⚠️ **소개 문구와 특징 태그를 뒀다가 뺐다.** (2026-09-07)
+ *    이 배너는 광고다. 글이 늘수록 사진이 가려지고, 가려진 사진은 "가고 싶다" 는
+ *    마음을 만들지 못한다. 도시 이름과 나라만 남긴다.
+ *
+ * 상수 조회(destinationPhoto · countryTheme)는 화면 파일이 하고 결과만 넘긴다.
+ * 다른 홈 카드 데이터와 같은 방식이다.
+ */
+export type DestinationSuggestion = {
+  /** 목적지 코드. 목록 key 다. */
+  code: string;
+  /** 도시 한글명. 배너에 크게 쓴다. */
+  nameKo: string;
+  countryKo: string;
+  /** 국기 이모지. ⚠️ 윈도우에는 국기 글꼴이 없어 'JP' 처럼 글자로 보인다. */
+  flag: string;
+  /** 랜드마크 사진. 확인해 둔 사진이 없으면 null 이고 대체 화면이 나온다. */
+  photoUrl: string | null;
+  /** 사진이 없을 때 쓰는 배경색. */
+  theme: CountryTheme;
+};

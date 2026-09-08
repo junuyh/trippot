@@ -41,6 +41,7 @@ import {
   HomeError,
   HomeLoading,
   HomeView,
+  type DestinationSuggestion,
   type EndedTripCardData,
   type HomeEmptyVariant,
   type OngoingTripCardData,
@@ -48,8 +49,9 @@ import {
 import { daysUntil } from '@/components/home/format';
 import { SCREENS } from '@/lib/analytics/events';
 import { countryTheme } from '@/lib/constants/countryTheme';
+import { destinationHeroPhoto } from '@/lib/constants/destinationHeroPhoto';
 import { destinationPhoto } from '@/lib/constants/destinationPhoto';
-import { findDestinationByName } from '@/lib/constants/destinations';
+import { DESTINATIONS, findDestinationByName } from '@/lib/constants/destinations';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   ENTRY_POINT,
@@ -73,6 +75,58 @@ type LoadState = 'loading' | 'ready' | 'error';
  * 여기서 다 보여주면 홈이 여행 목록 페이지가 된다. (CLAUDE.md 2장)
  */
 const HOME_PAST_TRIP_LIMIT = 4;
+
+/**
+ * 신규 사용자 홈 배너에 돌릴 여행지 수.
+ *
+ * 이 서비스가 다루는 나라가 8개다. 나라마다 한 곳씩 전부 보여준다.
+ * 나라가 늘면 이 값도 함께 올린다. (lib/constants/destinations.ts)
+ */
+const SUGGESTION_LIMIT = 8;
+
+/**
+ * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-07)
+ *
+ * 상수만 읽어 만드므로 렌더마다 다시 계산할 이유가 없다. 모듈에서 한 번 만든다.
+ *
+ * ⚠️ **나라마다 한 곳씩만 고른다.** 목적지 상수는 나라별로 묶여 있어서 앞에서부터
+ *    자르면 일본 도시 세 개가 연달아 나온다. "어디 가지?" 에 답이 되려면 후보가
+ *    서로 달라야 한다.
+ *
+ * ⚠️ **광고용 사진(destinationHeroPhoto)이 있는 곳만 넣는다.**
+ *    이 배너는 광고다. 여행 카드가 쓰는 destinationPhoto 로 넘어가지 않는다.
+ *    그쪽은 "내 도쿄 여행" 을 알아보게 하는 기록 사진이라, 흐린 하늘·파노라마·
+ *    세로 사진이 섞여 있다. 광고 자리에 그런 사진이 한 장이라도 끼면
+ *    그 칸에서 "가고 싶다" 가 끊긴다.
+ *
+ *    사진을 확보한 목적지가 늘면 배너도 자동으로 늘어난다.
+ *    (lib/constants/destinationHeroPhoto.ts
+
+ */
+const HOME_SUGGESTIONS: DestinationSuggestion[] = (() => {
+  const usedCountries = new Set<string>();
+  const picked: DestinationSuggestion[] = [];
+
+  for (const destination of DESTINATIONS) {
+    if (picked.length >= SUGGESTION_LIMIT) break;
+    if (usedCountries.has(destination.countryKo)) continue;
+
+    const photo = destinationHeroPhoto(destination.code);
+    if (!photo) continue;
+
+    usedCountries.add(destination.countryKo);
+    picked.push({
+      code: destination.code,
+      nameKo: destination.nameKo,
+      countryKo: destination.countryKo,
+      flag: destination.flag,
+      photoUrl: photo.url,
+      theme: countryTheme(destination.countryKo),
+    });
+  }
+
+  return picked;
+})();
 
 export default function ScreenHOME01() {
   useScreenView(SCREENS.HOME);
@@ -222,9 +276,16 @@ export default function ScreenHOME01() {
   // 여행을 한 번도 만들지 않았으면 first, 기록이 있으면 return 이다.
   const emptyVariant: HomeEmptyVariant = trips.length === 0 ? 'first' : 'return';
 
-  // 여행이 하나도 없을 때만 전체 빈 상태를 보여준다.
+  // 여행이 하나도 없으면 신규 사용자 홈을 보여준다.
+  // 기존 홈에서 여행 목록 두 개를 빼고 그 자리에 여행지 추천 배너를 넣은 화면이다.
   if (trips.length === 0) {
-    return <HomeEmpty onCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)} />;
+    return (
+      <HomeEmpty
+        userName={profile?.name ?? null}
+        suggestions={HOME_SUGGESTIONS}
+        onCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
+      />
+    );
   }
 
   return (
