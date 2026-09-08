@@ -50,7 +50,7 @@ import {
   type SettlementVault,
   type TypeEvidenceRow,
 } from "@/components/trip-type";
-import { TripStorySheet } from "@/components/trip-record";
+import { TripStorySheet, TripStoryTeaser } from "@/components/trip-record";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -449,6 +449,24 @@ export default function ScreenTripHome() {
     ];
   }, [data?.memberNames]);
   const storyMembers = storyMembersText ?? storyMemberPresets[0]?.text ?? "";
+
+  /** 스토리 카드에 넘길 데이터. 티저(작은 미리보기)와 시트가 같은 값을 쓴다 */
+  const storyCardBase = useMemo(() => {
+    const trip = data?.trip;
+    return {
+      theme,
+      flag: destinationMeta?.flag ?? "🌍",
+      destinationEn:
+        destinationMeta?.nameEn ?? (trip?.destination ?? "TRIP").toUpperCase(),
+      photoUri: storyPhoto,
+      fallbackPhotoUrl: destinationPhoto(destinationMeta?.code)?.url ?? null,
+      outline: countryOutline(destinationMeta?.countryKo),
+      pin: destinationMeta ? CITY_PIN[destinationMeta.code] : null,
+      startDate: trip?.start_date ?? null,
+      endDate: trip?.end_date ?? null,
+      membersText: storyMembers,
+    };
+  }, [data?.trip, theme, destinationMeta, storyPhoto, storyMembers]);
 
   /** 스토리 이미지의 배경 사진 고르기. 사진 하나만 받는다. */
   const handlePickStoryPhoto = useCallback(async () => {
@@ -918,23 +936,9 @@ export default function ScreenTripHome() {
                 >
                   이번 여행의 한 줄 기록
                 </Text>
-                {/*
-                  스토리 이미지 만들기. (2026-09-08 시안)
-                  큰 버튼을 카드 아래 두지 않는다. 기록 카드가 끝나는 자리가 흐려진다.
-                  제목 줄 오른쪽의 작은 진입점 하나로 둔다.
-                */}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="여행 기록 이미지 만들기"
-                  onPress={() => setStoryOpen(true)}
-                  className="flex-row items-center gap-1 rounded-full px-2.5 py-1 active:opacity-70"
-                  style={{ backgroundColor: theme.primarySoft }}
-                >
-                  <Ionicons name="image-outline" size={12} color={theme.primary} />
-                  <Text className="text-[11px] font-bold" style={{ color: theme.primary }}>
-                    이미지 만들기
-                  </Text>
-                </Pressable>
+                <Text className="text-[10px] tracking-wider text-gray-400">
+                  TRAVEL RECORD
+                </Text>
               </View>
               <TripRecordCard
                 theme={theme}
@@ -952,6 +956,15 @@ export default function ScreenTripHome() {
                 topSpentLabel={record.topSpentLabel}
                 topSavedLabel={record.topSavedLabel}
                 hashtags={record.hashtags}
+              />
+              {/*
+                스토리 이미지 티저. (2026-09-08)
+                제목 줄의 작은 알약 버튼은 눈에 안 띄어 기능이 없는 것처럼 보였다.
+                결과물을 작게 미리 보여주면 "이게 만들어진다" 가 먼저 보인다.
+              */}
+              <TripStoryTeaser
+                card={storyCardBase}
+                onPress={() => setStoryOpen(true)}
               />
             </View>
           ) : null}
@@ -1017,20 +1030,7 @@ export default function ScreenTripHome() {
             onShare={handleShareStory}
             onChangeMembersText={setStoryMembersText}
             memberPresets={storyMemberPresets}
-            card={{
-              theme,
-              flag: destinationMeta?.flag ?? "🌍",
-              destinationEn:
-                destinationMeta?.nameEn ??
-                (trip.destination ?? "TRIP").toUpperCase(),
-              photoUri: storyPhoto,
-              fallbackPhotoUrl: destinationPhoto(destinationMeta?.code)?.url ?? null,
-              outline: countryOutline(destinationMeta?.countryKo),
-              pin: destinationMeta ? CITY_PIN[destinationMeta.code] : null,
-              startDate: trip.start_date,
-              endDate: trip.end_date,
-              membersText: storyMembers,
-            }}
+            card={storyCardBase}
           />
         </>
       ) : (

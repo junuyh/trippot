@@ -8,3 +8,4 @@ export {
   type StoryTextStyle,
 } from './TripStoryCard';
 export { TripStorySheet } from './TripStorySheet';
+export { TripStoryTeaser } from './TripStoryTeaser';
