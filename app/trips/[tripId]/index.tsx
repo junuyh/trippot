@@ -47,6 +47,7 @@ import {
   TripReceiptCard,
   TripRecordCard,
   TypeResultOverlay,
+  TypeStorySheet,
   type SettlementVault,
   type TypeEvidenceRow,
 } from "@/components/trip-type";
@@ -89,6 +90,7 @@ import {
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
 import { getGroupById, getGroupMembers } from "@/lib/supabase/queries/groups";
 import {
+  getFundReadyAt,
   getFundTotals,
   getTransactions,
   reviewReason,
@@ -106,6 +108,21 @@ import {
 
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
 const PAGE_COLOR = "#ffffff";
+
+/**
+ * 입금이 목표액(계획 합계)에 닿은 날부터 출발일까지 며칠인지.
+ * 못 닿았거나 출발일이 없으면 undefined. 미리미리형 판정에 쓴다.
+ */
+async function fundReadyDaysBefore(data: TripHomeData): Promise<number | undefined> {
+  if (!data.trip.start_date) return undefined;
+  const target = data.categories.reduce(
+    (sum, category) => sum + category.planned_amount,
+    0,
+  );
+  const readyAt = await getFundReadyAt(data.trip.id, target);
+  if (!readyAt) return undefined;
+  return differenceInCalendarDays(parseISO(data.trip.start_date), parseISO(readyAt));
+}
 
 type TripHomeData = {
   trip: Trip;
@@ -147,6 +164,10 @@ export default function ScreenTripHome() {
    */
   const [storyMembersText, setStoryMembersText] = useState<string | null>(null);
   const storyRef = useRef<ViewShot>(null);
+  /** 여행 유형 공유 시트. 확정된 유형에서만 연다 */
+  const [typeStoryOpen, setTypeStoryOpen] = useState(false);
+  const [typeStoryBusy, setTypeStoryBusy] = useState(false);
+  const typeStoryRef = useRef<ViewShot>(null);
   /**
    * TYPE-01 오버레이 열림 여부. (시안 v3)
    * ⚠️ 별도 라우트로 밀지 않는다. 유형은 결산 결과를 다르게 읽은 것이라
@@ -297,10 +318,19 @@ export default function ScreenTripHome() {
       ⚠️ 개수를 못 세면 넘기지 않는다. 세어 보지도 않고 '계획을 안 세웠다' 고
          단정하면 안 된다. 그 경우 나머지 여덟 유형으로만 판정된다.
     */
-    void countPlanItems(data.categories.map((category) => category.id))
-      .catch(() => undefined)
-      .then((planItemCount) =>
-        ensureTripTypeResult(data.trip.id, inputs, planItemCount),
+    void Promise.all([
+      countPlanItems(data.categories.map((category) => category.id)).catch(
+        () => undefined,
+      ),
+      /*
+        여행자금을 언제 다 모았는지도 함께 넘긴다. '미리미리형' 은 지출이 아니라
+        준비 행동을 보는 유형이라 이 값이 없으면 절대 나오지 않는다.
+        ⚠️ 못 구하면 넘기지 않는다. 즉흥형과 같은 원칙이다.
+      */
+      fundReadyDaysBefore(data).catch(() => undefined),
+    ])
+      .then(([planItemCount, readyDays]) =>
+        ensureTripTypeResult(data.trip.id, inputs, planItemCount, readyDays),
       )
       .then(setTypeResult)
       // 유형은 부가 정보다. 실패해도 결산 영수증은 그대로 보여준다.
@@ -450,6 +480,13 @@ export default function ScreenTripHome() {
   }, [data?.memberNames]);
   const storyMembers = storyMembersText ?? storyMemberPresets[0]?.text ?? "";
 
+  /** 유형 신분증에 적는 기간. "2026.05.14 – 05.17" */
+  const tripPeriodLabel = useMemo(() => {
+    const trip = data?.trip;
+    if (!trip?.start_date || !trip?.end_date) return null;
+    return `${format(parseISO(trip.start_date), "yyyy.MM.dd")} – ${format(parseISO(trip.end_date), "MM.dd")}`;
+  }, [data?.trip]);
+
   /** 스토리 카드에 넘길 데이터. 티저(작은 미리보기)와 시트가 같은 값을 쓴다 */
   const storyCardBase = useMemo(() => {
     const trip = data?.trip;
@@ -510,6 +547,31 @@ export default function ScreenTripHome() {
       setStoryBusy(false);
     }
   }, [storyBusy]);
+
+  /**
+   * 유형 결과지를 캡처해서 공유 시트로 넘긴다.
+   * ⚠️ [검토 필요] 공유 완료 이벤트. events.ts 에 없어서 아직 track() 하지 않는다.
+   */
+  const handleShareTypeStory = useCallback(async () => {
+    if (typeStoryBusy) return;
+    setTypeStoryBusy(true);
+    try {
+      const uri = await typeStoryRef.current?.capture?.();
+      if (!uri) throw new Error("capture failed");
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("공유할 수 없어요", "이 기기에서는 공유 기능을 쓸 수 없어요.");
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/png",
+        dialogTitle: "내 여행 유형 공유",
+      });
+    } catch {
+      Alert.alert("만들지 못했어요", "잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setTypeStoryBusy(false);
+    }
+  }, [typeStoryBusy]);
 
   const gridCategories: GridCategory[] = useMemo(
     () =>
@@ -832,6 +894,9 @@ export default function ScreenTripHome() {
               <TravelTypeCard
                 code={shownType.code}
                 accuracyBp={shownType.accuracyBp}
+                periodLabel={tripPeriodLabel}
+                topSpentLabel={record.topSpentLabel}
+                topSavedLabel={record.topSavedLabel}
                 destinationEn={
                   destinationMeta?.nameEn ??
                   (trip.destination ?? "TRIP").toUpperCase()
@@ -1016,7 +1081,42 @@ export default function ScreenTripHome() {
               evidence={shownType.evidence as TypeEvidenceRow[]}
               provisional={shownType.provisional}
               destinationKo={trip.destination ?? "여행"}
+              destinationEn={destinationMeta?.nameEn ?? ""}
+              periodLabel={tripPeriodLabel}
+              topSpentLabel={record.topSpentLabel}
+              topSavedLabel={record.topSavedLabel}
               onClose={() => setTypeOpen(false)}
+              /*
+                확정 결과만 이미지로 만든다. 오버레이(pageSheet)를 닫고 시트를 연다.
+                모달 위에 모달을 쌓으면 닫는 순서가 꼬인다.
+              */
+              onSaveImage={
+                shownType.provisional
+                  ? undefined
+                  : () => {
+                      setTypeOpen(false);
+                      setTypeStoryOpen(true);
+                    }
+              }
+            />
+          ) : null}
+
+          {/* 여행 유형 공유 시트 */}
+          {shownType && !shownType.provisional ? (
+            <TypeStorySheet
+              ref={typeStoryRef}
+              visible={typeStoryOpen}
+              onClose={() => setTypeStoryOpen(false)}
+              busy={typeStoryBusy}
+              onShare={handleShareTypeStory}
+              card={{
+                code: shownType.code,
+                accuracyBp: shownType.accuracyBp,
+                destinationEn: destinationMeta?.nameEn ?? "",
+                periodLabel: tripPeriodLabel,
+                topSpentLabel: record.topSpentLabel,
+                topSavedLabel: record.topSavedLabel,
+              }}
             />
           ) : null}
 

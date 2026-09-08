@@ -16,7 +16,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
   Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -32,11 +31,12 @@ import {
   type SpendingProfileType,
 } from "@/lib/constants/status";
 import { TRAVEL_TYPE_COPY } from "@/lib/constants/travelTypeCopy";
+import { travelTypeTheme } from "@/lib/constants/travelTypeTheme";
 
-const YELLOW = "#ffd92f";
-const INK = "#111827";
+import { TYPE_COUNT } from "./TravelTypeCard";
+import { TypeIdCard } from "./TypeIdCard";
+
 const GREEN = "#19865f";
-const COVER_HEIGHT = 430;
 
 export type TypeEvidenceRow = {
   categoryCode: CategoryCode;
@@ -59,7 +59,15 @@ type Props = {
   provisional: boolean;
   /** 공유 안내에 쓰는 한글 여행지명 */
   destinationKo: string;
+  /** 신분증에 적는 영문 도시명. 없으면 '' */
+  destinationEn: string;
+  /** "2026.05.14 – 05.17". 없으면 null */
+  periodLabel: string | null;
+  topSpentLabel: string | null;
+  topSavedLabel: string | null;
   onClose: () => void;
+  /** 이미지 저장. 확정 결과에서만 보인다. 없으면 준비 중 안내를 띄운다 */
+  onSaveImage?: () => void;
 };
 
 function won(value: number): string {
@@ -73,11 +81,16 @@ export function TypeResultOverlay({
   accuracyBp,
   provisional,
   destinationKo,
+  destinationEn,
+  periodLabel,
+  topSpentLabel,
+  topSavedLabel,
   evidence,
   onClose,
+  onSaveImage,
 }: Props) {
   const copy = TRAVEL_TYPE_COPY[code];
-  const accuracy = (accuracyBp / 100).toFixed(1).replace(/\.0$/, "");
+  const typeTheme = travelTypeTheme(code);
   // 근거는 세 줄이면 충분하다. 여덟 줄을 다 펴면 무엇이 특징인지 사라진다.
   const rows = evidence.filter((row) => row.diff !== 0).slice(0, 3);
 
@@ -120,19 +133,18 @@ export function TypeResultOverlay({
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          {/* ── 표지 ── */}
+          {/* ── 표지: 유형색 바탕 + 신분증. 홈 카드·공유 이미지와 같은 얼굴 ── */}
           <View
             style={{
-              height: COVER_HEIGHT,
               borderRadius: 19,
-              backgroundColor: YELLOW,
-              padding: 20,
+              backgroundColor: typeTheme.bg,
+              padding: 18,
               overflow: "hidden",
             }}
           >
             <Svg
               width="100%"
-              height={COVER_HEIGHT}
+              height="100%"
               style={{ position: "absolute", left: 0, top: 0 }}
               pointerEvents="none"
             >
@@ -143,111 +155,58 @@ export function TypeResultOverlay({
                   height={16}
                   patternUnits="userSpaceOnUse"
                 >
-                  <Circle cx={1.4} cy={1.4} r={1.4} fill={INK} opacity={0.12} />
+                  <Circle cx={1.4} cy={1.4} r={1.4} fill={typeTheme.ink} opacity={0.14} />
                 </Pattern>
               </Defs>
-              <Rect
-                width="100%"
-                height={COVER_HEIGHT}
-                fill="url(#type-cover-dots)"
-              />
+              <Rect width="100%" height="100%" fill="url(#type-cover-dots)" />
             </Svg>
 
-            {copy.image ? (
-              <Image
-                source={copy.image}
-                style={{
-                  position: "absolute",
-                  right: -40,
-                  top: 72,
-                  width: "96%",
-                  height: 345,
-                }}
-                resizeMode="contain"
-                accessibilityIgnoresInvertColors
-              />
-            ) : (
-              <Text
-                style={{
-                  position: "absolute",
-                  right: 24,
-                  top: 150,
-                  fontSize: 120,
-                }}
-              >
-                {copy.emoji}
+            <View className="flex-row items-center justify-between">
+              <Text style={{ fontSize: 9, fontWeight: "900", letterSpacing: 1.5, color: typeTheme.ink }}>
+                TRIPPOT · TRAVEL TYPE
               </Text>
-            )}
-
-            <View className="flex-row items-start justify-between">
-              <Text
-                style={{
-                  fontSize: 9,
-                  fontWeight: "900",
-                  letterSpacing: 1,
-                  color: INK,
-                }}
-              >
-                TRIPPOT TYPE REPORT
+              <Text style={{ fontSize: 9, fontWeight: "900", letterSpacing: 1, color: typeTheme.ink }}>
+                NO. {copy.no} / {TYPE_COUNT}
               </Text>
-              <View
-                style={{
-                  backgroundColor: "#fff",
-                  borderWidth: 1,
-                  borderColor: INK,
-                  paddingHorizontal: 9,
-                  paddingVertical: 6,
-                  transform: [{ rotate: "4deg" }],
-                }}
-              >
-                <Text style={{ fontSize: 8, fontWeight: "900", color: INK }}>
-                  TRAVEL TYPE {copy.no}
-                </Text>
-              </View>
             </View>
-
+            <Text style={{ marginTop: 14, fontSize: 11, fontWeight: "800", color: typeTheme.ink }}>
+              나의 여행자 유형은
+            </Text>
             <Text
               style={{
-                marginTop: 54,
-                fontSize: 40,
-                lineHeight: 38,
+                marginTop: 2,
+                fontSize: 28,
+                lineHeight: 34,
                 fontWeight: "900",
-                letterSpacing: -2,
-                color: INK,
+                letterSpacing: -0.5,
+                color: typeTheme.ink,
               }}
             >
               {copy.headline}
             </Text>
-            <View
+            <View style={{ marginTop: 14 }}>
+              <TypeIdCard
+                code={code}
+                accuracyBp={accuracyBp}
+                destinationEn={destinationEn}
+                periodLabel={periodLabel}
+                topSpentLabel={topSpentLabel}
+                topSavedLabel={topSavedLabel}
+              />
+            </View>
+            <Text
               style={{
-                alignSelf: "flex-start",
-                maxWidth: "56%",
-                marginTop: 10,
-                backgroundColor: "rgba(255,255,255,0.64)",
-                padding: 7,
-                transform: [{ rotate: "-2deg" }],
+                marginTop: 12,
+                fontSize: 13,
+                lineHeight: 19,
+                fontWeight: "900",
+                color: typeTheme.ink,
               }}
             >
-              <Text style={{ fontSize: 10, lineHeight: 15, color: INK }}>
-                {copy.description}
-              </Text>
-            </View>
-          </View>
-
-          <View
-            className="flex-row items-center justify-between"
-            style={{
-              marginTop: 16,
-              padding: 15,
-              borderRadius: 14,
-              backgroundColor: "#f6f7f9",
-            }}
-          >
-            <Text style={{ fontSize: 12, color: "#5d6674" }}>예산 정확도</Text>
-            <Text
-              style={{ fontSize: 20, fontWeight: "900", color: theme.primary }}
-            >
-              {accuracy}%
+              “{typeTheme.hook}”
+            </Text>
+            <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 16, fontWeight: "600", color: typeTheme.ink }}>
+              {copy.description}
             </Text>
           </View>
 
@@ -347,13 +306,15 @@ export function TypeResultOverlay({
           ) : (
             <View className="flex-row" style={{ gap: 10, marginTop: 20 }}>
               <ShareAction
-                icon="download-outline"
-                label="이미지 저장"
-                onPress={() =>
-                  Alert.alert(
-                    "곧 만나요",
-                    `${destinationKo} 여행 유형을 이미지로 저장하는 기능을 준비하고 있어요.`,
-                  )
+                icon="image-outline"
+                label="이미지로 공유"
+                onPress={
+                  onSaveImage ??
+                  (() =>
+                    Alert.alert(
+                      "곧 만나요",
+                      `${destinationKo} 여행 유형을 이미지로 저장하는 기능을 준비하고 있어요.`,
+                    ))
                 }
               />
               <ShareAction
