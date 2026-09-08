@@ -70,8 +70,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       //
       //    TOKEN_REFRESHED 까지 넓히지 않는다. 토큰 갱신은 수시로 일어나고,
       //    그때마다 SELECT 를 한 번씩 더 하는 값어치가 없다.
+      //
+      // ⚠️ 다만 두 이벤트가 같은 뜻은 아니다. **탈퇴한 계정을 되살리는 것은
+      //    SIGNED_IN 일 때뿐이다.** (allowRevive)
+      //      SIGNED_IN        사용자가 직접 다시 로그인했다 = 재가입 의사
+      //      INITIAL_SESSION  저장된 세션이 복원됐을 뿐이다
+      //    구분하지 않으면, 탈퇴 직후 로그아웃이 실패해 세션만 남은 사용자가
+      //    앱을 다시 켰다는 이유만으로 탈퇴가 취소된다.
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && next?.user) {
-        void ensureUserProfile(next.user).catch(() => {});
+        void ensureUserProfile(next.user, {
+          allowRevive: event === 'SIGNED_IN',
+        }).catch(() => {});
       }
     });
 

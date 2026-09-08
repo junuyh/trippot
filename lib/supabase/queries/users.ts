@@ -175,7 +175,7 @@ type OAuthProfile = {
  * ⚠️ email · phone 은 읽지 않는다. 서비스에 필요하지 않은 개인정보를
  *    저장하지 않는다.
  */
-function readOAuthProfile(user: {
+export function readOAuthProfile(user: {
   user_metadata?: Record<string, unknown>;
   identities?: { provider: string; id: string }[] | null;
 }): OAuthProfile {
@@ -199,30 +199,73 @@ function readOAuthProfile(user: {
   };
 }
 
+/** ensureUserProfile 의 동작을 정하는 값. */
+export type EnsureUserProfileOptions = {
+  /**
+   * 탈퇴한 계정을 되살려도 되는지.
+   *
+   *   SIGNED_IN        true   사용자가 직접 로그인한 것이다 = 재가입
+   *   INITIAL_SESSION  false  저장된 세션이 복원된 것뿐이다
+   *
+   * ⚠️ 이 구분이 없으면, 탈퇴 직후 로그아웃이 실패해 세션만 남은 사용자가
+   *    앱을 다시 켰다는 이유만으로 탈퇴가 취소된다. 본인이 하지 않은 일이다.
+   */
+  allowRevive: boolean;
+};
+
 /**
  * 로그인한 사용자의 public.users 행을 보장한다.
  *
- * 1. 있으면 아무것도 하지 않는다
- * 2. 없을 때만 만든다
+ * 1. 행이 없으면 만든다 (두 이벤트 모두)
+ * 2. 살아 있는 행이면 아무것도 하지 않는다
+ * 3. 탈퇴한 행이면 allowRevive 일 때만 되살린다
  *
  * ⚠️ name 은 NOT NULL 이다. 카카오가 닉네임을 주지 않는 경우
  *    (동의항목 미설정·거부) 를 대비해 '여행자' 를 쓴다. 빈 문자열이나
  *    id 조각을 넣지 않는다 — 화면 곳곳에 그대로 노출되는 값이다.
  *    사용자는 나중에 프로필에서 바꿀 수 있다.
  */
-export async function ensureUserProfile(user: {
-  id: string;
-  user_metadata?: Record<string, unknown>;
-  identities?: { provider: string; id: string }[] | null;
-}): Promise<void> {
+export async function ensureUserProfile(
+  user: {
+    id: string;
+    user_metadata?: Record<string, unknown>;
+    identities?: { provider: string; id: string }[] | null;
+  },
+  options: EnsureUserProfileOptions,
+): Promise<void> {
   const { data: existing, error: readError } = await supabase
     .from('users')
-    .select('id')
+    .select('id, deleted_at')
     .eq('id', user.id)
     .maybeSingle();
 
   if (readError) throw readError;
-  if (existing) return;
+
+  if (existing) {
+    // 살아 있는 계정이면 아무것도 하지 않는다. 매 로그인마다 덮어쓰지 않는다.
+    if (existing.deleted_at === null) return;
+
+    // ⚠️ 여기부터는 탈퇴한 계정이다. 같은 카카오 계정으로 다시 들어오면
+    //    auth.users 의 id 가 같아서 이 행이 그대로 잡힌다.
+    //
+    //    되살릴지 말지는 **어떤 이벤트로 왔는지**가 정한다. (allowRevive)
+    //    세션 복원(INITIAL_SESSION)으로는 절대 되살리지 않는다. 탈퇴 직후
+    //    로그아웃이 실패해 세션만 남은 경우, 앱을 다시 켰다는 이유만으로
+    //    탈퇴가 취소되면 사용자가 의도하지 않은 일이 벌어진다.
+    if (!options.allowRevive) return;
+
+    const { error: reviveError } = await supabase
+      .from('users')
+      .update({ deleted_at: null })
+      .eq('id', user.id);
+    if (reviveError) throw reviveError;
+
+    // ⚠️ 되살릴 때 name·profile_image_url 을 카카오 값으로 덮지 않는다.
+    //    탈퇴해도 여행·모임 데이터는 그대로 두는 정책이라(2026-09-08 확정)
+    //    돌아온 사람은 자기 기록을 그대로 돌려받는다. 그 사람이 앱에서 직접
+    //    바꿔둔 이름과 사진까지 카카오 값으로 되돌리면 남의 계정처럼 보인다.
+    return;
+  }
 
   const profile = readOAuthProfile(user);
 
@@ -236,4 +279,59 @@ export async function ensureUserProfile(user: {
 
   // 같은 순간에 두 번 들어와 이미 만들어졌으면 그대로 둔다. (23505 = unique_violation)
   if (error && error.code !== '23505') throw error;
+}
+
+/**
+ * 사용자가 직접 정한 이름으로 바꾼다. (계정관리)
+ *
+ * ⚠️ 카카오 닉네임과 별개다. 카카오 닉네임은 auth 세션의 user_metadata 에
+ *    있고 앱이 바꿀 수 없다. 이 값은 앱 안에서 보이는 이름이다.
+ *    한 번 바꾸면 다시 로그인해도 카카오 값으로 되돌아가지 않는다.
+ *    (ensureUserProfile 이 기존 행의 name 을 덮지 않는다)
+ *
+ * ⚠️ name 은 NOT NULL 이다. 빈 문자열도 받지 않는다. 화면 곳곳에 그대로
+ *    노출되는 값이라 공백만 남은 이름이 들어가면 이름 자리가 비어 보인다.
+ *    검증은 화면에서 하고 여기서도 한 번 더 막는다.
+ *
+ * ⚠️ 다른 사용자의 행을 건드리지 않도록 userId 로만 좁힌다. (CLAUDE.md 7장)
+ */
+export async function updateUserName(userId: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (trimmed === '') throw new Error('이름은 비워 둘 수 없습니다.');
+
+  const { error } = await supabase
+    .from('users')
+    .update({ name: trimmed })
+    .eq('id', userId)
+    .is('deleted_at', null);
+
+  if (error) throw error;
+}
+
+/**
+ * 회원탈퇴. (계정관리)
+ *
+ * users.deleted_at 을 채우는 soft delete 다. 행을 지우지 않는다.
+ *
+ * ⚠️ auth.users 는 건드리지 않는다. 지우려면 service_role 이 필요한데
+ *    앱은 anon key 만 쓴다. (CLAUDE.md 1장) 그래서 카카오 연결 자체는
+ *    남고, 같은 계정으로 다시 로그인하면 ensureUserProfile 이 이 행을
+ *    되살린다. 재가입 허용이 확정된 정책이다. (2026-09-08)
+ *
+ * ⚠️ 모임 · 여행 · 게시글은 건드리지 않는다. 같은 날 확정된 정책이다.
+ *    조회 query 들이 이미 users.deleted_at 으로 걸러 작성자 이름을 null 로
+ *    내려주고 있어(queries/community.ts · groups.ts) 화면은 대응돼 있다.
+ *    여기서 남의 모임·여행 기록까지 지우면 다른 모임원의 데이터가 깨진다.
+ *
+ * ⚠️ 세션 삭제는 여기서 하지 않는다. 화면이 signOut() 을 따로 부른다.
+ *    DB 갱신이 실패했는데 로그아웃만 되는 순서를 만들지 않기 위해서다.
+ */
+export async function withdrawUser(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('users')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', userId)
+    .is('deleted_at', null);
+
+  if (error) throw error;
 }
