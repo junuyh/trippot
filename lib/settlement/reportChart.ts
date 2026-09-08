@@ -24,7 +24,8 @@
 // ⚠️ 조각을 5개로 제한한다(상위 4 + 기타). 8개를 다 그리면 작은 조각이
 //    선처럼 보이고, 어느 것이 어느 것인지 색으로는 절대 구분되지 않는다.
 // ============================================================================
-import type { ReportCategory } from './report';
+import { manwon, manwonSigned } from './format';
+import type { DailySpend, ReportCategory } from './report';
 
 /** 흰 바탕에 섞어 옅게 만든다. ratio 0 이면 원색, 1 이면 흰색 */
 function tint(hex: string, ratio: number): string {
@@ -175,17 +176,14 @@ export function diffBarSvg(
       const room = over ? plotX + plotW - zero : zero - plotX;
       const len = c.diff === 0 ? 0 : Math.max(2, (Math.abs(c.diff) / max) * room);
       const x = over ? zero : zero - len;
-      const label =
-        c.diff === 0
-          ? '—'
-          : `${over ? '+' : '−'}${Math.abs(c.diff).toLocaleString('ko-KR')}`;
+      const label = c.actualAmount === 0 ? '기록 없음' : c.diff === 0 ? '계획대로' : manwonSigned(c.diff);
 
       return `<g>
         <text x="${LABEL_W - 10}" y="${y + 14}" class="cat" text-anchor="end">${esc(c.label)}</text>
         <rect x="${x}" y="${y + 5}" width="${len}" height="10" rx="4"
               fill="${over ? OVER : underColor}" />
         <text x="${W}" y="${y + 14}" class="val" text-anchor="end"
-              fill="${c.diff === 0 ? '#98a1ac' : over ? OVER : underColor}">${label}</text>
+              fill="${c.diff === 0 || c.actualAmount === 0 ? '#98a1ac' : over ? OVER : underColor}">${label}</text>
       </g>`;
     })
     .join('');
@@ -199,5 +197,90 @@ export function diffBarSvg(
     <line x1="${zero}" y1="0" x2="${zero}" y2="${rows.length * H}"
           stroke="#e2e6eb" stroke-width="1" />
     ${bars}
+  </svg>`;
+}
+
+/**
+ * 어디에 썼나 — 가로 한 줄 누적 막대. (v3)
+ * 도넛은 조각 각도를 눈으로 비교해야 하지만 가로 막대는 길이라 바로 읽힌다.
+ * 범례에 이름·비중·금액(만원)을 적는다. 색만으로 구분하게 두지 않는다.
+ */
+export function compositionBarSvg(slices: DonutSlice[]): string {
+  if (slices.length === 0) return '';
+  const W = 520;
+  const H = 16;
+  const GAP = 2;
+  let x = 0;
+  const rects = slices
+    .map((slice) => {
+      const w = Math.max(0, W * slice.ratio - GAP);
+      const rect = `<rect x="${x}" y="0" width="${w}" height="${H}" rx="4" fill="${slice.color}" />`;
+      x += W * slice.ratio;
+      return rect;
+    })
+    .join('');
+  const rows = slices
+    .map(
+      (slice) => `<tr>
+        <td class="sw"><span style="background:${slice.color}"></span></td>
+        <td>${esc(slice.label)}</td>
+        <td class="pct">${Math.round(slice.ratio * 100)}%</td>
+        <td class="n">${manwon(slice.amount)}</td>
+      </tr>`,
+    )
+    .join('');
+  return `<div class="composition">
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="16" preserveAspectRatio="none" role="img" aria-label="카테고리별 지출 구성">${rects}</svg>
+    <table class="legend">${rows}</table>
+  </div>`;
+}
+
+/**
+ * 언제 썼나 — 일자별 막대. (v3 · 데이터 확장)
+ * 가장 큰 날만 국기색, 나머지는 옅게. 여행 전·후 칸은 회색.
+ */
+export function dailyBarsSvg(buckets: DailySpend[], accent: string): string {
+  if (buckets.length === 0 || buckets.every((b) => b.amount === 0)) return '';
+  const W = 520;
+  const PLOT = 90;
+  const LABEL = 30;
+  const H = PLOT + LABEL;
+  // 눈금은 여행 중 날짜로만. 출발 전 결제(항공·숙소)가 여행 중 막대를 납작하게 만든다
+  const inTrip = buckets.filter((b) => b.inTrip);
+  const scaleBase = inTrip.some((b) => b.amount > 0) ? inTrip : buckets;
+  const max = Math.max(1, ...scaleBase.map((b) => b.amount));
+  const peak = scaleBase.reduce((best, b) => (b.amount > best.amount ? b : best), scaleBase[0]);
+  const gap = 6;
+  const bw = (W - gap * (buckets.length - 1)) / buckets.length;
+  const dense = buckets.length > 8;
+
+  const bars = buckets
+    .map((b, i) => {
+      const h = Math.min(PLOT, Math.max(b.amount > 0 ? 3 : 1, (b.amount / max) * PLOT));
+      const x = i * (bw + gap);
+      const y = PLOT - h;
+      const isPeak = b.key === peak.key && b.amount > 0;
+      const fill = isPeak ? accent : b.inTrip ? tint(accent, 0.72) : '#e2e6eb';
+      const value =
+        b.amount > 0 && (isPeak || !dense)
+          ? `<text x="${x + bw / 2}" y="${y - 4}" class="dv ${isPeak ? 'peak' : ''}" text-anchor="middle">${manwon(b.amount).replace('원', '')}</text>`
+          : '';
+      return `<g>
+        ${value}
+        <rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="3" fill="${fill}" />
+        <text x="${x + bw / 2}" y="${PLOT + 13}" class="dl ${isPeak ? 'peak' : ''}" text-anchor="middle">${esc(b.label)}</text>
+        ${b.sub && !dense ? `<text x="${x + bw / 2}" y="${PLOT + 24}" class="ds" text-anchor="middle">${esc(b.sub)}</text>` : ''}
+      </g>`;
+    })
+    .join('');
+
+  return `<svg viewBox="0 0 ${W} ${H + 14}" width="100%" role="img" aria-label="일자별 지출">
+    <style>
+      .dv { font: 9px -apple-system, sans-serif; fill: #667085; }
+      .dl { font: 9px -apple-system, sans-serif; font-weight: 700; fill: #475467; }
+      .ds { font: 8px -apple-system, sans-serif; fill: #98a1ac; }
+      .peak { fill: ${accent}; font-weight: 800; }
+    </style>
+    <g transform="translate(0,14)">${bars}</g>
   </svg>`;
 }
