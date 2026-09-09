@@ -16,11 +16,17 @@
 //
 //     머리글        TRIPPOT · {CITY} TRIP RECEIPT · 기간 · 인원 · 확정일
 //     그림          이미지와 같은 그림 (receiptArt · 여행마다 고정)
-//     SUMMARY       최종 사용 금액 · 목표 · 남은/초과 · 사용률 · 1인당 · 건수
-//     CATEGORIES    카테고리별 예산 / 실제 / 차이 (편차 큰 순, 화면과 같다)
+//     SUMMARY       TOTAL · 사용률 게이지 · 목표 · 남은/초과 · 1인당 · 건수
+//     SPENDING MIX  지출 구성 도넛 (상위 4 + 기타)              ← v5.1 그래프
+//     BUDGET vs ACTUAL 카테고리별 계획 눈금 + 실제 막대           ← v5.1 그래프
 //     TRAVEL FUND   누적 모금 · 사용 · 남은 여행자금 (모금액이 있을 때만)
-//     TRANSACTIONS  날짜별로 묶은 전체 지출. "언제 썼나" 는 이걸로 답한다
+//     DAILY SPEND   일자별 지출 막대                            ← v5.1 그래프
+//     TRANSACTIONS  날짜별로 묶은 전체 지출 (원 단위 그대로)
 //     TOTAL · 도장 · 바코드
+//
+//   v5.1 (2026-09-09) 숫자만 나열돼 눈에 안 들어온다는 피드백으로 그래프를
+//   넣었다. 단, 영수증 잉크 한 색으로 그린다 (receiptCharts.ts). 그래프 안의
+//   숫자는 "216만" 처럼 짧게, 정확한 원 단위는 거래 내역에만 둔다.
 //
 //   금액은 전부 원 단위다. 색은 잉크·회색·결과색(절약 초록 / 초과 국기색) 셋뿐.
 //
@@ -37,6 +43,7 @@ import { CATEGORY_CODE_LABEL } from '@/lib/constants/status';
 
 import { won, wonSigned } from './format';
 import { pickReceiptArt, receiptArtSvg } from './receiptArt';
+import { budgetBarsSvg, dailyBarsSvg, donutSvg, gaugeSvg, toDonutSlices } from './receiptCharts';
 import type { SettlementReport } from './report';
 
 export type { ReportTransaction } from './report';
@@ -122,29 +129,19 @@ export function buildSettlementReportHtml(report: SettlementReport, options: Rep
   const stay = report.nights > 0 ? `${report.nights}박 ${report.days}일` : null;
   const meta = [report.periodLabel, stay, `${report.headcount}명`].filter(Boolean).join(' · ');
 
+  /** 종이 안쪽 폭. 128mm ≈ 484px 에서 좌우 여백 22px 씩 뺀 값 */
+  const CHART_W = 440;
+  const donut = donutSvg(toDonutSlices(report.categories), CHART_W);
+  const budgetBars = budgetBarsSvg(report.categories, CHART_W, OVER, SAVED);
+  const daily = dailyBarsSvg(report.dailyGroups, CHART_W);
+  const gauge = gaugeSvg(report.usageRateBp, CHART_W, OVER, SAVED);
+
   const art = receiptArtSvg(
     pickReceiptArt(`${report.destination}|${report.startDate ?? ''}`, options),
     options,
     300,
     150,
   );
-
-  // ── CATEGORIES ────────────────────────────────────────────────────────
-  const plannedTotal = report.categories.reduce((sum, c) => sum + c.plannedAmount, 0);
-  const categoryRows = report.byDeviation
-    .map((c) => {
-      const none = c.actualAmount === 0;
-      const diffText = none ? '기록 없음' : c.diff === 0 ? '예산과 동일' : wonSigned(c.diff);
-      const diffColor = none || c.diff === 0 ? FAINT : c.diff > 0 ? OVER : SAVED;
-      return `<tr>
-        <td class="e">${CATEGORY_EMOJI[c.categoryCode] ?? ''}</td>
-        <td class="n">${esc(c.label)}</td>
-        <td class="a muted">${won(c.plannedAmount)}</td>
-        <td class="a">${won(c.actualAmount)}</td>
-        <td class="a" style="color:${diffColor};font-weight:${none || c.diff === 0 ? 400 : 700}">${diffText}</td>
-      </tr>`;
-    })
-    .join('');
 
   // ── TRAVEL FUND ───────────────────────────────────────────────────────
   const fund =
@@ -172,7 +169,10 @@ export function buildSettlementReportHtml(report: SettlementReport, options: Rep
   const tx =
     report.transactions.length === 0
       ? ''
-      : `<div class="dash"></div>
+      : `${daily ? `<div class="dash"></div>
+  <div class="sec">DAILY SPEND<small>일자별 지출 · 눈금은 여행 중 기준</small></div>
+  <div class="chart">${daily}</div>` : ''}
+  <div class="dash"></div>
   <div class="sec">TRANSACTIONS<small>거래 내역 ${report.transactions.length}건</small></div>
   <table class="tx"><tbody>${txRows}</tbody></table>`;
 
@@ -221,6 +221,12 @@ export function buildSettlementReportHtml(report: SettlementReport, options: Rep
   .sec { margin-top: 14px; font-size: 10px; font-weight: 900; letter-spacing: 2px; }
   .sec small { margin-left: 8px; font-size: 9.5px; font-weight: 400; letter-spacing: 0; color: ${MUTED}; }
 
+  .chart { margin-top: 10px; break-inside: avoid; }
+  .chart svg { display: block; width: 100%; height: auto; font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  .chart svg .mono { font-family: Menlo, "SF Mono", "Courier New", monospace; font-variant-numeric: tabular-nums; }
+  .gauge { margin-top: 8px; }
+  .gauge svg { display: block; width: 100%; height: 14px; }
+  .gauge-l { display: flex; justify-content: space-between; margin-top: 3px; font-size: 9px; font-weight: 700; color: ${FAINT}; }
   .row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; font-size: 11px; }
   .row .l { color: ${MUTED}; }
   .row .l small { margin-left: 6px; font-size: 9px; color: ${FAINT}; }
@@ -279,19 +285,19 @@ export function buildSettlementReportHtml(report: SettlementReport, options: Rep
     <div class="dbl"></div>
     <div class="sec">SUMMARY<small>정산 요약</small></div>
     <div class="row total"><span class="l">TOTAL</span><span class="v">${won(report.actualAmount)}</span></div>
+    ${report.targetAmount > 0 ? `<div class="gauge">${gauge}<div class="gauge-l"><span style="color:${same ? INK : resultColor}">예산의 ${rate} 사용</span><span>목표 100%</span></div></div>` : ''}
     ${line('목표 여행비', won(report.targetAmount))}
     ${line(within ? '남은 금액' : '초과 금액', won(Math.abs(report.difference)), { bold: true, color: resultColor })}
-    ${line('예산 사용률', rate, { color: same ? INK : resultColor })}
     ${report.headcount > 1 ? line(`1인당`, won(report.perPersonAmount), { sub: `${report.headcount}명` }) : ''}
     ${line('확정 지출', `${report.transactions.length}건`)}
 
-    <div class="dash"></div>
-    <div class="sec">CATEGORIES<small>카테고리별 정산 · 편차 큰 순</small></div>
-    <table>
-      <thead><tr><td colspan="2">카테고리</td><td class="a">예산</td><td class="a">실제</td><td class="a">차이</td></tr></thead>
-      <tbody>${categoryRows}</tbody>
-      <tfoot><tr><td colspan="2">합계</td><td class="a muted">${won(plannedTotal)}</td><td class="a">${won(report.actualAmount)}</td><td class="a" style="color:${resultColor}">${same ? '예산과 동일' : wonSigned(report.difference)}</td></tr></tfoot>
-    </table>
+    ${donut ? `<div class="dash"></div>
+    <div class="sec">SPENDING MIX<small>지출 구성</small></div>
+    <div class="chart">${donut}</div>` : ''}
+
+    ${budgetBars ? `<div class="dash"></div>
+    <div class="sec">BUDGET vs ACTUAL<small>카테고리별 계획 대비 실제</small></div>
+    <div class="chart">${budgetBars}</div>` : ''}
 
     ${fund}
 
