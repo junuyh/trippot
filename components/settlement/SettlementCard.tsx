@@ -9,8 +9,9 @@
 //
 //   위      TRIP COMPLETE · 도시명(디스플레이 폰트) · 기간 · 인원
 //   슬롯    은색 프린터 투입구. 종이가 이 밑에서 나온다
-//   영수증  머리글 · 카테고리별 금액 · 이중선 · 합계 · 목표/남은 금액 · 1인당 ·
-//           비고(가장 큰 초과·절약) · 결과 도장 · 바코드 · 톱니 아랫변
+//   영수증  머리글 · 선으로 그린 그림 한 장(ReceiptArt) · 이중선 · TOTAL ·
+//           목표/남은 금액 · 1인당 · 결과 도장 · 바코드 · 톱니 아랫변
+//           (카테고리 나열은 뺐다 — 숫자 여덟 줄보다 그림 한 장이 먼저 읽힌다)
 //   아래    @TRIPPOT
 //
 // 홈의 여행 영수증(TripReceiptCard)과 같은 종이·점선·톱니·등폭 숫자다.
@@ -25,13 +26,17 @@
 //    이미지에 눌리지 않는 버튼이 찍힌다. 여기는 보여줄 것만 있다.
 // ⚠️ 실제 사용액이 0이면 이 카드를 만들지 않는다. 화면이 그 판단을 한다.
 // ============================================================================
+import type React from 'react';
 import { Platform, Text, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, G, Line as SvgLine, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
-import { CATEGORY_EMOJI } from '@/lib/constants/categoryEmoji';
 import type { CountryTheme } from '@/lib/constants/countryTheme';
+import { countryLandmark } from '@/lib/constants/countryLandmark';
+import { CITY_PIN, countryOutline } from '@/lib/constants/countryOutline';
+import type { DestinationCode } from '@/lib/constants/destinations';
 import { useDisplayFont } from '@/lib/hooks/useDisplayFont';
 import { won } from '@/lib/settlement/format';
+import { pickReceiptArt, type ReceiptArtVariant } from '@/lib/settlement/receiptArt';
 import type { SettlementReport } from '@/lib/settlement/report';
 
 /** 캡처 폭. 기기 배율(3x)로 810px 이다. 높이는 내용에 따르되 9:16 보다 짧지 않다 */
@@ -78,6 +83,114 @@ function toothPath(width: number): string {
   }
   parts.push(`L ${count * TOOTH},0 Z`);
   return parts.join(' ');
+}
+
+/**
+ * 영수증 가운데 그림. 선으로만 그린다 (잉크 한 색, 채움 없음).
+ * 어떤 그림인지는 lib/settlement/receiptArt 가 여행마다 고정으로 고른다.
+ * PDF 명세서도 같은 함수로 같은 그림을 쓴다.
+ */
+const ART_W = PAPER_W - PAD * 2;
+const ART_H = 118;
+
+function ReceiptArt({
+  variant,
+  countryKo,
+  destinationCode,
+  airportCode,
+}: {
+  variant: ReceiptArtVariant;
+  countryKo: string | null;
+  destinationCode: DestinationCode | null;
+  airportCode: string | null;
+}) {
+  const outline = countryOutline(countryKo);
+  const pin = destinationCode ? CITY_PIN[destinationCode] : null;
+
+  let body: React.ReactNode = null;
+  if (variant === 'outline' && outline) {
+    const [, , vw, vh] = outline.viewBox.split(' ').map(Number);
+    // 그림 상자 안에 나라를 통째로 맞춘다. 여백 8%
+    const scale = Math.min((ART_W * 0.84) / vw, (ART_H * 0.84) / vh);
+    const ox = (ART_W - vw * scale) / 2;
+    const oy = (ART_H - vh * scale) / 2;
+    body = (
+      <Svg width={ART_W} height={ART_H}>
+        <G transform={`translate(${ox} ${oy}) scale(${scale})`}>
+          {outline.paths.map((d, i) => (
+            <Path key={i} d={d} fill="none" stroke={INK} strokeWidth={1.1 / scale} strokeLinejoin="round" />
+          ))}
+          {pin ? (
+            <>
+              <Circle cx={pin.x} cy={pin.y} r={5.5 / scale} fill="none" stroke={INK} strokeWidth={1.4 / scale} />
+              <Circle cx={pin.x} cy={pin.y} r={2 / scale} fill={INK} />
+            </>
+          ) : null}
+        </G>
+      </Svg>
+    );
+  } else if (variant === 'landmark') {
+    const mark = countryLandmark(countryKo);
+    // 좌표계 100×60, 지면 y=60. 상자 안에 폭 기준으로 맞춘다
+    const scale = Math.min((ART_W * 0.8) / 100, (ART_H * 0.8) / 60);
+    const ox = (ART_W - 100 * scale) / 2;
+    const oy = (ART_H - 60 * scale) / 2;
+    body = (
+      <Svg width={ART_W} height={ART_H}>
+        <G transform={`translate(${ox} ${oy}) scale(${scale})`}>
+          {mark.paths.map((p, i) => (
+            <Path key={i} d={p.d} fill="none" stroke={INK} strokeWidth={1.3 / scale} strokeLinejoin="round" />
+          ))}
+          {mark.circles?.map((c, i) => (
+            <Circle key={`c${i}`} cx={c.cx} cy={c.cy} r={c.r} fill="none" stroke={INK} strokeWidth={1.3 / scale} />
+          ))}
+          <SvgLine x1={-4} y1={60} x2={104} y2={60} stroke={INK} strokeWidth={1.3 / scale} />
+        </G>
+      </Svg>
+    );
+  } else {
+    // route: 두 점 사이 점선 호, 정점에 비행기
+    const y = ART_H * 0.62;
+    const x1 = 26;
+    const x2 = ART_W - 26;
+    const cx = (x1 + x2) / 2;
+    const top = ART_H * 0.22;
+    body = (
+      <View style={{ width: ART_W, height: ART_H }}>
+        <Svg width={ART_W} height={ART_H}>
+          <Path
+            d={`M ${x1} ${y} Q ${cx} ${top - 30} ${x2} ${y}`}
+            fill="none"
+            stroke={INK}
+            strokeWidth={1.2}
+            strokeDasharray="4 4"
+          />
+          <Circle cx={x1} cy={y} r={3.5} fill="none" stroke={INK} strokeWidth={1.4} />
+          <Circle cx={x2} cy={y} r={3.5} fill={INK} />
+        </Svg>
+        <Text style={{ position: 'absolute', left: cx - 9, top: top - 6, fontSize: 16, color: INK }}>✈</Text>
+        <Text style={{ position: 'absolute', left: x1 - 14, top: y + 9, width: 28, textAlign: 'center', fontFamily: MONO, fontSize: 9, fontWeight: '700', color: INK }}>ICN</Text>
+        <Text style={{ position: 'absolute', left: x2 - 14, top: y + 9, width: 28, textAlign: 'center', fontFamily: MONO, fontSize: 9, fontWeight: '700', color: INK }}>{airportCode ?? '—'}</Text>
+      </View>
+    );
+  }
+
+  if (!body) return null;
+  return (
+    <View
+      style={{
+        marginTop: 12,
+        width: ART_W,
+        height: ART_H,
+        borderWidth: 1,
+        borderColor: INK,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {body}
+    </View>
+  );
 }
 
 function Dashed() {
@@ -143,9 +256,21 @@ type Props = {
   flag: string;
   /** 'TOKYO' */
   nameEn: string;
+  /** 국가·도시·공항. 직접 입력 목적지는 null 이라 그림 없이 그린다 */
+  countryKo: string | null;
+  destinationCode: DestinationCode | null;
+  airportCode: string | null;
 };
 
-export function SettlementCard({ report, theme, flag, nameEn }: Props) {
+export function SettlementCard({
+  report,
+  theme,
+  flag,
+  nameEn,
+  countryKo,
+  destinationCode,
+  airportCode,
+}: Props) {
   const { fontFamily: displayFont } = useDisplayFont();
   const withinBudget = report.difference <= 0;
   const resultTone = withinBudget ? SAVED : theme.primary;
@@ -241,18 +366,35 @@ export function SettlementCard({ report, theme, flag, nameEn }: Props) {
               {report.confirmedLabel ? `  ·  ${report.confirmedLabel.replaceAll('.', '/')} 확정` : ''}
             </Text>
 
-            {/* 품목 */}
+            {/* 그림 */}
             <Dashed />
-            <View style={{ marginTop: 2 }}>
-              {report.bySpent.map((c) => (
-                <Line
-                  key={c.categoryCode}
-                  emoji={CATEGORY_EMOJI[c.categoryCode]}
-                  label={c.label}
-                  value={won(c.actualAmount)}
-                />
-              ))}
-            </View>
+            <ReceiptArt
+              variant={pickReceiptArt(`${report.destination}|${report.startDate ?? ''}`, {
+                countryKo,
+                destinationCode,
+                airportCode,
+              })}
+              countryKo={countryKo}
+              destinationCode={destinationCode}
+              airportCode={airportCode}
+            />
+            <Text
+              style={{
+                textAlign: 'center',
+                marginTop: 8,
+                fontSize: 8,
+                fontWeight: '800',
+                letterSpacing: 1.4,
+                color: INK,
+              }}
+            >
+              {city} · {theme.nameEn || 'ABROAD'}
+            </Text>
+            <Text
+              style={{ textAlign: 'center', marginTop: 3, fontSize: 8, letterSpacing: 0.4, color: FAINT, ...NUM }}
+            >
+              {stay ? `${stay} · ` : ''}{report.headcount}명 · {report.transactions.length}건 결제
+            </Text>
 
             {/* 합계 */}
             <DoubleRule />
@@ -289,27 +431,6 @@ export function SettlementCard({ report, theme, flag, nameEn }: Props) {
             />
             {report.headcount > 1 ? (
               <Line label={`1인당 · ${report.headcount}명`} value={won(report.perPersonAmount)} />
-            ) : null}
-
-            {/* 비고 */}
-            {report.biggestOver || report.biggestSaved ? (
-              <>
-                <Dashed />
-                {report.biggestOver ? (
-                  <Line
-                    label={`가장 큰 초과 · ${report.biggestOver.label}`}
-                    value={`+${won(report.biggestOver.diff)}`}
-                    tone={theme.primary}
-                  />
-                ) : null}
-                {report.biggestSaved ? (
-                  <Line
-                    label={`가장 큰 절약 · ${report.biggestSaved.label}`}
-                    value={`-${won(-report.biggestSaved.diff)}`}
-                    tone={SAVED}
-                  />
-                ) : null}
-              </>
             ) : null}
 
             {/* 결과 도장 */}

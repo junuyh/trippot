@@ -383,6 +383,9 @@ export default function ScreenSETTLE01() {
         accent: reportTheme.primary,
         flag: destinationMeta?.flag ?? "🌏",
         nameEn: destinationMeta?.nameEn ?? "",
+        countryKo: destinationMeta?.countryKo ?? null,
+        destinationCode: destinationMeta?.code ?? null,
+        airportCode: destinationMeta?.airportCode ?? null,
       });
 
       const { uri } = await Print.printToFileAsync({ html });
@@ -420,7 +423,7 @@ export default function ScreenSETTLE01() {
     } finally {
       setShareBusy(null);
     }
-  }, [destinationMeta?.flag, destinationMeta?.nameEn, report, reportTheme.primary, shareBusy]);
+  }, [destinationMeta, report, reportTheme.primary, shareBusy]);
 
   // ── 결산 확정 ─────────────────────────────────────────────────────────
   const confirmSettlement = useCallback(async () => {
@@ -828,6 +831,9 @@ export default function ScreenSETTLE01() {
           theme={reportTheme}
           flag={destinationMeta?.flag ?? "🌍"}
           nameEn={destinationMeta?.nameEn ?? report.destination}
+          countryKo={destinationMeta?.countryKo ?? null}
+          destinationCode={destinationMeta?.code ?? null}
+          airportCode={destinationMeta?.airportCode ?? null}
           onShareCard={handleShareCard}
           onSharePdf={handleSharePdf}
           busy={shareBusy}

@@ -22,6 +22,7 @@ import ViewShot from 'react-native-view-shot';
 
 import { BottomSheet } from '@/components/ui';
 import type { CountryTheme } from '@/lib/constants/countryTheme';
+import type { DestinationCode } from '@/lib/constants/destinations';
 import type { SettlementReport } from '@/lib/settlement/report';
 
 import { SettlementCard } from './SettlementCard';
@@ -33,6 +34,9 @@ type Props = {
   theme: CountryTheme;
   flag: string;
   nameEn: string;
+  countryKo: string | null;
+  destinationCode: DestinationCode | null;
+  airportCode: string | null;
   onShareCard: () => void;
   onSharePdf: () => void;
   /** 'card' | 'pdf' | null. 만드는 중인 것 */
@@ -45,7 +49,7 @@ type Props = {
  *    캡처하면 보이는 것과 나가는 것이 달라질 수 있다.
  */
 export const ShareReportSheet = forwardRef<ViewShot, Props>(function ShareReportSheet(
-  { visible, onClose, report, theme, flag, nameEn, onShareCard, onSharePdf, busy },
+  { visible, onClose, report, theme, flag, nameEn, countryKo, destinationCode, airportCode, onShareCard, onSharePdf, busy },
   ref,
 ) {
   return (
@@ -58,7 +62,15 @@ export const ShareReportSheet = forwardRef<ViewShot, Props>(function ShareReport
 
         {/* 미리보기 = 캡처 대상 */}
         <ViewShot ref={ref} options={{ format: 'png', quality: 1 }}>
-          <SettlementCard report={report} theme={theme} flag={flag} nameEn={nameEn} />
+          <SettlementCard
+            report={report}
+            theme={theme}
+            flag={flag}
+            nameEn={nameEn}
+            countryKo={countryKo}
+            destinationCode={destinationCode}
+            airportCode={airportCode}
+          />
         </ViewShot>
 
         <View className="w-full gap-2">
