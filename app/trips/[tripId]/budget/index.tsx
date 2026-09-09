@@ -36,6 +36,7 @@ import {
   type InsightItem,
 } from "@/components/budget";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { isTripEnded } from "@/lib/trip/tripStatus";
 import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -482,7 +483,7 @@ export default function ScreenBUDGET01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "예산" }} />
         <Loading message="예산을 불러오는 중…" />
       </View>
     );
@@ -495,7 +496,7 @@ export default function ScreenBUDGET01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "예산" }} />
         <EmptyState
           icon="wallet-outline"
           title="예산을 찾을 수 없어요"
@@ -514,7 +515,7 @@ export default function ScreenBUDGET01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "예산" }} />
         <ErrorState
           message="예산을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -565,7 +566,7 @@ export default function ScreenBUDGET01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "예산" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "예산" }} />
 
         {confirmed ? (
           <BudgetTicketCard

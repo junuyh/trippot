@@ -45,6 +45,7 @@ import {
   type CategoryComparison,
 } from "@/components/settlement";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { isTripEnded } from "@/lib/trip/tripStatus";
 import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
@@ -488,7 +489,7 @@ export default function ScreenSETTLE01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "정산" }} />
         <Loading message="정산 내역을 불러오는 중…" />
       </View>
     );
@@ -501,7 +502,7 @@ export default function ScreenSETTLE01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "정산" }} />
         <EmptyState
           icon="receipt-outline"
           title="여행을 찾을 수 없어요"
@@ -520,7 +521,7 @@ export default function ScreenSETTLE01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "정산" }} />
         <ErrorState
           message="정산 내역을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -541,7 +542,7 @@ export default function ScreenSETTLE01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "정산" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "정산" }} />
         <EmptyState
           icon="hourglass-outline"
           title="아직 정산할 때가 아니에요"
@@ -567,7 +568,7 @@ export default function ScreenSETTLE01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: `${data.trip.destination ?? "여행"} 정산` }}
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: `${data.trip.destination ?? "여행"} 정산` }}
       />
 
       <SettlementSummaryCard

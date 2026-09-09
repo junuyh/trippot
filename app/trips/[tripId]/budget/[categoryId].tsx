@@ -50,6 +50,7 @@ import {
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { isTripEnded } from "@/lib/trip/tripStatus";
 import { DateRangeCalendar } from "@/components/trip-create";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -956,7 +957,7 @@ export default function ScreenBUDGET02() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <Loading message="불러오는 중…" />
       </View>
     );
@@ -968,7 +969,7 @@ export default function ScreenBUDGET02() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <EmptyState
           icon="pricetag-outline"
           title="카테고리를 찾을 수 없어요"
@@ -986,7 +987,7 @@ export default function ScreenBUDGET02() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "카테고리" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <ErrorState message="불러오지 못했어요." onRetry={() => void load()} />
       </View>
     );
@@ -1036,7 +1037,7 @@ export default function ScreenBUDGET02() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: label }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: label }} />
 
       <ScrollView
         contentContainerStyle={{

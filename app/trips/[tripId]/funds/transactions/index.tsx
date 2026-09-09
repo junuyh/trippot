@@ -27,6 +27,7 @@ import { Swipeable } from "react-native-gesture-handler";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   TransactionDetailBody,
   type TransactionDetail,
@@ -605,7 +606,7 @@ export default function ScreenFUND01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title }} />
         <Loading message="내역을 불러오는 중…" />
       </View>
     );
@@ -617,7 +618,7 @@ export default function ScreenFUND01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title }} />
         <EmptyState
           icon="receipt-outline"
           title="여행을 찾을 수 없어요"
@@ -634,7 +635,7 @@ export default function ScreenFUND01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title }} />
         <ErrorState
           message="내역을 불러오지 못했어요."
           onRetry={() => void load()}
@@ -655,7 +656,7 @@ export default function ScreenFUND01() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title }} />
 
       {/*
         연결 계좌 안내는 여기서만 보여준다.
