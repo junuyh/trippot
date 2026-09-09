@@ -39,6 +39,7 @@ import { InsuranceDetailSheet } from '@/components/insurance/InsuranceDetailShee
 import { InsuranceQuoteList } from '@/components/insurance/InsuranceQuoteList';
 import { InsuranceSelectionBar } from '@/components/insurance/InsuranceSelectionBar';
 import { TripHomeButton } from '@/components/navigation/TripHomeButton';
+import { isTripEnded } from "@/lib/trip/tripStatus";
 import { BottomSheet, EmptyState, ErrorState, HeaderBackButton, Loading } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
@@ -225,7 +226,7 @@ export default function ScreenINSURANCE01() {
       options={{
         title: '여행자보험',
         headerLeft: () => <HeaderBackButton parentHref={parentHref} />,
-        headerRight: () => <TripHomeButton tripId={tripId as string} />,
+        headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />,
       }}
     />
   );

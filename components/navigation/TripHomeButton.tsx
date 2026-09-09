@@ -21,9 +21,15 @@ import { Pressable } from "react-native";
 
 type Props = {
   tripId: string;
+  /**
+   * 끝난 여행이면 true. 비행기 대신 **영수증**을 그린다.
+   * 이미 다녀온 여행에서 비행기는 "또 간다" 로 읽힌다. 돌아갈 곳은 결산이 끝난
+   * 여행 홈이라 영수증이 맞다. (2026-09-09)
+   */
+  ended?: boolean;
 };
 
-export function TripHomeButton({ tripId }: Props) {
+export function TripHomeButton({ tripId, ended = false }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -40,7 +46,7 @@ export function TripHomeButton({ tripId }: Props) {
       }}
       className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
     >
-      <Ionicons name="airplane-outline" size={20} color="#111827" />
+      <Ionicons name={ended ? "receipt-outline" : "airplane-outline"} size={20} color="#111827" />
     </Pressable>
   );
 }

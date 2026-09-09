@@ -30,6 +30,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   BottomSheet,
   Button,
@@ -215,7 +216,7 @@ export default function ScreenFUND02() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "계좌 연결" }} />
         <Loading message="계좌 정보를 불러오는 중…" />
       </View>
     );
@@ -227,7 +228,7 @@ export default function ScreenFUND02() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "계좌 연결" }} />
         <EmptyState
           icon="card-outline"
           title="여행을 찾을 수 없어요"
@@ -245,7 +246,7 @@ export default function ScreenFUND02() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "계좌 연결" }} />
         <ErrorState
           message="계좌 정보를 불러오지 못했어요."
           onRetry={() => void load()}
@@ -274,7 +275,7 @@ export default function ScreenFUND02() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: connected ? "연결 계좌 관리" : "계좌 연결" }}
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: connected ? "연결 계좌 관리" : "계좌 연결" }}
         />
 
         {/* ── 지금 방식 ── */}
