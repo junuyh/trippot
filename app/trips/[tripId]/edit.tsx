@@ -36,7 +36,7 @@ import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/
 import { DEV_USER_ID } from "@/lib/constants/devUser";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { TRIP_OWNER_TYPE, TRIP_STATUS } from "@/lib/constants/status";
-import { buildGroupInviteLink, buildInviteMessage } from "@/lib/invite/inviteLink";
+import { buildGroupInviteLink, buildInviteMessage, pickInviteTemplate } from "@/lib/invite/inviteLink";
 import { getGroupTrips, getMyGroups, type Group } from "@/lib/supabase/queries/groups";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
@@ -72,6 +72,8 @@ export default function ScreenTripEdit() {
   // ── 여행 멤버 초대 ────────────────────────────────────────────────────
   const [inviting, setInviting] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  /** 초대 문구 버전. 시트를 열 때마다 새로 뽑는다 (11종 랜덤) */
+  const [inviteVariant, setInviteVariant] = useState(0);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -175,6 +177,7 @@ export default function ScreenTripEdit() {
         return;
       }
       setCopied(false);
+      setInviteVariant(pickInviteTemplate());
       setInviteOpen(true);
     } catch {
       Alert.alert("확인하지 못했어요", "모임의 여행 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
@@ -192,14 +195,17 @@ export default function ScreenTripEdit() {
   const inviteMessage = useMemo(
     () =>
       selectedGroup && trip
-        ? buildInviteMessage({
-            destination: trip.destination ?? "여행",
-            groupName: selectedGroup.name,
-            periodLabel,
-            link: inviteLink,
-          })
+        ? buildInviteMessage(
+            {
+              destination: trip.destination ?? "여행",
+              groupName: selectedGroup.name,
+              periodLabel,
+              link: inviteLink,
+            },
+            inviteVariant,
+          )
         : "",
-    [inviteLink, periodLabel, selectedGroup, trip],
+    [inviteLink, inviteVariant, periodLabel, selectedGroup, trip],
   );
 
   const handleShareKakao = useCallback(async () => {
