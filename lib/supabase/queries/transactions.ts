@@ -435,6 +435,8 @@ export type SettlementFunds = {
   refundPendingAmount: number;
   /** 큰 금액순 상위 지출 */
   major: Transaction[];
+  /** 확정 지출 전체. 정산 리포트(명세서·일자별 흐름)에 쓴다 */
+  spent: Transaction[];
 };
 
 /**
@@ -485,7 +487,8 @@ export async function getSettlementFunds(
     confirmedCount,
     pendingAmount,
     refundPendingAmount,
-    major: spent.sort((a, b) => b.amount - a.amount).slice(0, majorLimit),
+    major: [...spent].sort((a, b) => b.amount - a.amount).slice(0, majorLimit),
+    spent,
   };
 }
 
@@ -545,4 +548,36 @@ export async function syncPlanItemActual(planItemId: string): Promise<void> {
           : BUDGET_PLAN_ITEM_STATUS.PLANNED,
     })
     .eq("id", planItemId);
+}
+
+/**
+ * 입금 거래 누적이 목표액에 처음 닿은 날. 미리미리형 판정에 쓴다.
+ *
+ * 입금을 시간순으로 더해 가다가 target 을 넘는 순간의 occurred_at 을 돌려준다.
+ * 못 닿았으면 null. target 이 0 이하면 판정 자체가 의미 없어 null.
+ *
+ * ⚠️ fund_sources.current_amount(계좌 잔액·수기 금액)는 보지 않는다. 그 값에는
+ *    날짜가 없어서 "언제 모았는지" 를 말할 수 없다. 입금 거래만 근거가 된다.
+ */
+export async function getFundReadyAt(
+  tripId: string,
+  target: number,
+): Promise<string | null> {
+  if (target <= 0) return null;
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("amount, occurred_at")
+    .eq("trip_id", tripId)
+    .eq("transaction_type", TRANSACTION_TYPE.DEPOSIT)
+    .is("deleted_at", null)
+    .order("occurred_at", { ascending: true });
+
+  if (error) throw error;
+
+  let sum = 0;
+  for (const row of data ?? []) {
+    sum += row.amount;
+    if (sum >= target) return row.occurred_at;
+  }
+  return null;
 }

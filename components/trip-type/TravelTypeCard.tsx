@@ -1,49 +1,39 @@
 // ============================================================================
-// TRIP-HOME-02 여행 유형 매거진 카드 (시안 v3)
+// TRIP-HOME-02 여행 유형 카드 — 여행자 신분증 (2026-09-08 v2)
 //
-// 결산이 확정된 여행이 어떤 여행이었는지를 **잡지 표지처럼** 보여준다.
-// 누르면 TYPE-01 이 오버레이로 올라온다.
+// 결산이 확정된 여행이 어떤 여행이었는지를 **유형색 바탕 위의 신분증**으로
+// 보여준다. 누르면 TYPE-01 이 오버레이로 올라온다.
 //
-// ⚠️ 이 카드만 국가 포인트 컬러를 쓰지 않는다. 노란 바탕은 '여행 유형' 자체의
-//    표식이라 나라가 바뀌어도 같아야 한다. 나라별로 색이 바뀌면 유형 카드인지
-//    아닌지를 색으로 못 알아본다.
+// v1 은 노란 잡지 표지였다. 유형이 달라도 같은 노란색이라 "무슨 유형인지" 가
+// 색으로 안 갈렸고, 공유 이미지(TypeStoryCard)와 얼굴이 달랐다.
+// 이제 홈 · 오버레이 · 공유 이미지가 같은 TypeIdCard 를 쓴다.
+//
+// ⚠️ 이 카드는 국가 포인트 컬러가 아니라 **유형색**을 쓴다. (travelTypeTheme)
+//    나라가 바뀌어도 유형이 같으면 같은 색이다.
 //
 // ⚠️ 정확도 배지의 숫자는 **결산 확정 시점의 기록**이다. (queries/travelTypes.ts)
 //    나중에 예산을 고쳐도 바뀌지 않는다.
 //
 // ⚠️ 도트 배경은 SVG Pattern 으로 그린다. RN 에는 radial-gradient 가 없다.
 // ============================================================================
-import { Image, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import Svg, { Circle, Defs, Pattern, Rect } from "react-native-svg";
 
 import { TRAVEL_TYPE_COPY } from "@/lib/constants/travelTypeCopy";
-import type { SpendingProfileType } from "@/lib/constants/status";
+import { travelTypeTheme } from "@/lib/constants/travelTypeTheme";
 
-/** 시안의 --yellow. 유형 카드 고유색이다 */
-const YELLOW = "#ffd92f";
-const INK = "#111827";
-/** 정확도 배지 바탕 */
-const CORAL = "#ff6a78";
+import { TypeIdCard, type TypeIdCardProps } from "./TypeIdCard";
 
-const CARD_HEIGHT = 370;
+/** 열 유형 중 몇 번째인지 표시할 때 쓰는 총 개수 */
+export const TYPE_COUNT = 10;
 
-type Props = {
-  code: SpendingProfileType;
-  /** 예산 정확도. basis point. 9960 = 99.6% */
-  accuracyBp: number;
-  /** 배지에 함께 적는 영문 도시명 */
-  destinationEn: string;
+type Props = Omit<TypeIdCardProps, "tilted"> & {
   onPress: () => void;
 };
 
-export function TravelTypeCard({
-  code,
-  accuracyBp,
-  destinationEn,
-  onPress,
-}: Props) {
-  const copy = TRAVEL_TYPE_COPY[code];
-  const accuracy = (accuracyBp / 100).toFixed(1).replace(/\.0$/, "");
+export function TravelTypeCard({ onPress, ...card }: Props) {
+  const copy = TRAVEL_TYPE_COPY[card.code];
+  const theme = travelTypeTheme(card.code);
 
   return (
     <Pressable
@@ -52,159 +42,67 @@ export function TravelTypeCard({
       onPress={onPress}
       className="active:opacity-90"
       style={{
-        height: CARD_HEIGHT,
         borderRadius: 19,
-        backgroundColor: YELLOW,
-        padding: 19,
+        backgroundColor: theme.bg,
+        padding: 18,
         overflow: "hidden",
       }}
     >
       {/* 도트 바탕 */}
       <Svg
         width="100%"
-        height={CARD_HEIGHT}
+        height="100%"
         style={{ position: "absolute", left: 0, top: 0 }}
         pointerEvents="none"
       >
         <Defs>
-          <Pattern
-            id="type-dots"
-            width={15}
-            height={15}
-            patternUnits="userSpaceOnUse"
-          >
-            <Circle cx={1.3} cy={1.3} r={1.3} fill={INK} opacity={0.12} />
+          <Pattern id="type-home-dots" width={15} height={15} patternUnits="userSpaceOnUse">
+            <Circle cx={1.3} cy={1.3} r={1.3} fill={theme.ink} opacity={0.14} />
           </Pattern>
         </Defs>
-        <Rect width="100%" height={CARD_HEIGHT} fill="url(#type-dots)" />
+        <Rect width="100%" height="100%" fill="url(#type-home-dots)" />
       </Svg>
 
-      {/*
-        캐릭터. 오른쪽에 크게 깔고 글자 아래로 보낸다.
-        ⚠️ 캐릭터가 없는 유형은 이모지로 대신한다. 지금 이미지는 균형형 하나뿐이다.
-      */}
-      {copy.image ? (
-        <Image
-          source={copy.image}
-          style={{
-            position: "absolute",
-            right: -31,
-            top: 63,
-            width: "86%",
-            height: 296,
-          }}
-          resizeMode="contain"
-          accessibilityIgnoresInvertColors
-        />
-      ) : (
-        <Text
-          style={{ position: "absolute", right: 18, top: 120, fontSize: 96 }}
-        >
-          {copy.emoji}
+      <View className="flex-row items-center justify-between">
+        <Text style={{ fontSize: 9, fontWeight: "900", letterSpacing: 1.5, color: theme.ink }}>
+          TRIPPOT · TRAVEL TYPE
         </Text>
-      )}
-
-      <View className="flex-row items-start justify-between">
-        <Text
-          style={{
-            fontSize: 9,
-            fontWeight: "900",
-            letterSpacing: 1,
-            color: INK,
-          }}
-        >
-          TRIPPOT TRAVEL TYPE
-        </Text>
-        <Text
-          style={{
-            fontSize: 9,
-            fontWeight: "900",
-            letterSpacing: 1,
-            color: INK,
-          }}
-        >
-          TYPE {copy.no}
+        <Text style={{ fontSize: 9, fontWeight: "900", letterSpacing: 1, color: theme.ink }}>
+          NO. {copy.no} / {TYPE_COUNT}
         </Text>
       </View>
 
-      {/* 기울인 호수 태그. 시안의 :after 를 옮겼다 */}
-      <View
-        style={{
-          position: "absolute",
-          right: 17,
-          top: 42,
-          backgroundColor: "#fff",
-          borderWidth: 1,
-          borderColor: INK,
-          paddingHorizontal: 9,
-          paddingVertical: 6,
-          transform: [{ rotate: "5deg" }],
-        }}
-      >
-        <Text style={{ fontSize: 8, fontWeight: "900", color: INK }}>
-          NO.{copy.no} · {destinationEn}
-        </Text>
-      </View>
-
+      <Text style={{ marginTop: 14, fontSize: 11, fontWeight: "800", color: theme.ink }}>
+        나의 여행자 유형은
+      </Text>
       <Text
         style={{
-          marginTop: 40,
-          fontSize: 36,
-          lineHeight: 34,
+          marginTop: 2,
+          fontSize: 26,
+          lineHeight: 32,
           fontWeight: "900",
-          letterSpacing: -2,
-          color: INK,
+          letterSpacing: -0.5,
+          color: theme.ink,
         }}
       >
         {copy.headline}
       </Text>
 
-      <View
-        style={{
-          alignSelf: "flex-start",
-          maxWidth: "56%",
-          marginTop: 10,
-          backgroundColor: "rgba(255,255,255,0.64)",
-          paddingHorizontal: 8,
-          paddingVertical: 7,
-          transform: [{ rotate: "-2deg" }],
-        }}
-      >
-        <Text style={{ fontSize: 9, lineHeight: 14, color: INK }}>
-          {copy.description}
-        </Text>
+      <View style={{ marginTop: 14 }}>
+        <TypeIdCard {...card} />
       </View>
 
-      {/* 예산 정확도 배지 */}
-      <View
+      <Text
         style={{
-          position: "absolute",
-          left: 18,
-          bottom: 14,
-          width: 75,
-          height: 75,
-          borderRadius: 37.5,
-          borderWidth: 1,
-          borderColor: INK,
-          backgroundColor: CORAL,
-          alignItems: "center",
-          justifyContent: "center",
-          transform: [{ rotate: "-8deg" }],
+          marginTop: 12,
+          fontSize: 10,
+          fontWeight: "800",
+          color: theme.ink,
+          textAlign: "right",
         }}
       >
-        <Text
-          style={{
-            fontSize: 8,
-            fontWeight: "900",
-            lineHeight: 11,
-            textAlign: "center",
-            color: INK,
-          }}
-        >
-          BUDGET{"\n"}
-          {accuracy}%{"\n"}ACCURACY
-        </Text>
-      </View>
+        이 유형이 나온 이유 보기 ›
+      </Text>
     </Pressable>
   );
 }

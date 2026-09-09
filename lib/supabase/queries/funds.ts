@@ -62,6 +62,60 @@ export async function getGroupAccounts(
   return data ?? [];
 }
 
+/** 이전 여행에서 이 모임이 연결했던 계좌. 어느 여행이었는지도 같이 준다 */
+export type PreviouslyLinkedAccount = {
+  account: FinancialAccount;
+  /** 그 계좌를 썼던 여행. 안내 문구에 쓴다 */
+  tripDestination: string | null;
+};
+
+/**
+ * 같은 모임의 **다른 여행**이 연결했던 계좌 중 가장 최근 것.
+ *
+ * FUND-02 에서 "지난 여행에서 연결한 계좌가 있어요. 같은 계좌로 연결할까요?"
+ * 안내에 쓴다. 이 여행이 아직 계좌를 안 붙였을 때 모임 계좌 목록을 그냥
+ * 늘어놓으면 이미 연결된 것처럼 읽힌다. (2026-09-09)
+ *
+ * ⚠️ 해제된 계좌(disconnected_at)는 뺀다. 다시 붙일 수 없는 계좌를 권하지 않는다.
+ */
+export async function getPreviouslyLinkedAccount(
+  groupId: string,
+  excludeTripId: string,
+): Promise<PreviouslyLinkedAccount | null> {
+  const { data: trips, error: tripsError } = await supabase
+    .from("trips")
+    .select("id, destination")
+    .eq("group_id", groupId)
+    .neq("id", excludeTripId);
+  if (tripsError) throw tripsError;
+  if (!trips || trips.length === 0) return null;
+
+  const { data: funds, error: fundsError } = await supabase
+    .from("fund_sources")
+    .select("trip_id, financial_account_id, updated_at")
+    .in("trip_id", trips.map((t) => t.id))
+    .not("financial_account_id", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (fundsError) throw fundsError;
+  const latest = funds?.[0];
+  if (!latest?.financial_account_id) return null;
+
+  const { data: account, error: accountError } = await supabase
+    .from("financial_accounts")
+    .select("*")
+    .eq("id", latest.financial_account_id)
+    .is("disconnected_at", null)
+    .maybeSingle();
+  if (accountError) throw accountError;
+  if (!account) return null;
+
+  return {
+    account,
+    tripDestination: trips.find((t) => t.id === latest.trip_id)?.destination ?? null,
+  };
+}
+
 export async function getTravelFund(
   tripId: string,
 ): Promise<FundSource | null> {

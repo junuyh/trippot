@@ -6,6 +6,7 @@
 export { AccountTripPickerSheet } from './AccountTripPickerSheet';
 export { AllAccountsSheet } from './AllAccountsSheet';
 export { GroupAccountList } from './GroupAccountList';
+export { GroupCreateForm } from './GroupCreateForm';
 export { GroupDetailView } from './GroupDetailView';
 export { GroupEditActionBar } from './GroupEditActionBar';
 export { GroupListEmptyNotice } from './GroupListEmptyNotice';
@@ -18,6 +19,7 @@ export { GroupTravelCardList } from './GroupTravelCardList';
 export { HiddenGroupsSheet } from './HiddenGroupsSheet';
 export { isActiveTripStatus, toGroupTripStatusLabel } from './format';
 export { RemoveConfirmModal } from './RemoveConfirmModal';
+export type { MovableMember } from './GroupCreateForm';
 export type {
   GroupAccountItem,
   GroupAccountTrip,

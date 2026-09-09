@@ -28,6 +28,7 @@ import { useCallback, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, View } from "react-native";
 
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   BottomSheet,
   Button,
@@ -299,7 +300,7 @@ export default function ScreenFUND03() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <Loading message="거래를 불러오는 중…" />
       </View>
     );
@@ -311,7 +312,7 @@ export default function ScreenFUND03() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <EmptyState
           icon="receipt-outline"
           title="거래를 찾을 수 없어요"
@@ -329,7 +330,7 @@ export default function ScreenFUND03() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <ErrorState
           message="거래를 불러오지 못했어요."
           onRetry={() => void load()}
@@ -409,7 +410,7 @@ export default function ScreenFUND03() {
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
           ),
-          headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "거래 상세" }} />
+          headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
 
       <ScrollView
         contentContainerStyle={{

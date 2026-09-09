@@ -69,12 +69,16 @@ export async function getTripTypeResult(
 export async function ensureTripTypeResult(
   tripId: string,
   inputs: TypeInput[],
+  /** 세부 계획 개수. 즉흥형 판정에 쓴다. 모르면 넘기지 않는다 */
+  planItemCount?: number,
+  /** 입금이 목표액에 닿은 날부터 출발일까지의 일수. 미리미리형 판정에 쓴다 */
+  fundReadyDaysBefore?: number,
 ): Promise<TripTypeResult | null> {
   const existing = await getTripTypeResult(tripId);
   if (existing) return existing;
   if (inputs.length === 0) return null;
 
-  const resolved = resolveTravelType(inputs);
+  const resolved = resolveTravelType(inputs, planItemCount, fundReadyDaysBefore);
 
   const { data: type, error: typeError } = await supabase
     .from("travel_types")

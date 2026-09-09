@@ -3,7 +3,10 @@ export {
   SettlementVaultGrid,
   type SettlementVault,
 } from "./SettlementVaultGrid";
-export { TravelTypeCard } from "./TravelTypeCard";
+export { TravelTypeCard, TYPE_COUNT } from "./TravelTypeCard";
+export { TypeIdCard } from "./TypeIdCard";
 export { TripRecordCard } from "./TripRecordCard";
 export { TripReceiptCard } from "./TripReceiptCard";
 export { TypeResultOverlay, type TypeEvidenceRow } from "./TypeResultOverlay";
+export { TypeStoryCard, TYPE_STORY_WIDTH, TYPE_STORY_HEIGHT } from "./TypeStoryCard";
+export { TypeStorySheet } from "./TypeStorySheet";

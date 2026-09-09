@@ -21,14 +21,18 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import type ViewShot from "react-native-view-shot";
 
 import {
   BaggageTagCard,
@@ -36,16 +40,24 @@ import {
   FundManagerCard,
   TripGuideCards,
   type GridCategory,
+  TodayAllowanceCard,
+  TripSettingsButton,
+  TripSettingsSheet,
 } from "@/components/trip-home";
+import { AppHomeButton } from "@/components/navigation/AppHomeButton";
+import { dailyAllowance } from "@/lib/budget/dailyAllowance";
+import { scheduleSpendReminders } from "@/lib/notifications/spendReminder";
 import {
   SettlementVaultGrid,
   TravelTypeCard,
   TripReceiptCard,
   TripRecordCard,
   TypeResultOverlay,
+  TypeStorySheet,
   type SettlementVault,
   type TypeEvidenceRow,
 } from "@/components/trip-type";
+import { TripStorySheet, TripStoryTeaser } from "@/components/trip-record";
 import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -58,7 +70,10 @@ import {
   tripStage,
 } from "@/lib/trip/stage";
 import { buildTripRecord } from "@/lib/budget/tripRecord";
+import { romanizeName } from "@/lib/trip/romanize";
+import { CITY_PIN, countryOutline } from "@/lib/constants/countryOutline";
 import { countryTheme } from "@/lib/constants/countryTheme";
+import { destinationPhoto } from "@/lib/constants/destinationPhoto";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
   FUND_SOURCE_TYPE,
@@ -76,10 +91,12 @@ import {
   updateBudgetCategoriesPrepared,
   type BudgetCategory,
   type TripBudget,
+  countPlanItems,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
-import { getGroupById } from "@/lib/supabase/queries/groups";
+import { getGroupById, getGroupMembers } from "@/lib/supabase/queries/groups";
 import {
+  getFundReadyAt,
   getFundTotals,
   getTransactions,
   reviewReason,
@@ -98,6 +115,21 @@ import {
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
 const PAGE_COLOR = "#ffffff";
 
+/**
+ * 입금이 목표액(계획 합계)에 닿은 날부터 출발일까지 며칠인지.
+ * 못 닿았거나 출발일이 없으면 undefined. 미리미리형 판정에 쓴다.
+ */
+async function fundReadyDaysBefore(data: TripHomeData): Promise<number | undefined> {
+  if (!data.trip.start_date) return undefined;
+  const target = data.categories.reduce(
+    (sum, category) => sum + category.planned_amount,
+    0,
+  );
+  const readyAt = await getFundReadyAt(data.trip.id, target);
+  if (!readyAt) return undefined;
+  return differenceInCalendarDays(parseISO(data.trip.start_date), parseISO(readyAt));
+}
+
 type TripHomeData = {
   trip: Trip;
   budget: TripBudget | null;
@@ -107,6 +139,8 @@ type TripHomeData = {
   /** 입금 거래 합계. 누적 모금액 계산에 쓴다 */
   depositTotal: number;
   groupName: string | null;
+  /** 함께 간 사람 이름. 개인 여행이면 빈 배열. 스토리 이미지에 쓴다 */
+  memberNames: string[];
 };
 
 export default function ScreenTripHome() {
@@ -115,6 +149,11 @@ export default function ScreenTripHome() {
   useTripContext(tripId);
 
   const [data, setData] = useState<TripHomeData | null>(null);
+  /**
+   * 여행 설정 사이드 시트. 헤더 오른쪽 톱니바퀴로 연다.
+   * 나가기·취소의 실제 동작은 다른 팀원이 만든다. 아래 두 핸들러가 그 자리다.
+   */
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -123,6 +162,23 @@ export default function ScreenTripHome() {
   const [typeResult, setTypeResult] = useState<TripTypeResult | null>(null);
   /** 이번 진입에서 금고 배분을 이미 저장했는지 */
   const syncedRef = useRef(false);
+  /**
+   * 여행 기록 스토리 이미지 시트. (2026-09-08 시안)
+   * ⚠️ 사용자에게 받는 건 배경 사진 하나뿐이다. 나머지는 여행 데이터로 채운다.
+   */
+  const [storyOpen, setStoryOpen] = useState(false);
+  const [storyPhoto, setStoryPhoto] = useState<string | null>(null);
+  const [storyBusy, setStoryBusy] = useState(false);
+  /**
+   * 함께 간 사람. 자유 입력이라 줄바꿈까지 그대로 카드에 들어간다.
+   * null 은 "아직 손대지 않음" 이고, 그때는 영문 시작값을 보여준다.
+   */
+  const [storyMembersText, setStoryMembersText] = useState<string | null>(null);
+  const storyRef = useRef<ViewShot>(null);
+  /** 여행 유형 공유 시트. 확정된 유형에서만 연다 */
+  const [typeStoryOpen, setTypeStoryOpen] = useState(false);
+  const [typeStoryBusy, setTypeStoryBusy] = useState(false);
+  const typeStoryRef = useRef<ViewShot>(null);
   /**
    * TYPE-01 오버레이 열림 여부. (시안 v3)
    * ⚠️ 별도 라우트로 밀지 않는다. 유형은 결산 결과를 다르게 읽은 것이라
@@ -160,15 +216,18 @@ export default function ScreenTripHome() {
 
       // 여행을 찾은 뒤에야 나머지를 붙인다. 예산·자금이 없어도 화면은 떠야 한다.
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, fund, transactions, totals, group] = await Promise.all(
-        [
+      const [categories, fund, transactions, totals, group, members] =
+        await Promise.all([
           budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
           getTravelFund(trip.id),
           getTransactions(trip.id),
           getFundTotals(trip.id),
           trip.group_id ? getGroupById(trip.group_id) : Promise.resolve(null),
-        ],
-      );
+          // 이름은 스토리 이미지에만 쓴다. 못 가져와도 화면은 떠야 해서 빈 배열로 떨어뜨린다.
+          trip.group_id
+            ? getGroupMembers(trip.group_id).catch(() => [])
+            : Promise.resolve([]),
+        ]);
 
       setData({
         trip,
@@ -178,6 +237,7 @@ export default function ScreenTripHome() {
         transactions,
         depositTotal: totals.depositTotal,
         groupName: group?.name ?? null,
+        memberNames: members.map((member) => member.user.name),
       });
     } catch {
       setError(true);
@@ -186,6 +246,18 @@ export default function ScreenTripHome() {
       setRefreshing(false);
     }
   }, [tripId]);
+
+  /**
+   * 지출 입력 리마인드(매일 21:00 로컬 알림)를 잡는다. 여행이 임박했거나
+   * 진행 중일 때만 권한을 묻고, 같은 여행 것은 지우고 다시 잡아 중복되지 않는다.
+   * 실패해도 화면은 멀쩡해야 한다 (Android Expo Go 는 알림 모듈이 없다).
+   */
+  const remindedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!data || remindedRef.current === data.trip.id) return;
+    remindedRef.current = data.trip.id;
+    scheduleSpendReminders(data.trip).catch(() => undefined);
+  }, [data]);
 
   // 화면에 들어올 때마다 다시 읽는다. 예산을 고치고 돌아오면 옛 숫자가 남는다.
   useFocusEffect(
@@ -256,14 +328,33 @@ export default function ScreenTripHome() {
    */
   useEffect(() => {
     if (!data || data.trip.status !== TRIP_STATUS.SETTLED) return;
-    void ensureTripTypeResult(
-      data.trip.id,
-      data.categories.map((category) => ({
-        categoryCode: category.category_code as CategoryCode,
-        plannedAmount: category.planned_amount,
-        actualAmount: category.actual_amount,
-      })),
-    )
+    const inputs = data.categories.map((category) => ({
+      categoryCode: category.category_code as CategoryCode,
+      plannedAmount: category.planned_amount,
+      actualAmount: category.actual_amount,
+    }));
+
+    /*
+      세부 계획 개수를 함께 넘긴다. '즉흥형' 은 지출이 아니라 준비 행동을 보는
+      유일한 유형이라 이 값이 없으면 절대 나오지 않는다.
+
+      ⚠️ 개수를 못 세면 넘기지 않는다. 세어 보지도 않고 '계획을 안 세웠다' 고
+         단정하면 안 된다. 그 경우 나머지 여덟 유형으로만 판정된다.
+    */
+    void Promise.all([
+      countPlanItems(data.categories.map((category) => category.id)).catch(
+        () => undefined,
+      ),
+      /*
+        여행자금을 언제 다 모았는지도 함께 넘긴다. '미리미리형' 은 지출이 아니라
+        준비 행동을 보는 유형이라 이 값이 없으면 절대 나오지 않는다.
+        ⚠️ 못 구하면 넘기지 않는다. 즉흥형과 같은 원칙이다.
+      */
+      fundReadyDaysBefore(data).catch(() => undefined),
+    ])
+      .then(([planItemCount, readyDays]) =>
+        ensureTripTypeResult(data.trip.id, inputs, planItemCount, readyDays),
+      )
       .then(setTypeResult)
       // 유형은 부가 정보다. 실패해도 결산 영수증은 그대로 보여준다.
       .catch(() => undefined);
@@ -398,6 +489,113 @@ export default function ScreenTripHome() {
     [data?.categories],
   );
 
+  /**
+   * 함께 간 사람 시작값. 영문(로마자)은 제목이 영문이라 톤이 맞고, 한글은 그대로.
+   * 사용자가 고쳐 쓰기 전까지 영문을 보여준다.
+   */
+  const storyMemberPresets = useMemo(() => {
+    const names = data?.memberNames ?? [];
+    if (names.length === 0) return [];
+    return [
+      { label: "영문", text: names.map((name) => romanizeName(name).toUpperCase()).join(" · ") },
+      { label: "한글", text: names.join(" · ") },
+    ];
+  }, [data?.memberNames]);
+  const storyMembers = storyMembersText ?? storyMemberPresets[0]?.text ?? "";
+
+  /** 유형 신분증에 적는 기간. "2026.05.14 – 05.17" */
+  const tripPeriodLabel = useMemo(() => {
+    const trip = data?.trip;
+    if (!trip?.start_date || !trip?.end_date) return null;
+    return `${format(parseISO(trip.start_date), "yyyy.MM.dd")} – ${format(parseISO(trip.end_date), "MM.dd")}`;
+  }, [data?.trip]);
+
+  /** 스토리 카드에 넘길 데이터. 티저(작은 미리보기)와 시트가 같은 값을 쓴다 */
+  const storyCardBase = useMemo(() => {
+    const trip = data?.trip;
+    return {
+      theme,
+      flag: destinationMeta?.flag ?? "🌍",
+      destinationEn:
+        destinationMeta?.nameEn ?? (trip?.destination ?? "TRIP").toUpperCase(),
+      photoUri: storyPhoto,
+      fallbackPhotoUrl: destinationPhoto(destinationMeta?.code)?.url ?? null,
+      outline: countryOutline(destinationMeta?.countryKo),
+      pin: destinationMeta ? CITY_PIN[destinationMeta.code] : null,
+      startDate: trip?.start_date ?? null,
+      endDate: trip?.end_date ?? null,
+      membersText: storyMembers,
+    };
+  }, [data?.trip, theme, destinationMeta, storyPhoto, storyMembers]);
+
+  /** 스토리 이미지의 배경 사진 고르기. 사진 하나만 받는다. */
+  const handlePickStoryPhoto = useCallback(async () => {
+    if (storyBusy) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("사진 접근 권한이 필요해요", "설정에서 사진 접근을 허용해 주세요.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      // 미리보기에 바로 띄우는 용도라 HEIC 도 상관없다. 캡처 결과는 PNG 로 나간다.
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    setStoryPhoto(result.assets[0].uri);
+  }, [storyBusy]);
+
+  /**
+   * 미리보기 카드를 그대로 캡처해서 공유 시트로 넘긴다.
+   * ⚠️ [검토 필요] 공유 완료 이벤트. events.ts 에 없어서 아직 track() 하지 않는다.
+   *    TRIP_RECORD_SHARED 같은 이름으로 승인되면 여기서 기록한다. (CLAUDE.md 8장)
+   */
+  const handleShareStory = useCallback(async () => {
+    if (storyBusy) return;
+    setStoryBusy(true);
+    try {
+      const uri = await storyRef.current?.capture?.();
+      if (!uri) throw new Error("capture failed");
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("공유할 수 없어요", "이 기기에서는 공유 기능을 쓸 수 없어요.");
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/png",
+        dialogTitle: "여행 기록 이미지 공유",
+      });
+    } catch {
+      Alert.alert("만들지 못했어요", "잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setStoryBusy(false);
+    }
+  }, [storyBusy]);
+
+  /**
+   * 유형 결과지를 캡처해서 공유 시트로 넘긴다.
+   * ⚠️ [검토 필요] 공유 완료 이벤트. events.ts 에 없어서 아직 track() 하지 않는다.
+   */
+  const handleShareTypeStory = useCallback(async () => {
+    if (typeStoryBusy) return;
+    setTypeStoryBusy(true);
+    try {
+      const uri = await typeStoryRef.current?.capture?.();
+      if (!uri) throw new Error("capture failed");
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("공유할 수 없어요", "이 기기에서는 공유 기능을 쓸 수 없어요.");
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/png",
+        dialogTitle: "내 여행 유형 공유",
+      });
+    } catch {
+      Alert.alert("만들지 못했어요", "잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setTypeStoryBusy(false);
+    }
+  }, [typeStoryBusy]);
+
   const gridCategories: GridCategory[] = useMemo(
     () =>
       (data?.categories ?? []).map((category) => ({
@@ -424,7 +622,7 @@ export default function ScreenTripHome() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈" }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
         <Loading message="여행 정보를 불러오는 중…" />
       </View>
     );
@@ -432,7 +630,7 @@ export default function ScreenTripHome() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈" }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
         <EmptyState
           icon="airplane-outline"
           title="여행을 찾을 수 없어요"
@@ -446,7 +644,7 @@ export default function ScreenTripHome() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈" }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
         <ErrorState
           message="여행 정보를 불러오지 못했어요."
           onRetry={() => void load()}
@@ -556,6 +754,22 @@ export default function ScreenTripHome() {
     return { label: `D+${-diff}`, ongoing: false };
   })();
 
+  /**
+   * 오늘 쓸 수 있는 돈. 여행 기간 안에서만 값이 있다.
+   * 예산 = 카테고리 계획 합. 모금액이 아니다. (lib/budget/dailyAllowance)
+   */
+  const todayAllowance = dailyAllowance({
+    startDate: trip.start_date,
+    endDate: trip.end_date,
+    budgetTotal: data.categories.reduce((sum, c) => sum + c.planned_amount, 0),
+    transactions: data.transactions,
+    today: new Date(),
+  });
+  const totalDays =
+    trip.start_date && trip.end_date
+      ? differenceInCalendarDays(parseISO(trip.end_date), parseISO(trip.start_date)) + 1
+      : 0;
+
   return (
     <ScrollView
       className="flex-1"
@@ -570,7 +784,44 @@ export default function ScreenTripHome() {
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
       }
     >
-      <Stack.Screen options={{ title: trip.destination ?? "여행 홈" }} />
+      <Stack.Screen
+        options={{
+          title: trip.destination ?? "여행 홈",
+          /* 왼쪽은 앱 홈(집), 오른쪽은 여행 설정(톱니). '<' 는 어디로 가는지 알 수 없었다 */
+          headerLeft: () => <AppHomeButton />,
+          /* 끝난 여행은 고칠 것도 나갈 것도 취소할 것도 없다. 톱니를 아예 안 그린다 */
+          headerRight: ended
+            ? undefined
+            : () => <TripSettingsButton onPress={() => setSettingsOpen(true)} />,
+        }}
+      />
+
+      {/*
+        ── 여행 설정 사이드 시트 ──
+        ⚠️ 여행 나가기 / 여행 취소하기의 실제 동작은 다른 팀원이 만든다.
+           지금은 자리만 있고, 누르면 준비 중이라고 알린다.
+           · 나가기   이 여행·멤버 목록에서 빠진다 (trip_members / group_members)
+           · 취소     모임원 전원 동의 → 취소. 동의 완료 시점부터 72시간 되돌리기
+      */}
+      <TripSettingsSheet
+        visible={settingsOpen && !ended}
+        onClose={() => setSettingsOpen(false)}
+        destination={trip.destination ?? "여행"}
+        groupName={data.groupName}
+        onEdit={() => router.push(`/trips/${trip.id}/edit`)}
+        onLeave={() =>
+          Alert.alert(
+            "여행 나가기",
+            "이 여행과 멤버 목록에서 빠지는 기능은 준비 중이에요.",
+          )
+        }
+        onCancel={() =>
+          Alert.alert(
+            "여행 취소하기",
+            "함께 가는 사람 모두가 동의하면 취소돼요. 동의가 끝난 뒤 72시간 안에는 되돌릴 수 있어요. 이 기능은 준비 중이에요.",
+          )
+        }
+      />
 
       {/*
         ── 여행 정보 ──
@@ -719,6 +970,9 @@ export default function ScreenTripHome() {
               <TravelTypeCard
                 code={shownType.code}
                 accuracyBp={shownType.accuracyBp}
+                periodLabel={tripPeriodLabel}
+                topSpentLabel={record.topSpentLabel}
+                topSavedLabel={record.topSavedLabel}
                 destinationEn={
                   destinationMeta?.nameEn ??
                   (trip.destination ?? "TRIP").toUpperCase()
@@ -844,6 +1098,15 @@ export default function ScreenTripHome() {
                 topSavedLabel={record.topSavedLabel}
                 hashtags={record.hashtags}
               />
+              {/*
+                스토리 이미지 티저. (2026-09-08)
+                제목 줄의 작은 알약 버튼은 눈에 안 띄어 기능이 없는 것처럼 보였다.
+                결과물을 작게 미리 보여주면 "이게 만들어진다" 가 먼저 보인다.
+              */}
+              <TripStoryTeaser
+                card={storyCardBase}
+                onPress={() => setStoryOpen(true)}
+              />
             </View>
           ) : null}
 
@@ -894,9 +1157,57 @@ export default function ScreenTripHome() {
               evidence={shownType.evidence as TypeEvidenceRow[]}
               provisional={shownType.provisional}
               destinationKo={trip.destination ?? "여행"}
+              destinationEn={destinationMeta?.nameEn ?? ""}
+              periodLabel={tripPeriodLabel}
+              topSpentLabel={record.topSpentLabel}
+              topSavedLabel={record.topSavedLabel}
               onClose={() => setTypeOpen(false)}
+              /*
+                확정 결과만 이미지로 만든다. 오버레이(pageSheet)를 닫고 시트를 연다.
+                모달 위에 모달을 쌓으면 닫는 순서가 꼬인다.
+              */
+              onSaveImage={
+                shownType.provisional
+                  ? undefined
+                  : () => {
+                      setTypeOpen(false);
+                      setTypeStoryOpen(true);
+                    }
+              }
             />
           ) : null}
+
+          {/* 여행 유형 공유 시트 */}
+          {shownType && !shownType.provisional ? (
+            <TypeStorySheet
+              ref={typeStoryRef}
+              visible={typeStoryOpen}
+              onClose={() => setTypeStoryOpen(false)}
+              busy={typeStoryBusy}
+              onShare={handleShareTypeStory}
+              card={{
+                code: shownType.code,
+                accuracyBp: shownType.accuracyBp,
+                destinationEn: destinationMeta?.nameEn ?? "",
+                periodLabel: tripPeriodLabel,
+                topSpentLabel: record.topSpentLabel,
+                topSavedLabel: record.topSavedLabel,
+              }}
+            />
+          ) : null}
+
+          {/* 여행 기록 스토리 이미지 시트 */}
+          <TripStorySheet
+            ref={storyRef}
+            visible={storyOpen}
+            onClose={() => setStoryOpen(false)}
+            busy={storyBusy}
+            onPickPhoto={handlePickStoryPhoto}
+            onShare={handleShareStory}
+            onChangeMembersText={setStoryMembersText}
+            memberPresets={storyMemberPresets}
+            card={storyCardBase}
+          />
         </>
       ) : (
         // ── TRIP-HOME-01 준비 중 ────────────────────────────────────────
@@ -926,6 +1237,20 @@ export default function ScreenTripHome() {
             onPressFund={() => router.push(`/trips/${trip.id}/funds`)}
             onPressEdit={() => router.push(`/trips/${trip.id}/edit`)}
           />
+
+          {/*
+            ── TODAY · 오늘 쓸 수 있는 돈 ── 여행 중에만
+            태그는 "얼마 모였나", 이 카드는 "오늘 얼마 써도 되나". 수기 입력이
+            바로 되돌아오는 자리라 태그 바로 아래에 둔다. (2026-09-09)
+          */}
+          {todayAllowance ? (
+            <TodayAllowanceCard
+              theme={theme}
+              allowance={todayAllowance}
+              totalDays={totalDays}
+              onPressRecord={() => router.push(`/trips/${trip.id}/funds`)}
+            />
+          ) : null}
 
           {/* 예산이 없으면 카테고리도 목표도 없다. 먼저 정하게 한다 */}
           {targetAmount <= 0 ? (

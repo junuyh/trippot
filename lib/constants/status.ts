@@ -54,6 +54,12 @@ export const TRIP_STATUS = {
   ENDED: "ENDED",
   SETTLED: "SETTLED",
   DELETED: "DELETED",
+  /**
+   * 전원 동의로 취소된 여행. DELETED 와 다르게 되돌릴 수 있고 데이터를 남긴다.
+   * trips.canceled_at 이 취소 확정 시각이며 되돌리기 72시간의 기준이다.
+   * (20260909000001_trips_canceled_status.sql · 2026-09-09)
+   */
+  CANCELED: "CANCELED",
 } as const;
 export type TripStatus = (typeof TRIP_STATUS)[keyof typeof TRIP_STATUS];
 
@@ -527,11 +533,48 @@ export type InsuranceCoverage =
  *    시드가 이 값들을 code 로 참조하고 있다.
  */
 export const SPENDING_PROFILE_TYPE = {
+  // ── 어디에 더 썼나 ────────────────────────────────────────────────
   GOURMET: "gourmet",
   LODGING_FOCUSED: "lodging_focused",
   EXPERIENCE: "experience",
   SHOPPING: "shopping",
+
+  // ── 얼마나 썼나 ──────────────────────────────────────────────────
   FRUGAL: "frugal",
+  /**
+   * 계획을 크게 넘겨 쓴 여행. (2026-09-08 추가)
+   *
+   * ⚠️ 이게 없으면 특정 카테고리를 넘기지 않은 채 전체만 초과한 여행이
+   *    '균형형' 으로 잡힌다. 20% 더 쓰고도 균형이라고 부르면 유형이
+   *    아무 말도 하지 않는 것과 같다.
+   */
+  BIG_SPENDER: "big_spender",
+
+  // ── 어떻게 준비했나 ──────────────────────────────────────────────
+  /**
+   * 계획을 거의 세우지 않고 다녀온 여행. (2026-09-08 추가)
+   *
+   * ⚠️ 유일하게 **지출이 아니라 준비 행동**을 보는 유형이다.
+   *    세부 계획 항목 수로 판정한다. 계획을 안 짜는 사람에게도 결과가
+   *    나와야 결산까지 오게 된다.
+   */
+  SPONTANEOUS: "spontaneous",
+  /**
+   * 계획과 실제가 거의 일치한 여행. (2026-09-08 추가)
+   *
+   * ⚠️ 균형형에서 갈라 낸 값이다. '정확히 맞췄다' 는 자랑거리인데
+   *    균형형에 섞이면 그 성취가 드러나지 않는다.
+   */
+  PLANNER: "planner",
+  /**
+   * 여행자금을 출발 한 달 전에 다 모은 여행. (2026-09-08 추가)
+   *
+   * ⚠️ 지출이 아니라 **자금 준비** 를 보는 유일한 유형이다.
+   *    핵심 루프(계획 → 준비 → 소비 → 결산)에서 '준비' 단계만 유형이 없었다.
+   *    입금 거래가 목표액에 닿은 날과 출발일의 간격으로 판정한다.
+   */
+  EARLY_SAVER: "early_saver",
+
   /** 뚜렷한 편차가 없을 때의 기본값 */
   BALANCED: "balanced",
 } as const;
@@ -683,6 +726,7 @@ export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
   ENDED: "종료",
   SETTLED: "결산 완료",
   DELETED: "삭제됨",
+  CANCELED: "취소됨",
 };
 
 export const TRIP_OWNER_TYPE_LABEL: Record<TripOwnerType, string> = {
@@ -870,5 +914,9 @@ export const SPENDING_PROFILE_TYPE_LABEL: Record<SpendingProfileType, string> =
     experience: "체험형",
     shopping: "쇼핑 중심형",
     frugal: "절약형",
+    big_spender: "통 큰 여행자",
+    spontaneous: "즉흥형",
+    planner: "계획파",
+    early_saver: "미리미리형",
     balanced: "균형형",
   };
