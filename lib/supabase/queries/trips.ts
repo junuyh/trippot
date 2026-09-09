@@ -33,6 +33,10 @@ export type TripMember = Tables<"trip_members">;
 export type TripMemberInsert = TablesInsert<"trip_members">;
 
 /** 내가 볼 수 있는 여행 목록 (본인 개인 여행 + 소속 모임 여행). */
+/**
+ * 내 여행 목록. 삭제된 여행과 **취소된 여행**은 뺀다.
+ * 취소된 여행은 MY-02 '취소된 여행' 탭에서 따로 본다. [팀원 개발 예정]
+ */
 export async function getTrips(userId: string): Promise<Trip[]> {
   // 두 번에 나눠 조회한 뒤 합친다. 개인 여행과 모임 여행은 조건이 달라
   // 한 번의 or() 로 묶으면 조인 필터가 섞여 다른 사용자 여행이 새기 쉽다.
@@ -49,7 +53,7 @@ export async function getTrips(userId: string): Promise<Trip[]> {
     .from("trips")
     .select("*")
     .eq("owner_user_id", userId)
-    .neq("status", TRIP_STATUS.DELETED);
+    .not("status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`);
 
   if (personalError) throw personalError;
 
@@ -59,7 +63,7 @@ export async function getTrips(userId: string): Promise<Trip[]> {
       .from("trips")
       .select("*")
       .in("group_id", groupIds)
-      .neq("status", TRIP_STATUS.DELETED);
+      .not("status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`);
     if (error) throw error;
     groupTrips = data ?? [];
   }
