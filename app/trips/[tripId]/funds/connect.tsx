@@ -49,9 +49,11 @@ import {
   convertToAccount,
   disconnectAccount,
   getGroupAccounts,
+  getPreviouslyLinkedAccount,
   getTravelFund,
   type FinancialAccount,
   type FundSource,
+  type PreviouslyLinkedAccount,
 } from "@/lib/supabase/queries/funds";
 import { getFundTotals } from "@/lib/supabase/queries/transactions";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
@@ -61,6 +63,11 @@ type ConnectData = {
   trip: Trip;
   fund: FundSource | null;
   accounts: FinancialAccount[];
+  /**
+   * 같은 모임의 지난 여행이 연결했던 계좌. 없으면 null.
+   * 연결 전 화면에서 "같은 계좌로 연결할까요?" 안내에 쓴다.
+   */
+  previous: PreviouslyLinkedAccount | null;
   /** 지금까지 수기로 넣은 입금 합계. 전환하면 사라진다 */
   depositTotal: number;
 };
@@ -92,13 +99,17 @@ export default function ScreenFUND02() {
         setNotFound(true);
         return;
       }
-      const [fund, accounts, totals] = await Promise.all([
+      const [fund, accounts, previous, totals] = await Promise.all([
         getTravelFund(trip.id),
         // 계좌는 모임 자산이다. 개인 여행에는 붙을 계좌가 없다.
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+        // 지난 여행이 붙였던 계좌. 못 읽어도 화면은 떠야 한다.
+        trip.group_id
+          ? getPreviouslyLinkedAccount(trip.group_id, trip.id).catch(() => null)
+          : Promise.resolve(null),
         getFundTotals(trip.id),
       ]);
-      setData({ trip, fund, accounts, depositTotal: totals.depositTotal });
+      setData({ trip, fund, accounts, previous, depositTotal: totals.depositTotal });
     } catch {
       setError(true);
     } finally {
@@ -318,129 +329,115 @@ export default function ScreenFUND02() {
           </Text>
         </View>
 
-        {/* ── 계좌 목록 ── */}
-        <Text
-          style={{
-            marginTop: 26,
-            fontSize: 17,
-            fontWeight: "800",
-            color: "#141b28",
-          }}
-        >
-          {connected ? "연결된 계좌" : "연결할 계좌"}
-        </Text>
-
-        {!data.trip.group_id ? (
+        {/*
+          ── 연결 전 ──
+          ⚠️ 모임 계좌 목록을 늘어놓지 않는다. 아직 이 여행에 붙지 않은 계좌가
+             "연결할 계좌" 아래 잔액과 함께 서 있으면 이미 연결된 것으로 읽힌다.
+             (2026-09-09 · 사용자도 착각했다)
+             지난 여행이 붙였던 계좌가 있으면 그것 하나만 "같은 계좌로 연결할까요?"
+             로 권하고, 없으면 연결 버튼만 둔다.
+        */}
+        {!connected && data.previous ? (
           <View
             style={{
-              marginTop: 12,
-              borderRadius: 14,
-              backgroundColor: "#f5f6f8",
+              marginTop: 22,
+              borderWidth: 1,
+              borderColor: "#e8eaee",
+              borderRadius: 16,
               padding: 16,
+              gap: 12,
             }}
           >
-            <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
-              개인 여행에는 연결할 계좌가 없어요. 계좌는 모임 자산이라 모임
-              여행에서만 연결할 수 있어요.
-            </Text>
-            <Text
+            <View>
+              <Text style={{ fontSize: 9, fontWeight: "900", letterSpacing: 1.2, color: "#a8afb9" }}>
+                LAST TRIP ACCOUNT
+              </Text>
+              <Text style={{ marginTop: 6, fontSize: 15, fontWeight: "800", color: "#141b28" }}>
+                지난 여행에서 연결한 계좌가 있어요
+              </Text>
+              <Text style={{ marginTop: 4, fontSize: 12, lineHeight: 18, color: "#7c8695" }}>
+                {data.previous.tripDestination
+                  ? `${data.previous.tripDestination} 여행에서 썼던 계좌예요. `
+                  : ""}
+                같은 계좌로 연결할까요?
+              </Text>
+            </View>
+
+            <View
+              className="flex-row items-center"
               style={{
-                marginTop: 8,
-                fontSize: 11,
-                lineHeight: 17,
-                color: "#858e9c",
+                gap: 12,
+                padding: 13,
+                borderRadius: 12,
+                backgroundColor: "#f5f6f8",
               }}
             >
-              직접 입력으로도 예산·결산·개인화를 모두 쓸 수 있어요.
+              <Ionicons name="card-outline" size={20} color="#5d6674" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
+                  {institutionName(data.previous.account.institution_code)}
+                </Text>
+                {/* 마스킹된 번호만 다룬다 (NFR-002) */}
+                <Text style={{ marginTop: 3, fontSize: 11, color: "#858e9c" }}>
+                  {data.previous.account.masked_account_number}
+                </Text>
+              </View>
+            </View>
+
+            <Button
+              label="같은 계좌로 연결하기"
+              onPress={() => handleSelect(data.previous!.account)}
+            />
+          </View>
+        ) : null}
+
+        {/* ── 연결 후: 지금 붙어 있는 계좌 하나만 ── */}
+        {connected ? (
+          <>
+            <Text style={{ marginTop: 26, fontSize: 17, fontWeight: "800", color: "#141b28" }}>
+              연결된 계좌
             </Text>
-          </View>
-        ) : data.accounts.length === 0 ? (
-          <View
-            style={{
-              marginTop: 12,
-              borderRadius: 14,
-              backgroundColor: "#f5f6f8",
-              padding: 16,
-            }}
-          >
-            <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
-              이 모임에 등록된 계좌가 없어요.
-            </Text>
-          </View>
-        ) : (
-          <View style={{ marginTop: 12, gap: 9 }}>
-            {data.accounts.map((account) => {
-              const isLinked = account.id === data.fund?.financial_account_id;
-              return (
-                <Pressable
-                  key={account.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${institutionName(account.institution_code)} 계좌 연결`}
-                  accessibilityState={{ selected: isLinked }}
-                  disabled={isLinked}
-                  onPress={() => handleSelect(account)}
-                  className={isLinked ? undefined : "active:bg-gray-50"}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: 15,
-                    borderWidth: 1,
-                    borderColor: isLinked ? theme.primary : "#e8eaee",
-                    backgroundColor: isLinked ? theme.primarySoft : "#fff",
-                    borderRadius: 14,
-                  }}
-                >
-                  <Ionicons
-                    name="card-outline"
-                    size={20}
-                    color={isLinked ? theme.primary : "#5d6674"}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: "800",
-                        color: "#141b28",
-                      }}
-                    >
-                      {institutionName(account.institution_code)}
-                    </Text>
-                    {/* 마스킹된 번호만 다룬다 (NFR-002) */}
-                    <Text
-                      style={{ marginTop: 3, fontSize: 11, color: "#858e9c" }}
-                    >
-                      {account.masked_account_number}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: "800",
-                        color: "#141b28",
-                      }}
-                    >
-                      {won(account.current_balance)}
-                    </Text>
-                    {isLinked ? (
-                      <Text
-                        style={{
-                          marginTop: 3,
-                          fontSize: 10,
-                          fontWeight: "800",
-                          color: theme.primary,
-                        }}
-                      >
-                        연결됨
-                      </Text>
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
+            {linked ? (
+              <View
+                style={{
+                  marginTop: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: 15,
+                  borderWidth: 1,
+                  borderColor: theme.primary,
+                  backgroundColor: theme.primarySoft,
+                  borderRadius: 14,
+                }}
+              >
+                <Ionicons name="card-outline" size={20} color={theme.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
+                    {institutionName(linked.institution_code)}
+                  </Text>
+                  <Text style={{ marginTop: 3, fontSize: 11, color: "#858e9c" }}>
+                    {linked.masked_account_number}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
+                    {won(linked.current_balance)}
+                  </Text>
+                  <Text style={{ marginTop: 3, fontSize: 10, fontWeight: "800", color: theme.primary }}>
+                    연결됨
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={{ marginTop: 12, borderRadius: 14, backgroundColor: "#f5f6f8", padding: 16 }}>
+                <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
+                  연결된 계좌 정보를 찾지 못했어요. 연결을 해제하고 다시 붙여 주세요.
+                </Text>
+              </View>
+            )}
+          </>
+        ) : null}
 
         {/*
           ── 새 계좌 연결 ──
@@ -451,12 +448,12 @@ export default function ScreenFUND02() {
         {!connected ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="다른 은행 계좌 연결하기"
+            accessibilityLabel={data.previous ? "다른 계좌 연결하기" : "계좌 연결하기"}
             onPress={() => setBankOpen(true)}
             className="flex-row items-center active:bg-gray-50"
             style={{
               gap: 12,
-              marginTop: 12,
+              marginTop: data.previous ? 12 : 22,
               padding: 15,
               borderWidth: 1,
               borderStyle: "dashed",
@@ -469,7 +466,7 @@ export default function ScreenFUND02() {
               <Text
                 style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}
               >
-                다른 은행 계좌 연결하기
+                {data.previous ? "다른 계좌 연결하기" : "계좌 연결하기"}
               </Text>
               <Text style={{ marginTop: 3, fontSize: 11, color: "#858e9c" }}>
                 연결하면 이미 결제된 내역도 함께 들어와요

@@ -22,7 +22,8 @@ export function buildGroupInviteLink(groupId: string): string {
  * 카카오톡·문자에 그대로 붙여 넣는 초대 문구.
  *
  * 받는 사람이 "이게 뭔데" 하지 않고 누르게 하는 글이다. 서비스 가치 하나만 말한다:
- * **돈 얘기는 미리 끝내고, 여행 가서는 놀기만.** 기능 나열은 안 한다.
+ * **같이 정하고 같이 본다. 돈 걱정은 미리 끝내고 설렘만 챙긴다.**
+ * ⚠️ "분위기 깨진다" 류의 부정 문장은 쓰지 않는다. (2026-09-09 반려)
  */
 export function buildInviteMessage(input: {
   destination: string;
@@ -34,9 +35,9 @@ export function buildInviteMessage(input: {
   return [
     `🧳 ${input.groupName} 모임의 ${input.destination} 여행에 초대해요${when}`,
     "",
-    "가서 돈 얘기 꺼내면 분위기 깨지잖아요.",
-    "얼마 모을지, 어디에 쓸지, 누가 얼마 냈는지까지",
-    "TripPot에서 미리 정해두고 현지에선 놀기만 해요.",
+    "얼마씩 모을지, 어디에 쓸지, 누가 얼마 냈는지",
+    "TripPot에서 같이 정하고 같이 봐요.",
+    "돈 걱정은 미리 끝내고, 설렘만 챙겨 가요.",
     "",
     "아래 링크 누르면 바로 우리 여행이에요 👇",
     input.link,
