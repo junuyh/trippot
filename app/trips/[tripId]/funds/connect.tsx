@@ -153,7 +153,10 @@ export default function ScreenFUND02() {
       track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "success" });
       setPending(null);
       // 자금 화면으로 돌려보낸다. 바뀐 금액을 바로 확인하게 한다.
-      router.replace(`/trips/${data.trip.id}/funds`);
+      // ⚠️ replace 가 아니라 dismissTo 다. 자금 화면은 이미 스택 아래에 있다.
+      //    replace 로 하나 더 얹으면 자금 화면이 두 벌이 되어, 거기서 뒤로가기를
+      //    누르면 같은 자금 화면이 또 나온다. (2026-09-09)
+      router.dismissTo(`/trips/${data.trip.id}/funds` as never);
     } catch {
       track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "fail" });
       setError(true);
@@ -176,7 +179,7 @@ export default function ScreenFUND02() {
       await connectMockAccount(data.trip.id, data.trip.group_id);
       track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "success" });
       setBankOpen(false);
-      router.replace(`/trips/${data.trip.id}/funds`);
+      router.dismissTo(`/trips/${data.trip.id}/funds` as never);
     } catch {
       track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "fail" });
       setError(true);
@@ -190,7 +193,7 @@ export default function ScreenFUND02() {
     setDisconnecting(true);
     try {
       await disconnectAccount(data.trip.id);
-      router.replace(`/trips/${data.trip.id}/funds`);
+      router.dismissTo(`/trips/${data.trip.id}/funds` as never);
     } catch {
       setError(true);
     } finally {

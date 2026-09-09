@@ -1,4 +1,8 @@
-// 헤더 오른쪽 '여행 홈' 버튼.
+// 헤더 오른쪽 '여행 홈' 버튼. 그림은 **비행기**다.
+//
+// ⚠️ 2026-09-09 · 집 모양에서 비행기로 바꿨다. 집은 앱 홈으로 읽히는데 실제로는
+//    여행 홈으로 가서 어색했다. 앱 홈은 여행 홈 헤더 왼쪽의 AppHomeButton(집)이
+//    맡는다. 집 = 앱 홈, 비행기 = 여행 홈.
 //
 // ⚠️ 여행 홈에서 두 단계 이상 들어간 화면(예산 전체 → 카테고리 상세,
 //    여행자금 → 전체 지출내역 → 거래 상세)에서 밖으로 나오려면 뒤로가기를
@@ -36,7 +40,7 @@ export function TripHomeButton({ tripId }: Props) {
       }}
       className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
     >
-      <Ionicons name="home-outline" size={19} color="#111827" />
+      <Ionicons name="airplane-outline" size={20} color="#111827" />
     </Pressable>
   );
 }

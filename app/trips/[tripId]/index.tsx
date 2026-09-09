@@ -40,7 +40,10 @@ import {
   FundManagerCard,
   TripGuideCards,
   type GridCategory,
+  TripSettingsButton,
+  TripSettingsSheet,
 } from "@/components/trip-home";
+import { AppHomeButton } from "@/components/navigation/AppHomeButton";
 import {
   SettlementVaultGrid,
   TravelTypeCard,
@@ -143,6 +146,11 @@ export default function ScreenTripHome() {
   useTripContext(tripId);
 
   const [data, setData] = useState<TripHomeData | null>(null);
+  /**
+   * 여행 설정 사이드 시트. 헤더 오른쪽 톱니바퀴로 연다.
+   * 나가기·취소의 실제 동작은 다른 팀원이 만든다. 아래 두 핸들러가 그 자리다.
+   */
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -599,7 +607,7 @@ export default function ScreenTripHome() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈" }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
         <Loading message="여행 정보를 불러오는 중…" />
       </View>
     );
@@ -607,7 +615,7 @@ export default function ScreenTripHome() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈" }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
         <EmptyState
           icon="airplane-outline"
           title="여행을 찾을 수 없어요"
@@ -621,7 +629,7 @@ export default function ScreenTripHome() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈" }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
         <ErrorState
           message="여행 정보를 불러오지 못했어요."
           onRetry={() => void load()}
@@ -745,7 +753,44 @@ export default function ScreenTripHome() {
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
       }
     >
-      <Stack.Screen options={{ title: trip.destination ?? "여행 홈" }} />
+      <Stack.Screen
+        options={{
+          title: trip.destination ?? "여행 홈",
+          /* 왼쪽은 앱 홈(집), 오른쪽은 여행 설정(톱니). '<' 는 어디로 가는지 알 수 없었다 */
+          headerLeft: () => <AppHomeButton />,
+          /* 끝난 여행은 고칠 것도 나갈 것도 취소할 것도 없다. 톱니를 아예 안 그린다 */
+          headerRight: ended
+            ? undefined
+            : () => <TripSettingsButton onPress={() => setSettingsOpen(true)} />,
+        }}
+      />
+
+      {/*
+        ── 여행 설정 사이드 시트 ──
+        ⚠️ 여행 나가기 / 여행 취소하기의 실제 동작은 다른 팀원이 만든다.
+           지금은 자리만 있고, 누르면 준비 중이라고 알린다.
+           · 나가기   이 여행·멤버 목록에서 빠진다 (trip_members / group_members)
+           · 취소     모임원 전원 동의 → 취소. 동의 완료 시점부터 72시간 되돌리기
+      */}
+      <TripSettingsSheet
+        visible={settingsOpen && !ended}
+        onClose={() => setSettingsOpen(false)}
+        destination={trip.destination ?? "여행"}
+        groupName={data.groupName}
+        onEdit={() => router.push(`/trips/${trip.id}/edit`)}
+        onLeave={() =>
+          Alert.alert(
+            "여행 나가기",
+            "이 여행과 멤버 목록에서 빠지는 기능은 준비 중이에요.",
+          )
+        }
+        onCancel={() =>
+          Alert.alert(
+            "여행 취소하기",
+            "함께 가는 사람 모두가 동의하면 취소돼요. 동의가 끝난 뒤 72시간 안에는 되돌릴 수 있어요. 이 기능은 준비 중이에요.",
+          )
+        }
+      />
 
       {/*
         ── 여행 정보 ──
