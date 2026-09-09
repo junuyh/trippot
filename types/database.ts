@@ -270,6 +270,36 @@ export type Database = {
           },
         ]
       }
+      destination_budget_products: {
+        Row: {
+          destination_key: string
+          emoji: string
+          generated_at: string
+          name: string
+          note: string
+          product_id: string
+          ratio: number
+        }
+        Insert: {
+          destination_key: string
+          emoji?: string
+          generated_at?: string
+          name: string
+          note?: string
+          product_id: string
+          ratio: number
+        }
+        Update: {
+          destination_key?: string
+          emoji?: string
+          generated_at?: string
+          name?: string
+          note?: string
+          product_id?: string
+          ratio?: number
+        }
+        Relationships: []
+      }
       event_log: {
         Row: {
           anon_id: string | null
@@ -1082,6 +1112,7 @@ export type Database = {
       }
       trips: {
         Row: {
+          canceled_at: string | null
           created_at: string
           currency: string
           destination: string | null
@@ -1097,6 +1128,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          canceled_at?: string | null
           created_at?: string
           currency?: string
           destination?: string | null
@@ -1112,6 +1144,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          canceled_at?: string | null
           created_at?: string
           currency?: string
           destination?: string | null
