@@ -4,6 +4,7 @@
 //    모임 관리(More) 기능이 보류 상태라 노출만 뺐고 파일은 남겨둔다.
 //    재개할 때 다시 만들지 않기 위해서다.
 export { GroupAccountList } from './GroupAccountList';
+export { GroupCreateForm } from './GroupCreateForm';
 export { GroupDetailView } from './GroupDetailView';
 export { GroupEditActionBar } from './GroupEditActionBar';
 export { GroupListEmptyNotice } from './GroupListEmptyNotice';
@@ -15,6 +16,7 @@ export { GroupTravelCard } from './GroupTravelCard';
 export { GroupTravelCardList } from './GroupTravelCardList';
 export { HiddenGroupsSheet } from './HiddenGroupsSheet';
 export { RemoveConfirmModal } from './RemoveConfirmModal';
+export type { MovableMember } from './GroupCreateForm';
 export type {
   GroupAccountItem,
   GroupDetailData,
