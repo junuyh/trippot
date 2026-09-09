@@ -1,10 +1,11 @@
 import { ScrollView, View } from 'react-native';
 
-import { CreateTripCard } from './CreateTripCard';
+import { CreateTripFab } from './CreateTripFab';
 import { HomeHeader } from './HomeHeader';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
 import { PastTripSection } from './PastTripSection';
 import type { EndedTripCardData, HomeEmptyVariant, OngoingTripCardData } from './types';
+import { useFabExpand } from './useFabExpand';
 
 type Props = {
   userName: string | null;
@@ -35,13 +36,16 @@ type Props = {
  * 새 여행을 시작하게 한다. docs/09_IA_v2.md §1 구조 그대로다.
  *
  *   1-1. 준비 중인 여행   여행지·일정·여행자금 배너, 가로 슬라이드
- *   1-4. 새 여행 만들기
  *   1-2. 지난 여행        빈티지 우표, 가로 슬라이드 (결산 전이면 '결산하기')
+ *   1-4. 새 여행 만들기   본문 위에 떠 있는 버튼 (CreateTripFab)
  *
- * ⚠️ **[문서와 어긋남] 새 여행 만들기를 지난 여행 위로 올렸다.** (2026-09-07)
- *    docs/09_IA_v2.md §1-4 는 이 카드를 맨 아래에 두라고 적고 있다.
- *    지난 여행은 되돌아보는 자리고 새 여행 만들기는 지금 할 일이라, 할 일이
- *    기록보다 아래에 있으면 스크롤을 끝까지 내려야 닿는다.
+ * ⚠️ **[문서와 어긋남] 새 여행 만들기가 본문 안에 없다.** (2026-09-09)
+ *    docs/09_IA_v2.md §1-4 는 이것을 목록 맨 아래 카드로 두라고 적고 있다.
+ *    카드는 스크롤을 따라 화면 밖으로 사라져서, 지난 여행을 훑다가
+ *    "그럼 새로 만들자" 고 마음먹은 순간 버튼이 화면에 없었다.
+ *    떠 있는 버튼은 어디까지 내려가도 남는다.
+ *    (9/07 에 카드를 지난 여행 위로 올린 것도 같은 이유였는데, 그때는
+ *     자리만 바꿔서 조금만 내리면 여전히 사라졌다.)
  *    문서를 임의로 고치지 않았다. (CLAUDE.md 1-1)
  *
  * ⚠️ 2026-09-02 대시보드 개편(메인 카드·지금 챙겨야 할 것·여행자금 현황·
@@ -73,22 +77,27 @@ export function HomeView({
   onPressCreateTrip,
   onPressAllPastTrips,
 }: Props) {
+  const { expanded, onScroll } = useFabExpand();
+
   return (
     <View className="flex-1 bg-white">
       {/* 상단바에는 만들기 버튼이 없다. 이유는 HomeHeader 주석 참조. */}
       <HomeHeader userName={userName} daysToNextTrip={daysToNextTrip} />
 
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-2">
+      {/* 아래 여백은 탭바(58~84)만이 아니라 떠 있는 버튼까지 덮을 만큼 준다.
+          그러지 않으면 끝까지 내렸을 때 마지막 카드가 버튼에 가린다. */}
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-4 pb-40 pt-2"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+      >
         <OngoingTripCarousel
           trips={ongoingTrips}
           emptyVariant={emptyVariant}
           onPressTrip={onPressTrip}
           onPressCreateTrip={onPressCreateTrip}
         />
-
-        <View className="mt-7">
-          <CreateTripCard onPress={onPressCreateTrip} />
-        </View>
 
         <View className="mt-7">
           <PastTripSection
@@ -100,6 +109,9 @@ export function HomeView({
           />
         </View>
       </ScrollView>
+
+      {/* 맨 위에서는 글자까지 보이고, 내리면 아이콘만 남는다. */}
+      <CreateTripFab expanded={expanded} onPress={onPressCreateTrip} />
     </View>
   );
 }

@@ -2,6 +2,7 @@
 export { ActionRequiredSection } from './ActionRequiredSection';
 export { CountryFlag } from './CountryFlag';
 export { CreateTripCard } from './CreateTripCard';
+export { CreateTripFab } from './CreateTripFab';
 export { DestinationBanner } from './DestinationBanner';
 export { DestinationSuggestSection } from './DestinationSuggestSection';
 export { EndedTripCard } from './EndedTripCard';

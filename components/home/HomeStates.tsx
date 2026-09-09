@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 
-import { CreateTripCard } from './CreateTripCard';
+import { CreateTripFab } from './CreateTripFab';
 import { DestinationSuggestSection } from './DestinationSuggestSection';
 import { HomeButton } from './HomeButton';
 import { HomeHeader } from './HomeHeader';
 import type { DestinationSuggestion } from './types';
+import { useFabExpand } from './useFabExpand';
 
 /**
  * HOME-01 의 Loading / Empty / Error.
@@ -58,7 +59,11 @@ type HomeEmptyProps = {
  *   로고 · 인사말                    로고 · 인사말          ← 같다 (HomeHeader)
  *   준비 중인 여행 슬라이드           여행지 추천 슬라이드    ← 이 자리만 바뀐다
  *   지난 여행 슬라이드               (없음)
- *   새 여행 만들기                   새 여행 만들기         ← 같다 (CreateTripCard)
+ *   새 여행 만들기                   새 여행 만들기         ← 같다 (CreateTripFab)
+ *
+ * ⚠️ 2026-09-09 새 여행 만들기를 카드에서 떠 있는 버튼으로 바꿨다.
+ *    기존 홈과 같은 컴포넌트·같은 자리·같은 접힘 규칙을 쓴다. 첫 여행을 만든
+ *    순간 이 화면이 HomeView 로 바뀌는데, 그때 버튼이 옮겨 다니면 안 된다.
  *
  * ⚠️ 껍데기(바탕색·좌우 여백·아래 여백)를 HomeView 와 같은 값으로 맞췄다.
  *    첫 여행을 만든 순간 이 화면이 HomeView 로 바뀌는데, 여백이 다르면
@@ -74,18 +79,25 @@ type HomeEmptyProps = {
  * 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
  */
 export function HomeEmpty({ userName, suggestions, onCreateTrip }: HomeEmptyProps) {
+  const { expanded, onScroll } = useFabExpand();
+
   return (
     <View className="flex-1 bg-white">
       {/* 기존 홈과 같은 상단바다. 다가오는 여행이 없으므로 남은 일수는 null 이다. */}
       <HomeHeader userName={userName} daysToNextTrip={null} />
 
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-2">
+      {/* 아래 여백은 기존 홈(HomeView)과 같은 값이다. 떠 있는 버튼까지 덮는다. */}
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-4 pb-40 pt-2"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+      >
         <DestinationSuggestSection suggestions={suggestions} onPressSuggestion={onCreateTrip} />
-
-        <View className="mt-7">
-          <CreateTripCard onPress={onCreateTrip} />
-        </View>
       </ScrollView>
+
+      {/* 맨 위에서는 글자까지 보이고, 내리면 아이콘만 남는다. */}
+      <CreateTripFab expanded={expanded} onPress={onCreateTrip} />
     </View>
   );
 }
