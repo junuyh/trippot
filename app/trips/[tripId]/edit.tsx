@@ -46,17 +46,20 @@ import {
 } from "@/lib/supabase/queries/trips";
 
 /**
- * 새 모임 생성 화면. 다른 팀원이 만든다.
+ * 새 모임 생성 화면. app/groups/new.tsx (2026-09-09 추가)
  *
- * ⚠️ 화면이 생기기 전에는 보내지 않는다. /groups/new 는 지금 app/groups/[groupId].tsx
- *    가 "new" 를 모임 id 로 받아 모임 상세를 열고 실패한다. (2026-09-09 오류 보고)
- *    app/groups/new.tsx 가 생기면 정적 라우트가 우선이라 그대로 이어진다.
- *    그때 NEW_GROUP_SCREEN_READY 를 true 로 바꾸면 된다. [팀원]
+ * ⚠️ 정적 라우트가 [groupId] 보다 우선한다. 파일이 생기기 전에는 /groups/new 가
+ *    app/groups/[groupId].tsx 로 가서 "new" 를 모임 id 로 받아 실패했다.
+ *    (2026-09-09 오류 보고) 이제 파일이 있어 그대로 이어진다.
+ *
+ * ⚠️ tripId 를 반드시 넘긴다. 새 모임 화면이 어느 여행을 옮길지 알아야 한다.
+ *    fromGroupId 는 **저장 전 화면에서 고른 모임**이다. trip.group_id 를 쓰면
+ *    사용자가 모임을 바꾸고 저장하지 않은 상태에서 이전 모임의 멤버를 데려온다.
  */
 const NEW_GROUP_HREF = "/groups/new";
-const NEW_GROUP_SCREEN_READY = false;
+const NEW_GROUP_SCREEN_READY = true;
 
-function goNewGroup() {
+function goNewGroup(tripId: string, fromGroupId: string | null) {
   if (!NEW_GROUP_SCREEN_READY) {
     Alert.alert(
       "새 모임 만들기는 준비 중이에요",
@@ -64,7 +67,9 @@ function goNewGroup() {
     );
     return;
   }
-  router.push(NEW_GROUP_HREF as never);
+  const query = new URLSearchParams({ tripId });
+  if (fromGroupId) query.set("fromGroupId", fromGroupId);
+  router.push(`${NEW_GROUP_HREF}?${query.toString()}` as never);
 }
 
 export default function ScreenTripEdit() {
@@ -179,20 +184,26 @@ export default function ScreenTripEdit() {
 
   /**
    * 여행 멤버 초대하기.
-   * 지난 여행이 있는 모임 → 새 모임 생성. 없으면 초대 시트.
+   * 여행중이거나 끝난 여행이 있는 모임 → 새 모임 생성. 없으면 초대 시트.
    * 모임을 안 골랐으면(개인 여행) 초대할 곳이 없으니 새 모임 생성으로.
+   *
+   * ⚠️ 판정에 **여행중(TRAVELING)도 넣는다.** 지난 여행(ENDED·SETTLED)만 보면,
+   *    지금 함께 여행 중인 모임에 새 사람이 그대로 들어와 그 여행의 예산과
+   *    지출까지 보게 된다. 이미 같이 다니고 있는 사람들이라는 점은 다녀온
+   *    사람들과 다르지 않다. (2026-09-09 L 협의)
    */
   const handleInvite = useCallback(async () => {
-    if (inviting) return;
+    if (inviting || !trip) return;
     if (!selectedGroup) {
-      goNewGroup();
+      goNewGroup(trip.id, null);
       return;
     }
     setInviting(true);
     try {
-      const { past } = await getGroupTrips(selectedGroup.id);
-      if (past.length > 0) {
-        goNewGroup();
+      const { ongoing, past } = await getGroupTrips(selectedGroup.id);
+      const traveling = ongoing.some((t) => t.status === TRIP_STATUS.TRAVELING);
+      if (past.length > 0 || traveling) {
+        goNewGroup(trip.id, selectedGroup.id);
         return;
       }
       setCopied(false);
@@ -203,7 +214,7 @@ export default function ScreenTripEdit() {
     } finally {
       setInviting(false);
     }
-  }, [inviting, selectedGroup]);
+  }, [inviting, selectedGroup, trip]);
 
   /**
    * 카카오톡으로 초대. OS 공유 시트를 연다. 카카오톡이 깔려 있으면 거기서 고른다.
