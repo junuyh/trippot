@@ -62,7 +62,7 @@ export async function getSettledTripCount(scope: PersonalizationScope): Promise<
   // settlements 에서 trips 를 inner join 해 거르는 편이 왕복이 적지만,
   // 소유 단위 필터가 조인 대상 테이블에 걸려 있어 조건을 한 글자만 틀려도
   // **다른 사용자의 여행이 섞인다.** (CLAUDE.md 7장)
-  const tripQuery = supabase.from('trips').select('id').neq('status', TRIP_STATUS.DELETED);
+  const tripQuery = supabase.from('trips').select('id').not('status', 'in', `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`);
 
   const { data: trips, error: tripError } =
     scope.ownerType === 'PERSONAL'
@@ -95,7 +95,7 @@ export async function getSpendingProfile(
   scope: PersonalizationScope,
 ): Promise<SpendingProfile | null> {
   // ① 소유 단위의 여행을 먼저 추린다. getSettledTripCount() 와 같은 방식이다.
-  const tripQuery = supabase.from('trips').select('id').neq('status', TRIP_STATUS.DELETED);
+  const tripQuery = supabase.from('trips').select('id').not('status', 'in', `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`);
   const { data: trips, error: tripError } =
     scope.ownerType === 'PERSONAL'
       ? await tripQuery.eq('owner_user_id', scope.userId)

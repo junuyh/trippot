@@ -32,6 +32,11 @@ export const TRIP_STAGE = {
   SETTLING: "SETTLING",
   /** 7. 정산까지 끝났다 */
   DONE: "DONE",
+  /**
+   * 8. 전원 동의로 취소됐다. 기간·내용과 무관하게 이 단계다.
+   *    여행 홈은 '취소된 여행 · 되돌리기' 만 보여준다. [팀원 개발 예정]
+   */
+  CANCELED: "CANCELED",
 } as const;
 export type TripStage = (typeof TRIP_STAGE)[keyof typeof TRIP_STAGE];
 
@@ -55,6 +60,7 @@ export const TRIP_STAGE_LABEL: Record<TripStage, string> = {
   [TRIP_STAGE.NO_EXPENSE]: "지출 입력 전",
   [TRIP_STAGE.SETTLING]: "정산 대기 중",
   [TRIP_STAGE.DONE]: "여행 종료",
+  [TRIP_STAGE.CANCELED]: "취소된 여행",
 };
 
 /**
@@ -69,6 +75,8 @@ export function tripStage({
   hasPlan,
   hasExpense,
 }: StageInput): TripStage {
+  // 취소가 가장 세다. 확정된 여행은 취소할 수 없으니 SETTLED 와는 겹치지 않는다.
+  if (status === TRIP_STATUS.CANCELED) return TRIP_STAGE.CANCELED;
   if (status === TRIP_STATUS.SETTLED) return TRIP_STAGE.DONE;
 
   if (status === TRIP_STATUS.ENDED) {

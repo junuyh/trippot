@@ -16,6 +16,7 @@ export {
 //    화면에서 내렸다. 위 JourneySteps 와 같은 이유로 파일은 남겨 둔다.
 export { TravelTicketCard } from "./TravelTicketCard";
 export { TripGuideCards } from "./TripGuideCards";
+export { TodayAllowanceCard } from "./TodayAllowanceCard";
 export { TripSettingsButton } from "./TripSettingsButton";
 export { TripSettingsSheet } from "./TripSettingsSheet";
 export { VaultGrid, type VaultCategory } from "./VaultGrid";
