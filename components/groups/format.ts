@@ -10,6 +10,8 @@
 // ============================================================================
 import { format, isValid, parseISO } from 'date-fns';
 
+import { TRIP_STATUS, TRIP_STATUS_LABEL } from '@/lib/constants/status';
+
 const EMPTY = '—';
 
 function toDate(value: string | null): Date | null {
@@ -49,4 +51,34 @@ export function formatCreatedDate(createdAt: string | null): string {
  */
 export function formatMemberCount(memberCount: number): string {
   return `${memberCount}명`;
+}
+
+/**
+ * GROUP 계좌 UI 전용 여행 상태 이름.
+ *
+ * 사용자에게는 세 가지로만 보인다.
+ *   PLANNING          준비 중
+ *   TRAVELING         여행 중
+ *   ENDED · SETTLED   지난 여행
+ *
+ * ⚠️ DB status 나 공통 TRIP_STATUS_LABEL 을 고치지 않는다. 그쪽은 `종료` ·
+ *    `결산 완료` 로 나뉘어 있고 다른 화면이 그 이름을 쓰고 있다. 여기서만
+ *    쓰는 **표시용 파생 라벨**이다. (2026-09-09 확정)
+ *
+ * ⚠️ 다른 화면에 이 함수를 쓰지 않는다. GROUP 계좌 영역 전용이다.
+ */
+export function toGroupTripStatusLabel(status: string): string {
+  if (status === TRIP_STATUS.PLANNING) return TRIP_STATUS_LABEL.PLANNING;
+  if (status === TRIP_STATUS.TRAVELING) return TRIP_STATUS_LABEL.TRAVELING;
+  return '지난 여행';
+}
+
+/**
+ * 이 상태가 '지금 쓰고 있는 여행' 인가.
+ *
+ * 준비 중·여행 중이면 true. GROUP 메인에 어떤 계좌를 보여줄지와
+ * `N개 여행에서 사용 중` 의 N 을 세는 기준이 모두 이것이다.
+ */
+export function isActiveTripStatus(status: string): boolean {
+  return status === TRIP_STATUS.PLANNING || status === TRIP_STATUS.TRAVELING;
 }

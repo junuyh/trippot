@@ -1,9 +1,9 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { HOME_ACCENT } from '@/components/home/palette';
-import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
 
 import { MyTripCard } from './MyTripCard';
+import { TripFilterTabs } from './TripFilterTabs';
 import type { MyTripFilter, MyTripItem } from './types';
 
 type Props = {
@@ -13,26 +13,6 @@ type Props = {
   onPressTrip: (tripId: string) => void;
   onPressCreateTrip: () => void;
 };
-
-/**
- * 탭 이름.
- *
- * ⚠️ 준비 중·여행 중은 상태 라벨을 그대로 쓴다. 화면에 상태값 문자열을 직접
- *    적지 않는다. (lib/constants/status.ts TRIP_STATUS_LABEL)
- *    지난 여행은 ENDED·SETTLED 둘을 묶은 이름이라 상태 라벨이 없다.
- *
- * ⚠️ 탭에 개수를 적지 않는다. 숫자는 어느 탭을 볼지 고르는 데 도움이 되지 않고,
- *    빈 탭에 '0' 이 붙으면 없다는 사실만 두 번 말한다. 목록이 곧 개수다.
- */
-const TABS: { value: MyTripFilter; label: string }[] = [
-  // ⚠️ 2026-09-04 팀 확정 — 출발 전 상태를 '진행 중' 이라 부르면 여행 중과
-  //    헷갈린다. develop 은 라벨만 '준비 중' 으로 바꿨고, 여기서는 한 걸음 더
-  //    나아가 **탭 자체를 둘로 갈랐다.** 라벨만 바꾸면 여행 중인 여행이
-  //    여전히 준비 중 탭에 섞여 있어서 헷갈리는 원인이 그대로 남는다.
-  { value: 'planning', label: TRIP_STATUS_LABEL.PLANNING },
-  { value: 'traveling', label: TRIP_STATUS_LABEL.TRAVELING },
-  { value: 'past', label: '지난 여행' },
-];
 
 /** 탭마다 비었을 때 할 말이 다르다. */
 const EMPTY_MESSAGE: Record<MyTripFilter, string> = {
@@ -61,29 +41,8 @@ export function MyTripListView({
 }: Props) {
   return (
     <View className="flex-1 bg-pot-visual">
-      {/* 탭 */}
-      <View className="flex-row gap-2 bg-white px-4 pb-3 pt-2">
-        {TABS.map((tab) => {
-          const active = tab.value === filter;
-          return (
-            <Pressable
-              key={tab.value}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              onPress={() => onChangeFilter(tab.value)}
-              className="rounded-full px-3.5 py-2"
-              style={{ backgroundColor: active ? '#111827' : '#F1F3F6' }}
-            >
-              <Text
-                className="font-bold"
-                style={{ fontSize: 12.5, color: active ? '#FFFFFF' : '#747B88' }}
-              >
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* 탭. GROUP-02 모임 상세와 같은 컴포넌트를 쓴다. */}
+      <TripFilterTabs filter={filter} onChangeFilter={onChangeFilter} />
 
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-16 pt-4">
         {trips.length === 0 ? (

@@ -69,7 +69,38 @@ function won(value: number): string {
 }
 
 export default function ScreenFUND02() {
-  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  const { tripId, fromGroupId } = useLocalSearchParams<{
+    tripId: string;
+    /** 모임 상세에서 들어온 경우에만 있다. 아래 backHref 주석 참고. */
+    fromGroupId?: string;
+  }>();
+
+  /**
+   * 뒤로가기 동작.
+   *
+   * ⚠️ 두 진입 경로의 성질이 다르다.
+   *
+   *   여행 자금에서 들어옴  parentHref → dismissTo. 어떤 경로로 왔든 그 여행의
+   *                        자금 화면으로 간다. 지금까지와 똑같다.
+   *
+   *   모임 상세에서 들어옴  parentHref 를 **주지 않는다.** 그러면
+   *                        HeaderBackButton 이 router.back() 으로 스택을 한 칸
+   *                        되돌린다. 모임 상세에서 push 로 들어왔으므로 그
+   *                        화면이 바로 아래에 그대로 있다. dismissTo 로 경로를
+   *                        새로 지정하면 같은 화면을 다시 세우게 되어 전환이
+   *                        덜컹거린다. (2026-09-09)
+   *                        돌아갈 히스토리가 없는 경우(딥링크 등)만
+   *                        fallbackHref 로 그 모임에 내려놓는다.
+   *
+   * ⚠️ 값을 그대로 경로에 끼우지 않는다. 문자열이고 비어 있지 않을 때만 쓴다.
+   *    바깥 URL 로 나갈 수 있는 자유 입력은 받지 않는다.
+   */
+  const fromGroup =
+    typeof fromGroupId === 'string' && fromGroupId !== '' ? fromGroupId : null;
+
+  const backProps = fromGroup
+    ? { fallbackHref: `/groups/${fromGroup}` }
+    : { parentHref: `/trips/${tripId}/funds` };
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -210,7 +241,7 @@ export default function ScreenFUND02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+            <HeaderBackButton {...backProps} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <Loading message="계좌 정보를 불러오는 중…" />
@@ -222,7 +253,7 @@ export default function ScreenFUND02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+            <HeaderBackButton {...backProps} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <EmptyState
@@ -240,7 +271,7 @@ export default function ScreenFUND02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+            <HeaderBackButton {...backProps} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: "계좌 연결" }} />
         <ErrorState
@@ -269,7 +300,7 @@ export default function ScreenFUND02() {
         <Stack.Screen
           options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+            <HeaderBackButton {...backProps} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} />, title: connected ? "연결 계좌 관리" : "계좌 연결" }}
         />
