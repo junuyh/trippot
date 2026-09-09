@@ -9,128 +9,126 @@
 //                          신규 사용자 홈 배너 하나만 쓴다. 광고다.
 //
 //    그래서 destinationPhoto 를 고치지 않았다. 그 파일을 바꾸면 여행 카드와
-//    커뮤니티 표지까지 같이 바뀐다. 담당도 다르다. (CLAUDE.md 13장)
+//    커뮤니티 표지까지 같이 바뀌고 담당도 다르다. (CLAUDE.md 13장)
 //
-// ⚠️ **한 장씩 눈으로 보고 골랐다. 세 가지를 봤다.**
-//    ① 그 도시가 맞는가 — 검색 결과에는 엉뚱한 파일(PDF·다른 도시)이 섞여 온다.
-//    ② 광고로 쓸 만한가 — 기존 destinationPhoto 의 세부 사진은 폭풍우 하늘에
-//       모르는 사람이 걸어가는 기록 사진이었다. 그런 사진은 "가고 싶다" 를
-//       만들지 못한다. **야경·노을 위주로 골랐다.** 조명이 켜진 시간대는
-//       날씨가 흐려도 색이 살아 있다.
-//    ③ 가로 비율 1.2~1.9 — 카드가 343:300(≈1.14)이다. 파노라마(3.0)는 좌우가
-//       잘려 랜드마크가 사라지고, 세로 사진은 위아래가 잘린다.
-//       기존 destinationPhoto 에는 3.07(상하이)·0.67(파리) 같은 것이 있다.
+// ⚠️ **원격 URL 이 아니라 앱에 넣은 파일이다.** (2026-09-08 교체)
+//    전에는 위키미디어 URL 을 그대로 불러왔다. 사람이 직접 고른 사진으로
+//    바꾸면서 assets/destinations/ 에 넣었다. 광고 배너라 네트워크가 느리거나
+//    끊겨도 반드시 떠야 한다. 원본은 긴 변 1280px · 품질 82 로 줄여 넣었다
+//    (13장 합계 3.3MB). 카드 폭이 343pt 라 3배 화면에서도 충분하다.
 //
-// ⚠️ **이 서비스가 다루는 8개국이 모두 한 곳씩 들어 있다.**
-//    목적지가 늘면 여기도 채워야 배너에 나온다. 없으면 그 나라는 배너에서
-//    빠진다 — 억지로 아무 사진이나 채우면 이 파일을 만든 이유가 없어진다.
+// ⚠️ **주소는 require 한 결과에서 뽑는다.**
+//    DestinationBanner 가 photoUrl 을 문자열로 받기 때문이다. 그 컴포넌트는
+//    준비 중인 여행 카드도 함께 쓰므로 건드리지 않는다.
 //
-// ⚠️ **전부 CC 라이선스이고 표시 의무가 있다. [Release Blocker]**
-//    아직 출처를 보여주는 화면이 없다. destinationPhoto 도 같은 상태다
-//    ("지금은 쓰는 화면이 없다"). 배포 전에 한 곳에 모아 표시해야 한다.
-//    광고성으로 쓰는 만큼 이 파일 쪽이 더 급하다.
+//    ⚠️ react-native 의 Image.resolveAssetSource 를 쓰면 안 된다.
+//       **웹(react-native-web)에는 그 함수가 없다.** 앱이 시작하자마자
+//       "Image.default.resolveAssetSource is not a function" 으로 죽는다.
+//       expo-asset 의 Asset.fromModule 은 웹·네이티브 양쪽에서 동작한다.
+//
+// ⚠️ **[Release Blocker] 사진 출처와 라이선스가 기록돼 있지 않다.**
+//    전 버전은 위키미디어라 저작자·라이선스를 함께 적어 뒀는데, 이번 사진들은
+//    받은 파일이라 출처를 알 수 없다. 상업적 사용이 가능한 사진인지 확인하고
+//    여기에 적어야 한다. 광고성으로 쓰는 자리라 더 급하다.
 // ============================================================================
+import { Asset } from 'expo-asset';
+
 import { DESTINATION_CODE, type DestinationCode } from './destinations';
 
 export type HeroPhoto = {
-  /** upload.wikimedia.org 가 실제로 파일을 주는 호스트다. thumb. 은 쓰지 않는다. */
+  /** 번들에 들어간 파일의 주소. */
   url: string;
-  /** 무엇을 찍은 사진인가. 출처 표시와 나중 검수에 쓴다. */
+  /** 무엇을 찍은 사진인가. 검수·출처 표시에 쓴다. */
   caption: string;
-  author: string;
-  license: string;
-  sourcePage: string;
-  /** 가로÷세로. 카드(≈1.14)와 얼마나 차이 나는지 판단하려고 적어 둔다. */
+  /**
+   * 가로÷세로. 파일에서 읽어 자동으로 채운다.
+   *
+   * 카드가 343:300(≈1.14)이라 이 값이 크게 벗어나면 잘림이 심하다.
+   * 손으로 적지 않는다 — 사진을 바꿨는데 숫자만 남으면 거짓말이 된다.
+   */
   ratio: number;
 };
 
+/** require 한 이미지에서 주소와 비율을 뽑는다. */
+function fromAsset(mod: number, caption: string): HeroPhoto {
+  const asset = Asset.fromModule(mod);
+  // width·height 는 플랫폼에 따라 null 로 올 수 있다. 그때는 카드 비율로 둔다.
+  const usable = asset.width != null && asset.height != null && asset.height > 0;
+  return {
+    url: asset.uri,
+    caption,
+    ratio: usable ? asset.width! / asset.height! : 1,
+  };
+}
+
 const HERO_PHOTOS: Partial<Record<DestinationCode, HeroPhoto>> = {
   // ── 일본 ──
-  [DESTINATION_CODE.TOKYO]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Tokyo_-_Sunset_Skyline.jpg/1280px-Tokyo_-_Sunset_Skyline.jpg',
-    caption: '노을 진 도쿄 — 후지산 실루엣과 스카이트리',
-    author: 'Fred Cherrygarden',
-    license: 'CC BY-SA 4.0',
-    sourcePage: 'https://commons.wikimedia.org/wiki/File:Tokyo_-_Sunset_Skyline.jpg',
-    ratio: 1.5,
-  },
+  [DESTINATION_CODE.TOKYO]: fromAsset(
+    require('@/assets/destinations/tokyo.jpg'),
+    '시부야 스크램블 교차로',
+  ),
+  [DESTINATION_CODE.OSAKA]: fromAsset(
+    require('@/assets/destinations/osaka.jpg'),
+    '도톤보리 야경 — 네온사인 거리',
+  ),
+  [DESTINATION_CODE.FUKUOKA]: fromAsset(
+    require('@/assets/destinations/fukuoka.jpg'),
+    '나카스 강변 야경',
+  ),
 
   // ── 중국 ──
-  [DESTINATION_CODE.SHANGHAI]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Shanghai_Skyline_from_a_tour_boat_%28Pudong%29.jpg/1280px-Shanghai_Skyline_from_a_tour_boat_%28Pudong%29.jpg',
-    caption: '상하이 야경 — 동방명주와 푸둥 스카이라인',
-    author: 'Peter K Burian',
-    license: 'CC BY-SA 4.0',
-    sourcePage:
-      'https://commons.wikimedia.org/wiki/File:Shanghai_Skyline_from_a_tour_boat_(Pudong).jpg',
-    ratio: 1.57,
-  },
+  [DESTINATION_CODE.SHANGHAI]: fromAsset(
+    require('@/assets/destinations/shanghai.jpg'),
+    '와이탄에서 본 푸둥 스카이라인',
+  ),
 
   // ── 대만 ──
-  [DESTINATION_CODE.TAIPEI]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Taipei_Night_Skyline_from_Hongludi_20240113.jpg/1280px-Taipei_Night_Skyline_from_Hongludi_20240113.jpg',
-    caption: '타이베이 야경 — 101 타워',
-    author: 'xiangyang17',
-    license: 'CC BY-SA 2.0',
-    sourcePage:
-      'https://commons.wikimedia.org/wiki/File:Taipei_Night_Skyline_from_Hongludi_20240113.jpg',
-    ratio: 1.5,
-  },
+  [DESTINATION_CODE.TAIPEI]: fromAsset(
+    require('@/assets/destinations/taipei.jpg'),
+    '타이베이 101 야경',
+  ),
 
   // ── 홍콩 ──
-  [DESTINATION_CODE.HONG_KONG]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Hong_Kong_Harbour_Night_2019-06-11.jpg/1280px-Hong_Kong_Harbour_Night_2019-06-11.jpg',
-    caption: '홍콩 야경 — 빅토리아 피크에서 본 항구',
-    author: 'Benh LIEU SONG',
-    license: 'CC BY-SA 4.0',
-    sourcePage: 'https://commons.wikimedia.org/wiki/File:Hong_Kong_Harbour_Night_2019-06-11.jpg',
-    // ⚠️ 여덟 곳 중 이 한 장만 1.9 를 넘는다. 가운데에 항구와 스카이라인이
-    //    다 들어 있어 잘려도 홍콩으로 읽혀서 예외로 넣었다.
-    ratio: 2.12,
-  },
+  [DESTINATION_CODE.HONG_KONG]: fromAsset(
+    require('@/assets/destinations/hongkong.jpg'),
+    '빅토리아 하버 야경',
+  ),
 
   // ── 프랑스 ──
-  [DESTINATION_CODE.PARIS]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Paris%2C_view_from_Trocadero_at_night%2C_2010.jpg/1280px-Paris%2C_view_from_Trocadero_at_night%2C_2010.jpg',
-    caption: '트로카데로에서 본 에펠탑 — 푸른 시간',
-    author: 'Moyan Brenn',
-    license: 'CC BY 2.0',
-    sourcePage:
-      'https://commons.wikimedia.org/wiki/File:Paris,_view_from_Trocadero_at_night,_2010.jpg',
-    ratio: 1.64,
-  },
+  [DESTINATION_CODE.PARIS]: fromAsset(
+    require('@/assets/destinations/paris.jpg'),
+    '센강과 에펠탑',
+  ),
+  [DESTINATION_CODE.NICE]: fromAsset(
+    require('@/assets/destinations/nice.jpg'),
+    '코트다쥐르 해안선',
+  ),
 
   // ── 이탈리아 ──
-  [DESTINATION_CODE.ROME]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Colosseum_by_blue_hour%2C_Rome%2C_Italy1.jpg/1280px-Colosseum_by_blue_hour%2C_Rome%2C_Italy1.jpg',
-    caption: '푸른 시간의 콜로세움',
-    author: 'Christoph Strässler',
-    license: 'CC BY-SA 2.0',
-    sourcePage: 'https://commons.wikimedia.org/wiki/File:Colosseum_by_blue_hour,_Rome,_Italy1.jpg',
-    ratio: 1.78,
-  },
+  [DESTINATION_CODE.ROME]: fromAsset(
+    require('@/assets/destinations/rome.jpg'),
+    '푸른 시간의 콜로세움',
+  ),
+  [DESTINATION_CODE.MILAN]: fromAsset(
+    require('@/assets/destinations/milan.jpg'),
+    '노을 진 밀라노 두오모 광장',
+  ),
+  [DESTINATION_CODE.VENICE]: fromAsset(
+    require('@/assets/destinations/venice.jpg'),
+    '대운하와 곤돌라',
+  ),
 
   // ── 필리핀 ──
-  [DESTINATION_CODE.CEBU]: {
-    // ⚠️ 이 한 장만 썸네일이 아니라 원본이다. 원본이 이미 작아서
-    //    /thumb/.../1280px- 경로가 없다. 용량은 다른 것과 비슷하다.
-    url: 'https://upload.wikimedia.org/wikipedia/commons/1/1e/Kawasan_Falls%2C_Cebu%2C_Philippines1.jpg',
-    caption: '세부 카와산 폭포 — 에메랄드빛 물과 대나무 뗏목',
-    author: 'Andrewhaimerl',
-    license: 'CC BY 4.0',
-    sourcePage: 'https://commons.wikimedia.org/wiki/File:Kawasan_Falls,_Cebu,_Philippines1.jpg',
-    ratio: 1.51,
-  },
+  [DESTINATION_CODE.CEBU]: fromAsset(
+    require('@/assets/destinations/cebu.jpg'),
+    '에메랄드빛 바다와 화이트 비치',
+  ),
 
   // ── 베트남 ──
-  [DESTINATION_CODE.DA_NANG]: {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Da_Nang_Dragon_Bridge_%28II%29.jpg/1280px-Da_Nang_Dragon_Bridge_%28II%29.jpg',
-    caption: '다낭 용다리 야경 — 강에 비친 조명',
-    author: 'Supanut Arunoprayote',
-    license: 'CC BY 4.0',
-    sourcePage: 'https://commons.wikimedia.org/wiki/File:Da_Nang_Dragon_Bridge_(II).jpg',
-    ratio: 1.78,
-  },
+  [DESTINATION_CODE.DA_NANG]: fromAsset(
+    require('@/assets/destinations/danang.jpg'),
+    '용다리와 해안 야경',
+  ),
 };
 
 /**
