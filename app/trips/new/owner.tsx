@@ -70,7 +70,14 @@ const CLEARED_TRIP_BASICS = {
 export default function ScreenTRIP01() {
   useScreenView(SCREENS.TRIP_CREATE_WHO);
 
-  const params = useLocalSearchParams<{ entryPoint?: string }>();
+  const params = useLocalSearchParams<{
+    entryPoint?: string;
+    /**
+     * 모임 상세의 '이 모임으로 새 여행 만들기' 로 들어왔을 때만 있다.
+     * 그 모임을 미리 골라 둔다. (2026-09-09)
+     */
+    preselectedGroupId?: string;
+  }>();
   const { draft, patchDraft } = useTripDraft();
 
   // ── 퍼널 시작 로그 ────────────────────────────────────────────────────
@@ -244,6 +251,52 @@ export default function ScreenTRIP01() {
     },
     [draft.groupId, groups, loadPastTripCount, patchDraft],
   );
+
+  /**
+   * 모임 상세에서 들어온 경우 그 모임을 미리 골라 둔다.
+   *
+   * ⚠️ **최초 한 번만** 한다. 목록을 다시 읽거나 화면이 다시 그려질 때마다
+   *    덮어쓰면, 사용자가 다른 모임을 골라도 원래 모임으로 되돌아간다.
+   *
+   * ⚠️ 목록을 받은 뒤에 판단한다. 넘어온 id 가 내 모임 목록에 없으면
+   *    **아무것도 고르지 않는다.** 엉뚱한 모임을 대신 고르지 않고 평소의
+   *    빈 상태로 둔다.
+   *
+   * ⚠️ 고르기만 하고 잠그지 않는다. 사용자가 다른 모임이나 다른 방식으로
+   *    바꿀 수 있다.
+   */
+  const preselectedRef = useRef(false);
+
+  useEffect(() => {
+    if (preselectedRef.current) return;
+
+    const wanted = params.preselectedGroupId;
+    if (typeof wanted !== 'string' || wanted === '') return;
+
+    // 목록을 아직 안 읽었으면 읽고 나서 다시 들어온다.
+    if (!groupsLoaded) {
+      if (!groupsLoading && !groupsError) void loadGroups();
+      return;
+    }
+
+    preselectedRef.current = true;
+
+    if (!groups.some((group) => group.id === wanted)) return;
+
+    // 기존 선택 핸들러를 그대로 쓴다. 인원 기본값·과거 여행 수까지 같은 경로로
+    // 채워져야 '다음' 이 정상적으로 열린다. (검증 로직을 우회하지 않는다)
+    handleSelectCompanionType(COMPANION_TYPE.EXISTING_GROUP);
+    handleSelectGroup(wanted);
+  }, [
+    params.preselectedGroupId,
+    groups,
+    groupsLoaded,
+    groupsLoading,
+    groupsError,
+    loadGroups,
+    handleSelectCompanionType,
+    handleSelectGroup,
+  ]);
 
   // ⚠️ 여기서 track() 을 부르지 않는다.
   //    토글이 기본 ON 이라 만지지 않고 넘어가는 사용자가 생기는데, 이 자리에서만

@@ -9,7 +9,22 @@ import type { MyTripItem } from './types';
 
 type Props = {
   trip: MyTripItem;
-  onPress: (tripId: string) => void;
+  /**
+   * 누를 수 없는 카드면 `null` 을 넘긴다.
+   *
+   * ⚠️ GROUP-02 는 내가 참가하지 않은 여행도 보여준다. 그 카드는 정보만
+   *    보여줄 뿐 상세로 들어가지 않는다. 눌리는 표시(active)도 붙이지 않는다.
+   *    (2026-09-09 확정) MY 는 항상 함수를 넘기므로 동작이 달라지지 않는다.
+   */
+  onPress: ((tripId: string) => void) | null;
+  /**
+   * 모임 이름을 보여줄지. 기본은 지금까지와 같이 보여준다.
+   *
+   * ⚠️ GROUP-02 는 이미 그 모임 안이라 카드마다 같은 모임 이름이 반복된다.
+   *    거기서만 끈다. MY 는 여러 모임의 여행이 섞여 있어 필요하다.
+   *    (2026-09-09) **기본값을 바꾸지 않는다.**
+   */
+  showGroupName?: boolean;
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
@@ -24,7 +39,7 @@ const MUTED = '#B6BCC6';
  * 진행 중이면 준비율까지, 지난 여행이면 최종 여행비까지 보여준다.
  * 카드 모양·색 규칙은 홈의 가로 카드를 그대로 따른다.
  */
-export function MyTripCard({ trip, onPress }: Props) {
+export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
   const past = trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED;
   const accent = past ? MUTED : trip.color;
 
@@ -36,10 +51,16 @@ export function MyTripCard({ trip, onPress }: Props) {
 
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${destination} 여행 홈으로 이동`}
-      onPress={() => onPress(trip.tripId)}
-      className="flex-row overflow-hidden rounded-2xl bg-white active:opacity-80"
+      // 누를 수 없는 카드는 버튼이 아니다. 스크린리더도 정보로 읽는다.
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={
+        onPress ? `${destination} 여행 홈으로 이동` : destination
+      }
+      disabled={onPress === null}
+      onPress={onPress ? () => onPress(trip.tripId) : undefined}
+      className={`flex-row overflow-hidden rounded-2xl bg-white ${
+        onPress ? 'active:opacity-80' : ''
+      }`}
       style={{
         shadowColor: '#111827',
         shadowOpacity: 0.05,
@@ -80,12 +101,22 @@ export function MyTripCard({ trip, onPress }: Props) {
           <Text className="ml-1 text-pot-faint" style={{ fontSize: 11, ...NUM }} numberOfLines={1}>
             {`${dates.start} – ${dates.end}${nights ? `  ·  ${nights}` : ''}`}
           </Text>
-          <Text className="mx-1.5 text-pot-line" style={{ fontSize: 11 }}>
-            ·
-          </Text>
-          <Text className="flex-1 text-pot-faint" style={{ fontSize: 11 }} numberOfLines={1}>
-            {trip.ownerLabel}
-          </Text>
+          {/* 모임 이름. GROUP-02 처럼 이미 그 모임 안이면 그리지 않는다.
+              가운뎃점도 함께 없앤다. 남겨 두면 끝에 점만 떠 있다. */}
+          {showGroupName ? (
+            <>
+              <Text className="mx-1.5 text-pot-line" style={{ fontSize: 11 }}>
+                ·
+              </Text>
+              <Text
+                className="flex-1 text-pot-faint"
+                style={{ fontSize: 11 }}
+                numberOfLines={1}
+              >
+                {trip.ownerLabel}
+              </Text>
+            </>
+          ) : null}
         </View>
 
         {past ? (

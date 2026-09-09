@@ -41,7 +41,7 @@ import { SCREENS } from '@/lib/analytics/events';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { AUTH_PROVIDER, TRIP_STATUS } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
-import { getTrips } from '@/lib/supabase/queries/trips';
+import { getMyParticipatingTrips } from '@/lib/supabase/queries/trips';
 import { prepareProfileImage } from '@/lib/image/profileImage';
 import {
   getUserProfile,
@@ -110,13 +110,16 @@ export default function ScreenMY01() {
     try {
       if (!userId) return;
 
-      const [user, trips] = await Promise.all([getUserProfile(userId), getTrips(userId)]);
+      const [user, trips] = await Promise.all([getUserProfile(userId), getMyParticipatingTrips(userId)]);
 
       if (!user) {
         setLoadState('error');
         return;
       }
 
+      // ⚠️ 내가 **실제로 참가 중인** 여행만 센다. 모임에만 속해 있고 그 여행에서
+      //    빠졌다면 여기 개수에 들어가지 않는다. (2026-09-09 확정)
+      //    공용 getTrips 는 그대로 두고 MY 전용 함수로 한 겹 걸렀다.
       // 준비 중(PLANNING) / 여행 중(TRAVELING) / 지난(ENDED·SETTLED).
       // ⚠️ trips.status 로만 가른다. 날짜로 다시 판정하지 않는다.
       //    /me/trips 목록이 쓰는 기준과 같아야 카드 숫자와 목록 건수가 맞는다.

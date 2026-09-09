@@ -32,7 +32,10 @@ import {
 } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
-import { getTripsWithSummary, type TripWithSummary } from '@/lib/supabase/queries/trips';
+import {
+  getMyParticipatingTripsWithSummary,
+  type TripWithSummary,
+} from '@/lib/supabase/queries/trips';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -70,7 +73,7 @@ export default function ScreenMY02() {
       if (!userId) return;
 
       const [nextTrips, nextGroups] = await Promise.all([
-        getTripsWithSummary(userId),
+        getMyParticipatingTripsWithSummary(userId),
         getMyGroups(userId),
       ]);
       setTrips(nextTrips);
