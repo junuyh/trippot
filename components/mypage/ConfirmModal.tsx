@@ -20,6 +20,13 @@ type Props = {
   busy: boolean;
   /** 실패했을 때 창 안에 그대로 보여준다. */
   error?: string | null;
+  /**
+   * 취소 버튼을 감춘다. 확인 하나만 남는 **안내 전용** 창이 된다.
+   *
+   * ⚠️ 기본은 false 라 기존 사용처는 그대로 두 버튼이다.
+   * ⚠️ Alert.alert 를 쓰지 않는 이유는 위와 같다 — 웹에서 아무 일도 하지 않는다.
+   */
+  hideCancel?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -49,6 +56,7 @@ export function ConfirmModal({
   destructive = false,
   busy,
   error,
+  hideCancel = false,
   onCancel,
   onConfirm,
 }: Props) {
@@ -81,9 +89,11 @@ export function ConfirmModal({
           ) : null}
 
           <View className="mt-5 flex-row gap-2">
-            <View className="flex-1">
-              <Button label="취소" variant="secondary" onPress={onCancel} disabled={busy} />
-            </View>
+            {hideCancel ? null : (
+              <View className="flex-1">
+                <Button label="취소" variant="secondary" onPress={onCancel} disabled={busy} />
+              </View>
+            )}
             <View className="flex-1">
               {destructive ? (
                 // 되돌릴 수 없는 동작. 공용 Button 의 danger 대신 글 삭제 확인창과

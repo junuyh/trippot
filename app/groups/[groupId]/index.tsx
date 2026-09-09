@@ -45,9 +45,7 @@ import { getGroupTripAccounts } from '@/lib/supabase/queries/funds';
 import {
   getMyParticipatingTripIds,
   getOtherActiveTripMemberCount,
-  hasActiveTripMembers,
   leaveTrip,
-  markTripDeleted,
 } from '@/lib/supabase/queries/trips';
 import {
   getGroupById,
@@ -75,10 +73,12 @@ export default function ScreenGROUP02() {
   /** 나가기 확인창에 올라온 여행. null 이면 닫혀 있다. */
   const [leavingTrip, setLeavingTrip] = useState<MyTripItem | null>(null);
   /**
-   * 나 말고 남아 있는 참가자 수. 확인창 문구를 고르는 데만 쓴다.
-   * 여행을 지울지는 나간 뒤에 다시 확인한다. (handleConfirmLeaveTrip)
+   * 마지막 참가자라서 나갈 수 없다는 안내. null 이면 닫혀 있다.
+   *
+   * ⚠️ 나가기 확인창(leavingTrip)과 따로 둔다. 하나는 되돌릴 수 없는 동작을
+   *    묻는 창이고, 이건 아무것도 하지 않는 안내다. (2026-09-10)
    */
-  const [otherMemberCount, setOtherMemberCount] = useState<number | null>(null);
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
@@ -260,42 +260,47 @@ export default function ScreenGROUP02() {
   );
 
   /**
-   * '여행에서 나가기' 를 눌렀을 때. 확인창을 연다.
+   * '여행에서 나가기' 를 눌렀을 때.
    *
-   * ⚠️ 아직 아무것도 바꾸지 않는다. 다만 **마지막 참가자인지**는 미리 확인해야
-   *    확인창 문구가 정확해진다. 마지막이면 여행 자체가 사라진다고 알린다.
+   * ⚠️ 확인창을 열기 전에 **나 말고 남은 참가자가 있는지 먼저 본다.**
+   *    마지막 한 명은 나갈 수 없다. (2026-09-10 확정) 여행을 그만두려면
+   *    '여행 취소' 를 써야 하는데 그건 다른 담당 기능이라 여기서 연결하지 않는다.
+   *
+   * ⚠️ 예전에는 마지막 참가자가 나가면 여행을 자동으로 지웠다. 그 정책은
+   *    폐기했다. 여행에서 나가는 것과 여행을 취소하는 것은 다른 일이다.
+   *
+   * ⚠️ 개수를 못 읽으면 아무것도 하지 않고 안내만 한다. 확실하지 않은 채로
+   *    나가기를 진행하면 마지막 참가자가 빠져나갈 수 있다.
    */
   async function handlePressLeaveTrip(trip: MyTripItem) {
     if (!userId) return;
 
     setLeaveError(null);
-    setLeavingTrip(trip);
-    setOtherMemberCount(null);
+
+    let others: number;
     try {
-      setOtherMemberCount(await getOtherActiveTripMemberCount(trip.tripId, userId));
+      others = await getOtherActiveTripMemberCount(trip.tripId, userId);
     } catch {
-      // 개수를 못 읽어도 나가기 자체는 막지 않는다. 문구만 일반형으로 나간다.
-      setOtherMemberCount(null);
+      setBlockedMessage('참가자를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      return;
     }
+
+    if (others === 0) {
+      setBlockedMessage('이 여행을 더 이상 진행하지 않으려면\n여행 취소를 이용해주세요.');
+      return;
+    }
+
+    setLeavingTrip(trip);
   }
 
   /**
    * 나가기 확정.
    *
-   * ⚠️ 순서가 중요하다. **내 참가를 먼저 LEFT 로 바꾸고**, 그 뒤에 남은
-   *    참가자가 있는지 **다시 조회**해서 아무도 없으면 여행을 지운다.
+   * ⚠️ trip_members 의 내 ACTIVE 행을 LEFT 로 바꾸는 것이 전부다.
+   *    trips.status 를 건드리지 않는다 — DELETED 도 CANCELED 도 만들지 않는다.
    *
-   * ⚠️ '내가 마지막이었나' 를 미리 계산해서 쓰지 않는다. (2026-09-09 확정)
-   *    trip_members 에 unique (trip_id, user_id) 가 없어 내 행이 중복으로
-   *    있을 수 있고, 그러면 미리 센 값이 부풀려져 실제로는 아무도 안 남았는데
-   *    여행이 PLANNING 으로 계속 남는다. 나간 **뒤의 실제 상태**를 본다.
-   *
-   * ⚠️ 두 요청 사이에서 실패하면 '나는 빠졌지만 여행은 남은' 상태가 된다.
-   *    사용자에게는 나가기가 된 것이라 큰 문제는 아니고, 주인 없는 여행은
-   *    다음에 누군가 마지막으로 나갈 때 정리된다.
-   *    원자성이 필요하면 RPC 가 있어야 한다. (production hardening 대상)
-   *
-   * ⚠️ 금융 데이터를 건드리지 않는다. 이미 낸 돈이 있어도 그대로 둔다.
+   * ⚠️ group_members 도, 금융 데이터도 건드리지 않는다. 이미 낸 돈이 있어도
+   *    그대로 둔다.
    */
   async function handleConfirmLeaveTrip() {
     if (!leavingTrip || !userId || leaving) return;
@@ -304,13 +309,6 @@ export default function ScreenGROUP02() {
     setLeaveError(null);
     try {
       await leaveTrip(leavingTrip.tripId, userId);
-
-      // 내가 빠진 뒤 아무도 남지 않았으면 여행을 사용자 화면에서 지운다.
-      // markTripDeleted 는 준비 중 여행에만 적용된다.
-      if (!(await hasActiveTripMembers(leavingTrip.tripId))) {
-        await markTripDeleted(leavingTrip.tripId);
-      }
-
       setLeavingTrip(null);
       await load();
     } catch {
@@ -320,7 +318,7 @@ export default function ScreenGROUP02() {
     }
   }
 
-  // 진행 중이든 지난 여행이든 같은 곳으로 간다.
+  // 진행 중이든 지난 여행이든 같은 곳으로 간다.  // 진행 중이든 지난 여행이든 같은 곳으로 간다.
   // 도착 화면이 trip.status 로 TRIP-HOME-01 / TRIP-HOME-02 를 가른다. (docs/04_v3 §5)
   function handlePressTrip(tripId: string) {
     router.push(`/trips/${tripId}`);
@@ -422,24 +420,32 @@ export default function ScreenGROUP02() {
         }}
       />
 
-      {/*
-        여행에서 나가기 확인창.
-        마지막 참가자면 여행 자체가 사라지므로 설명이 달라진다.
-      */}
+      {/* 여행에서 나가기 확인창. 남은 참가자가 있을 때만 열린다. */}
       <ConfirmModal
         visible={leavingTrip !== null}
         title="이 여행에서 나가시겠어요?"
-        description={
-          otherMemberCount === 0
-            ? '마지막 참가자가 나가면 이 여행은 삭제돼요.'
-            : '이 여행의 참가자에서 제외돼요.\n모임에서는 여행을 계속 확인할 수 있어요.'
-        }
+        description={'이 여행의 참가자에서 제외돼요.\n모임에서는 여행을 계속 확인할 수 있어요.'}
         confirmLabel="여행에서 나가기"
         destructive
         busy={leaving}
         error={leaveError}
         onCancel={() => setLeavingTrip(null)}
         onConfirm={() => void handleConfirmLeaveTrip()}
+      />
+
+      {/*
+        마지막 참가자 안내. 아무것도 바꾸지 않고 알리기만 한다.
+        여행 취소 화면으로 자동으로 보내지 않는다 — 다른 담당 기능이다.
+      */}
+      <ConfirmModal
+        visible={blockedMessage !== null}
+        title="마지막 참가자는 나갈 수 없어요"
+        description={blockedMessage}
+        confirmLabel="확인"
+        hideCancel
+        busy={false}
+        onCancel={() => setBlockedMessage(null)}
+        onConfirm={() => setBlockedMessage(null)}
       />
 
       {/* 지난 여행에만 남은 계좌까지 전부 본다. */}

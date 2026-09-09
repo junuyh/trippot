@@ -200,7 +200,10 @@ export async function getGroupTrips(groupId: string): Promise<GroupTrips> {
     .from('trips')
     .select('*')
     .eq('group_id', groupId)
-    .neq('status', TRIP_STATUS.DELETED)
+    // ⚠️ 취소된 여행도 뺀다. develop 의 getTrips · personalization 이 쓰는 것과
+    //    같은 조건이다. 여기만 DELETED 만 빼면 취소한 여행이 모임 상세에서만
+    //    계속 보인다. (2026-09-10 · develop de1dfc7 의 CANCELED 정책에 맞춤)
+    .not('status', 'in', `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`)
     .order('start_date', { ascending: false });
 
   if (error) throw error;

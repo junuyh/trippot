@@ -446,7 +446,9 @@ export async function getGroupTripAccounts(
       "trip_id, trips!inner(id, destination, group_id, status), financial_accounts!inner(id, institution_code, masked_account_number, disconnected_at)",
     )
     .eq("trips.group_id", groupId)
-    .neq("trips.status", TRIP_STATUS.DELETED)
+    // ⚠️ 취소된 여행의 계좌도 빼야 GROUP 목록과 기준이 같아진다.
+    //    (2026-09-10 · develop 의 CANCELED 정책)
+    .not("trips.status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`)
     .is("financial_accounts.disconnected_at", null);
 
   if (error) throw error;

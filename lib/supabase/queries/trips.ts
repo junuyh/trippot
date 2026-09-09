@@ -468,8 +468,9 @@ export async function getMyParticipatingTripsWithSummary(
 /**
  * 나 말고 이 여행에 남아 있는 참가자 수. (ACTIVE 만)
  *
- * ⚠️ **확인창 문구를 고르는 용도다.** 여행을 지울지 말지는 이 값으로 정하지
- *    않는다. 나간 뒤에 hasActiveTripMembers 로 다시 확인한다. (2026-09-09)
+ * ⚠️ **마지막 참가자인지 가리는 값이다.** 0 이면 나 혼자다.
+ *    (2026-09-10 확정) 마지막 참가자는 여행에서 나갈 수 없다. 여행을 그만두려면
+ *    '여행 취소' 를 쓴다 — 그건 다른 담당 기능이고 여기서 건드리지 않는다.
  *
  * ⚠️ 전체 ACTIVE 행을 세지 않는다. unique (trip_id, user_id) 가 없어서 내
  *    행이 중복으로 있으면 전체 개수가 부풀려지고, 혼자인데도 "혼자가 아니다"
@@ -496,28 +497,6 @@ export async function getOtherActiveTripMemberCount(
 }
 
 /**
- * 이 여행에 참가자가 아직 남아 있는가. (ACTIVE 만)
- *
- * ⚠️ 여행을 지울지 정하는 **판단 기준**이다. 나가기가 끝난 뒤에 부른다.
- *    "내가 마지막이었나" 를 미리 계산하지 않고 "내가 빠진 뒤 실제로 아무도
- *    남지 않았나" 를 본다. 중복 행이 있어도 결과가 어긋나지 않는다.
- *    (2026-09-09 확정)
- *
- * ⚠️ user_id 가 null 인 행도 참가자로 센다. 미가입 동행자가 남아 있으면
- *    여행을 지우지 않는다.
- */
-export async function hasActiveTripMembers(tripId: string): Promise<boolean> {
-  const { count, error } = await supabase
-    .from("trip_members")
-    .select("id", { count: "exact", head: true })
-    .eq("trip_id", tripId)
-    .eq("status", TRIP_MEMBER_STATUS.ACTIVE);
-
-  if (error) throw error;
-  return (count ?? 0) > 0;
-}
-
-/**
  * 이 여행에서 나간다. (본인)
  *
  * ⚠️ status 를 LEFT 로 바꿀 뿐이다. 행을 지우지 않는다.
@@ -538,34 +517,6 @@ export async function leaveTrip(tripId: string, userId: string): Promise<void> {
     .eq("trip_id", tripId)
     .eq("user_id", userId)
     .eq("status", TRIP_MEMBER_STATUS.ACTIVE);
-
-  if (error) throw error;
-}
-
-/**
- * 여행을 사용자 화면에서 지운다. (soft delete)
- *
- * ⚠️ 행을 지우지 않는다. status 만 DELETED 로 바꾼다. 조회 query 들이 이미
- *    `.neq('status', DELETED)` 로 거르고 있어 목록·개수에서 함께 빠진다.
- *
- * ⚠️ **연쇄 삭제를 하지 않는다.** 납부·거래·정산·자금 기록을 그대로 둔다.
- *    나중에 정산 근거를 다시 봐야 할 수 있고, 지우면 되돌릴 수 없다.
- *
- * ⚠️ **준비 중 여행에만 적용된다.** 아래 status 조건을 참고.
- *
- * ⚠️ 이 프로젝트에 여행을 지우는 함수가 없어 새로 만들었다. 이름과 동작은
- *    기존 soft-delete 관례(transactions.deleted_at · users.deleted_at)를
- *    따른다. (2026-09-09 확정)
- */
-export async function markTripDeleted(tripId: string): Promise<void> {
-  const { error } = await supabase
-    .from("trips")
-    .update({ status: TRIP_STATUS.DELETED })
-    .eq("id", tripId)
-    // ⚠️ 준비 중 여행만 지운다. 이 함수는 '준비 중 여행에서 나가기' 흐름에서만
-    //    쓰는데, 조건이 없으면 실수나 경합으로 여행 중·지난 여행까지 지워질 수
-    //    있다. 상태가 바뀐 뒤라면 아무 행도 바뀌지 않는다. (2026-09-09)
-    .eq("status", TRIP_STATUS.PLANNING);
 
   if (error) throw error;
 }
