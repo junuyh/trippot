@@ -54,7 +54,6 @@ import {
   SETTLEMENT_TRIGGER,
   FUND_SOURCE_TYPE,
   TRIP_STATUS,
-  CATEGORY_CODE_LABEL,
   type CategoryCode,
   type TripStatus,
 } from "@/lib/constants/status";
@@ -283,6 +282,18 @@ export default function ScreenSETTLE01() {
   const [shareBusy, setShareBusy] = useState<"card" | "pdf" | null>(null);
   const cardRef = useRef<ViewShot>(null);
 
+  /** 카테고리 id → 코드. 거래에는 id 만 있어서 리포트가 코드로 바꿔 쓴다 */
+  const categoryCodeById = useMemo(
+    () =>
+      new Map(
+        (data?.categories ?? []).map((category) => [
+          category.id,
+          category.category_code as CategoryCode,
+        ]),
+      ),
+    [data?.categories],
+  );
+
   /**
    * 리포트에 담을 값.
    *
@@ -310,10 +321,25 @@ export default function ScreenSETTLE01() {
       targetAmount,
       actualAmount,
       categories: toReportCategories(snapshot ?? data.categories),
+      /*
+        확정 지출 전체. 명세서의 거래 내역(날짜별 묶음)에 쓴다.
+        환불 완료·취소·확인 필요는 getSettlementFunds 가 이미 뺐다.
+      */
+      transactions: data.funds.spent.map((row) => {
+        const code = row.budget_category_id
+          ? categoryCodeById.get(row.budget_category_id)
+          : undefined;
+        return {
+          name: row.name ?? "이름 없는 지출",
+          amount: row.amount,
+          occurredAt: row.occurred_at,
+          categoryCode: code ?? null,
+        };
+      }),
       typeLabel: null,
       typeSummary: null,
     });
-  }, [actualAmount, data, raisedAmount, targetAmount]);
+  }, [actualAmount, categoryCodeById, data, raisedAmount, targetAmount]);
 
   const reportTheme = useMemo(
     () => countryTheme(findDestinationByName(data?.trip.destination)?.countryKo),
@@ -353,18 +379,14 @@ export default function ScreenSETTLE01() {
     if (!report || shareBusy) return;
     setShareBusy("pdf");
     try {
-      const html = buildSettlementReportHtml(
-        report,
-        majorExpenses.map((row) => ({
-          name: row.name,
-          amount: row.amount,
-          occurredAt: row.occurredAt,
-          categoryLabel: row.categoryCode
-            ? (CATEGORY_CODE_LABEL[row.categoryCode] ?? null)
-            : null,
-        })),
-        reportTheme.primary,
-      );
+      const html = buildSettlementReportHtml(report, {
+        accent: reportTheme.primary,
+        flag: destinationMeta?.flag ?? "🌏",
+        nameEn: destinationMeta?.nameEn ?? "",
+        countryKo: destinationMeta?.countryKo ?? null,
+        destinationCode: destinationMeta?.code ?? null,
+        airportCode: destinationMeta?.airportCode ?? null,
+      });
 
       const { uri } = await Print.printToFileAsync({ html });
 
@@ -401,7 +423,7 @@ export default function ScreenSETTLE01() {
     } finally {
       setShareBusy(null);
     }
-  }, [majorExpenses, report, reportTheme.primary, shareBusy]);
+  }, [destinationMeta, report, reportTheme.primary, shareBusy]);
 
   // ── 결산 확정 ─────────────────────────────────────────────────────────
   const confirmSettlement = useCallback(async () => {
@@ -809,6 +831,9 @@ export default function ScreenSETTLE01() {
           theme={reportTheme}
           flag={destinationMeta?.flag ?? "🌍"}
           nameEn={destinationMeta?.nameEn ?? report.destination}
+          countryKo={destinationMeta?.countryKo ?? null}
+          destinationCode={destinationMeta?.code ?? null}
+          airportCode={destinationMeta?.airportCode ?? null}
           onShareCard={handleShareCard}
           onSharePdf={handleSharePdf}
           busy={shareBusy}

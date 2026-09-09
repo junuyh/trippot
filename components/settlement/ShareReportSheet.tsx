@@ -3,7 +3,7 @@
 //
 // 한 버튼에서 두 가지를 고른다.
 //
-//   카드(이미지)   카톡·인스타에 올리는 세로 한 장. 자랑용
+//   영수증(이미지) 카톡·인스타에 올리는 세로 한 장. 자랑용
 //   명세서(PDF)    모임원에게 보내는 증빙. 카테고리 표 + 거래 내역
 //
 // ⚠️ 둘을 한 버튼에 묶지 않는다. 쓰임이 완전히 다르다. 명세서를 인스타에
@@ -22,6 +22,7 @@ import ViewShot from 'react-native-view-shot';
 
 import { BottomSheet } from '@/components/ui';
 import type { CountryTheme } from '@/lib/constants/countryTheme';
+import type { DestinationCode } from '@/lib/constants/destinations';
 import type { SettlementReport } from '@/lib/settlement/report';
 
 import { SettlementCard } from './SettlementCard';
@@ -33,6 +34,9 @@ type Props = {
   theme: CountryTheme;
   flag: string;
   nameEn: string;
+  countryKo: string | null;
+  destinationCode: DestinationCode | null;
+  airportCode: string | null;
   onShareCard: () => void;
   onSharePdf: () => void;
   /** 'card' | 'pdf' | null. 만드는 중인 것 */
@@ -45,7 +49,7 @@ type Props = {
  *    캡처하면 보이는 것과 나가는 것이 달라질 수 있다.
  */
 export const ShareReportSheet = forwardRef<ViewShot, Props>(function ShareReportSheet(
-  { visible, onClose, report, theme, flag, nameEn, onShareCard, onSharePdf, busy },
+  { visible, onClose, report, theme, flag, nameEn, countryKo, destinationCode, airportCode, onShareCard, onSharePdf, busy },
   ref,
 ) {
   return (
@@ -58,13 +62,21 @@ export const ShareReportSheet = forwardRef<ViewShot, Props>(function ShareReport
 
         {/* 미리보기 = 캡처 대상 */}
         <ViewShot ref={ref} options={{ format: 'png', quality: 1 }}>
-          <SettlementCard report={report} theme={theme} flag={flag} nameEn={nameEn} />
+          <SettlementCard
+            report={report}
+            theme={theme}
+            flag={flag}
+            nameEn={nameEn}
+            countryKo={countryKo}
+            destinationCode={destinationCode}
+            airportCode={airportCode}
+          />
         </ViewShot>
 
         <View className="w-full gap-2">
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="결산 카드 이미지로 공유하기"
+            accessibilityLabel="정산 영수증 이미지로 공유하기"
             disabled={busy !== null}
             onPress={onShareCard}
             className="h-12 flex-row items-center justify-center gap-1.5 rounded-xl active:opacity-90"
@@ -76,7 +88,7 @@ export const ShareReportSheet = forwardRef<ViewShot, Props>(function ShareReport
               <Ionicons name="image-outline" size={16} color={theme.onPrimary} />
             )}
             <Text className="text-[13px] font-bold" style={{ color: theme.onPrimary }}>
-              이 카드 이미지로 공유
+              이 영수증 이미지로 공유
             </Text>
           </Pressable>
 
@@ -101,8 +113,8 @@ export const ShareReportSheet = forwardRef<ViewShot, Props>(function ShareReport
 
         <View className="w-full gap-1 rounded-xl bg-gray-50 p-3.5">
           <Text className="text-[11px] text-gray-500">
-            <Text className="font-bold">카드</Text>는 여행 결과를 한 장으로 보여줘요.
-            카톡·인스타에 올리기 좋아요.
+            <Text className="font-bold">영수증 이미지</Text>는 여행 결과를 한 장으로
+            보여줘요. 카톡·인스타에 올리기 좋아요.
           </Text>
           <Text className="text-[11px] text-gray-500">
             <Text className="font-bold">명세서</Text>는 카테고리별 계획·실제와 거래

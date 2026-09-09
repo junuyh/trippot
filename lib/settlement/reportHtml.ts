@@ -1,39 +1,78 @@
 // ============================================================================
-// 정산 명세서 HTML (SETTLE-01 · A안)
+// 정산 명세서 HTML (SETTLE-01 · v5 · 2026-09-09)
 //
-// expo-print 이 이 HTML 을 PDF 로 만든다.
+// expo-print 이 이 HTML 을 PDF 로 만든다. 모임원에게 보내는 증빙 문서다.
 //
 // ⚠️ 순수 함수다. 문자열만 만든다.
 //
 // ============================================================================
-// 왜 이 순서인가
+// v5 — 앱 정산 내용을 **긴 영수증 한 장**으로
 // ============================================================================
 //
-//   경비 리포트 템플릿들이 공통으로 지키는 순서를 따랐다.
-//     ① 식별 정보  누가 · 언제 · 어떤 여행
-//     ② 요약       총액을 몇 초 안에 판단할 수 있게
-//     ③ 분해       카테고리별 계획 vs 실제
-//     ④ 명세       건별 내역
+//   v4 는 정산 화면을 표로 옮긴 문서였다. 정확했지만 "우리 서비스" 로 읽히지
+//   않았다. v5 는 공유 이미지(SettlementCard)와 같은 종이다. 회색 바탕 위에
+//   흰 영수증 한 장, 위아래 톱니, 점선 구분선, 등폭 숫자, 이중선, 바코드.
+//   내용은 SETTLE-01 화면 그대로다.
 //
-//   요약이 맨 위다. 이 문서를 받는 사람이 가장 먼저 묻는 것은
-//   "얼마 걷어서 얼마 썼고 얼마 남았나" 하나다.
+//     머리글        TRIPPOT · {CITY} TRIP RECEIPT · 기간 · 인원 · 확정일
+//     그림          이미지와 같은 그림 (receiptArt · 여행마다 고정)
+//     SUMMARY       TOTAL · 사용률 게이지 · 목표 · 남은/초과 · 1인당 · 건수
+//     SPENDING MIX  지출 구성 도넛 (상위 4 + 기타)              ← v5.1 그래프
+//     BUDGET vs ACTUAL 카테고리별 계획 눈금 + 실제 막대           ← v5.1 그래프
+//     TRAVEL FUND   누적 모금 · 사용 · 남은 여행자금 (모금액이 있을 때만)
+//     DAILY SPEND   일자별 지출 막대                            ← v5.1 그래프
+//     TRANSACTIONS  날짜별로 묶은 전체 지출 (원 단위 그대로)
+//     TOTAL · 도장 · 바코드
+//
+//   v5.1 (2026-09-09) 숫자만 나열돼 눈에 안 들어온다는 피드백으로 그래프를
+//   넣었다. 단, 영수증 잉크 한 색으로 그린다 (receiptCharts.ts). 그래프 안의
+//   숫자는 "216만" 처럼 짧게, 정확한 원 단위는 거래 내역에만 둔다.
+//
+//   금액은 전부 원 단위다. 색은 잉크·회색·결과색(절약 초록 / 초과 국기색) 셋뿐.
 //
 // ⚠️ 외부 리소스를 쓰지 않는다. 폰트도 이미지도 링크하지 않는다.
-//    PDF 생성은 오프라인에서도 되어야 하고, 링크가 죽으면 문서가 깨진다.
+//    그림은 인라인 SVG 다. PDF 생성은 오프라인에서도 되어야 한다.
 //
 // ⚠️ 사용자 입력이 그대로 들어가는 자리가 있다(여행지·모임명·거래명).
-//    반드시 escape 한다. 안 하면 따옴표 하나로 표가 깨진다.
+//    반드시 escape 한다. 안 하면 따옴표 하나로 문서가 깨진다.
 // ============================================================================
-import type { SettlementReport } from './report';
-import { diffBarSvg, donutSvg, toDonutSlices } from './reportChart';
+import { CATEGORY_EMOJI } from '@/lib/constants/categoryEmoji';
+import { countryTheme } from '@/lib/constants/countryTheme';
+import type { DestinationCode } from '@/lib/constants/destinations';
+import { CATEGORY_CODE_LABEL } from '@/lib/constants/status';
 
-export type ReportTransaction = {
-  name: string;
-  amount: number;
-  /** 'YYYY-MM-DD' 또는 ISO */
-  occurredAt: string | null;
-  categoryLabel: string | null;
+import { won, wonSigned } from './format';
+import { pickReceiptArt, receiptArtSvg } from './receiptArt';
+import { budgetBarsSvg, dailyBarsSvg, donutSvg, gaugeSvg, toDonutSlices } from './receiptCharts';
+import type { SettlementReport } from './report';
+
+export type { ReportTransaction } from './report';
+
+export type ReportHtmlOptions = {
+  /** 국기 색. 초과 표시에만 쓴다 */
+  accent: string;
+  /** 국기 이모지 */
+  flag: string;
+  /** 'TOKYO'. 없으면 '' */
+  nameEn: string;
+  /** 그림에 쓴다. 직접 입력 목적지는 null */
+  countryKo: string | null;
+  destinationCode: DestinationCode | null;
+  airportCode: string | null;
 };
+
+const INK = '#141b28';
+const MUTED = '#6f7885';
+const FAINT = '#9aa3af';
+const SAVED = '#19865f';
+
+/** 바코드 막대. [막대 폭, 뒤 여백]. 이미지와 같은 패턴 */
+const BARS: readonly [number, number][] = [
+  [2, 1], [1, 1], [3, 2], [1, 1], [1, 2], [2, 1], [1, 1], [3, 1], [2, 2], [1, 1],
+  [1, 1], [2, 2], [3, 1], [1, 1], [2, 1], [1, 2], [1, 1], [3, 1], [1, 2], [2, 1],
+  [2, 1], [1, 1], [3, 2], [1, 1], [1, 1], [2, 2], [1, 1], [2, 1], [3, 1], [1, 2],
+  [1, 1], [2, 1], [1, 1], [3, 1], [2, 2], [1, 1], [2, 1], [1, 1], [3, 1], [2, 0],
+];
 
 function esc(value: string): string {
   return value
@@ -43,159 +82,240 @@ function esc(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function won(value: number): string {
-  return `${value.toLocaleString('ko-KR')}원`;
-}
-
-/** 부호를 붙인다. 0 이면 '—' */
-function signed(value: number): string {
-  if (value === 0) return '—';
-  return `${value > 0 ? '+' : '−'}${Math.abs(value).toLocaleString('ko-KR')}원`;
-}
-
-export function buildSettlementReportHtml(
-  report: SettlementReport,
-  transactions: ReportTransaction[],
-  /** 국기 색. 표 머리와 강조에만 쓴다 */
-  accent: string,
-): string {
-  const saved = report.difference < 0;
-
-  const categoryRows = report.categories
-    .map(
-      (c) => `<tr>
-        <td>${esc(c.label)}</td>
-        <td class="n">${won(c.plannedAmount)}</td>
-        <td class="n">${won(c.actualAmount)}</td>
-        <td class="n ${c.diff > 0 ? 'over' : c.diff < 0 ? 'under' : ''}">${signed(c.diff)}</td>
-      </tr>`,
-    )
-    .join('');
-
-  /*
-    거래가 없으면 부록을 아예 그리지 않는다. 빈 표를 두면 "내역이 없는 정산"
-    이 아니라 "문서가 잘못 만들어졌다" 로 읽힌다.
-  */
-  const txSection =
-    transactions.length === 0
-      ? ''
-      : `<h2>거래 내역 <span class="count">${transactions.length}건</span></h2>
-         <table class="tx">
-           <thead><tr><th>날짜</th><th>내용</th><th>분류</th><th class="n">금액</th></tr></thead>
-           <tbody>${transactions
-             .map(
-               (t) => `<tr>
-                 <td class="date">${t.occurredAt ? esc(t.occurredAt.slice(0, 10).replaceAll('-', '.')) : '—'}</td>
-                 <td>${esc(t.name)}</td>
-                 <td class="muted">${t.categoryLabel ? esc(t.categoryLabel) : '미분류'}</td>
-                 <td class="n">${won(t.amount)}</td>
-               </tr>`,
-             )
-             .join('')}</tbody>
-         </table>`;
-
-  return `<!DOCTYPE html>
-<html lang="ko"><head><meta charset="utf-8" />
-<style>
-  @page { margin: 16mm 14mm; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; color: #101828;
-    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-    font-size: 11px; line-height: 1.5;
+/** 톱니 한 줄. 종이 폭 100% 로 늘어나는 SVG. up 이면 윗변 */
+function toothSvg(up: boolean): string {
+  const TOOTH = 12;
+  const H = 7;
+  const W = 600;
+  const count = Math.ceil(W / TOOTH);
+  const pts: string[] = [];
+  if (up) {
+    pts.push(`0,${H}`);
+    for (let i = 0; i < count; i += 1) pts.push(`${i * TOOTH + TOOTH / 2},0`, `${(i + 1) * TOOTH},${H}`);
+  } else {
+    pts.push('0,0');
+    for (let i = 0; i < count; i += 1) pts.push(`${i * TOOTH + TOOTH / 2},${H}`, `${(i + 1) * TOOTH},0`);
   }
-  header { border-bottom: 2px solid ${accent}; padding-bottom: 12px; }
-  .brand { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; color: ${accent}; }
-  h1 { margin: 6px 0 4px; font-size: 21px; letter-spacing: -0.5px; }
-  .meta { color: #667085; font-size: 10px; }
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg" style="display:block"><polygon points="${pts.join(' ')}" fill="#fff"/></svg>`;
+}
 
-  /* 요약 — 이 문서를 받은 사람이 가장 먼저 보는 자리 */
-  .summary { display: flex; margin: 18px 0 6px; border: 1px solid #e2e6eb; border-radius: 8px; }
-  .summary div { flex: 1; padding: 12px 14px; }
-  .summary div + div { border-left: 1px solid #e2e6eb; }
-  .summary small { display: block; color: #8d939d; font-size: 9px; }
-  .summary b { display: block; margin-top: 5px; font-size: 15px; }
-  .summary .hl { color: ${accent}; }
+function barcodeSvg(width: number, height: number): string {
+  const units = BARS.reduce((sum, [b, g]) => sum + b + g, 0);
+  const u = width / units;
+  let x = 0;
+  const rects = BARS.map(([b, g]) => {
+    const r = `<rect x="${x.toFixed(2)}" y="0" width="${(b * u).toFixed(2)}" height="${height}" fill="${INK}"/>`;
+    x += (b + g) * u;
+    return r;
+  }).join('');
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+}
 
-  .verdict { margin: 10px 0 22px; padding: 11px 14px; border-radius: 8px;
-             background: #f6f8fa; font-size: 11px; }
-  .verdict b { color: ${accent}; }
+/** 영수증 한 줄. 왼쪽 이름, 오른쪽 금액 */
+function line(label: string, value: string, opts: { bold?: boolean; color?: string; sub?: string } = {}): string {
+  const cls = opts.bold ? 'row bold' : 'row';
+  const style = opts.color ? ` style="color:${opts.color}"` : '';
+  return `<div class="${cls}"><span class="l">${label}${opts.sub ? `<small>${opts.sub}</small>` : ''}</span><span class="v"${style}>${value}</span></div>`;
+}
 
-  h2 { margin: 22px 0 8px; font-size: 13px; }
+export function buildSettlementReportHtml(report: SettlementReport, options: ReportHtmlOptions): string {
+  const OVER = options.accent;
+  const same = report.difference === 0;
+  const within = report.difference <= 0;
+  const resultColor = same ? INK : within ? SAVED : OVER;
+  const rate =
+    report.targetAmount > 0 ? `${(report.usageRateBp / 100).toFixed(1).replace(/\.0$/, '')}%` : '—';
+  const city = options.nameEn || report.destination;
+  const stay = report.nights > 0 ? `${report.nights}박 ${report.days}일` : null;
+  const meta = [report.periodLabel, stay, `${report.headcount}명`].filter(Boolean).join(' · ');
 
-  /* 도넛 + 라벨. 색이 옅은 조각도 읽히도록 라벨을 본체로 둔다 */
-  .chart { display: flex; align-items: center; gap: 18px;
-           padding: 14px 16px; border: 1px solid #e2e6eb; border-radius: 8px; }
-  .legend { width: auto; flex: 1; }
-  .legend td { padding: 4px 0; border: 0; font-size: 10px; }
-  .legend .sw { width: 14px; }
-  .legend .sw span { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
-  .legend .pct { width: 38px; color: #8d939d; text-align: right; }
-  .legend .n { text-align: right; font-variant-numeric: tabular-nums; }
-  .bars { padding: 12px 16px; border: 1px solid #e2e6eb; border-radius: 8px; }
-  h2 .count { margin-left: 5px; color: #98a1ac; font-size: 10px; font-weight: 400; }
+  /** 종이 안쪽 폭. 128mm ≈ 484px 에서 좌우 여백 22px 씩 뺀 값 */
+  const CHART_W = 440;
+  const donut = donutSvg(toDonutSlices(report.categories), CHART_W);
+  const budgetBars = budgetBarsSvg(report.categories, CHART_W, OVER, SAVED);
+  const daily = dailyBarsSvg(report.dailyGroups, CHART_W);
+  const gauge = gaugeSvg(report.usageRateBp, CHART_W, OVER, SAVED);
 
-  table { width: 100%; border-collapse: collapse; }
-  th, td { padding: 7px 8px; border-bottom: 1px solid #eceff2; text-align: left; }
-  thead th { background: #f6f8fa; color: #667085; font-size: 9px; font-weight: 700; }
-  .n { text-align: right; font-variant-numeric: tabular-nums; }
-  tfoot td { border-top: 2px solid #101828; border-bottom: 0; font-weight: 800; }
-  .over { color: #d92d20; }
-  .under { color: ${accent}; }
-  .muted { color: #98a1ac; }
-  .tx .date { color: #667085; white-space: nowrap; }
+  const art = receiptArtSvg(
+    pickReceiptArt(`${report.destination}|${report.startDate ?? ''}`, options),
+    options,
+    300,
+    150,
+  );
 
-  footer { margin-top: 26px; padding-top: 10px; border-top: 1px solid #e2e6eb;
-           color: #98a1ac; font-size: 9px; line-height: 1.6; }
-</style></head>
+  // ── TRAVEL FUND ───────────────────────────────────────────────────────
+  const fund =
+    report.raisedAmount > 0
+      ? `<div class="dash"></div>
+  <div class="sec">TRAVEL FUND<small>여행자금</small></div>
+  ${line('누적 모금액', won(report.raisedAmount))}
+  ${line('여행비로 사용', won(report.actualAmount))}
+  ${line('남은 여행자금', won(report.remainingAmount), { bold: true, color: report.remainingAmount > 0 ? SAVED : INK })}`
+      : '';
+
+  // ── TRANSACTIONS ──────────────────────────────────────────────────────
+  const txRows = report.dailyGroups
+    .map((g) => {
+      const head = `<tr class="day"><td colspan="2">${esc(g.label)}${g.dateLabel ? `<span class="date">${esc(g.dateLabel)}</span>` : ''}</td><td class="a">${won(g.amount)}</td></tr>`;
+      const rows = g.transactions
+        .map((t) => {
+          const label = t.categoryCode ? CATEGORY_CODE_LABEL[t.categoryCode] : null;
+          return `<tr><td class="e">${t.categoryCode ? (CATEGORY_EMOJI[t.categoryCode] ?? '') : '·'}</td><td class="n">${esc(t.name)}${label ? `<span class="cat">${esc(label)}</span>` : ''}</td><td class="a">${won(t.amount)}</td></tr>`;
+        })
+        .join('');
+      return head + rows;
+    })
+    .join('');
+  const tx =
+    report.transactions.length === 0
+      ? ''
+      : `${daily ? `<div class="dash"></div>
+  <div class="sec">DAILY SPEND<small>일자별 지출 · 눈금은 여행 중 기준</small></div>
+  <div class="chart">${daily}</div>` : ''}
+  <div class="dash"></div>
+  <div class="sec">TRANSACTIONS<small>거래 내역 ${report.transactions.length}건</small></div>
+  <table class="tx"><tbody>${txRows}</tbody></table>`;
+
+  return `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>${esc(report.destination)} 여행 정산 명세서</title>
+<style>
+  @page { size: A4; margin: 10mm 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9ebee; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    color: ${INK};
+    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 6mm 0 10mm;
+  }
+  .mono, .a, .v, .num { font-family: Menlo, "SF Mono", "Courier New", monospace; font-variant-numeric: tabular-nums; }
+
+  /* 위: 여행 끝 */
+  .hero { text-align: center; margin-bottom: 14px; }
+  .hero .eyebrow { font-size: 9px; font-weight: 900; letter-spacing: 3px; color: ${MUTED}; }
+  .hero .city { margin-top: 4px; font-size: 44px; line-height: 1; font-weight: 900; letter-spacing: 2px; font-family: "Avenir Next Condensed", "Arial Narrow", -apple-system, sans-serif; }
+  .hero .meta { margin-top: 6px; font-size: 10px; letter-spacing: 0.5px; color: ${MUTED}; }
+
+  /* 영수증 종이 */
+  .paper { width: 128mm; margin: 0 auto; filter: drop-shadow(0 10px 18px rgba(15,23,42,0.16)); }
+  .body { background: #fff; }
+  .body { padding: 18px 22px 20px; }
+
+  .brand { text-align: center; font-size: 11px; font-weight: 900; letter-spacing: 3px; }
+  .title { text-align: center; margin-top: 4px; font-size: 9px; letter-spacing: 2.4px; color: ${FAINT}; }
+  .dates { text-align: center; margin-top: 8px; font-size: 9px; color: ${FAINT}; }
+
+  .dash { margin-top: 14px; border-top: 1px dashed #cfd5dc; }
+  .dbl { margin-top: 14px; border-top: 2px solid ${INK}; }
+  .dbl::after { content: ""; display: block; margin-top: 2px; border-top: 1px solid ${INK}; }
+
+  .art { margin: 16px auto 0; width: 300px; height: 150px; border: 1px solid ${INK}; }
+  .art svg { display: block; }
+  .caption { text-align: center; margin-top: 10px; font-size: 10px; font-weight: 800; letter-spacing: 2px; }
+  .caption + .sub { text-align: center; margin-top: 3px; font-size: 9.5px; color: ${FAINT}; }
+
+  .sec { margin-top: 14px; font-size: 10px; font-weight: 900; letter-spacing: 2px; }
+  .sec small { margin-left: 8px; font-size: 9.5px; font-weight: 400; letter-spacing: 0; color: ${MUTED}; }
+
+  .chart { margin-top: 10px; break-inside: avoid; }
+  .chart svg { display: block; width: 100%; height: auto; font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  .chart svg .mono { font-family: Menlo, "SF Mono", "Courier New", monospace; font-variant-numeric: tabular-nums; }
+  .gauge { margin-top: 8px; }
+  .gauge svg { display: block; width: 100%; height: 14px; }
+  .gauge-l { display: flex; justify-content: space-between; margin-top: 3px; font-size: 9px; font-weight: 700; color: ${FAINT}; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; font-size: 11px; }
+  .row .l { color: ${MUTED}; }
+  .row .l small { margin-left: 6px; font-size: 9px; color: ${FAINT}; }
+  .row .v { font-weight: 700; }
+  .row.bold .l { color: ${INK}; font-weight: 800; }
+  .row.total { margin-top: 12px; }
+  .row.total .l { color: ${INK}; font-size: 12px; font-weight: 900; letter-spacing: 2px; }
+  .row.total .v { font-size: 20px; letter-spacing: -0.5px; }
+  .row.big .v { font-size: 22px; letter-spacing: -0.5px; }
+  .verdict { margin-top: 4px; text-align: right; font-size: 11px; font-weight: 800; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  td { padding: 6px 0; vertical-align: middle; font-size: 11px; border-top: 1px dotted #e3e7ec; }
+  tbody tr:first-child td { border-top: 0; }
+  td.e { width: 20px; font-size: 13px; text-align: center; padding-right: 4px; }
+  td.n { font-weight: 700; }
+  td.n .cat { margin-left: 6px; font-size: 9px; font-weight: 400; color: ${FAINT}; }
+  td.a { text-align: right; white-space: nowrap; font-weight: 700; padding-left: 10px; }
+  td.muted { color: ${MUTED}; font-weight: 400; }
+  thead td { font-size: 8.5px; font-weight: 400; color: ${FAINT}; letter-spacing: 0.5px; border-top: 0; padding-top: 8px; padding-bottom: 2px; }
+  tfoot td { border-top: 1px solid ${INK}; font-weight: 800; padding-top: 8px; }
+  table.tx tr.day td { padding: 8px 0 4px; font-weight: 800; border-top: 0; }
+  table.tx tr.day .date { margin-left: 8px; font-weight: 400; color: ${MUTED}; }
+  table.tx tr.day + tr td { border-top: 0; }
+  tr { break-inside: avoid; }
+
+  .stamp { display: inline-block; margin-top: 16px; padding: 5px 11px; border: 1.5px solid; border-radius: 4px; font-size: 10px; font-weight: 900; letter-spacing: 1px; transform: rotate(-4deg); }
+  .stamp-wrap { text-align: center; }
+  .barcode { margin: 16px auto 0; width: 100%; }
+  .barcode svg { display: block; width: 100%; height: 26px; }
+  .issued { text-align: center; margin-top: 8px; font-size: 8px; letter-spacing: 2px; color: ${FAINT}; }
+  .foot { text-align: center; margin-top: 16px; font-size: 9px; color: ${MUTED}; }
+  .handle { text-align: center; margin-top: 10px; font-size: 10px; font-weight: 900; letter-spacing: 2.5px; text-decoration: underline; }
+</style>
+</head>
 <body>
-  <header>
-    <div class="brand">TRIPPOT · SETTLEMENT REPORT</div>
-    <h1>${esc(report.destination)} 정산 명세서</h1>
-    <div class="meta">
-      ${esc(report.periodLabel)} · ${report.nights}박 ${report.days}일 · ${report.headcount}명
-      ${report.groupName ? ` · ${esc(report.groupName)}` : ''}
-      ${report.confirmedLabel ? ` · 확정 ${esc(report.confirmedLabel)}` : ''}
-    </div>
-  </header>
 
-  <div class="summary">
-    <div><small>누적 모금액</small><b>${won(report.raisedAmount)}</b></div>
-    <div><small>목표 예산</small><b>${won(report.targetAmount)}</b></div>
-    <div><small>실제 사용액</small><b>${won(report.actualAmount)}</b></div>
-    <div><small>남은 금액</small><b class="hl">${won(report.remainingAmount)}</b></div>
+<div class="hero">
+  <div class="eyebrow">TRIP COMPLETE</div>
+  <div class="city">${esc(city)}</div>
+  <div class="meta">${options.flag} ${esc(meta)}${report.groupName ? ` · ${esc(report.groupName)}` : ''}</div>
+</div>
+
+<div class="paper">
+  ${toothSvg(true)}
+  <div class="body">
+    <div class="brand">TRIPPOT</div>
+    <div class="title">TRIP RECEIPT</div>
+    <div class="dates mono">${esc(report.periodLabel.replaceAll('.', '/'))}${report.confirmedLabel ? ` &nbsp;·&nbsp; ${report.confirmedLabel.replaceAll('.', '/')} 확정` : ''}</div>
+
+    <div class="dash"></div>
+    <div class="art">${art}</div>
+    <div class="caption">${esc(city)} · ${esc(countryTheme(options.countryKo).nameEn || 'ABROAD')}</div>
+    <div class="sub">${stay ? `${stay} · ` : ''}${report.headcount}명 · ${report.transactions.length}건 결제</div>
+
+    <div class="dbl"></div>
+    <div class="sec">SUMMARY<small>정산 요약</small></div>
+    <div class="row total"><span class="l">TOTAL</span><span class="v">${won(report.actualAmount)}</span></div>
+    ${report.targetAmount > 0 ? `<div class="gauge">${gauge}<div class="gauge-l"><span style="color:${same ? INK : resultColor}">예산의 ${rate} 사용</span><span>목표 100%</span></div></div>` : ''}
+    ${line('목표 여행비', won(report.targetAmount))}
+    ${line(within ? '남은 금액' : '초과 금액', won(Math.abs(report.difference)), { bold: true, color: resultColor })}
+    ${report.headcount > 1 ? line(`1인당`, won(report.perPersonAmount), { sub: `${report.headcount}명` }) : ''}
+    ${line('확정 지출', `${report.transactions.length}건`)}
+
+    ${donut ? `<div class="dash"></div>
+    <div class="sec">SPENDING MIX<small>지출 구성</small></div>
+    <div class="chart">${donut}</div>` : ''}
+
+    ${budgetBars ? `<div class="dash"></div>
+    <div class="sec">BUDGET vs ACTUAL<small>카테고리별 계획 대비 실제</small></div>
+    <div class="chart">${budgetBars}</div>` : ''}
+
+    ${fund}
+
+    ${tx}
+
+    <div class="dbl"></div>
+    <div class="row total"><span class="l">TOTAL</span><span class="v">${won(report.actualAmount)}</span></div>
+    <div class="stamp-wrap"><span class="stamp" style="color:${resultColor};border-color:${resultColor}">${esc(report.verdict.title)}${within ? ' ✓' : ''}</span></div>
+
+    <div class="barcode">${barcodeSvg(400, 26)}</div>
+    <div class="issued">${esc(city)} · ${report.headcount} TRAVELERS${report.confirmedLabel ? ` · ISSUED ${report.confirmedLabel.replaceAll('.', '/')}` : ''}</div>
+    <div class="foot">TripPot 에서 결산 확정 시점의 값으로 만든 명세서예요. 확정 뒤 예산을 고쳐도 이 문서는 바뀌지 않아요.</div>
   </div>
+  ${toothSvg(false)}
+</div>
 
-  <div class="verdict">
-    목표 예산보다
-    <b>${won(Math.abs(report.difference))} ${saved ? '적게 썼어요' : '더 썼어요'}</b>.
-    1인당 <b>${won(report.perPersonAmount)}</b> 입니다.
-    ${report.typeLabel ? ` 이번 여행은 <b>${esc(report.typeLabel)}</b> 이었어요.` : ''}
-  </div>
+<div class="handle">@TRIPPOT</div>
 
-  <h2>어디에 썼나</h2>
-  ${donutSvg(toDonutSlices(report.categories, accent))}
-
-  <h2>계획 대비 차액</h2>
-  <div class="bars">${diffBarSvg(report.categories, accent)}</div>
-
-  <h2>카테고리별 정산</h2>
-  <table>
-    <thead><tr><th>카테고리</th><th class="n">계획</th><th class="n">실제</th><th class="n">차액</th></tr></thead>
-    <tbody>${categoryRows}</tbody>
-    <tfoot><tr>
-      <td>합계</td>
-      <td class="n">${won(report.targetAmount)}</td>
-      <td class="n">${won(report.actualAmount)}</td>
-      <td class="n">${signed(report.difference)}</td>
-    </tr></tfoot>
-  </table>
-
-  ${txSection}
-
-  <footer>
-    이 문서는 정산 확정 시점의 값으로 만들어졌어요. 이후 예산을 수정해도 값은 바뀌지 않아요.<br />
-    금액은 원 단위이고 환율 변환은 포함하지 않았어요. · TripPot
-  </footer>
-</body></html>`;
+</body>
+</html>`;
 }
