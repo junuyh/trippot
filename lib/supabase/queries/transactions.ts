@@ -435,6 +435,8 @@ export type SettlementFunds = {
   refundPendingAmount: number;
   /** 큰 금액순 상위 지출 */
   major: Transaction[];
+  /** 확정 지출 전체. 정산 리포트(명세서·일자별 흐름)에 쓴다 */
+  spent: Transaction[];
 };
 
 /**
@@ -485,7 +487,8 @@ export async function getSettlementFunds(
     confirmedCount,
     pendingAmount,
     refundPendingAmount,
-    major: spent.sort((a, b) => b.amount - a.amount).slice(0, majorLimit),
+    major: [...spent].sort((a, b) => b.amount - a.amount).slice(0, majorLimit),
+    spent,
   };
 }
 
