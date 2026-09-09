@@ -45,8 +45,27 @@ import {
   type Trip,
 } from "@/lib/supabase/queries/trips";
 
-/** 새 모임 생성 화면. 다른 팀원이 만든다. 아직 없으면 라우터가 '없는 화면' 을 띄운다 */
+/**
+ * 새 모임 생성 화면. 다른 팀원이 만든다.
+ *
+ * ⚠️ 화면이 생기기 전에는 보내지 않는다. /groups/new 는 지금 app/groups/[groupId].tsx
+ *    가 "new" 를 모임 id 로 받아 모임 상세를 열고 실패한다. (2026-09-09 오류 보고)
+ *    app/groups/new.tsx 가 생기면 정적 라우트가 우선이라 그대로 이어진다.
+ *    그때 NEW_GROUP_SCREEN_READY 를 true 로 바꾸면 된다. [팀원]
+ */
 const NEW_GROUP_HREF = "/groups/new";
+const NEW_GROUP_SCREEN_READY = false;
+
+function goNewGroup() {
+  if (!NEW_GROUP_SCREEN_READY) {
+    Alert.alert(
+      "새 모임 만들기는 준비 중이에요",
+      "이미 다녀온 여행이 있는 모임에는 새 사람을 넣지 않아요. 새 모임 만들기 화면이 열리면 여기서 바로 이어져요.",
+    );
+    return;
+  }
+  router.push(NEW_GROUP_HREF as never);
+}
 
 export default function ScreenTripEdit() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -166,14 +185,14 @@ export default function ScreenTripEdit() {
   const handleInvite = useCallback(async () => {
     if (inviting) return;
     if (!selectedGroup) {
-      router.push(NEW_GROUP_HREF as never);
+      goNewGroup();
       return;
     }
     setInviting(true);
     try {
       const { past } = await getGroupTrips(selectedGroup.id);
       if (past.length > 0) {
-        router.push(NEW_GROUP_HREF as never);
+        goNewGroup();
         return;
       }
       setCopied(false);
