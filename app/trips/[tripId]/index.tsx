@@ -1249,6 +1249,8 @@ export default function ScreenTripHome() {
               allowance={todayAllowance}
               totalDays={totalDays}
               onPressRecord={() => router.push(`/trips/${trip.id}/funds`)}
+              /* 여행자금 화면이 ?scan=receipt 를 보고 바로 사진을 받는다 */
+              onPressReceipt={() => router.push(`/trips/${trip.id}/funds?scan=receipt`)}
             />
           ) : null}
 
