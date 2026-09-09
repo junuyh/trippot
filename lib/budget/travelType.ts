@@ -100,6 +100,14 @@ const PLANNER_TOLERANCE_BP = 500;
  */
 const SPONTANEOUS_MAX_PLAN_ITEMS = 2;
 
+/**
+ * 미리미리형으로 볼 최소 여유. 입금이 목표액에 닿은 날이 출발 30일 전이면.
+ *
+ * 한 달은 "미리 준비했다" 고 부를 수 있는 가장 짧은 단위다. 일주일이면
+ * 항공권 결제 직전에 넣은 사람도 걸리고, 두 달이면 거의 아무도 안 걸린다.
+ */
+const EARLY_SAVER_MIN_DAYS = 30;
+
 /** 카테고리 → 그 카테고리를 대표하는 유형 */
 const CATEGORY_TYPE: Partial<Record<CategoryCode, SpendingProfileType>> = {
   [CATEGORY_CODE.FOOD]: SPENDING_PROFILE_TYPE.GOURMET,
@@ -117,8 +125,12 @@ const CATEGORY_TYPE: Partial<Record<CategoryCode, SpendingProfileType>> = {
  *      (여러 개면 **금액이 큰 쪽**. 비율로 고르면 금액이 작은 카테고리가 이긴다)
  *   ③ 전체를 15% 넘게 초과했으면                통 큰 여행자
  *   ④ 세부 계획이 2개 이하면                    즉흥형
- *   ⑤ 계획과 ±5% 이내면                        계획파
- *   ⑥ 아니면                                  균형형
+ *   ⑤ 여행자금을 출발 30일 전에 다 모았으면        미리미리형
+ *   ⑥ 계획과 ±5% 이내면                        계획파
+ *   ⑦ 아니면                                  균형형
+ *
+ * ⚠️ ⑤ 를 ⑥ 앞에 두는 이유: 한 달 전에 다 모은 사람은 계획파보다 드물고,
+ *    이 서비스가 가장 바라는 행동이다. 둘 다 해당하면 더 드문 쪽을 부른다.
  *
  * ⚠️ ④ 를 ② 뒤에 두는 이유: 계획을 안 짰어도 식비를 몰아 썼으면 그 사람은
  *    '즉흥형' 이기 전에 '미식형' 이다. 무엇을 했는지가 어떻게 준비했는지보다
@@ -136,6 +148,11 @@ export function resolveTravelType(
    * '계획을 안 세웠다' 고 단정하면 안 된다.
    */
   planItemCount?: number,
+  /**
+   * 입금이 목표액에 닿은 날부터 출발일까지의 일수. 미리미리형 판정에만 쓴다.
+   * 목표에 못 닿았거나 모르면 넘기지 않는다 — 안 넘기면 판정하지 않는다.
+   */
+  fundReadyDaysBefore?: number,
 ): TravelTypeResult {
   const usable = inputs.filter((row) => row.plannedAmount > 0);
 
@@ -221,7 +238,18 @@ export function resolveTravelType(
     };
   }
 
-  // ⑤ 계획과 거의 일치하는가
+  // ⑤ 여행자금을 미리 다 모았는가
+  if (fundReadyDaysBefore !== undefined && fundReadyDaysBefore >= EARLY_SAVER_MIN_DAYS) {
+    return {
+      type: SPENDING_PROFILE_TYPE.EARLY_SAVER,
+      // 30일이면 50, 60일 이상이면 100
+      score: Math.min(100, Math.round((fundReadyDaysBefore / (EARLY_SAVER_MIN_DAYS * 2)) * 100)),
+      evidence,
+      accuracyBp,
+    };
+  }
+
+  // ⑥ 계획과 거의 일치하는가
   if (plannedTotal > 0 && Math.abs(accuracyBp - 10000) <= PLANNER_TOLERANCE_BP) {
     return {
       type: SPENDING_PROFILE_TYPE.PLANNER,
@@ -234,7 +262,7 @@ export function resolveTravelType(
     };
   }
 
-  // ⑥ 뚜렷한 편차가 없다
+  // ⑦ 뚜렷한 편차가 없다
   return {
     type: SPENDING_PROFILE_TYPE.BALANCED,
     // 계획에 가까울수록 높다. 균형형은 '정확히 맞췄다' 가 곧 점수다

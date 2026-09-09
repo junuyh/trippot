@@ -1,5 +1,5 @@
 // ============================================================================
-// 여행 유형 표현 — 코드 6개에 입히는 문구
+// 여행 유형 표현 — 코드 10개에 입히는 문구
 //
 // ⚠️ 유형 **코드**는 늘리지 않는다. seed 의 travel_types 와
 //    lib/constants/status.ts 의 SPENDING_PROFILE_TYPE 이 기준이고,
@@ -70,7 +70,7 @@ export const TRAVEL_TYPE_COPY: Record<SpendingProfileType, TravelTypeCopy> = {
     hashtags: ['#가성비여행', '#예산초과없음', '#알뜰여행'],
   },
   [SPENDING_PROFILE_TYPE.BALANCED]: {
-    no: '09',
+    no: '10',
     headline: '야무지게 놀고\n야무지게 아끼고',
     description: '쓸 곳에는 쓰고, 아낄 곳은 정확히 아는 균형 감각 좋은 여행자',
     emoji: '⚖️',
@@ -103,5 +103,13 @@ export const TRAVEL_TYPE_COPY: Record<SpendingProfileType, TravelTypeCopy> = {
     emoji: '📋',
     image: null,
     hashtags: ['#계획대로', '#예산적중', '#계획파'],
+  },
+  [SPENDING_PROFILE_TYPE.EARLY_SAVER]: {
+    no: '09',
+    headline: '떠나기 전에\n이미 다 모았다',
+    description: '출발 한 달 전에 여행자금을 채워 두고 느긋하게 떠나는 여행자',
+    emoji: '🐜',
+    image: null,
+    hashtags: ['#미리미리', '#여행적금', '#출발전완성'],
   },
 };

@@ -20,13 +20,12 @@
 //    원칙) 보이는 것과 나가는 것이 달라지면 안 된다.
 // ============================================================================
 import {
-  addDays,
-  differenceInCalendarDays,
   eachDayOfInterval,
+  endOfWeek,
   format,
   isWithinInterval,
   parseISO,
-  subDays,
+  startOfWeek,
 } from 'date-fns';
 import { useRef } from 'react';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
@@ -57,6 +56,14 @@ export const STORY_HEIGHT = Math.round((STORY_WIDTH * 16) / 9);
 
 /** 실루엣이 차지하는 가로. 나머지는 여백 */
 const MAP_WIDTH = 168;
+
+/** 달력 칸 한 변과 간격. 왼쪽 위 모서리에 작게 들어가야 해서 아주 작다 */
+const CAL_CELL = 12;
+const CAL_GAP = 2;
+/** 요일 머리. 일요일 시작 */
+const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
+/** 이 줄 수를 넘으면 첫 주·마지막 주만 두고 사이를 ··· 로 줄인다 */
+const MAX_CALENDAR_ROWS = 3;
 
 type Props = {
   theme: CountryTheme;
@@ -201,7 +208,7 @@ export function TripStoryCard({
               <Text style={{ fontSize: 8 }}>📅</Text>
               <Text
                 style={{
-                  color: 'rgba(255,255,255,0.85)',
+                  color: '#fff',
                   fontSize: 8,
                   fontWeight: '800',
                   letterSpacing: 1.5,
@@ -210,31 +217,66 @@ export function TripStoryCard({
                 {calendar.monthLabel}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 2, marginTop: 5 }}>
-              {calendar.days.map((day) => (
-                <View
-                  key={day.key}
+            {/* 요일 머리 */}
+            <View style={{ flexDirection: 'row', gap: CAL_GAP, marginTop: 5 }}>
+              {WEEKDAYS.map((letter, index) => (
+                <Text
+                  key={index}
                   style={{
-                    width: 15,
-                    height: 15,
-                    borderRadius: 7.5,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: day.inTrip ? '#fff' : 'transparent',
+                    width: CAL_CELL,
+                    textAlign: 'center',
+                    fontSize: 6.5,
+                    fontWeight: '800',
+                    color: 'rgba(255,255,255,0.55)',
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 8,
-                      fontWeight: day.inTrip ? '800' : '600',
-                      color: day.inTrip ? theme.neutral : 'rgba(255,255,255,0.5)',
-                    }}
-                  >
-                    {day.label}
-                  </Text>
-                </View>
+                  {letter}
+                </Text>
               ))}
             </View>
+            {/* 주 단위 줄. 여행일만 나라 색 칸에 흰 글자 */}
+            {calendar.rows.map((row, rowIndex) =>
+              row === 'ellipsis' ? (
+                <Text
+                  key={`row-${rowIndex}`}
+                  style={{
+                    color: 'rgba(255,255,255,0.55)',
+                    fontSize: 8,
+                    lineHeight: 10,
+                    letterSpacing: 2,
+                    marginLeft: 3,
+                  }}
+                >
+                  ···
+                </Text>
+              ) : (
+                <View key={`row-${rowIndex}`} style={{ flexDirection: 'row', gap: CAL_GAP, marginTop: 2 }}>
+                  {row.map((day) => (
+                    <View
+                      key={day.key}
+                      style={{
+                        width: CAL_CELL,
+                        height: CAL_CELL,
+                        borderRadius: 3,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: day.inTrip ? theme.primary : 'transparent',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 7.5,
+                          fontWeight: day.inTrip ? '900' : '600',
+                          color: day.inTrip ? '#fff' : 'rgba(255,255,255,0.45)',
+                        }}
+                      >
+                        {day.label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ),
+            )}
           </View>
         ) : (
           <View />
@@ -454,10 +496,14 @@ function OutlineMap({
 // ── 달력 ──────────────────────────────────────────────────────────────────
 
 type CalendarDay = { key: string; label: string; inTrip: boolean };
+type CalendarRow = CalendarDay[] | 'ellipsis';
 
 /**
- * 여행 일자 앞뒤로 하루씩 더 보여준다. 여행일만 흰 원으로 강조한다.
- * 길어도 9칸까지만. 그 이상이면 앞뒤 여백을 줄인다.
+ * 실제 달력처럼 요일에 맞춰 놓는다. 시작 주의 일요일부터 끝 주의 토요일까지,
+ * 주 하나가 한 줄이다. 여행이 주를 넘어가면 자연히 두 줄이 된다.
+ *
+ * ⚠️ 3주를 넘는 긴 여행은 줄이 끝없이 늘어난다. 첫 주와 마지막 주만 두고
+ *    사이를 ··· 로 접는다. 달력처럼 보이는 건 유지하면서 높이를 고정한다.
  */
 function buildCalendar(startDate: string | null, endDate: string | null) {
   if (!startDate || !endDate) return null;
@@ -465,21 +511,29 @@ function buildCalendar(startDate: string | null, endDate: string | null) {
   const end = parseISO(endDate);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null;
 
-  const nights = differenceInCalendarDays(end, start);
-  const margin = nights + 3 <= 9 ? 1 : 0;
-  const days: CalendarDay[] = eachDayOfInterval({
-    start: subDays(start, margin),
-    end: addDays(end, margin),
-  })
-    .slice(0, 9)
-    .map((day) => ({
-      key: format(day, 'yyyy-MM-dd'),
-      label: format(day, 'd'),
-      inTrip: isWithinInterval(day, { start, end }),
-    }));
+  const days = eachDayOfInterval({
+    start: startOfWeek(start, { weekStartsOn: 0 }),
+    end: endOfWeek(end, { weekStartsOn: 0 }),
+  }).map<CalendarDay>((day) => ({
+    key: format(day, 'yyyy-MM-dd'),
+    label: format(day, 'd'),
+    inTrip: isWithinInterval(day, { start, end }),
+  }));
 
-  return {
-    monthLabel: format(start, 'MMM yyyy').toUpperCase(),
-    days,
-  };
+  const weeks: CalendarDay[][] = [];
+  for (let index = 0; index < days.length; index += 7) {
+    weeks.push(days.slice(index, index + 7));
+  }
+  const rows: CalendarRow[] =
+    weeks.length > MAX_CALENDAR_ROWS
+      ? [weeks[0], 'ellipsis', weeks[weeks.length - 1]]
+      : weeks;
+
+  // 달이 바뀌는 여행은 "MAY – JUN 2026" 로 적는다
+  const sameMonth = format(start, 'yyyy-MM') === format(end, 'yyyy-MM');
+  const monthLabel = (
+    sameMonth ? format(start, 'MMM yyyy') : `${format(start, 'MMM')} – ${format(end, 'MMM yyyy')}`
+  ).toUpperCase();
+
+  return { monthLabel, rows };
 }
