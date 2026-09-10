@@ -36,7 +36,7 @@ type Props = {
 
   members: TripMemberItem[];
   /** 내가 이 여행의 여행장인가. 이 값 하나로 화면이 갈린다 */
-  isOwnerView: boolean;
+  isLeaderView: boolean;
 
   /** 여행장에게만 보이는 대기 요청. 멤버에게는 빈 배열을 넘긴다 */
   pendingRequests: JoinRequestItem[];
@@ -54,7 +54,7 @@ export function TripMemberListView({
   groupName,
   headcount,
   members,
-  isOwnerView,
+  isLeaderView,
   pendingRequests,
   onOpenRequest,
   inviteSent,
@@ -103,10 +103,10 @@ export function TripMemberListView({
                   <Text numberOfLines={1} className="text-sm font-semibold text-gray-900">
                     {member.name}
                   </Text>
-                  {member.isTripOwner ? <Badge tone="brand">여행장</Badge> : null}
+                  {member.isTripLeader ? <Badge tone="brand">여행장</Badge> : null}
                 </View>
                 <Text style={{ marginTop: 2, fontSize: 12, color: "#8B94A2" }}>
-                  {member.isTripOwner
+                  {member.isTripLeader
                     ? "이 여행을 만들었어요"
                     : member.userId === null
                       ? "아직 가입하지 않았어요"
@@ -118,7 +118,7 @@ export function TripMemberListView({
         </View>
 
         {/* 여행장만 — 참여 요청 */}
-        {isOwnerView && pendingRequests.length > 0 ? (
+        {isLeaderView && pendingRequests.length > 0 ? (
           <>
             <SectionTitle>참여 요청 {pendingRequests.length}건</SectionTitle>
             <View className="overflow-hidden rounded-2xl bg-white">
@@ -158,7 +158,7 @@ export function TripMemberListView({
         ) : null}
 
         {/* 여행장만 — 보낸 초대 */}
-        {isOwnerView && inviteSent ? (
+        {isLeaderView && inviteSent ? (
           <>
             <SectionTitle>초대 보냄</SectionTitle>
             <View className="rounded-2xl bg-white px-4 py-3.5">
@@ -172,7 +172,7 @@ export function TripMemberListView({
 
       <View className="border-t border-gray-100 bg-white px-5 pb-8 pt-3" style={{ gap: 6 }}>
         {/* 초대는 여행장만. 멤버에게는 아예 그리지 않는다 */}
-        {isOwnerView ? <Button label="멤버 초대하기" onPress={onInvite} /> : null}
+        {isLeaderView ? <Button label="멤버 초대하기" onPress={onInvite} /> : null}
         <Button label="여행에서 나가기" variant="ghost" onPress={onLeave} />
       </View>
     </View>

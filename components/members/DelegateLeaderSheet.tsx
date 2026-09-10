@@ -1,5 +1,5 @@
 // ============================================================================
-// MEM-02 여행장 위임 후 나가기 — 바텀시트
+// MEM-02 여행장(Leader) 위임 후 나가기 — 바텀시트
 //
 // ⚠️ 위임은 **나가기 흐름 안에서만** 일어난다. 단독 위임 기능을 만들지 않는다.
 //    (POL-INV-004) 그래서 CTA 가 '넘기기' 가 아니라 '넘기고 나가기' 다.
@@ -32,7 +32,7 @@ type Props = {
   submitting: boolean;
 };
 
-export function DelegateOwnerSheet({
+export function DelegateLeaderSheet({
   visible,
   onClose,
   candidates,

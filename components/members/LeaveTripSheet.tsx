@@ -5,7 +5,7 @@
 //
 //   member         모임에서도 나갈지 함께 묻는다 → [나가기]
 //   needsDelegate  여행장이고 남은 멤버가 있다   → [여행장 넘기기] → MEM-02
-//   ownerAlone     여행장인데 혼자다             → 나갈 수 없다. 초대 또는 취소
+//   leaderAlone     여행장인데 혼자다             → 나갈 수 없다. 초대 또는 취소
 //
 // ⚠️ 개인 몫 정산 금액을 **계산하지 않는다.** CONTRIB-01 이 뼈대라 멤버별
 //    납부액을 알 수 없다. 모르는 값을 그럴듯하게 보여주면 그 금액으로 정산한다.
@@ -43,7 +43,7 @@ type Props = {
   onLeave: () => void;
   /** needsDelegate 일 때 MEM-02 로 */
   onOpenDelegate: () => void;
-  /** ownerAlone 일 때 */
+  /** leaderAlone 일 때 */
   onInvite: () => void;
   onCancelTrip: () => void;
 
@@ -65,7 +65,7 @@ export function LeaveTripSheet({
   onCancelTrip,
   leaving,
 }: Props) {
-  if (mode === "ownerAlone") {
+  if (mode === "leaderAlone") {
     return (
       <BottomSheet
         visible={visible}
