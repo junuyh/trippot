@@ -224,6 +224,13 @@ export type DiscoverDestination = {
   nameEn: string;
   countryKo: string;
   airportCode: string;
+  /**
+   * 사람이 정한 추천 기간. '3박 4일'. (lib/constants/destinationEditorial)
+   *
+   * ⚠️ 지난 여행 태그는 이 자리(STAY)에 **실제 여행 기간**을 찍는다.
+   *    여기는 여행이 아니라 여행지라 실제 기간이 없다. 추천 기간을 쓴다.
+   */
+  nights: string;
   /** 이 여행지의 커뮤니티 글 수. 1 이상만 목록에 들어온다. */
   postCount: number;
   theme: CountryTheme;

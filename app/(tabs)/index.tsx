@@ -49,11 +49,11 @@ import {
 } from '@/components/home';
 import { daysUntil } from '@/components/home/format';
 import { SCREENS } from '@/lib/analytics/events';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { destinationPhoto } from '@/lib/constants/destinationPhoto';
 import { destinationEditorial } from '@/lib/constants/destinationEditorial';
 import { DESTINATIONS, findDestinationByName } from '@/lib/constants/destinations';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   ENTRY_POINT,
   TRIP_OWNER_TYPE,
@@ -144,6 +144,9 @@ const HOME_SUGGESTION_BASE = (() => {
 })();
 
 export default function ScreenHOME01() {
+  // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
+  // 미리보기 모드(__DEV__)에서는 시드 사용자다. (lib/auth/AuthProvider)
+  const userId = useCurrentUserId();
   useScreenView(SCREENS.HOME);
 
   const router = useRouter();
@@ -167,8 +170,9 @@ export default function ScreenHOME01() {
     //    첫 진입은 useState 초기값 'loading' 이 처리한다.
     //    (모임·마이페이지·커뮤니티 탭도 같은 방식이다)
     try {
-      // TODO: 로그인 연동 시 교체
-      const userId = DEV_USER_ID;
+      // 가드가 미로그인 상태를 막고 있어 여기서는 값이 있다. 그래도 만약을 대비해
+      // 없으면 아무것도 조회하지 않는다. (app/_layout.tsx 로그인 가드)
+      if (!userId) return;
 
       // 모임은 카드에 '개인 / 모임명' 을 쓰기 위해 조회한다. (docs/09_IA_v2.md §1-1, §1-2)
       // 모임 바로가기 섹션은 이번 개편에서 뺐다.
@@ -197,7 +201,7 @@ export default function ScreenHOME01() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   // ⚠️ useEffect 가 아니라 useFocusEffect 다. (2026-09-03)
   //    탭은 화면을 살려 두기 때문에(unmountOnBlur 없음) 한 번 만들어지면
@@ -365,6 +369,8 @@ export default function ScreenHOME01() {
             nameEn: meta.nameEn,
             countryKo: meta.countryKo,
             airportCode: meta.airportCode,
+            // 소개를 쓰지 않은 목적지는 추천 기간도 없다. 지어내지 않고 '—' 를 쓴다.
+            nights: destinationEditorial(meta.code)?.nights ?? '—',
             postCount: row.count,
             theme: countryTheme(meta.countryKo),
           },

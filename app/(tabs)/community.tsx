@@ -35,9 +35,9 @@ import { formatPublished } from '@/components/community/format';
 import { ErrorState, Loading } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { findDestinationByName } from '@/lib/constants/destinations';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { POST_TYPE, type PostType } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import {
@@ -101,6 +101,9 @@ function toQuery(category: string): { postType: PostType | null; destination: st
 }
 
 export default function ScreenCOMM01() {
+  // 로그인한 사용자. 좋아요·북마크 여부가 이 값으로 갈린다.
+  // 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
+  const userId = useCurrentUserId();
   useScreenView(SCREENS.TIP_LIST);
 
   const router = useRouter();
@@ -147,6 +150,8 @@ export default function ScreenCOMM01() {
   }, [destinationParam]);
 
   const load = useCallback(async (selected: string) => {
+    if (!userId) return;
+
     const { postType, destination } = toQuery(selected);
 
     // ⚠️ 여기서 setLoadState('loading') 을 하지 않는다. (2026-09-03)
@@ -158,9 +163,8 @@ export default function ScreenCOMM01() {
     //    카테고리를 바꿀 때는 이전 목록이 잠깐 남았다가 새 목록으로 바뀐다.
     //    (모임·마이페이지 탭도 같은 방식이다)
     try {
-      // TODO: 로그인 연동 시 교체
       const [rows, destinationRows] = await Promise.all([
-        getPosts(DEV_USER_ID, postType ?? undefined, destination),
+        getPosts(userId, postType ?? undefined, destination),
         getPostDestinations(),
       ]);
       setPosts(rows);
@@ -191,7 +195,7 @@ export default function ScreenCOMM01() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   // ⚠️ useEffect 가 아니라 useFocusEffect 다. (2026-09-03)
   //    글을 쓰면 작성 화면 → 방금 쓴 글 상세로 가고, 거기서 뒤로 나오면

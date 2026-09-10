@@ -50,10 +50,21 @@ type Props = {
 
 /** 아래 값은 전부 NextTripBanner 와 같다. 두 카드가 같은 물건으로 보여야 한다. */
 const INSET = 12;
+/**
+ * 카드 **안쪽** 위 여백. (2026-09-10)
+ *
+ * ⚠️ 좌우·아래(INSET)보다 넓다. 이 카드는 준비 중인 여행 카드와 달리 위쪽에
+ *    항로 줄 하나만 오는데, 사방을 같은 12 로 두면 그 가는 줄이 카드 천장에
+ *    붙어 보였다. 보딩패스는 위가 트여 있어야 한 장의 종이로 읽힌다.
+ *
+ * ⚠️ 국가 코드·배지·랜드마크 그림도 이 값을 함께 본다. 여기만 바꾸면
+ *    글자는 내려가는데 오른쪽 코드는 그대로라 두 줄이 어긋난다.
+ */
+const TOP_INSET = 22;
 const RADIUS = 18;
 const ART_RATIO = 0.45;
 const ART_HEIGHT = 80;
-const ART_TOP = 2;
+const ART_TOP = 10;
 const ART_FILL = '#FFFFFF';
 const ART_LINE_TINT = 0.32;
 
@@ -134,7 +145,7 @@ export function DestinationSuggestCard({ suggestion, width, onPress }: Props) {
           style={{
             position: 'absolute',
             right: INSET,
-            top: INSET,
+            top: TOP_INSET,
             fontSize: 11,
             fontWeight: '800',
             letterSpacing: 0.6,
@@ -152,7 +163,7 @@ export function DestinationSuggestCard({ suggestion, width, onPress }: Props) {
           style={{
             position: 'absolute',
             right: INSET - 2,
-            top: INSET + 16,
+            top: TOP_INSET + 16,
             alignItems: 'center',
             backgroundColor: pastel(accent, BADGE_TINT),
             borderRadius: 9,
@@ -166,7 +177,7 @@ export function DestinationSuggestCard({ suggestion, width, onPress }: Props) {
         </View>
       ) : null}
 
-      <View style={{ padding: INSET }}>
+      <View style={{ padding: INSET, paddingTop: TOP_INSET }}>
         {/* 왼쪽 글자 단. 오른쪽은 그림과 배지 자리다 */}
         <View style={{ width: columnWidth }}>
           {/* 항로 */}
