@@ -22,8 +22,8 @@
 // 이 파일은 데이터 조회·상태 관리·로그 기록만 한다.
 // 실제로 보이는 UI 는 components/community/ 에 있다. (CLAUDE.md 9장)
 // ============================================================================
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   POST_TYPE_DISPLAY_LABEL,
@@ -104,9 +104,24 @@ export default function ScreenCOMM01() {
   useScreenView(SCREENS.TIP_LIST);
 
   const router = useRouter();
+
+  /**
+   * 홈에서 넘어온 여행지. (2026-09-09)
+   *
+   * 신규 사용자 홈의 '이런 여행지는 어때요?' 태그를 누르면 그 여행지 글만 보이는
+   * 상태로 이 화면이 열린다. (app/(tabs)/index.tsx handlePressDiscovery)
+   *
+   * ⚠️ 값은 **한글 도시명**이다. 여행지 필터가 글에 연결된 여행의
+   *    trips.destination 으로 거르는데 그 칼럼이 한글 도시명이라서다.
+   */
+  const params = useLocalSearchParams<{ destination?: string }>();
+  const destinationParam = typeof params.destination === 'string' ? params.destination : null;
+
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [posts, setPosts] = useState<PostListItem[]>([]);
-  const [category, setCategory] = useState<string>(CATEGORY_ALL);
+  const [category, setCategory] = useState<string>(
+    destinationParam ? `${DEST_PREFIX}${destinationParam}` : CATEGORY_ALL,
+  );
 
   // 여행지 칸 목록. 글 목록과 따로 조회한다. 여행지를 고르면 글 목록만 좁아지는데,
   // 칸 목록까지 같이 좁히면 다른 여행지로 넘어갈 방법이 없어진다.
@@ -115,6 +130,21 @@ export default function ScreenCOMM01() {
   // 검색어. 서버에 다시 묻지 않고 이미 불러온 글 안에서 거른다.
   // 서버 검색·정렬은 문서상 고도화(9/07~)라 이번에 만들지 않았다.
   const [query, setQuery] = useState('');
+
+  /**
+   * 홈에서 여행지를 지정해 들어온 경우 그 칸을 고른다. (2026-09-09)
+   *
+   * ⚠️ useState 초기값만으로는 모자란다. 탭은 화면을 살려 두기 때문에
+   *    (unmountOnBlur 없음) 커뮤니티에 한 번 들어왔다 나간 사람이 홈에서 태그를
+   *    누르면 이 화면이 이미 만들어져 있어 초기값이 다시 쓰이지 않는다.
+   *
+   * ⚠️ destinationParam 이 바뀔 때만 돈다. 사용자가 화면 안에서 다른 칸을
+   *    직접 고른 뒤에는 다시 덮어쓰지 않는다.
+   */
+  useEffect(() => {
+    if (!destinationParam) return;
+    setCategory(`${DEST_PREFIX}${destinationParam}`);
+  }, [destinationParam]);
 
   const load = useCallback(async (selected: string) => {
     const { postType, destination } = toQuery(selected);
@@ -236,6 +266,24 @@ export default function ScreenCOMM01() {
       count: item.count,
     })),
   ];
+
+  /**
+   * 고른 칸이 목록에 없으면 만들어 넣는다. (2026-09-09)
+   *
+   * 홈에서 넘어오는 사이에 그 여행지의 마지막 글이 지워지면 칸이 사라진다.
+   * 그러면 글 목록은 그 여행지로 걸러져 비어 있는데 어느 칸이 골라졌는지는
+   * 화면에 안 보인다. 사용자는 글이 왜 없는지 알 수 없다.
+   */
+  if (category.startsWith(DEST_PREFIX) && !categories.some((item) => item.key === category)) {
+    const name = category.slice(DEST_PREFIX.length);
+    categories.push({
+      key: category,
+      kind: 'destination',
+      label: name,
+      flag: findDestinationByName(name)?.flag ?? null,
+      count: 0,
+    });
+  }
 
   return (
     <PostListView

@@ -4,7 +4,10 @@ export { CountryFlag } from './CountryFlag';
 export { CreateTripCard } from './CreateTripCard';
 export { CreateTripFab } from './CreateTripFab';
 export { DestinationBanner } from './DestinationBanner';
+export { DestinationSuggestCard } from './DestinationSuggestCard';
 export { DestinationSuggestSection } from './DestinationSuggestSection';
+export { DiscoverDestinationCard } from './DiscoverDestinationCard';
+export { DiscoverDestinationSection } from './DiscoverDestinationSection';
 export { EndedTripCard } from './EndedTripCard';
 export { GroupShortcutList } from './GroupShortcutList';
 export { HomeButton } from './HomeButton';
@@ -24,6 +27,7 @@ export { TravelFundSummary } from './TravelFundSummary';
 export { TripCardShell } from './TripCardShell';
 export type {
   DestinationSuggestion,
+  DiscoverDestination,
   EndedTripCardData,
   HomeActionItem,
   HomeEmptyVariant,
