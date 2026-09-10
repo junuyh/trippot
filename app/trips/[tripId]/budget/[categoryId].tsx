@@ -49,6 +49,7 @@ import {
   ErrorState,
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import { DateRangeCalendar } from "@/components/trip-create";
@@ -101,8 +102,6 @@ import {
   personalizeFromProfile,
 } from "@/lib/supabase/queries/personalization";
 import { TRIP_OWNER_TYPE } from "@/lib/constants/status";
-// TODO: 로그인 연동 시 교체
-import { DEV_USER_ID } from "@/lib/constants/devUser";
 import { InsurancePromoModal } from "@/components/insurance/InsurancePromoModal";
 import { useTripContext } from "@/lib/hooks/useTripContext";
 import { INSURANCE_PARTNERS } from "@/lib/constants/insurancePartners";
@@ -135,6 +134,8 @@ type CategoryData = {
 const RECENT_EXPENSE_LIMIT = 10;
 
 export default function ScreenBUDGET02() {
+  // 로그인한 사용자. 개인 여행의 개인화 범위를 정할 때 소유자가 비어 있으면 대신 쓴다.
+  const userId = useCurrentUserId();
   const { tripId, categoryId } = useLocalSearchParams<{
     tripId: string;
     categoryId: string;
@@ -250,14 +251,12 @@ export default function ScreenBUDGET02() {
     if (!data || insightLoadedRef.current) return;
     insightLoadedRef.current = true;
 
+    const personalUserId = data.trip.owner_user_id ?? userId;
+    if (data.trip.owner_type !== TRIP_OWNER_TYPE.GROUP && !personalUserId) return;
     const scope =
       data.trip.owner_type === TRIP_OWNER_TYPE.GROUP && data.trip.group_id
         ? ({ ownerType: "GROUP", groupId: data.trip.group_id } as const)
-        : // TODO: 로그인 연동 시 교체
-          ({
-            ownerType: "PERSONAL",
-            userId: data.trip.owner_user_id ?? DEV_USER_ID,
-          } as const);
+        : ({ ownerType: "PERSONAL", userId: personalUserId as string } as const);
 
     void getSpendingProfile(scope)
       .then((profile) => {
@@ -280,7 +279,7 @@ export default function ScreenBUDGET02() {
       })
       // 분석은 부가 기능이다. 실패해도 예산 화면은 그대로 보여준다.
       .catch(() => undefined);
-  }, [data]);
+  }, [data, userId]);
 
   /**
    * 과거 지출 반영 토글. **바꾸는 즉시 이 카테고리 설정 예산에 반영한다.**

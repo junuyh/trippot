@@ -35,6 +35,7 @@ import {
   type BudgetCategoryRowData,
   type InsightItem,
 } from "@/components/budget";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
@@ -52,8 +53,6 @@ import {
   type CategoryCode,
   type TripStatus,
 } from "@/lib/constants/status";
-// TODO: 로그인 연동 시 교체
-import { DEV_USER_ID } from "@/lib/constants/devUser";
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -84,6 +83,8 @@ type BudgetData = {
 
 export default function ScreenBUDGET01() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 로그인한 사용자. 개인 여행의 개인화 범위를 정할 때 소유자가 비어 있으면 대신 쓴다.
+  const userId = useCurrentUserId();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -234,14 +235,12 @@ export default function ScreenBUDGET01() {
 
     loadedRef.current = true;
 
+    const personalUserId = data.trip.owner_user_id ?? userId;
+    if (data.trip.owner_type !== TRIP_OWNER_TYPE.GROUP && !personalUserId) return;
     const scope =
       data.trip.owner_type === TRIP_OWNER_TYPE.GROUP && data.trip.group_id
         ? ({ ownerType: "GROUP", groupId: data.trip.group_id } as const)
-        : // TODO: 로그인 연동 시 교체
-          ({
-            ownerType: "PERSONAL",
-            userId: data.trip.owner_user_id ?? DEV_USER_ID,
-          } as const);
+        : ({ ownerType: "PERSONAL", userId: personalUserId as string } as const);
 
     void getPersonalizedBudget(data.trip.id, scope)
       .then(async (result) => {
@@ -256,7 +255,7 @@ export default function ScreenBUDGET01() {
       })
       // 분석은 부가 기능이다. 실패해도 예산 화면은 그대로 보여준다.
       .catch(() => undefined);
-  }, [data]);
+  }, [data, userId]);
 
   /**
    * 분석 시트 열기.
