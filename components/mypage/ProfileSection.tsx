@@ -59,11 +59,6 @@ export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: 
         >
           {profile.name}
         </Text>
-        {profile.accountLabel ? (
-          <Text numberOfLines={1} className="mt-1 text-pot-mute" style={{ fontSize: 12.5 }}>
-            {profile.accountLabel}
-          </Text>
-        ) : null}
       </View>
 
       {/* 사진 전체가 이미지 변경 터치 영역이다. 배지는 그 안에서 한 번 더 강조한다. */}
