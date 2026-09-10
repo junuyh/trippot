@@ -34,7 +34,7 @@ import { formatPublished } from '@/components/community/format';
 import { ErrorState, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
 import { countryTheme } from '@/lib/constants/countryTheme';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import { REACTION_TYPE } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
@@ -66,6 +66,9 @@ type LoadState = 'loading' | 'ready' | 'error' | 'notFound';
 
 export default function ScreenCOMM02() {
   const { postId } = useLocalSearchParams<{ postId: string }>();
+  // 로그인한 사용자. 좋아요·북마크·내 글 여부가 이 값으로 갈린다.
+  // 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
+  const userId = useCurrentUserId();
   useScreenView(SCREENS.TIP_DETAIL);
 
   const router = useRouter();
@@ -91,14 +94,15 @@ export default function ScreenCOMM02() {
       setLoadState('notFound');
       return;
     }
+    // 가드가 미로그인 상태를 막고 있어 여기서는 값이 있다. 없으면 조회하지 않는다.
+    if (!userId) return;
 
     setLoadState('loading');
     try {
-      // TODO: 로그인 연동 시 교체
       // 글과 댓글을 함께 부른다. 댓글만 늦게 뜨면 화면이 두 번 움직인다.
       const [detail, nextComments] = await Promise.all([
-        getPostById(postId, DEV_USER_ID),
-        getComments(postId, DEV_USER_ID),
+        getPostById(postId, userId),
+        getComments(postId, userId),
       ]);
       if (!detail) {
         setLoadState('notFound');
@@ -110,7 +114,7 @@ export default function ScreenCOMM02() {
     } catch {
       setLoadState('error');
     }
-  }, [postId]);
+  }, [postId, userId]);
 
   useEffect(() => {
     void load();
@@ -127,7 +131,7 @@ export default function ScreenCOMM02() {
    */
   async function handleToggleOpinion(kind: 'like' | 'dislike') {
     // 중복 요청 방지. 연타하면 개수가 어긋난다.
-    if (!post || likeBusy || dislikeBusy) return;
+    if (!post || !userId || likeBusy || dislikeBusy) return;
 
     const liking = kind === 'like';
     const next = liking ? !post.likedByMe : !post.dislikedByMe;
@@ -149,13 +153,12 @@ export default function ScreenCOMM02() {
     });
 
     try {
-      // TODO: 로그인 연동 시 교체
       const mine = liking ? REACTION_TYPE.LIKE : REACTION_TYPE.DISLIKE;
       const other = liking ? REACTION_TYPE.DISLIKE : REACTION_TYPE.LIKE;
 
-      if (next) await addReaction(post.postId, DEV_USER_ID, mine);
-      else await removeReaction(post.postId, DEV_USER_ID, mine);
-      if (dropOther) await removeReaction(post.postId, DEV_USER_ID, other);
+      if (next) await addReaction(post.postId, userId, mine);
+      else await removeReaction(post.postId, userId, mine);
+      if (dropOther) await removeReaction(post.postId, userId, other);
       // ⚠️ TIP_REACTED 는 고도화 블록 + ADVANCED_EVENT_NAMES 라 부르지 않는다.
       //    TODO: 고도화 착수 시 붙인다. (docs/06 §7-8)
     } catch {
@@ -168,7 +171,7 @@ export default function ScreenCOMM02() {
 
   /** 찜 토글. 좋아요·싫어요와 별개라 서로 건드리지 않는다. */
   async function handleToggleBookmark() {
-    if (!post || bookmarkBusy) return;
+    if (!post || !userId || bookmarkBusy) return;
 
     const next = !post.bookmarkedByMe;
     const before = post;
@@ -176,9 +179,8 @@ export default function ScreenCOMM02() {
     setPost({ ...post, bookmarkedByMe: next });
 
     try {
-      // TODO: 로그인 연동 시 교체
-      if (next) await addReaction(post.postId, DEV_USER_ID, REACTION_TYPE.BOOKMARK);
-      else await removeReaction(post.postId, DEV_USER_ID, REACTION_TYPE.BOOKMARK);
+      if (next) await addReaction(post.postId, userId, REACTION_TYPE.BOOKMARK);
+      else await removeReaction(post.postId, userId, REACTION_TYPE.BOOKMARK);
     } catch {
       setPost(before);
     } finally {
@@ -189,15 +191,14 @@ export default function ScreenCOMM02() {
   async function handleSubmitComment() {
     const content = draft.trim();
     // 저장 중 중복 제출 방지. (CLAUDE.md 9장)
-    if (!post || commentBusy || content.length === 0) return;
+    if (!post || !userId || commentBusy || content.length === 0) return;
 
     setCommentBusy(true);
     setCommentError(null);
     try {
-      // TODO: 로그인 연동 시 교체
       const created = await createComment({
         postId: post.postId,
-        authorUserId: DEV_USER_ID,
+        authorUserId: userId,
         content,
       });
       // 다시 조회하지 않고 방금 쓴 댓글만 붙인다. 목록이 깜빡이지 않는다.
@@ -213,13 +214,12 @@ export default function ScreenCOMM02() {
   }
 
   async function handleDeleteComment(commentId: string) {
-    if (!post || deletingId !== null) return;
+    if (!post || !userId || deletingId !== null) return;
 
     setDeletingId(commentId);
     setCommentError(null);
     try {
-      // TODO: 로그인 연동 시 교체
-      await deleteComment(commentId, DEV_USER_ID);
+      await deleteComment(commentId, userId);
       setComments((prev) => prev.filter((comment) => comment.commentId !== commentId));
       setPost({ ...post, commentCount: Math.max(0, post.commentCount - 1) });
     } catch {
@@ -287,19 +287,18 @@ export default function ScreenCOMM02() {
    *    다시 들어오면 '없는 글' 화면이 나온다.
    */
   function handleDeletePost() {
-    if (!post || postDeleting) return;
+    if (!post || !userId || postDeleting) return;
     setDeleteError(null);
     setDeleteAsking(true);
   }
 
   async function handleConfirmDelete() {
-    if (!post || postDeleting) return;
+    if (!post || !userId || postDeleting) return;
 
     setPostDeleting(true);
     setDeleteError(null);
     try {
-      // TODO: 로그인 연동 시 교체
-      await deletePost(post.postId, DEV_USER_ID);
+      await deletePost(post.postId, userId);
       setDeleteAsking(false);
       router.replace('/community');
     } catch {
@@ -326,8 +325,8 @@ export default function ScreenCOMM02() {
     bookmarkedByMe: post.bookmarkedByMe,
     commentCount: post.commentCount,
     accent: toAccent(post.destination),
-    // TODO: 로그인 연동 시 DEV_USER_ID 를 실제 사용자로 교체한다.
-    mine: post.authorUserId === DEV_USER_ID,
+    // 내 글이면 수정·삭제 버튼이 보인다.
+    mine: post.authorUserId === userId,
     // ⚠️ 글쓴이가 올린 사진만 그린다. 사진이 없는 글은 사진 없이 보인다.
     //    전에는 제목·목적지로 loremflickr 에서 아무 사진이나 끌어와 채웠는데,
     //    글과 상관없는 사진이 그 글의 사진인 것처럼 보였다. (2026-09-07)
