@@ -129,7 +129,7 @@ Deno.serve(async (request) => {
     "- date: 결제 날짜 'YYYY-MM-DD'. 안 보이면 null. 연도가 없으면 여행 기간을 참고",
     `- categoryCode: 아래 중 하나 또는 null. ${CATEGORY_CODES.join(", ")}`,
     "- confidence: 0~100 정수. total 과 merchant 를 얼마나 확신하는지",
-    "- items: 품목 최대 5개 [{name, amount}]. 없으면 빈 배열",
+    "- items: 품목 최대 5개 [{name, nameKo, amount}]. name 은 영수증 원문 그대로, nameKo 는 한국어 번역(짧게). 없으면 빈 배열",
     "",
     "규칙",
     "- 사진이 영수증이 아니거나 금액을 읽을 수 없으면 total 을 null 로 답한다.",
@@ -137,7 +137,7 @@ Deno.serve(async (request) => {
     "- 확신이 없는 카테고리는 null. 틀리게 맞히는 것이 못 맞히는 것보다 나쁘다.",
     "",
     "출력 형식 — 아래 JSON 하나만 출력한다. 설명이나 코드펜스를 붙이지 않는다.",
-    '{"merchant":"이치란 라멘","total":2380,"currency":"JPY","totalKrwEstimate":21500,"date":"2026-09-19","categoryCode":"FOOD","confidence":90,"items":[{"name":"라멘","amount":980}]}',
+    '{"merchant":"이치란 라멘","total":2380,"currency":"JPY","totalKrwEstimate":21500,"date":"2026-09-19","categoryCode":"FOOD","confidence":90,"items":[{"name":"天然とんこつラーメン","nameKo":"돈코츠 라멘","amount":980}]}',
   ]
     .filter(Boolean)
     .join("\n");
@@ -210,8 +210,9 @@ Deno.serve(async (request) => {
       ? parsed.items
           .filter((it: unknown) => it && typeof (it as { name?: unknown }).name === "string")
           .slice(0, 5)
-          .map((it: { name: string; amount?: unknown }) => ({
+          .map((it: { name: string; nameKo?: unknown; amount?: unknown }) => ({
             name: String(it.name).slice(0, 40),
+            nameKo: typeof it.nameKo === "string" && it.nameKo.trim() ? it.nameKo.trim().slice(0, 40) : null,
             amount: Number.isFinite(Number(it.amount)) ? Number(it.amount) : null,
           }))
       : [];

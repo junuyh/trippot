@@ -69,6 +69,7 @@ import {
 import {
   receiptAmountKrw,
   receiptCurrencyNote,
+  receiptItemsLabel,
   type ReceiptScanResult,
 } from "@/lib/budget/receiptScan";
 import { useReceiptScan } from "@/lib/hooks/useReceiptScan";
@@ -702,8 +703,8 @@ export default function ScreenFUND01() {
                 </Text>
               ) : null}
               {receipt.items.length > 0 ? (
-                <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }} numberOfLines={2}>
-                  {receipt.items.map((it) => it.name).join(" · ")}
+                <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }} numberOfLines={3}>
+                  {receiptItemsLabel(receipt.items)}
                 </Text>
               ) : null}
             </View>

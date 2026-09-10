@@ -10,7 +10,8 @@
 // ============================================================================
 import { CATEGORY_CODE, type CategoryCode } from "@/lib/constants/status";
 
-export type ReceiptItem = { name: string; amount: number | null };
+/** 품목. name 은 영수증 원문, nameKo 는 번역. 화면은 '번역 (원문)' 으로 보여준다 */
+export type ReceiptItem = { name: string; nameKo: string | null; amount: number | null };
 
 export type ReceiptScanResult = {
   merchant: string | null;
@@ -42,9 +43,13 @@ export function sanitizeReceipt(raw: unknown): ReceiptScanResult | null {
   const confidence = typeof r.confidence === "number" ? Math.max(0, Math.min(100, Math.round(r.confidence))) : 50;
   const items: ReceiptItem[] = Array.isArray(r.items)
     ? r.items
-        .filter((it): it is { name: string; amount?: unknown } => Boolean(it) && typeof (it as { name?: unknown }).name === "string")
+        .filter((it): it is { name: string; nameKo?: unknown; amount?: unknown } => Boolean(it) && typeof (it as { name?: unknown }).name === "string")
         .slice(0, 5)
-        .map((it) => ({ name: it.name, amount: Number.isFinite(Number(it.amount)) ? Number(it.amount) : null }))
+        .map((it) => ({
+          name: it.name,
+          nameKo: typeof it.nameKo === "string" && it.nameKo.trim() ? it.nameKo.trim() : null,
+          amount: Number.isFinite(Number(it.amount)) ? Number(it.amount) : null,
+        }))
     : [];
 
   return {
@@ -69,4 +74,11 @@ export function receiptAmountKrw(receipt: ReceiptScanResult): number | null {
 export function receiptCurrencyNote(receipt: ReceiptScanResult): string | null {
   if (receipt.currency === "KRW") return null;
   return `${receipt.currency} ${receipt.total.toLocaleString("ko-KR")} 로 찍힌 영수증이에요. 원화 금액은 대략 환산한 값이라 확인해 주세요.`;
+}
+
+/** 배너용 품목 한 줄. '돈코츠 라멘 (天然とんこつラーメン) · 카에다마 (替玉)'. 번역이 원문과 같으면 한 번만 */
+export function receiptItemsLabel(items: ReceiptItem[]): string {
+  return items
+    .map((it) => (it.nameKo && it.nameKo !== it.name ? `${it.nameKo} (${it.name})` : it.name))
+    .join(" · ");
 }
