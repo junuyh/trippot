@@ -162,10 +162,15 @@ export default function ScreenGroupNew() {
        * ⚠️ owner_type 과 owner_user_id 를 함께 바꾼다. 하나만 바꾸면 개인
        *    여행인데 group_id 가 남는 상태가 된다. (edit.tsx 저장과 같은 규칙)
        *
-       * ⚠️ owner_user_id 를 null 로 비우는 건 현재 trips_owner_shape CHECK 를
-       *    따르는 기존 동작이다. 모임 여행에도 여행장을 세우는 마이그레이션이
-       *    적용되면 edit.tsx 와 함께 이 줄도 바뀐다.
-       *    (.handoff/INV-마이그레이션-제안.sql ①)
+       * ⚠️ owner_user_id 를 null 로 비우는 건 trips_owner_shape CHECK 를 따르는
+       *    **정상 동작이다.** 이 칸은 '개인 여행의 주인' 이라 모임 여행에서는
+       *    비어 있어야 한다. 여기에 값을 넣으면 personalization 이 이 여행을
+       *    개인 여행으로 잘못 집계한다. (personalization.ts:69)
+       *
+       * ⚠️ 여행장은 이 칸이 아니라 **trips.leader_user_id** 다. 그 칼럼이
+       *    생기면 여기에 한 줄(leader_user_id: DEV_USER_ID)이 추가된다.
+       *    owner_user_id 는 그대로 null 이다.
+       *    (.handoff/INV-마이그레이션-제안.sql ① · 2026-09-10 L 회신)
        *
        * ⚠️ fund_sources · 거래 · 예산은 건드리지 않는다. 여행에 딸려 있어
        *    group_id 만 바꾸면 함께 따라온다.

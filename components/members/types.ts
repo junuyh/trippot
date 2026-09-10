@@ -13,7 +13,16 @@ export type TripMemberItem = {
   /** 아직 가입하지 않은 동행자는 null. 알림을 보낼 수 없다 */
   userId: string | null;
   name: string;
-  /** 이 여행을 만든 사람인가. trips.owner_user_id 로 판정한다 */
+  /**
+   * 이 여행을 만든 사람인가. **trips.leader_user_id** 로 판정한다.
+   *
+   * ⚠️ trips.owner_user_id 가 아니다. 그 칸은 '개인 여행의 주인' 이라 뜻이
+   *    다르고, 모임 여행에서는 일부러 비워 둔다. 거기에 여행장을 넣으면 앱이
+   *    모임 여행을 개인 여행으로 착각한다. (2026-09-10 L 회신)
+   *
+   * ⚠️ leader_user_id 는 nullable 이다. 아직 마이그레이션 전이거나 값이
+   *    없으면 false 로 넘겨 배지를 그리지 않는다.
+   */
   isTripOwner: boolean;
 };
 
