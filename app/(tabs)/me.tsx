@@ -39,15 +39,11 @@ import {
 import { ErrorState, Header, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
-import { AUTH_PROVIDER, TRIP_STATUS } from '@/lib/constants/status';
+import { TRIP_STATUS } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { getMyParticipatingTrips } from '@/lib/supabase/queries/trips';
 import { prepareProfileImage } from '@/lib/image/profileImage';
-import {
-  getUserProfile,
-  readOAuthProfile,
-  updateProfileImageUrl,
-} from '@/lib/supabase/queries/users';
+import { getUserProfile, updateProfileImageUrl } from '@/lib/supabase/queries/users';
 import {
   ProfileImageTooLargeError,
   deleteProfileImage,
@@ -56,39 +52,14 @@ import {
 
 type LoadState = 'loading' | 'ready' | 'error';
 
-/**
- * 연결된 로그인 계정을 화면에 보여줄 문장으로 바꾼다.
- *
- * ⚠️ 계정 **식별자는 절대 넣지 않는다.** users.auth_provider_user_id 는
- *    `kakao_1001` 같은 내부 연동 ID 다. 사용자가 자기 계정으로 알아볼 수 없고,
- *    다른 서비스와 대조 가능한 값이라 화면에 내보내지 않는다.
- *    users 에 email 칼럼도 없다. 그래서 "무엇으로 로그인했는지" 만 알려준다.
- *
- * ⚠️ 닉네임은 users.name 이 아니라 **세션의 user_metadata** 에서 읽는다.
- *    users.name 은 계정관리에서 사용자가 바꿀 수 있는 값이라, 그걸 쓰면 바로
- *    위에 큰 글씨로 있는 이름과 같은 값이 두 번 보인다. 그리고 이름을 바꾼
- *    뒤에는 '어떤 카카오 계정인지' 를 알려주지 못한다.
- *    (같은 판단이 app/me/account.tsx 에도 있다)
- *
- * 닉네임을 못 받았으면(동의항목 미설정·거부) 무엇으로 로그인했는지만 알려준다.
- *
- * MVP 는 kakao 만 구현한다. (lib/constants/status.ts AUTH_PROVIDER)
- * 그 외 값이면 null 을 주고 화면에서 줄 자체를 그리지 않는다.
- */
-function toAccountLabel(authProvider: string | null, nickname: string | null): string | null {
-  if (authProvider !== AUTH_PROVIDER.KAKAO) return null;
-  return nickname ? `카카오 로그인 · ${nickname}` : '카카오 로그인';
-}
-
 export default function ScreenMY01() {
   useScreenView(SCREENS.MY_PAGE);
 
   const router = useRouter();
   // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
   const userId = useCurrentUserId();
-  // 카카오 닉네임은 DB 가 아니라 세션에 있다. toAccountLabel 주석 참고.
   // signOut 은 미리보기와 실제 로그인을 알아서 가른다. (lib/auth/AuthProvider)
-  const { session, signOut } = useAuth();
+  const { signOut } = useAuth();
   // 탭 헤더를 껐다. 상태바 높이만큼은 여기서 띄운다. (커뮤니티와 같은 방식)
   const insets = useSafeAreaInsets();
   const [loadState, setLoadState] = useState<LoadState>('loading');
@@ -132,10 +103,6 @@ export default function ScreenMY01() {
 
       setProfile({
         name: user.name,
-        accountLabel: toAccountLabel(
-          user.auth_provider,
-          session?.user ? readOAuthProfile(session.user).name : null,
-        ),
         profileImageUrl: user.profile_image_url,
       });
       setCounts({ planning, traveling, past });
@@ -144,7 +111,7 @@ export default function ScreenMY01() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, [userId, session]);
+  }, [userId]);
 
   // 여행을 만들거나 끝내고 돌아오면 개수가 달라져 있다.
   useFocusEffect(

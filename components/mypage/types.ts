@@ -8,21 +8,12 @@
 /** 5-1 프로필. IA 가 정의한 사진·이름·연결된 로그인 계정에 대응한다. */
 export type MyProfile = {
   name: string;
-  /**
-   * 연결된 로그인 계정 표시. 예: `카카오 로그인 · 홍길동`
-   *
-   * ⚠️ 계정 **식별자를 담지 않는다.** auth_provider_user_id 는 `kakao_1001` 같은
-   *    내부 연동 ID 라 사용자가 알아볼 수 없고, 화면에 노출해서도 안 된다.
-   *    email 도 담지 않는다. users 에 칼럼이 없고, 필요하지 않은 개인정보를
-   *    저장하지 않는 것이 현재 정책이다. (2026-09-08 확정)
-   *
-   * 닉네임은 users.name 이 아니라 세션의 user_metadata 에서 온다. users.name 은
-   * 계정관리에서 바꿀 수 있는 값이라 이름 줄과 같은 값이 두 번 보이게 된다.
-   * (app/(tabs)/me.tsx toAccountLabel)
-   *
-   * 알 수 없으면 null 이고, 화면은 그 줄을 그리지 않는다.
+  /*
+   * ⚠️ 로그인 방식(`카카오 로그인`)을 여기에 다시 담지 않는다.
+   *    MY 메인은 로그인 방식을 표시하지 않는다는 것이 확정된 UX 정책이다.
+   *    (2026-09-10) 그 정보는 **계정 관리 화면에서만** 보여준다.
+   *    (app/me/account.tsx · components/mypage/AccountView.tsx)
    */
-  accountLabel: string | null;
   /** null 이면 기본 아이콘을 쓴다. 새 이미지 에셋을 추가하지 않는다. */
   profileImageUrl: string | null;
 };
