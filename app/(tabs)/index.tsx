@@ -42,17 +42,18 @@ import {
   HomeLoading,
   HomeView,
   type DestinationSuggestion,
+  type DiscoverDestination,
   type EndedTripCardData,
   type HomeEmptyVariant,
   type OngoingTripCardData,
 } from '@/components/home';
 import { daysUntil } from '@/components/home/format';
 import { SCREENS } from '@/lib/analytics/events';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { countryTheme } from '@/lib/constants/countryTheme';
-import { destinationHeroPhoto } from '@/lib/constants/destinationHeroPhoto';
 import { destinationPhoto } from '@/lib/constants/destinationPhoto';
+import { destinationEditorial } from '@/lib/constants/destinationEditorial';
 import { DESTINATIONS, findDestinationByName } from '@/lib/constants/destinations';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   ENTRY_POINT,
   TRIP_OWNER_TYPE,
@@ -61,6 +62,10 @@ import {
   type TripStatus,
 } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
+import {
+  getPostDestinations,
+  type PostDestinationCount,
+} from '@/lib/supabase/queries/community';
 import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
 import { getTripsWithSummary, type TripWithSummary } from '@/lib/supabase/queries/trips';
 import { getUserProfile, type UserProfile } from '@/lib/supabase/queries/users';
@@ -85,42 +90,52 @@ const HOME_PAST_TRIP_LIMIT = 4;
 const SUGGESTION_LIMIT = 8;
 
 /**
- * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-07)
+ * 홈 '발견한 여행지' 에 보여줄 여행지 수.
  *
- * 상수만 읽어 만드므로 렌더마다 다시 계산할 이유가 없다. 모듈에서 한 번 만든다.
+ * 태그가 한 화면에 두 장 보이므로 3번 넘겨서 다 본다.
+ * 여기서 다 보여주면 홈이 여행지 목록 페이지가 된다. (CLAUDE.md 2장)
+ */
+const DISCOVER_LIMIT = 6;
+
+/**
+ * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-09 개편)
+ *
+ * 상수만 읽어 만드는 부분이다. 렌더마다 다시 계산할 이유가 없어 모듈에서
+ * 한 번 만든다. 커뮤니티 글 수(postCount)와 배지는 조회 결과라서
+ * 아래 컴포넌트에서 붙인다.
  *
  * ⚠️ **나라마다 한 곳씩만 고른다.** 목적지 상수는 나라별로 묶여 있어서 앞에서부터
  *    자르면 일본 도시 세 개가 연달아 나온다. "어디 가지?" 에 답이 되려면 후보가
  *    서로 달라야 한다.
  *
- * ⚠️ **광고용 사진(destinationHeroPhoto)이 있는 곳만 넣는다.**
- *    이 배너는 광고다. 여행 카드가 쓰는 destinationPhoto 로 넘어가지 않는다.
- *    그쪽은 "내 도쿄 여행" 을 알아보게 하는 기록 사진이라, 흐린 하늘·파노라마·
- *    세로 사진이 섞여 있다. 광고 자리에 그런 사진이 한 장이라도 끼면
- *    그 칸에서 "가고 싶다" 가 끊긴다.
+ * ⚠️ **사람이 쓴 소개가 있는 곳만 넣는다.** (lib/constants/destinationEditorial)
+ *    소개 없이 도시 이름만 있는 카드는 "여기가 어떤 곳인가" 에 답하지 못한다.
+ *    소개를 쓴 목적지가 늘면 후보도 자동으로 늘어난다.
  *
- *    사진을 확보한 목적지가 늘면 배너도 자동으로 늘어난다.
- *    (lib/constants/destinationHeroPhoto.ts
-
+ * ⚠️ 사진(destinationHeroPhoto)을 더 이상 쓰지 않는다. 카드가 사진 배너에서
+ *    보딩패스로 바뀌었다. 상수 파일은 지우지 않았다. (CLAUDE.md 1장)
  */
-const HOME_SUGGESTIONS: DestinationSuggestion[] = (() => {
+const HOME_SUGGESTION_BASE = (() => {
   const usedCountries = new Set<string>();
-  const picked: DestinationSuggestion[] = [];
+  const picked: Omit<DestinationSuggestion, 'postCount' | 'badge'>[] = [];
 
   for (const destination of DESTINATIONS) {
     if (picked.length >= SUGGESTION_LIMIT) break;
     if (usedCountries.has(destination.countryKo)) continue;
 
-    const photo = destinationHeroPhoto(destination.code);
-    if (!photo) continue;
+    const editorial = destinationEditorial(destination.code);
+    if (!editorial) continue;
 
     usedCountries.add(destination.countryKo);
     picked.push({
       code: destination.code,
       nameKo: destination.nameKo,
+      nameEn: destination.nameEn,
       countryKo: destination.countryKo,
+      airportCode: destination.airportCode,
       flag: destination.flag,
-      photoUrl: photo.url,
+      blurb: editorial.blurb,
+      nights: editorial.nights,
       theme: countryTheme(destination.countryKo),
     });
   }
@@ -129,6 +144,9 @@ const HOME_SUGGESTIONS: DestinationSuggestion[] = (() => {
 })();
 
 export default function ScreenHOME01() {
+  // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
+  // 미리보기 모드(__DEV__)에서는 시드 사용자다. (lib/auth/AuthProvider)
+  const userId = useCurrentUserId();
   useScreenView(SCREENS.HOME);
 
   const router = useRouter();
@@ -136,6 +154,13 @@ export default function ScreenHOME01() {
   const [trips, setTrips] = useState<TripWithSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  /**
+   * 커뮤니티에 글이 있는 여행지와 글 수.
+   *
+   * ⚠️ 여행이 하나도 없는 사람에게만 필요한 값이라 **그때만 조회한다.**
+   *    기존 사용자 홈은 이 값을 쓰지 않는데 매번 조회하면 홈이 그만큼 늦어진다.
+   */
+  const [postCounts, setPostCounts] = useState<PostDestinationCount[]>([]);
 
   const load = useCallback(async () => {
     // ⚠️ 여기서 setLoadState('loading') 을 하지 않는다. (2026-09-03)
@@ -145,8 +170,9 @@ export default function ScreenHOME01() {
     //    첫 진입은 useState 초기값 'loading' 이 처리한다.
     //    (모임·마이페이지·커뮤니티 탭도 같은 방식이다)
     try {
-      // TODO: 로그인 연동 시 교체
-      const userId = DEV_USER_ID;
+      // 가드가 미로그인 상태를 막고 있어 여기서는 값이 있다. 그래도 만약을 대비해
+      // 없으면 아무것도 조회하지 않는다. (app/_layout.tsx 로그인 가드)
+      if (!userId) return;
 
       // 모임은 카드에 '개인 / 모임명' 을 쓰기 위해 조회한다. (docs/09_IA_v2.md §1-1, §1-2)
       // 모임 바로가기 섹션은 이번 개편에서 뺐다.
@@ -158,12 +184,24 @@ export default function ScreenHOME01() {
       setTrips(nextTrips);
       setGroups(nextGroups);
       setProfile(nextProfile);
+
+      // 여행이 하나도 없는 사람에게만 '이런 여행지는 어때요?' 칸이 나온다.
+      // 그 칸에 쓸 값이라 여기서만 조회한다. 실패해도 홈 전체를 오류로 만들지
+      // 않는다 — 그 칸만 사라지고 추천 여행지와 여행 만들기는 그대로 쓴다.
+      if (nextTrips.length === 0) {
+        try {
+          setPostCounts(await getPostDestinations());
+        } catch {
+          setPostCounts([]);
+        }
+      }
+
       setLoadState('ready');
     } catch {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, []);
+  }, [userId]);
 
   // ⚠️ useEffect 가 아니라 useFocusEffect 다. (2026-09-03)
   //    탭은 화면을 살려 두기 때문에(unmountOnBlur 없음) 한 번 만들어지면
@@ -185,6 +223,21 @@ export default function ScreenHOME01() {
     // 결산 전 지난 여행 카드의 '결산하기'. 종료 여행 홈을 거치지 않고 바로 보낸다.
     // 여행 기간이 끝나면 결산을 유도한다는 정책이 홈에서 여기 하나로 남았다. (CLAUDE.md 3장)
     router.push(`/trips/${tripId}/settlement`);
+  }
+
+  /**
+   * '이런 여행지는 어때요?' 태그를 눌렀을 때. 커뮤니티의 그 여행지 글로 보낸다.
+   *
+   * ⚠️ 넘기는 값은 **한글 도시명**이다. 커뮤니티 여행지 필터가 글에 연결된
+   *    여행의 trips.destination 으로 거르는데 그 칼럼이 한글 도시명이다.
+   *    (lib/supabase/queries/community.ts getPostDestinations)
+   *
+   * ⚠️ 이벤트를 찍지 않는다. events.ts 에 이 이동에 맞는 이벤트가 없고,
+   *    새 이벤트를 임의로 만들지 않는다. (CLAUDE.md 8장)
+   *    도착 화면(COMM-01)이 tip_list_viewed 에 destination 을 담아 이미 기록한다.
+   */
+  function handlePressDiscovery(nameKo: string) {
+    router.push(`/community?destination=${encodeURIComponent(nameKo)}`);
   }
 
   function handlePressCreateTrip(entryPoint: EntryPoint) {
@@ -277,13 +330,64 @@ export default function ScreenHOME01() {
   const emptyVariant: HomeEmptyVariant = trips.length === 0 ? 'first' : 'return';
 
   // 여행이 하나도 없으면 신규 사용자 홈을 보여준다.
-  // 기존 홈에서 여행 목록 두 개를 빼고 그 자리에 여행지 추천 배너를 넣은 화면이다.
+  // 기존 홈의 두 칸(보딩패스 슬라이드 · 러기지 태그 목록)을 그대로 쓰고
+  // 내용만 '추천 여행지' 와 '이런 여행지는 어때요?' 로 바꾼 화면이다.
   if (trips.length === 0) {
+    // 여행지 한글명 → 커뮤니티 글 수.
+    const countByName = new Map(postCounts.map((row) => [row.destination, row.count]));
+
+    /**
+     * '인기' 배지를 달 여행지.
+     *
+     * ⚠️ 근거 없이 '인기' 를 붙이지 않는다. 커뮤니티 글이 가장 많은 여행지
+     *    한 곳만 단다. 글이 하나도 없으면 아무 카드에도 배지가 없다.
+     *    postCounts 는 쿼리가 이미 글 수 내림차순으로 정렬해 돌려준다.
+     */
+    const topByPosts = postCounts.length > 0 ? postCounts[0].destination : null;
+
+    const suggestions: DestinationSuggestion[] = HOME_SUGGESTION_BASE.map((base) => ({
+      ...base,
+      postCount: countByName.get(base.nameKo) ?? 0,
+      badge: base.nameKo === topByPosts ? '인기' : null,
+    }));
+
+    /**
+     * '이런 여행지는 어때요?' 목록.
+     *
+     * ⚠️ **글이 있는 여행지에서만 만든다.** 눌렀을 때 빈 목록이 나오지 않는다.
+     * ⚠️ 목적지 상수에 없는 이름(직접 입력한 여행지)은 건너뛴다.
+     *    공항 코드·나라 그림·국가색이 없어서 태그를 그릴 수 없다.
+     */
+    const discoveries: DiscoverDestination[] = postCounts
+      .flatMap((row) => {
+        const meta = findDestinationByName(row.destination);
+        if (!meta) return [];
+        return [
+          {
+            code: meta.code,
+            nameKo: meta.nameKo,
+            nameEn: meta.nameEn,
+            countryKo: meta.countryKo,
+            airportCode: meta.airportCode,
+            // 소개를 쓰지 않은 목적지는 추천 기간도 없다. 지어내지 않고 '—' 를 쓴다.
+            nights: destinationEditorial(meta.code)?.nights ?? '—',
+            postCount: row.count,
+            theme: countryTheme(meta.countryKo),
+          },
+        ];
+      })
+      .slice(0, DISCOVER_LIMIT);
+
     return (
       <HomeEmpty
         userName={profile?.name ?? null}
-        suggestions={HOME_SUGGESTIONS}
+        suggestions={suggestions}
+        discoveries={discoveries}
         onCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
+        // 목적지 코드를 받지만 아직 넘기지 않는다. TRIP-01 이 destination param 을
+        // 받게 되면 그때 붙인다. (components/home/DestinationSuggestCard 주석)
+        onPressSuggestion={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
+        onPressDiscovery={handlePressDiscovery}
       />
     );
   }

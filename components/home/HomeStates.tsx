@@ -3,9 +3,10 @@ import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 
 import { CreateTripFab } from './CreateTripFab';
 import { DestinationSuggestSection } from './DestinationSuggestSection';
+import { DiscoverDestinationSection } from './DiscoverDestinationSection';
 import { HomeButton } from './HomeButton';
 import { HomeHeader } from './HomeHeader';
-import type { DestinationSuggestion } from './types';
+import type { DestinationSuggestion, DiscoverDestination } from './types';
 import { useFabExpand } from './useFabExpand';
 
 /**
@@ -44,22 +45,37 @@ export function HomeError({ message, onRetry }: { message: string; onRetry: () =
 type HomeEmptyProps = {
   /** 인사에 쓸 이름. 없으면 이름 없이 인사한다. */
   userName: string | null;
-  /** 배너에 돌릴 여행지 후보. 상수 조회는 화면 파일이 하고 결과만 받는다. */
+  /** 추천 여행지 카드. 상수 조회는 화면 파일이 하고 결과만 받는다. */
   suggestions: DestinationSuggestion[];
+  /** 커뮤니티에 글이 있는 여행지. 없으면 빈 배열이고 그 칸을 그리지 않는다. */
+  discoveries: DiscoverDestination[];
   onCreateTrip: () => void;
+  /** 추천 여행지 카드를 눌렀을 때. 목적지 코드를 넘긴다. */
+  onPressSuggestion: (code: string) => void;
+  /** 이런 여행지는 어때요? 태그를 눌렀을 때. 커뮤니티로 보낸다. 한글 도시명을 넘긴다. */
+  onPressDiscovery: (nameKo: string) => void;
 };
 
 /**
- * 여행이 하나도 없는 사람의 홈. (2026-09-07 개편)
+ * 여행이 하나도 없는 사람의 홈. (2026-09-09 개편)
  *
- * **기존 홈에서 여행 목록 두 개를 빼고 그 자리에 추천 배너를 넣은 것이다.**
+ * **기존 홈의 두 칸을 그대로 쓰고 내용만 바꾼 것이다.**
  *
  *   기존 홈 (HomeView)              신규 사용자 홈 (여기)
  *   ─────────────────────           ─────────────────────
  *   로고 · 인사말                    로고 · 인사말          ← 같다 (HomeHeader)
- *   준비 중인 여행 슬라이드           여행지 추천 슬라이드    ← 이 자리만 바뀐다
- *   지난 여행 슬라이드               (없음)
- *   새 여행 만들기                   새 여행 만들기         ← 같다 (CreateTripFab)
+ *   준비 중인 여행 슬라이드           추천 여행지 슬라이드    ← 같은 보딩패스 카드
+ *   지난 여행 태그 목록              이런 여행지는 어때요? 태그 목록  ← 같은 러기지 태그
+ *   새 여행 만들기 버튼              새 여행 만들기 버튼      ← 같다 (CreateTripFab)
+ *
+ * ⚠️ 두 칸 모두 **기존 홈과 같은 부품·같은 치수**다. 첫 여행을 만든 순간
+ *    이 화면이 HomeView 로 바뀌는데, 카드가 다르게 생기면 사용자에게는
+ *    화면이 통째로 바뀐 것으로 보인다.
+ *
+ * ⚠️ 두 칸이 하는 말이 다르다.
+ *    · 추천 여행지   앞으로 갈 곳 → 누르면 **여행 만들기**
+ *    · 이런 여행지는 어때요? 다녀온 사람의 이야기 → 누르면 **커뮤니티 그 여행지 글**
+ *    보딩패스와 러기지 태그라는 생김새 차이가 그 말을 대신한다.
  *
  * ⚠️ 2026-09-09 새 여행 만들기를 카드에서 떠 있는 버튼으로 바꿨다.
  *    기존 홈과 같은 컴포넌트·같은 자리·같은 접힘 규칙을 쓴다. 첫 여행을 만든
@@ -78,7 +94,14 @@ type HomeEmptyProps = {
  *
  * 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
  */
-export function HomeEmpty({ userName, suggestions, onCreateTrip }: HomeEmptyProps) {
+export function HomeEmpty({
+  userName,
+  suggestions,
+  discoveries,
+  onCreateTrip,
+  onPressSuggestion,
+  onPressDiscovery,
+}: HomeEmptyProps) {
   const { expanded, onScroll } = useFabExpand();
 
   return (
@@ -93,7 +116,18 @@ export function HomeEmpty({ userName, suggestions, onCreateTrip }: HomeEmptyProp
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
-        <DestinationSuggestSection suggestions={suggestions} onPressSuggestion={onCreateTrip} />
+        <DestinationSuggestSection
+          suggestions={suggestions}
+          onPressSuggestion={onPressSuggestion}
+        />
+
+        {/* 칸 사이 간격은 기존 홈(HomeView)의 mt-7 과 같다. */}
+        <View className="mt-7">
+          <DiscoverDestinationSection
+            destinations={discoveries}
+            onPressDestination={onPressDiscovery}
+          />
+        </View>
       </ScrollView>
 
       {/* 맨 위에서는 글자까지 보이고, 내리면 아이콘만 남는다. */}
