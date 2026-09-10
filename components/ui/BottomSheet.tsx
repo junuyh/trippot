@@ -41,6 +41,11 @@ type Props = {
   /** 하단 고정 영역. 보통 취소 / 확인 버튼 */
   footer?: ReactNode;
   /**
+   * 시트가 완전히 내려간 뒤(iOS 만). 시트를 닫고 곧바로 사진 선택기처럼
+   * 다른 네이티브 화면을 띄워야 할 때 쓴다. 닫히는 중에 띄우면 iOS 가 무시한다.
+   */
+  onDismiss?: () => void;
+  /**
    * 시트의 최소 높이. `'46%'` 처럼 화면 비율로 준다.
    *
    * 내용이 적어도 시트가 납작하게 눌리지 않게 할 때 쓴다.
@@ -64,6 +69,7 @@ export function BottomSheet({
   onClose,
   children,
   footer,
+  onDismiss,
   minHeight,
   titleAlign = 'left',
 }: Props) {
@@ -108,6 +114,7 @@ export function BottomSheet({
       // ⚠️ none 이다. 움직임은 아래에서 직접 만든다. slide 로 두면 배경까지 따라 올라온다.
       animationType="none"
       onRequestClose={onClose}
+      onDismiss={onDismiss}
     >
       <View style={{ flex: 1 }}>
         {/*

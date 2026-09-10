@@ -7,12 +7,13 @@
 // 모양은 홈의 다른 카드와 같다: 흰 카드 · 하늘선 테두리 · 영문 눈썹 · 큰 등폭
 // 숫자 · 얇은 진행 막대 하나. 색은 국기색(진행)과 결과색(초과=국기색)뿐.
 //
-//   TODAY · D3 / 6            [지출 기록하기 ›]
+//   TODAY · D3 / 6
 //   오늘 쓸 수 있는 돈
 //   84,000원
 //   ▮▮▮▮▮▮▯▯▯▯  오늘 32,000원 썼어요 · 52,000원 남음
 //   ───────────────────────────────────────────
 //   남은 예산 1,240,000원 │ 남은 날 4일 │ 하루 기준 84,000원
+//   [📷 영수증으로 기록]  [직접 입력]
 //
 // ⚠️ 이 컴포넌트는 supabase 도 track() 도 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
@@ -36,10 +37,13 @@ type Props = {
   allowance: DailyAllowance;
   /** 여행 전체 일수. 'D3 / 6' 의 6 */
   totalDays: number;
+  /** 직접 입력으로 기록 (여행자금 화면) */
   onPressRecord: () => void;
+  /** 영수증 찍어서 기록 (여행자금 화면이 곧바로 사진을 받는다) */
+  onPressReceipt: () => void;
 };
 
-export function TodayAllowanceCard({ theme, allowance, totalDays, onPressRecord }: Props) {
+export function TodayAllowanceCard({ theme, allowance, totalDays, onPressRecord, onPressReceipt }: Props) {
   const over = allowance.todayLeft < 0;
   const ratio =
     allowance.allowance > 0 ? Math.min(1, allowance.spentToday / allowance.allowance) : 1;
@@ -58,17 +62,6 @@ export function TodayAllowanceCard({ theme, allowance, totalDays, onPressRecord 
         <Text style={{ fontSize: 9, fontWeight: "900", letterSpacing: 1.3, color: theme.primary }}>
           TODAY · D{allowance.dayIndex} / {totalDays}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="지출 기록하기"
-          hitSlop={8}
-          onPress={onPressRecord}
-          className="flex-row items-center active:opacity-60"
-          style={{ gap: 2 }}
-        >
-          <Text style={{ fontSize: 12, fontWeight: "700", color: theme.primary }}>지출 기록하기</Text>
-          <Ionicons name="chevron-forward" size={13} color={theme.primary} />
-        </Pressable>
       </View>
 
       <Text style={{ marginTop: 12, fontSize: 12, color: MUTED }}>오늘 쓸 수 있는 돈</Text>
@@ -129,6 +122,44 @@ export function TodayAllowanceCard({ theme, allowance, totalDays, onPressRecord 
         <Stat label="남은 예산" value={won(allowance.remainingBudget)} />
         <Stat label="남은 날" value={`${allowance.daysLeft}일`} divider />
         <Stat label="하루 기준" value={won(allowance.allowance)} divider />
+      </View>
+
+      {/*
+        영수증으로 기록 — 여행 중 지출 기록의 가장 짧은 길.
+        사진 한 장이면 가맹점·금액·날짜가 채워진다. 직접 입력은 옆의 작은 버튼.
+      */}
+      <View className="flex-row" style={{ marginTop: 14, gap: 8 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="영수증으로 지출 기록하기"
+          onPress={onPressReceipt}
+          className="flex-row items-center justify-center active:opacity-90"
+          style={{
+            flex: 1,
+            gap: 6,
+            height: 44,
+            borderRadius: 12,
+            backgroundColor: theme.neutral,
+          }}
+        >
+          <Ionicons name="camera-outline" size={16} color="#fff" />
+          <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }}>영수증으로 기록</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="직접 입력으로 지출 기록하기"
+          onPress={onPressRecord}
+          className="items-center justify-center active:bg-gray-100"
+          style={{
+            paddingHorizontal: 14,
+            height: 44,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "#e8eaee",
+          }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "700", color: INK }}>직접 입력</Text>
+        </Pressable>
       </View>
     </View>
   );
