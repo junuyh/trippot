@@ -154,6 +154,69 @@ export const EVENTS = {
   TIP_BOOKMARKED: "tip_bookmarked",
   TIP_COMMENTED: "tip_commented",
   TIP_CREATED: "tip_created",
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 초대 · 멤버 (INV/MEM) — 2026-09-10 · 이슈 #73 확정본
+  //
+  // ⚠️ 부르는 코드는 아직 없다. 화면이 붙을 때 각 담당자가 심는다.
+  // ⚠️ 금액은 원문이 아니라 구간(band)으로 기록한다. (NFR-007)
+  // ══════════════════════════════════════════════════════════════════════
+
+  /** 초대 시트 진입. trip_id · entry(trip_create|trip_home) · needs_new_group */
+  INVITE_SHEET_VIEWED: "invite_sheet_viewed",
+  /** 초대 링크 발급. target_count · has_outsider */
+  INVITE_LINK_CREATED: "invite_link_created",
+  /** 초대 링크 공유. channel(kakao|copy|system) */
+  INVITE_LINK_SHARED: "invite_link_shared",
+  /** 새 모임 이름 입력. name_length · used_suggestion */
+  INVITE_NEW_GROUP_NAMED: "invite_new_group_named",
+  /** 초대 링크 열림. resolve_result(valid|expired|revoked|full|rejected|not_found) · is_signed_in */
+  INVITE_LANDING_VIEWED: "invite_landing_viewed",
+  /** 참여 요청 보냄. hours_since_invite · was_signup_required */
+  JOIN_REQUESTED: "join_requested",
+  /** 여행장이 요청 목록 봄. pending_count */
+  JOIN_REQUEST_VIEWED: "join_request_viewed",
+  /** 수락. hours_since_request · group_moved */
+  JOIN_ACCEPTED: "join_accepted",
+  /** 거절. hours_since_request */
+  JOIN_REJECTED: "join_rejected",
+  /** 요청자가 스스로 취소. hours_since_request */
+  JOIN_REQUEST_CANCELED: "join_request_canceled",
+  /** 나가기 시트 진입. role(owner|member) · blocked */
+  TRIP_LEAVE_SHEET_VIEWED: "trip_leave_sheet_viewed",
+  /** 여행 나감. also_left_group · active_member_count_after */
+  TRIP_LEFT: "trip_left",
+  /** 여행장 위임. active_member_count */
+  OWNER_DELEGATED: "owner_delegated",
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 여행 취소 (CXL) — 2026-09-10 · 이슈 #73 확정본
+  // ══════════════════════════════════════════════════════════════════════
+
+  /** 취소 시트 진입. trip_id · trip_status · fund_type · owner_type · has_spend */
+  TRIP_CANCEL_SHEET_VIEWED: "trip_cancel_sheet_viewed",
+  /** 취소 대신 일정·인원 바꾸기로 유도. target(dates|headcount) */
+  TRIP_CANCEL_RESCUE_CLICKED: "trip_cancel_rescue_clicked",
+  /** 취소 사유 선택. reason_code */
+  TRIP_CANCEL_REASON_SELECTED: "trip_cancel_reason_selected",
+  /** 취소 요청. reason_code · fund_type · remaining_amount_band · spent_amount_band · trip_status_before · vote_target_count */
+  TRIP_CANCEL_REQUESTED: "trip_cancel_requested",
+  /** 취소 도중 이탈. abort_step(reason|confirm) */
+  TRIP_CANCEL_ABORTED: "trip_cancel_aborted",
+  /** 동의 시트 진입. has_reason · hours_since_request */
+  TRIP_CANCEL_VOTE_SHEET_VIEWED: "trip_cancel_vote_sheet_viewed",
+  /** 동의·반대. vote(agree|disagree) · hours_since_request · order */
+  TRIP_CANCEL_VOTED: "trip_cancel_voted",
+  /** 요청 종결. outcome(approved|rejected|expired|withdrawn) · hours_since_request · agreed_count · vote_target_count */
+  TRIP_CANCEL_REQUEST_RESOLVED: "trip_cancel_request_resolved",
+  /** 동의 현황 봄. agreed_count · vote_target_count */
+  TRIP_CANCEL_PROGRESS_VIEWED: "trip_cancel_progress_viewed",
+  /** 되돌리기 시트 진입. hours_since_cancel · entry(done_screen|canceled_home) · change_count */
+  TRIP_RESTORE_SHEET_VIEWED: "trip_restore_sheet_viewed",
+  /** 되돌리기 도중 이탈. hours_since_cancel */
+  TRIP_RESTORE_ABORTED: "trip_restore_aborted",
+  /** 되돌리기 완료. change_count · hours_since_cancel */
+  TRIP_RESTORE_COMPLETED: "trip_restore_completed",
 } as const;
 
 /**
