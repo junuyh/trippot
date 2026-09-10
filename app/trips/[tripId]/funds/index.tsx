@@ -826,7 +826,11 @@ export default function ScreenFUND01() {
               {"\n"}
               {deposit
                 ? "잘못 넣었다면 입출금 전체 내역에서 지울 수 있어요."
-                : "카테고리는 비어 있어요. 거래 상세에서 지정하면 그 카테고리의 실제 사용액에 반영돼요."}
+                : draftCategoryId
+                  ? receipt && receiptCategoryRef.current === draftCategoryId
+                    ? "영수증을 보고 고른 카테고리예요. 기록 뒤 '확인 필요' 에서 한 번 더 확인해요."
+                    : "고른 카테고리의 실제 사용액에 바로 반영돼요."
+                  : "카테고리는 비어 있어요. 거래 상세에서 지정하면 그 카테고리의 실제 사용액에 반영돼요."}
             </Text>
           </View>
         </View>
