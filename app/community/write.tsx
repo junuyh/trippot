@@ -39,7 +39,7 @@ import {
   PostImageTooLargeError,
   uploadPostImage,
 } from '@/lib/supabase/storage/communityImage';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import { POST_TYPE } from '@/lib/constants/status';
 import {
@@ -97,6 +97,9 @@ const EDIT_TITLE: Record<(typeof WRITABLE_POST_TYPES)[number], string> = {
 
 export default function ScreenCOMM04() {
   const router = useRouter();
+  // 로그인한 사용자. 글의 작성자이자 사진 업로드 주체다.
+  // 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
+  const userId = useCurrentUserId();
 
   /**
    * 수정 모드. (2026-09-04)
@@ -135,9 +138,10 @@ export default function ScreenCOMM04() {
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!userId) return;
+
     let alive = true;
-    // TODO: 로그인 연동 시 교체
-    getTrips(DEV_USER_ID)
+    getTrips(userId)
       .then((rows) => {
         if (alive) setTrips(rows);
       })
@@ -148,7 +152,7 @@ export default function ScreenCOMM04() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [userId]);
 
   /**
    * 고칠 글 불러오기. 새 글이면 아무것도 하지 않는다.
@@ -166,19 +170,18 @@ export default function ScreenCOMM04() {
   const resetPhotos = photos.reset;
 
   useEffect(() => {
-    if (!editing || !postId) return;
+    if (!editing || !postId || !userId) return;
 
     let alive = true;
     setLoadingPost(true);
-    // TODO: 로그인 연동 시 교체
-    getPostById(postId, DEV_USER_ID)
+    getPostById(postId, userId)
       .then((post) => {
         if (!alive) return;
         if (!post) {
           setLoadError('글을 찾을 수 없어요.');
           return;
         }
-        if (post.authorUserId !== DEV_USER_ID) {
+        if (post.authorUserId !== userId) {
           setLoadError('내가 쓴 글만 수정할 수 있어요.');
           return;
         }
@@ -234,7 +237,7 @@ export default function ScreenCOMM04() {
 
   async function handleSubmit() {
     // 저장 중 중복 제출 방지. (CLAUDE.md 9장)
-    if (submitting) return;
+    if (submitting || !userId) return;
 
     setSubmitError(null);
     if (!validate()) return;
@@ -258,8 +261,7 @@ export default function ScreenCOMM04() {
           continue;
         }
         const prepared = await preparePostImage(image.uri);
-        // TODO: 로그인 연동 시 교체
-        const url = await uploadPostImage(DEV_USER_ID, prepared.base64);
+            const url = await uploadPostImage(userId, prepared.base64);
         uploaded.push(url);
         imageUrls.push(url);
       }
@@ -268,8 +270,7 @@ export default function ScreenCOMM04() {
       if (editing && postId) {
         await updatePost({
           postId,
-          // TODO: 로그인 연동 시 교체
-          authorUserId: DEV_USER_ID,
+                authorUserId: userId,
           postType,
           title: title.trim(),
           content: content.trim(),
@@ -294,8 +295,7 @@ export default function ScreenCOMM04() {
       }
 
       const created = await createPost({
-        // TODO: 로그인 연동 시 교체
-        authorUserId: DEV_USER_ID,
+            authorUserId: userId,
         postType,
         title: title.trim(),
         content: content.trim(),
