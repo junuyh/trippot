@@ -90,12 +90,19 @@ export function tripStage({
   return hasPlan ? TRIP_STAGE.PLANNING : TRIP_STAGE.PREPARING;
 }
 
-/** 기간이 끝난 뒤의 단계인가. TRIP-HOME-02 를 그릴지 정한다 */
+/**
+ * 준비가 끝난 뒤의 단계인가. TRIP-HOME-02 를 그릴지 정한다.
+ *
+ * ⚠️ CANCELED 를 포함한다. 빼면 취소된 여행이 **'준비 중' 화면(TRIP-HOME-01)**
+ *    을 그린다. 취소했는데 예산을 계속 세우라고 권하는 화면이 나온다.
+ *    (2026-09-10 · TRIP-HOME-03 을 붙이면서 확인)
+ */
 export function isAfterTrip(stage: TripStage): boolean {
   return (
     stage === TRIP_STAGE.NO_RECORD ||
     stage === TRIP_STAGE.NO_EXPENSE ||
     stage === TRIP_STAGE.SETTLING ||
-    stage === TRIP_STAGE.DONE
+    stage === TRIP_STAGE.DONE ||
+    stage === TRIP_STAGE.CANCELED
   );
 }
