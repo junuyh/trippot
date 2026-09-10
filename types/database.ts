@@ -972,11 +972,119 @@ export type Database = {
           },
         ]
       }
+      trip_invites: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          revoked_at: string | null
+          token: string
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          revoked_at?: string | null
+          token: string
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          token?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_invites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_invites_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_join_requests: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          invite_id: string
+          requested_at: string
+          status: string
+          trip_id: string
+          user_id: string
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          invite_id: string
+          requested_at?: string
+          status?: string
+          trip_id: string
+          user_id: string
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          invite_id?: string
+          requested_at?: string
+          status?: string
+          trip_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_join_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_join_requests_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "trip_invites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_join_requests_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_join_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_members: {
         Row: {
           created_at: string
           display_name: string | null
           id: string
+          left_at: string | null
           status: string
           trip_id: string
           updated_at: string
@@ -986,6 +1094,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          left_at?: string | null
           status?: string
           trip_id: string
           updated_at?: string
@@ -995,6 +1104,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          left_at?: string | null
           status?: string
           trip_id?: string
           updated_at?: string
@@ -1120,8 +1230,10 @@ export type Database = {
           group_id: string | null
           headcount: number
           id: string
+          leader_user_id: string | null
           owner_type: string
           owner_user_id: string | null
+          pending_group_name: string | null
           start_date: string | null
           status: string
           travel_style_json: Json
@@ -1136,8 +1248,10 @@ export type Database = {
           group_id?: string | null
           headcount?: number
           id?: string
+          leader_user_id?: string | null
           owner_type: string
           owner_user_id?: string | null
+          pending_group_name?: string | null
           start_date?: string | null
           status?: string
           travel_style_json?: Json
@@ -1152,8 +1266,10 @@ export type Database = {
           group_id?: string | null
           headcount?: number
           id?: string
+          leader_user_id?: string | null
           owner_type?: string
           owner_user_id?: string | null
+          pending_group_name?: string | null
           start_date?: string | null
           status?: string
           travel_style_json?: Json
@@ -1165,6 +1281,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_leader_user_id_fkey"
+            columns: ["leader_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
