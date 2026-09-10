@@ -24,7 +24,7 @@ import { Alert, ScrollView, View } from "react-native";
 
 import { GroupCreateForm, type MovableMember } from "@/components/groups";
 import { Button, EmptyState, ErrorState, HeaderBackButton, Loading } from "@/components/ui";
-import { DEV_USER_ID } from "@/lib/constants/devUser";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 import { TRIP_OWNER_TYPE } from "@/lib/constants/status";
 import {
   addGroupMembers,
@@ -52,6 +52,9 @@ export default function ScreenGroupNew() {
     tripId?: string;
     fromGroupId?: string;
   }>();
+
+  // 로그인한 사용자. 새 모임의 모임장이 되고, 데려올 목록에서도 빠진다.
+  const userId = useCurrentUserId();
 
   const [data, setData] = useState<Loaded | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +94,7 @@ export default function ScreenGroupNew() {
 
       // 나는 새 모임의 OWNER 로 따로 들어간다. 고를 대상이 아니다.
       const movable = groupMembers
-        .filter((m) => m.user_id !== DEV_USER_ID)
+        .filter((m) => m.user_id !== userId)
         .map((m) => ({ userId: m.user_id, name: m.user.name }));
 
       setData({ trip, fromGroupName: group?.name ?? null, members: movable });
@@ -102,7 +105,7 @@ export default function ScreenGroupNew() {
     } finally {
       setLoading(false);
     }
-  }, [fromGroupId, tripId]);
+  }, [fromGroupId, tripId, userId]);
 
   useEffect(() => {
     void load();
@@ -142,6 +145,11 @@ export default function ScreenGroupNew() {
    */
   const handleSave = useCallback(async () => {
     if (!data || saving) return;
+    // 로그인 정보가 없으면 모임장을 정할 수 없다. (edit.tsx 와 같은 가드)
+    if (!userId) {
+      Alert.alert("로그인 정보가 없어요", "다시 로그인한 뒤 시도해 주세요.");
+      return;
+    }
     if (!validateName()) return;
 
     setSaving(true);
@@ -150,11 +158,11 @@ export default function ScreenGroupNew() {
     try {
       const group = await createGroup({
         name: groupName.trim(),
-        owner_user_id: DEV_USER_ID,
+        owner_user_id: userId,
       });
       createdGroupId = group.id;
 
-      await addGroupMembers(group.id, selectedUserIds, DEV_USER_ID);
+      await addGroupMembers(group.id, selectedUserIds, userId);
 
       /**
        * 여행을 새 모임으로 옮긴다.
@@ -168,7 +176,7 @@ export default function ScreenGroupNew() {
        *    개인 여행으로 잘못 집계한다. (personalization.ts:69)
        *
        * ⚠️ 여행장은 이 칸이 아니라 **trips.leader_user_id** 다. 그 칼럼이
-       *    생기면 여기에 한 줄(leader_user_id: DEV_USER_ID)이 추가된다.
+       *    생기면 여기에 한 줄(leader_user_id: userId)이 추가된다.
        *    owner_user_id 는 그대로 null 이다.
        *    (.handoff/INV-마이그레이션-제안.sql ① · 2026-09-10 L 회신)
        *
@@ -197,7 +205,7 @@ export default function ScreenGroupNew() {
       );
       setSaving(false);
     }
-  }, [data, groupName, saving, selectedUserIds, validateName]);
+  }, [data, groupName, saving, selectedUserIds, userId, validateName]);
 
   const screen = (
     <Stack.Screen
