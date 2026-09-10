@@ -5,7 +5,6 @@
 // ⚠️ 이 파일은 CLAUDE.md 5장 [공유] 파일이다.
 //
 //   화면/기능 → track() ─┬─ Amplitude
-//                        ├─ Firebase Analytics
 //                        └─ event_log (Supabase)
 //
 // - amplitude.track() / analytics().logEvent() 를 직접 호출하지 않는다.
@@ -101,45 +100,6 @@ function ensureAmplitude(): boolean {
   return amplitudeReady;
 }
 
-// ── Firebase Analytics ─────────────────────────────────────────────────────
-// google-services.json 이 아직 없으면 네이티브 모듈 초기화가 실패한다.
-// import 자체가 던질 수 있으므로 최상위 import 대신 지연 require 를 쓴다.
-// 실패는 한 번만 기록하고 이후에는 조용히 건너뛴다. Amplitude / event_log 는 계속 동작한다.
-type FirebaseLogger = (name: string, params: Record<string, unknown>) => void;
-type FirebaseUserIdSetter = (userId: string | null) => void;
-
-let firebaseLogger: FirebaseLogger | null | undefined;
-let firebaseUserIdSetter: FirebaseUserIdSetter | null | undefined;
-
-function loadFirebase(): void {
-  if (firebaseLogger !== undefined) return;
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require('@react-native-firebase/analytics') as {
-      getAnalytics: () => unknown;
-      logEvent: (analytics: unknown, name: string, params?: Record<string, unknown>) => Promise<void>;
-      setUserId: (analytics: unknown, id: string | null) => Promise<void>;
-    };
-    const instance = mod.getAnalytics();
-
-    firebaseLogger = (name, params) => {
-      void mod.logEvent(instance, name, params).catch(() => {});
-    };
-    firebaseUserIdSetter = (userId) => {
-      void mod.setUserId(instance, userId).catch(() => {});
-    };
-  } catch (error) {
-    console.warn(
-      '[analytics] Firebase Analytics 사용 불가 — google-services.json 또는 네이티브 빌드가 필요합니다. ' +
-        'Amplitude 와 event_log 는 정상 동작합니다.',
-      error,
-    );
-    firebaseLogger = null;
-    firebaseUserIdSetter = null;
-  }
-}
-
 // ── 공통 파라미터 ──────────────────────────────────────────────────────────
 type CommonParams = {
   anon_id: string;
@@ -159,7 +119,6 @@ export async function initAnalytics(): Promise<void> {
   await getAnonId();
   if (!__DEV__) {
     ensureAmplitude();
-    loadFirebase();
   }
 }
 
@@ -178,8 +137,6 @@ export function setAnalyticsUser(userId: string | null): void {
       // 무시. 이벤트 전송 자체는 계속된다.
     }
   }
-  loadFirebase();
-  firebaseUserIdSetter?.(userId);
 }
 
 /** 여행 화면에 진입/이탈할 때 호출한다. 이후 이벤트에 trip_id 가 자동으로 붙는다. */
@@ -235,15 +192,7 @@ async function dispatch(name: EventName, params: EventParams): Promise<void> {
     }
   }
 
-  // ── ② Firebase Analytics ──
-  loadFirebase();
-  try {
-    firebaseLogger?.(name, merged);
-  } catch (error) {
-    console.warn('[analytics] Firebase 전송 실패', error);
-  }
-
-  // ── ③ event_log (Supabase) ──
+  // ── ② event_log (Supabase) ──
   // 실패해도 앱이 죽지 않아야 한다. await 하지 않고 reject 도 삼킨다.
   // user_id / anon_id / trip_id / env 는 전용 칼럼이므로 params 에서 제외한다.
   try {
