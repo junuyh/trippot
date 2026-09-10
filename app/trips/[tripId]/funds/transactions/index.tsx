@@ -50,6 +50,7 @@ import {
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
   type CategoryCode,
+  FUND_SOURCE_TYPE,
 } from "@/lib/constants/status";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -79,7 +80,7 @@ import {
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
 import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
-import { getGroupAccounts } from "@/lib/supabase/queries/funds";
+import { getGroupAccounts, getTravelFund } from "@/lib/supabase/queries/funds";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
 
 type FundsData = {
@@ -157,11 +158,24 @@ export default function ScreenFUND01() {
         return;
       }
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, transactions, accounts] = await Promise.all([
+      const [categories, transactions, accounts, fund] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         getTransactions(trip.id, categoryId ? { categoryId } : undefined),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+        getTravelFund(trip.id),
       ]);
+      /**
+       * ⚠️ **이 여행에 실제로 붙은 계좌**만 '연결됨' 으로 보여준다.
+       *    모임에 계좌가 있다는 이유로 accounts[0] 을 보여주면, 직접 입력으로
+       *    관리 중인 여행에서도 '연결 계좌 자동 분류 · 연결됨' 이 떠서
+       *    사용자가 연결된 줄로 착각한다. (2026-09-10 · FUND-02 와 같은 문제)
+       */
+      const linked =
+        fund &&
+        (fund.source_type === FUND_SOURCE_TYPE.ACCOUNT ||
+          fund.source_type === FUND_SOURCE_TYPE.MOCK)
+          ? (accounts.find((a) => a.id === fund.financial_account_id) ?? null)
+          : null;
       // 계획 항목은 카테고리별로 나뉘어 있어 한 번에 모은다
       const planItems = (
         await Promise.all(
@@ -173,7 +187,7 @@ export default function ScreenFUND01() {
         categories,
         planItems,
         transactions,
-        maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
+        maskedAccountNumber: linked?.masked_account_number ?? null,
       });
     } catch {
       setError(true);
