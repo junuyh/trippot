@@ -31,9 +31,9 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, Share, View } from "react-native";
 
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 import { InviteMembersSheet, TripEditForm } from "@/components/trip-edit";
 import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
-import { DEV_USER_ID } from "@/lib/constants/devUser";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { TRIP_OWNER_TYPE, TRIP_STATUS } from "@/lib/constants/status";
 import { buildGroupInviteLink, buildInviteMessage, pickInviteTemplate } from "@/lib/invite/inviteLink";
@@ -74,6 +74,8 @@ function goNewGroup(tripId: string, fromGroupId: string | null) {
 
 export default function ScreenTripEdit() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  // 로그인한 사용자. 개인 여행으로 바꿀 때 소유자가 된다.
+  const userId = useCurrentUserId();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -132,11 +134,12 @@ export default function ScreenTripEdit() {
 
   // 모임 목록은 부가 정보다. 실패해도 일정·인원은 고칠 수 있어야 한다.
   useEffect(() => {
-    getMyGroups(DEV_USER_ID)
+    if (!userId) return;
+    getMyGroups(userId)
       .then(setGroups)
       .catch(() => setGroups([]))
       .finally(() => setGroupsLoading(false));
-  }, []);
+  }, [userId]);
 
   const handleChangeDates = useCallback(
     (next: { startDate: string | null; endDate: string | null }) => {
@@ -149,6 +152,10 @@ export default function ScreenTripEdit() {
   const handleSubmit = useCallback(async () => {
     if (!trip || saving) return;
     if (!startDate || !endDate) return;
+    if (!groupId && !userId) {
+      setSaveError("로그인 정보가 없어요. 다시 로그인한 뒤 시도해 주세요.");
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -160,14 +167,14 @@ export default function ScreenTripEdit() {
         // 모임을 붙이거나 떼면 소유 형태도 함께 바뀐다.
         // 하나만 바꾸면 개인 여행인데 group_id 가 남는 상태가 된다.
         owner_type: groupId ? TRIP_OWNER_TYPE.GROUP : TRIP_OWNER_TYPE.PERSONAL,
-        owner_user_id: groupId ? null : DEV_USER_ID,
+        owner_user_id: groupId ? null : userId,
       });
       router.back();
     } catch {
       setSaveError("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
       setSaving(false);
     }
-  }, [endDate, groupId, headcount, saving, startDate, trip]);
+  }, [endDate, groupId, headcount, saving, startDate, trip, userId]);
 
   const selectedGroup = useMemo(
     () => groups.find((g) => g.id === groupId) ?? null,

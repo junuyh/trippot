@@ -52,6 +52,7 @@ import {
   type EditableCategory,
   type PastTripRow,
 } from '@/components/trip-create';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { ErrorState } from '@/components/ui';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
@@ -67,8 +68,6 @@ import {
   type ProductOverrides,
 } from '@/lib/budget/productLocalization';
 import { buildBudgetRecommendation } from '@/lib/budget/recommendation';
-// TODO: 로그인 연동 시 교체
-import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   APPLIED_SOURCE,
   BUDGET_METHOD,
@@ -100,6 +99,8 @@ import { createTripBundle, getMyTripCount } from '@/lib/supabase/queries/trips';
 import { getLocalizedBudgetProducts } from '@/lib/supabase/queries/budgetProducts';
 
 export default function ScreenTRIP03() {
+  // 로그인한 사용자. 여행·모임의 소유자이자 첫 멤버가 된다.
+  const userId = useCurrentUserId();
   useScreenView(SCREENS.TRIP_CREATE_BUDGET);
 
   const { draft, patchDraft, resetDraft } = useTripDraft();
@@ -138,11 +139,11 @@ export default function ScreenTRIP03() {
       return;
     }
 
+    if (draft.companionType !== COMPANION_TYPE.EXISTING_GROUP && !userId) return;
     const scope =
       draft.companionType === COMPANION_TYPE.EXISTING_GROUP && draft.groupId
         ? ({ ownerType: 'GROUP', groupId: draft.groupId } as const)
-        : // TODO: 로그인 연동 시 교체
-          ({ ownerType: 'PERSONAL', userId: DEV_USER_ID } as const);
+        : ({ ownerType: 'PERSONAL', userId: userId as string } as const);
 
     getSpendingProfile(scope)
       .then((profile) => {
@@ -155,7 +156,7 @@ export default function ScreenTRIP03() {
         setPastProfileTripCount(0);
       })
       .finally(() => setPastLoading(false));
-  }, [draft.applyPastData, draft.companionType, draft.groupId, draft.pastTripCount]);
+  }, [draft.applyPastData, draft.companionType, draft.groupId, draft.pastTripCount, userId]);
 
   // ── ① 예산 방식 ───────────────────────────────────────────────────────
   //
@@ -1082,6 +1083,11 @@ export default function ScreenTRIP03() {
 
   const handleSubmit = useCallback(async () => {
     if (!recommendation || !draft.travelStyle) return;
+    // 로그인 없이 여기까지 올 수 없지만, 세션이 끊긴 채 저장되면 소유자가 비어 버린다.
+    if (!userId) {
+      setSaveError('로그인 정보가 없어요. 다시 로그인한 뒤 시도해 주세요.');
+      return;
+    }
     // 중복 제출 방지. 두 번 눌러 여행이 두 개 생기면 되돌릴 방법이 없다. (NFR-005)
     if (saving || savedRef.current) return;
 
@@ -1102,8 +1108,7 @@ export default function ScreenTRIP03() {
       if (draft.companionType === COMPANION_TYPE.NEW_GROUP && !groupId) {
         const group = await createGroup({
           name: (draft.newGroupName ?? '').trim(),
-          // TODO: 로그인 연동 시 교체
-          owner_user_id: DEV_USER_ID,
+          owner_user_id: userId,
         });
         groupId = group.id;
       }
@@ -1115,7 +1120,7 @@ export default function ScreenTRIP03() {
         trip: {
           owner_type: isGroupTrip ? TRIP_OWNER_TYPE.GROUP : TRIP_OWNER_TYPE.PERSONAL,
           // trips_owner_shape CHECK — GROUP 이면 owner_user_id 를 비운다
-          owner_user_id: isGroupTrip ? null : DEV_USER_ID,
+          owner_user_id: isGroupTrip ? null : userId,
           group_id: isGroupTrip ? groupId : null,
           destination: draft.destinationName,
           start_date: draft.startDate,
@@ -1125,8 +1130,7 @@ export default function ScreenTRIP03() {
         },
         members: [
           // 본인
-          // TODO: 로그인 연동 시 교체
-          { user_id: DEV_USER_ID },
+          { user_id: userId },
           // 아직 가입하지 않은 동행자는 이름만 저장한다. (docs/README.md §5 #15)
           ...draft.companionNames.map((name) => ({ display_name: name })),
         ],
@@ -1231,8 +1235,7 @@ export default function ScreenTRIP03() {
         trip_id: trip.id,
         owner_type:
           OWNER_TYPE_TO_ANALYTICS[isGroupTrip ? TRIP_OWNER_TYPE.GROUP : TRIP_OWNER_TYPE.PERSONAL],
-        // TODO: 로그인 연동 시 교체
-        user_trip_count: await getMyTripCount(DEV_USER_ID),
+        user_trip_count: await getMyTripCount(userId),
       });
 
       resetDraft();
@@ -1273,6 +1276,7 @@ export default function ScreenTRIP03() {
     saving,
     selectedAccount,
     targetTotal,
+    userId,
   ]);
 
   // ── 앞 단계 입력이 없으면 계산 자체가 불가능하다 ──────────────────────

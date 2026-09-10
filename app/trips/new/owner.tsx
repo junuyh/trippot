@@ -21,10 +21,9 @@ import {
   PastDataChoice,
   StepProgress,
 } from '@/components/trip-create';
+import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { EVENTS, SCREENS } from '@/lib/analytics/events';
 import { track } from '@/lib/analytics/track';
-// TODO: 로그인 연동 시 교체
-import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { COMPANION_TYPE, ENTRY_POINT, type CompanionType, type EntryPoint } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { useTripDraft } from '@/lib/hooks/useTripDraft';
@@ -68,6 +67,8 @@ const CLEARED_TRIP_BASICS = {
 } as const;
 
 export default function ScreenTRIP01() {
+  // 로그인한 사용자. 미리보기 모드면 시드 사용자, 아니면 세션의 사용자다.
+  const userId = useCurrentUserId();
   useScreenView(SCREENS.TRIP_CREATE_WHO);
 
   const params = useLocalSearchParams<{
@@ -100,18 +101,18 @@ export default function ScreenTRIP01() {
   const [groupsLoaded, setGroupsLoaded] = useState(false);
 
   const loadGroups = useCallback(async () => {
+    if (!userId) return;
     setGroupsLoading(true);
     setGroupsError(false);
     try {
-      // TODO: 로그인 연동 시 교체
-      setGroups(await getMyGroups(DEV_USER_ID));
+      setGroups(await getMyGroups(userId));
       setGroupsLoaded(true);
     } catch {
       setGroupsError(true);
     } finally {
       setGroupsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   // 뒤로 갔다 돌아오면 이 화면이 다시 마운트되지만 draft 의 선택은 남아 있다.
   // 그때 handleSelectCompanionType 이 다시 불리지 않으므로 목록을 여기서 채운다.
@@ -168,13 +169,13 @@ export default function ScreenTRIP01() {
         return;
       }
       if (companionType === COMPANION_TYPE.EXISTING_GROUP && !groupId) return;
+      if (companionType === COMPANION_TYPE.PERSONAL && !userId) return;
 
       setPastCountLoading(true);
       try {
         const count = await getSettledTripCount(
           companionType === COMPANION_TYPE.PERSONAL
-            ? // TODO: 로그인 연동 시 교체
-              { ownerType: 'PERSONAL', userId: DEV_USER_ID }
+            ? { ownerType: 'PERSONAL', userId: userId as string }
             : { ownerType: 'GROUP', groupId: groupId as string },
         );
         // 토글은 켜진 채로 뜬다. 과거 데이터가 없으면(0) 블록 자체를 그리지 않으므로
@@ -192,7 +193,7 @@ export default function ScreenTRIP01() {
         setPastCountLoading(false);
       }
     },
-    [patchDraft],
+    [patchDraft, userId],
   );
 
   // ── 동행 유형 선택 ────────────────────────────────────────────────────
