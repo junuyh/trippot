@@ -1,7 +1,10 @@
 // HOME-01 화면 전용 컴포넌트 단일 진입점.
 export { ActionRequiredSection } from './ActionRequiredSection';
+export { CountryFlag } from './CountryFlag';
 export { CreateTripCard } from './CreateTripCard';
+export { CreateTripFab } from './CreateTripFab';
 export { DestinationBanner } from './DestinationBanner';
+export { DestinationSuggestSection } from './DestinationSuggestSection';
 export { EndedTripCard } from './EndedTripCard';
 export { GroupShortcutList } from './GroupShortcutList';
 export { HomeButton } from './HomeButton';
@@ -20,6 +23,7 @@ export { SectionHeader } from './SectionHeader';
 export { TravelFundSummary } from './TravelFundSummary';
 export { TripCardShell } from './TripCardShell';
 export type {
+  DestinationSuggestion,
   EndedTripCardData,
   HomeActionItem,
   HomeEmptyVariant,

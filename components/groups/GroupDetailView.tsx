@@ -1,35 +1,120 @@
-import { ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MyTripCard } from '@/components/my';
-import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
+import {
+  MyTripCard,
+  TripFilterTabs,
+  type MyTripFilter,
+  type MyTripItem,
+} from '@/components/my';
+import { TRIP_STATUS } from '@/lib/constants/status';
 import { Button } from '@/components/ui';
 
 import { GroupAccountList } from './GroupAccountList';
 import { GroupMemberList } from './GroupMemberList';
 import { formatCreatedDate, formatMemberCount } from './format';
-import type { GroupDetailData } from './types';
+import type { GroupAccountItem, GroupDetailData } from './types';
+
+/** 탭마다 비었을 때 할 말이 다르다. MY-02 와 같은 문장을 쓴다. */
+const TAB_EMPTY_MESSAGE: Record<MyTripFilter, string> = {
+  planning: '준비 중인 여행이 없어요.',
+  traveling: '지금 여행 중인 여행이 없어요.',
+  past: '아직 다녀온 여행 기록이 없어요.',
+};
 
 type Props = {
   group: GroupDetailData;
   onPressTrip: (tripId: string) => void;
   onPressCreateTrip: () => void;
+  /**
+   * 계좌를 눌렀을 때. 여행이 하나면 바로 이동하고 둘 이상이면 고르게 한다.
+   * 어느 쪽인지는 화면 파일이 정한다.
+   */
+  onPressAccount: (account: GroupAccountItem) => void;
+  /** '전체 계좌' 를 눌렀을 때. 모든 계좌를 담은 시트를 연다. */
+  onPressAllAccounts: () => void;
+  /** 준비 중 여행에서 나가기. 참가자에게만 보인다. */
+  onPressLeaveTrip: (trip: MyTripItem) => void;
 };
 
 /** 섹션 제목 + 본문. 상세 화면의 블록이 전부 같은 리듬을 갖게 한다. */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  description,
+  titleSuffix,
+  right,
+  onPress,
+  accessibilityLabel,
+  children,
+}: {
+  title: string;
+  /** 제목 아래 한 줄 설명. 없으면 그리지 않는다. */
+  description?: string;
+  /**
+   * 제목 **바로 옆**에 붙는 것. 제목과 한 덩어리로 읽힌다.
+   *
+   * ⚠️ right 와 다르다. right 는 줄 오른쪽 끝으로 밀려 제목과 멀어진다.
+   *    멤버 인원처럼 제목에 딸린 값은 옆에 붙어야 한다. (2026-09-09)
+   */
+  titleSuffix?: React.ReactNode;
+  /** 제목 오른쪽 끝에 놓을 것. 없으면 제목만 그린다. */
+  right?: React.ReactNode;
+  /**
+   * 제목 줄 전체를 눌렀을 때.
+   *
+   * ⚠️ chevron 만 터치 영역으로 두지 않는다. 14px 아이콘 하나는 누르기
+   *    어렵고, 옆의 '멤버' 와 '3명' 도 같은 곳으로 가는 말이라 눌러도
+   *    아무 일이 없으면 이상하다. 제목 줄 전체가 하나의 버튼이다.
+   */
+  onPress?: () => void;
+  accessibilityLabel?: string;
+  children: React.ReactNode;
+}) {
+  // 홈 섹션 제목과 같은 단이다. (16 / 800 / -0.5)
+  // HOME 컴포넌트를 가져다 쓰지 않고 값만 맞춘다.
+  const header = (
+    <>
+      {/* 제목과 그 옆 값은 한 덩어리다. gap-2.5(10) 로 붙여 둔다. */}
+      <View className="flex-row items-center gap-2.5">
+        <Text
+          className="text-pot-ink"
+          style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5 }}
+        >
+          {title}
+        </Text>
+        {titleSuffix ?? null}
+      </View>
+      {right ?? null}
+    </>
+  );
+
   return (
-    // 섹션 사이 mt-8, 제목 아래 mt-3.5. 홈의 mt-7 / mt-2.5 리듬에서
-    // 한 단계씩만 넓혔다. 멤버·계좌가 제목에 붙어 답답해 보였다.
-    <View className="mt-8">
-      {/* 홈 섹션 제목과 같은 단이다. (16 / 800 / -0.5)
-          HOME 컴포넌트를 가져다 쓰지 않고 값만 맞춘다. */}
-      <Text
-        className="text-pot-ink"
-        style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5 }}
-      >
-        {title}
-      </Text>
+    // ⚠️ 섹션 사이 mt-10(40). 32 로는 네 덩어리가 여전히 붙어 보였다.
+    //    모든 섹션이 같은 리듬을 쓴다. 섹션 **안쪽** 줄 간격·카드 padding·
+    //    글자 크기는 건드리지 않는다. (2026-09-09)
+    <View className="mt-10">
+      {/* ⚠️ 누를 수 있을 때만 Pressable 로 감싼다. 감싸도 className 이 같아서
+          레이아웃은 달라지지 않는다. 눌리지 않는 섹션에 눌리는 표시(active)를
+          붙이지 않으려고 분기한다. */}
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel ?? title}
+          onPress={onPress}
+          className="flex-row items-center justify-between active:opacity-60"
+        >
+          {header}
+        </Pressable>
+      ) : (
+        <View className="flex-row items-center justify-between">{header}</View>
+      )}
+      {description ? (
+        <Text className="mt-1.5 text-pot-faint" style={{ fontSize: 11.5, lineHeight: 17 }}>
+          {description}
+        </Text>
+      ) : null}
       <View className="mt-3.5">{children}</View>
     </View>
   );
@@ -50,16 +135,34 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * 데이터 조회·로그는 app/groups/[groupId].tsx 가 한다. 여기는 그리기만 한다.
  * (CLAUDE.md 9장)
  */
-export function GroupDetailView({ group, onPressTrip, onPressCreateTrip }: Props) {
+export function GroupDetailView({
+  group,
+  onPressTrip,
+  onPressCreateTrip,
+  onPressAccount,
+  onPressAllAccounts,
+  onPressLeaveTrip,
+}: Props) {
   // 이 화면은 (tabs) 밖 Stack 화면이라 FloatingTabBar 가 없다.
   // 대신 홈 인디케이터 자리는 직접 비켜 준다.
   const insets = useSafeAreaInsets();
 
-  const TRIP_SECTIONS = [
-    { title: TRIP_STATUS_LABEL.PLANNING, trips: group.planningTrips },
-    { title: TRIP_STATUS_LABEL.TRAVELING, trips: group.travelingTrips },
-    { title: '지난 여행', trips: group.pastTrips },
-  ];
+  /**
+   * 어느 탭을 보고 있는지.
+   *
+   * ⚠️ 기본은 '준비 중' 이다. MY-02 와 같다. 모임 상세에서 가장 급한 것도
+   *    앞으로 갈 여행이다.
+   */
+  const [filter, setFilter] = useState<MyTripFilter>('planning');
+
+  // ⚠️ 여기서 상태를 다시 판정하지 않는다. 화면 파일이 trips.status 로 이미
+  //    세 갈래로 갈라 넘겨준다. (app/groups/[groupId]/index.tsx)
+  const visibleTrips =
+    filter === 'past'
+      ? group.pastTrips
+      : filter === 'traveling'
+        ? group.travelingTrips
+        : group.planningTrips;
 
   return (
     <View className="flex-1 bg-pot-visual">
@@ -73,37 +176,139 @@ export function GroupDetailView({ group, onPressTrip, onPressCreateTrip }: Props
         >
           {group.name}
         </Text>
+        {/* ⚠️ 여기에는 생성일만 둔다. 인원 수와 이동은 아래 '멤버' 섹션
+            제목 오른쪽으로 옮겼다. 멤버로 가는 입구가 두 군데면 헷갈린다. */}
         <Text className="mt-1.5 text-pot-mute" style={{ fontSize: 12.5 }}>
-          {`만든 날 ${formatCreatedDate(group.createdAt)} · ${formatMemberCount(group.memberCount)}`}
+          {`만든 날 ${formatCreatedDate(group.createdAt)}`}
         </Text>
       </View>
 
-      <Section title="멤버">
+      {/*
+        ⚠️ 멤버는 **정보 영역**이다. 누르는 곳이 아니다. (2026-09-09 확정)
+           멤버 관리 화면을 없앴고, 인원수 옆 chevron·이동도 제거했다.
+      */}
+      <Section
+        title="멤버"
+        titleSuffix={
+          <Text className="text-pot-faint" style={{ fontSize: 12.5 }}>
+            {formatMemberCount(group.memberCount)}
+          </Text>
+        }
+      >
         <GroupMemberList members={group.members} />
       </Section>
 
-      <Section title="연결 계좌">
-        <GroupAccountList accounts={group.accounts} />
+      {/*
+        ⚠️ 메인에는 **준비 중·여행 중에서 쓰는 계좌만** 둔다. 지난 여행에만
+           남은 계좌는 '전체 계좌' 에서 본다. (2026-09-09 확정)
+        ⚠️ 활성 계좌가 0개여도 '전체 계좌' 는 숨기지 않는다. 지난 여행 계좌가
+           남아 있을 수 있고, 그때 확인할 곳이 여기뿐이다.
+      */}
+      <Section
+        title="연결 계좌"
+        description="준비 중이거나 여행 중인 여행에서 사용 중인 계좌예요."
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="전체 계좌"
+            // 작은 텍스트라 터치 영역을 따로 넓힌다.
+            hitSlop={10}
+            onPress={onPressAllAccounts}
+            className="flex-row items-center px-1 py-1 active:opacity-60"
+          >
+            {/*
+              ⚠️ 보조 액션이다. 색은 pot-mute 로 둔다 — pot-ink 로 올렸더니
+                 옆의 섹션 제목('연결 계좌')과 강조가 경쟁했다.
+                 누를 수 있다는 신호는 chevron 이 맡는다. (2026-09-09)
+            */}
+            <Text
+              className="text-pot-mute"
+              style={{ fontSize: 12.5, fontWeight: '600' }}
+            >
+              전체 계좌
+            </Text>
+            <Ionicons name="chevron-forward" size={13} color="#C3C9D2" />
+          </Pressable>
+        }
+      >
+        <GroupAccountList
+          accounts={group.accounts.filter((account) => account.activeTripCount > 0)}
+          onPressAccount={onPressAccount}
+        />
       </Section>
 
       {/*
-        상태별 섹션 셋. 이름은 TRIP_STATUS_LABEL 을 쓴다. /me/trips 탭이 쓰는
-        것과 같은 상수라 두 화면의 말이 갈라지지 않는다.
+        여행. 세 상태를 세로로 쌓지 않고 탭으로 가른다.
+        MY-02(/me/trips)와 **같은 탭 컴포넌트**를 쓴다. 값도 planning /
+        traveling / past 로 같아서 두 화면의 말이 갈라지지 않는다.
 
-        ⚠️ 0건인 상태는 섹션째 그리지 않는다. 여행이 하나뿐인 모임에서
-           빈 안내 문구 두 줄이 화면을 채우는 것이 더 답답하다.
+        ⚠️ 탭 줄만 화면 폭을 다 쓰도록 -mx-4 로 바깥 padding 을 되돌린다.
+           본문은 px-4 를 유지한다.
       */}
-      {TRIP_SECTIONS.map(({ title, trips }) =>
-        trips.length === 0 ? null : (
-          <Section key={title} title={title}>
-            <View className="gap-3">
-              {trips.map((trip) => (
-                <MyTripCard key={trip.tripId} trip={trip} onPress={onPressTrip} />
-              ))}
+      {/* ⚠️ 다른 섹션과 같은 mt-10(40) 을 쓴다. */}
+      <View className="mt-10">
+        <View className="-mx-4">
+          <TripFilterTabs
+            filter={filter}
+            onChangeFilter={setFilter}
+            className="bg-transparent"
+          />
+        </View>
+
+        <View className="mt-3 gap-3">
+          {visibleTrips.length === 0 ? (
+            <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-8">
+              <Text className="text-pot-faint" style={{ fontSize: 13 }}>
+                {TAB_EMPTY_MESSAGE[filter]}
+              </Text>
             </View>
-          </Section>
-        ),
-      )}
+          ) : (
+            visibleTrips.map((trip) => {
+              const participant = group.participatingTripIds.has(trip.tripId);
+
+              return (
+                <View key={trip.tripId}>
+                  {/*
+                    ⚠️ 참가자가 아니면 카드를 누를 수 없다. (2026-09-09 확정)
+                       여행 정보는 그대로 보여주되 상세로 들어가지 않는다.
+                       여행 상세에는 수정 진입점이 여럿인데 참가자 검사가 없어서,
+                       비참가자를 들여보내면 남의 여행을 고칠 수 있게 된다.
+                    ⚠️ MyTripCard 는 MY 와 함께 쓰는 컴포넌트다. onPress 에 null 을
+                       넘길 수 있게만 넓혔고 MY 동작은 그대로다.
+                  */}
+                  {/* ⚠️ 모임 이름을 끈다. 이미 이 모임 상세 안이라 카드마다
+                      같은 이름이 반복된다. MY 는 그대로다. (2026-09-09) */}
+                  <MyTripCard
+                    trip={trip}
+                    onPress={participant ? onPressTrip : null}
+                    showGroupName={false}
+                  />
+
+                  {/*
+                    여행에서 나가기. 준비 중 + 내가 참가자일 때만 보인다.
+                    여행 중·지난 여행에는 없고, 남을 내보내는 기능도 없다.
+                  */}
+                  {participant && trip.status === TRIP_STATUS.PLANNING ? (
+                    <View className="mt-1.5 items-end">
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${trip.destination ?? '여행'} 에서 나가기`}
+                        hitSlop={8}
+                        onPress={() => onPressLeaveTrip(trip)}
+                        className="px-1 py-1 active:opacity-60"
+                      >
+                        <Text className="text-pot-faint" style={{ fontSize: 11.5 }}>
+                          여행에서 나가기
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })
+          )}
+        </View>
+      </View>
 
       </ScrollView>
 

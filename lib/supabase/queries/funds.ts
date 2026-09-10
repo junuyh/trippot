@@ -11,6 +11,7 @@ import {
   FUND_SOURCE_TYPE,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
+  TRIP_STATUS,
 } from "@/lib/constants/status";
 import { supabase } from "@/lib/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "@/types/database";
@@ -404,4 +405,60 @@ export async function connectMockAccount(
     importedName: MOCK_IMPORTED_SPEND.name,
     importedAmount: MOCK_IMPORTED_SPEND.amount,
   };
+}
+
+/** GROUP-02 연결 계좌 한 줄. **어느 여행의 계좌인지**까지 담는다. */
+export type GroupTripAccount = {
+  tripId: string;
+  /** 여행 목적지. 같은 계좌가 여러 여행에 붙어 있을 때 구분해 준다. */
+  destination: string | null;
+  /** trips.status. 어느 상태의 여행까지 다룰지는 쓰는 화면이 정한다. */
+  status: string;
+  accountId: string;
+  institutionCode: string | null;
+  maskedAccountNumber: string | null;
+};
+
+/**
+ * 모임의 여행들에 실제로 연결된 계좌.
+ *
+ * ⚠️ getGroupAccounts 와 다르다. 그쪽은 financial_accounts.group_id 로만 읽어
+ *    **모임에 달린 계좌**를 준다. 그 결과에는 tripId 가 없어서, 화면에서
+ *    계좌를 눌러도 어느 여행의 계좌 연결 화면으로 보낼지 알 수 없다.
+ *
+ *    계좌 관리 화면은 여행 단위(/trips/:tripId/funds/connect)뿐이다.
+ *    그래서 여기서는 **fund_sources 를 기준으로** 읽는다.
+ *    fund_sources.trip_id 는 unique 라 여행 하나에 자금 출처 하나다.
+ *    (supabase/migrations/20260827000001_init_schema.sql)
+ *
+ * ⚠️ 임의로 여행 하나를 골라 대표로 삼지 않는다. 같은 계좌가 두 여행에
+ *    연결돼 있으면 두 줄로 나온다. 각 줄이 자기 여행으로 간다.
+ *
+ * ⚠️ 계좌를 붙이지 않은 여행(수기 입력 · ZERO)은 나오지 않는다.
+ *    financial_account_id 가 null 이라 !inner 조인에서 빠진다.
+ */
+export async function getGroupTripAccounts(
+  groupId: string,
+): Promise<GroupTripAccount[]> {
+  const { data, error } = await supabase
+    .from("fund_sources")
+    .select(
+      "trip_id, trips!inner(id, destination, group_id, status), financial_accounts!inner(id, institution_code, masked_account_number, disconnected_at)",
+    )
+    .eq("trips.group_id", groupId)
+    // ⚠️ 취소된 여행의 계좌도 빼야 GROUP 목록과 기준이 같아진다.
+    //    (2026-09-10 · develop 의 CANCELED 정책)
+    .not("trips.status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`)
+    .is("financial_accounts.disconnected_at", null);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    tripId: row.trip_id,
+    destination: row.trips.destination,
+    status: row.trips.status,
+    accountId: row.financial_accounts.id,
+    institutionCode: row.financial_accounts.institution_code,
+    maskedAccountNumber: row.financial_accounts.masked_account_number,
+  }));
 }

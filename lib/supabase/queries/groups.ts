@@ -110,6 +110,41 @@ export async function createGroup(input: GroupInsert): Promise<Group> {
   return group;
 }
 
+/**
+ * 이미 있는 모임에 멤버를 여러 명 넣는다. (새 모임 만들기 — 기존 모임원 데려오기)
+ *
+ * ⚠️ createGroup() 이 만든 사람을 OWNER 로 넣은 **뒤에** 부른다.
+ *    여기서 넣는 사람은 전부 MEMBER 다. 모임장은 한 명이다.
+ *
+ * ⚠️ 만든 사람이 userIds 에 섞여 들어와도 OWNER 자리를 빼앗지 않는다.
+ *    (group_id, user_id) UNIQUE 라 같은 사람을 또 넣으면 통째로 실패하므로,
+ *    호출부가 거르지 못한 경우를 대비해 여기서 한 번 더 뺀다.
+ *
+ * ⚠️ 빈 배열이면 아무것도 하지 않는다. 데려올 사람을 아무도 안 골랐을 때
+ *    빈 INSERT 를 보내면 supabase 가 에러로 돌려준다.
+ */
+export async function addGroupMembers(
+  groupId: string,
+  userIds: string[],
+  excludeUserId?: string,
+): Promise<void> {
+  const targets = Array.from(new Set(userIds)).filter((id) => id !== excludeUserId);
+  if (targets.length === 0) return;
+
+  const joinedAt = new Date().toISOString();
+  const { error } = await supabase.from('group_members').insert(
+    targets.map((userId) => ({
+      group_id: groupId,
+      user_id: userId,
+      role: GROUP_MEMBER_ROLE.MEMBER,
+      status: GROUP_MEMBER_STATUS.ACTIVE,
+      joined_at: joinedAt,
+    })),
+  );
+
+  if (error) throw error;
+}
+
 export type GroupMemberWithUser = GroupMember & {
   user: Pick<Tables<'users'>, 'id' | 'name' | 'profile_image_url'>;
 };
@@ -165,7 +200,10 @@ export async function getGroupTrips(groupId: string): Promise<GroupTrips> {
     .from('trips')
     .select('*')
     .eq('group_id', groupId)
-    .neq('status', TRIP_STATUS.DELETED)
+    // ⚠️ 취소된 여행도 뺀다. develop 의 getTrips · personalization 이 쓰는 것과
+    //    같은 조건이다. 여기만 DELETED 만 빼면 취소한 여행이 모임 상세에서만
+    //    계속 보인다. (2026-09-10 · develop de1dfc7 의 CANCELED 정책에 맞춤)
+    .not('status', 'in', `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`)
     .order('start_date', { ascending: false });
 
   if (error) throw error;

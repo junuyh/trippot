@@ -69,6 +69,7 @@ import {
 import {
   receiptAmountKrw,
   receiptCurrencyNote,
+  receiptDateNote,
   receiptItemsLabel,
   type ReceiptScanResult,
 } from "@/lib/budget/receiptScan";
@@ -700,6 +701,11 @@ export default function ScreenFUND01() {
               {receiptCurrencyNote(receipt) ? (
                 <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }}>
                   {receiptCurrencyNote(receipt)}
+                </Text>
+              ) : null}
+              {receiptDateNote(receipt, data.trip.start_date, data.trip.end_date) ? (
+                <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }}>
+                  {receiptDateNote(receipt, data.trip.start_date, data.trip.end_date)}
                 </Text>
               ) : null}
               {receipt.items.length > 0 ? (

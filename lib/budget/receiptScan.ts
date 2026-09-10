@@ -82,3 +82,14 @@ export function receiptItemsLabel(items: ReceiptItem[]): string {
     .map((it) => (it.nameKo && it.nameKo !== it.name ? `${it.nameKo} (${it.name})` : it.name))
     .join(" · ");
 }
+
+/** 영수증 날짜가 여행 기간 밖이면 안내. 기간을 모르거나 날짜가 없으면 null */
+export function receiptDateNote(
+  receipt: ReceiptScanResult,
+  tripStart: string | null,
+  tripEnd: string | null,
+): string | null {
+  if (!receipt.date || !tripStart || !tripEnd) return null;
+  if (receipt.date >= tripStart && receipt.date <= tripEnd) return null;
+  return `영수증 날짜(${receipt.date.replaceAll("-", ".")})가 여행 기간 밖이에요. 날짜를 확인해 주세요.`;
+}

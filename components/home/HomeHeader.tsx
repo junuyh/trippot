@@ -54,8 +54,9 @@ export function HomeHeader({ userName, daysToNextTrip }: Props) {
         </Text>
       </View>
 
-      {/* 버튼이 빠져서 인사말이 한 줄을 다 쓴다. 글자를 키우고 여백을 늘렸다. */}
-      <View className="mt-4">
+      {/* 버튼이 빠져서 인사말이 한 줄을 다 쓴다. 글자를 키우고 여백을 늘렸다.
+          로고 줄과 붙어 보인다는 평을 받아 한 번 더 띄웠다. (2026-09-07) */}
+      <View className="mt-6">
         <Text
           className="text-pot-ink"
           style={{ fontSize: 19, lineHeight: 25, fontWeight: '700', letterSpacing: -0.4 }}
