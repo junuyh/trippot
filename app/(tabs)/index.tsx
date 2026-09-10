@@ -101,7 +101,7 @@ const DISCOVER_LIMIT = 6;
  * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-09 개편)
  *
  * 상수만 읽어 만드는 부분이다. 렌더마다 다시 계산할 이유가 없어 모듈에서
- * 한 번 만든다. 커뮤니티 글 수(postCount)와 배지는 조회 결과라서
+ * 한 번 만든다. 배지는 커뮤니티 글 수에서 나오는 조회 결과라서
  * 아래 컴포넌트에서 붙인다.
  *
  * ⚠️ **나라마다 한 곳씩만 고른다.** 목적지 상수는 나라별로 묶여 있어서 앞에서부터
@@ -117,7 +117,7 @@ const DISCOVER_LIMIT = 6;
  */
 const HOME_SUGGESTION_BASE = (() => {
   const usedCountries = new Set<string>();
-  const picked: Omit<DestinationSuggestion, 'postCount' | 'badge'>[] = [];
+  const picked: Omit<DestinationSuggestion, 'badge'>[] = [];
 
   for (const destination of DESTINATIONS) {
     if (picked.length >= SUGGESTION_LIMIT) break;
@@ -135,7 +135,7 @@ const HOME_SUGGESTION_BASE = (() => {
       airportCode: destination.airportCode,
       flag: destination.flag,
       blurb: editorial.blurb,
-      nights: editorial.nights,
+      days: editorial.days,
       theme: countryTheme(destination.countryKo),
     });
   }
@@ -347,7 +347,7 @@ export default function ScreenHOME01() {
 
     const suggestions: DestinationSuggestion[] = HOME_SUGGESTION_BASE.map((base) => ({
       ...base,
-      postCount: countByName.get(base.nameKo) ?? 0,
+
       badge: base.nameKo === topByPosts ? '인기' : null,
     }));
 

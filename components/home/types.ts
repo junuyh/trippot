@@ -195,10 +195,8 @@ export type DestinationSuggestion = {
   flag: string;
   /** 사람이 쓴 두 줄 소개. (lib/constants/destinationEditorial) */
   blurb: string;
-  /** 사람이 정한 추천 기간. '3박 4일'. */
-  nights: string;
-  /** 이 여행지의 커뮤니티 글 수. 없으면 0 이다. */
-  postCount: number;
+  /** 사람이 정한 추천 기간. '3~4일'. (lib/constants/destinationEditorial) */
+  days: string;
   /** 오른쪽 위 배지 문구. 근거가 없으면 null 이고 배지를 그리지 않는다. */
   badge: string | null;
   /** 국가 테마. 배지·랜드마크 선그림 색이 여기서 온다. */
