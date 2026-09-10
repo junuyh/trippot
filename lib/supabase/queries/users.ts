@@ -10,7 +10,12 @@
 // ⚠️ 프로필 중 **이미지만** 수정한다. 이름·계정은 수정 기능이 확정되기 전까지
 //    update 를 만들지 않는다.
 // ============================================================================
-import { NOTIFICATION_TYPE, type NotificationType } from '@/lib/constants/status';
+import {
+  AUTH_PROVIDER,
+  NOTIFICATION_TYPE,
+  type AuthProvider,
+  type NotificationType,
+} from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Json, Tables } from '@/types/database';
 
@@ -161,9 +166,37 @@ export async function updateNotificationSettings(
 type OAuthProfile = {
   name: string | null;
   imageUrl: string | null;
-  provider: string | null;
+  provider: AuthProvider | null;
   providerUserId: string | null;
 };
+
+/**
+ * Supabase 의 provider 식별자를 **TripPot 제품 기준 로그인 방식**으로 바꾼다.
+ *
+ * 둘은 같은 개념이 아니다.
+ *
+ *   Supabase 기술 식별자        TripPot 제품 로그인 방식
+ *   'kakao'                →   AUTH_PROVIDER.KAKAO
+ *   'custom:kakao-oidc'    →   AUTH_PROVIDER.KAKAO
+ *
+ * 사용자 입장에서는 둘 다 그냥 '카카오 로그인' 이다. Custom OIDC 는 카카오
+ * 동의항목(account_email) 문제를 피하려고 고른 **구현 방식**일 뿐, 새로운
+ * 로그인 수단이 아니다. 그래서 화면과 저장값은 제품 기준 하나로 통일한다.
+ *
+ * ⚠️ 이 변환을 화면마다 조건으로 늘리지 않는다. (`=== 'kakao' || === 'custom:…'`)
+ *    provider 를 읽는 경계가 여기 하나뿐이어야, 나중에 Provider 이름이 바뀌어도
+ *    고칠 곳이 한 곳이다.
+ *
+ * ⚠️ 아는 값만 옮긴다. 모르는 값은 null 이다. 임의로 'kakao' 로 넘겨짚으면
+ *    나중에 Apple·Google 을 붙였을 때 전부 카카오로 보이게 된다.
+ */
+export function toProductAuthProvider(raw: string | null): AuthProvider | null {
+  // Supabase Dashboard 에 만들어 둔 Custom OIDC Provider 이름을 포함한다.
+  // (lib/auth/kakao.ts OIDC_PROVIDER 와 같은 값이다)
+  const KAKAO_IDS = ['kakao', 'custom:kakao-oidc'];
+  if (raw === null) return null;
+  return KAKAO_IDS.includes(raw) ? AUTH_PROVIDER.KAKAO : null;
+}
 
 /**
  * 세션에서 프로필을 뽑는다.
@@ -194,7 +227,10 @@ export function readOAuthProfile(user: {
   return {
     name: pick('name', 'full_name', 'preferred_username', 'nickname'),
     imageUrl: pick('avatar_url', 'picture', 'profile_image_url'),
-    provider: identity?.provider ?? null,
+    // ⚠️ Supabase 식별자를 그대로 저장하지 않는다. 'custom:kakao-oidc' 가
+    //    users.auth_provider 에 들어가면, 제품 기준 값('kakao')과 비교하는
+    //    화면들이 전부 어긋난다. 만드는 경계에서 한 번만 바꾼다.
+    provider: toProductAuthProvider(identity?.provider ?? null),
     providerUserId: identity?.id ?? null,
   };
 }

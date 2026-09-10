@@ -40,10 +40,13 @@ import {
   FundManagerCard,
   TripGuideCards,
   type GridCategory,
+  TodayAllowanceCard,
   TripSettingsButton,
   TripSettingsSheet,
 } from "@/components/trip-home";
 import { AppHomeButton } from "@/components/navigation/AppHomeButton";
+import { dailyAllowance } from "@/lib/budget/dailyAllowance";
+import { scheduleSpendReminders } from "@/lib/notifications/spendReminder";
 import {
   SettlementVaultGrid,
   TravelTypeCard,
@@ -243,6 +246,18 @@ export default function ScreenTripHome() {
       setRefreshing(false);
     }
   }, [tripId]);
+
+  /**
+   * 지출 입력 리마인드(매일 21:00 로컬 알림)를 잡는다. 여행이 임박했거나
+   * 진행 중일 때만 권한을 묻고, 같은 여행 것은 지우고 다시 잡아 중복되지 않는다.
+   * 실패해도 화면은 멀쩡해야 한다 (Android Expo Go 는 알림 모듈이 없다).
+   */
+  const remindedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!data || remindedRef.current === data.trip.id) return;
+    remindedRef.current = data.trip.id;
+    scheduleSpendReminders(data.trip).catch(() => undefined);
+  }, [data]);
 
   // 화면에 들어올 때마다 다시 읽는다. 예산을 고치고 돌아오면 옛 숫자가 남는다.
   useFocusEffect(
@@ -739,6 +754,22 @@ export default function ScreenTripHome() {
     return { label: `D+${-diff}`, ongoing: false };
   })();
 
+  /**
+   * 오늘 쓸 수 있는 돈. 여행 기간 안에서만 값이 있다.
+   * 예산 = 카테고리 계획 합. 모금액이 아니다. (lib/budget/dailyAllowance)
+   */
+  const todayAllowance = dailyAllowance({
+    startDate: trip.start_date,
+    endDate: trip.end_date,
+    budgetTotal: data.categories.reduce((sum, c) => sum + c.planned_amount, 0),
+    transactions: data.transactions,
+    today: new Date(),
+  });
+  const totalDays =
+    trip.start_date && trip.end_date
+      ? differenceInCalendarDays(parseISO(trip.end_date), parseISO(trip.start_date)) + 1
+      : 0;
+
   return (
     <ScrollView
       className="flex-1"
@@ -1206,6 +1237,20 @@ export default function ScreenTripHome() {
             onPressFund={() => router.push(`/trips/${trip.id}/funds`)}
             onPressEdit={() => router.push(`/trips/${trip.id}/edit`)}
           />
+
+          {/*
+            ── TODAY · 오늘 쓸 수 있는 돈 ── 여행 중에만
+            태그는 "얼마 모였나", 이 카드는 "오늘 얼마 써도 되나". 수기 입력이
+            바로 되돌아오는 자리라 태그 바로 아래에 둔다. (2026-09-09)
+          */}
+          {todayAllowance ? (
+            <TodayAllowanceCard
+              theme={theme}
+              allowance={todayAllowance}
+              totalDays={totalDays}
+              onPressRecord={() => router.push(`/trips/${trip.id}/funds`)}
+            />
+          ) : null}
 
           {/* 예산이 없으면 카테고리도 목표도 없다. 먼저 정하게 한다 */}
           {targetAmount <= 0 ? (

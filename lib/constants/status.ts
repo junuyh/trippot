@@ -54,6 +54,12 @@ export const TRIP_STATUS = {
   ENDED: "ENDED",
   SETTLED: "SETTLED",
   DELETED: "DELETED",
+  /**
+   * 전원 동의로 취소된 여행. DELETED 와 다르게 되돌릴 수 있고 데이터를 남긴다.
+   * trips.canceled_at 이 취소 확정 시각이며 되돌리기 72시간의 기준이다.
+   * (20260909000001_trips_canceled_status.sql · 2026-09-09)
+   */
+  CANCELED: "CANCELED",
 } as const;
 export type TripStatus = (typeof TRIP_STATUS)[keyof typeof TRIP_STATUS];
 
@@ -720,6 +726,7 @@ export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
   ENDED: "종료",
   SETTLED: "결산 완료",
   DELETED: "삭제됨",
+  CANCELED: "취소됨",
 };
 
 export const TRIP_OWNER_TYPE_LABEL: Record<TripOwnerType, string> = {

@@ -9,6 +9,7 @@ import {
   GROUP_MEMBER_STATUS,
   TRANSACTION_TYPE,
   TRIP_STATUS,
+  TRIP_MEMBER_STATUS,
 } from "@/lib/constants/status";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 
@@ -33,6 +34,10 @@ export type TripMember = Tables<"trip_members">;
 export type TripMemberInsert = TablesInsert<"trip_members">;
 
 /** 내가 볼 수 있는 여행 목록 (본인 개인 여행 + 소속 모임 여행). */
+/**
+ * 내 여행 목록. 삭제된 여행과 **취소된 여행**은 뺀다.
+ * 취소된 여행은 MY-02 '취소된 여행' 탭에서 따로 본다. [팀원 개발 예정]
+ */
 export async function getTrips(userId: string): Promise<Trip[]> {
   // 두 번에 나눠 조회한 뒤 합친다. 개인 여행과 모임 여행은 조건이 달라
   // 한 번의 or() 로 묶으면 조인 필터가 섞여 다른 사용자 여행이 새기 쉽다.
@@ -49,7 +54,7 @@ export async function getTrips(userId: string): Promise<Trip[]> {
     .from("trips")
     .select("*")
     .eq("owner_user_id", userId)
-    .neq("status", TRIP_STATUS.DELETED);
+    .not("status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`);
 
   if (personalError) throw personalError;
 
@@ -59,7 +64,7 @@ export async function getTrips(userId: string): Promise<Trip[]> {
       .from("trips")
       .select("*")
       .in("group_id", groupIds)
-      .neq("status", TRIP_STATUS.DELETED);
+      .not("status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`);
     if (error) throw error;
     groupTrips = data ?? [];
   }
@@ -396,4 +401,122 @@ export async function closeTripIfEnded(trip: Trip): Promise<Trip> {
   }
 
   return trip;
+}
+
+// ── 여행 참가자 (trip_members) ───────────────────────────────────────────────
+//
+// 2026-09-09 확정 정책.
+//
+//   group_members  모임 여행을 **볼 수 있는** 권한
+//   trip_members   특정 여행을 **수정할 수 있는** 권한
+//
+// ⚠️ trip_members 에는 unique (trip_id, user_id) 가 없다. 같은 사람이 한 여행에
+//    여러 행을 가질 수 있으므로, 아래 함수들은 전부 "ACTIVE 행이 하나 이상"
+//    기준으로 판단하고 갱신할 때도 여러 행을 한 번에 다룬다.
+//    (unique 제약 추가는 초대·재참여 구현 시 별도 hardening 대상)
+
+/**
+ * 내가 지금 참가 중인 여행 id 집합.
+ *
+ * ⚠️ **한 번의 질의로 끝낸다.** 여행마다 참가 여부를 묻지 않는다(N+1 금지).
+ *    GROUP 카드 · 계좌 시트 · 여행 나가기 노출이 모두 이 값을 함께 쓴다.
+ *
+ * ⚠️ INVITED · LEFT 는 참가자가 아니다. ACTIVE 만 센다.
+ */
+export async function getMyParticipatingTripIds(
+  userId: string,
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("trip_members")
+    .select("trip_id")
+    .eq("user_id", userId)
+    .eq("status", TRIP_MEMBER_STATUS.ACTIVE);
+
+  if (error) throw error;
+  return new Set((data ?? []).map((row) => row.trip_id));
+}
+
+/**
+ * MY 전용 — 내가 실제로 참가 중인 여행만.
+ *
+ * ⚠️ getTrips 의 의미를 바꾸지 않는다. 그 함수는 HOME · 커뮤니티 글쓰기도
+ *    함께 쓰고 있어서, 거기까지 기준이 바뀌면 이번에 정하지 않은 정책이
+ *    따라 움직인다. (2026-09-09 확정 · B안) 그래서 **여기서 한 겹 걸러낸다.**
+ *
+ * ⚠️ 개인 여행도 그대로 남는다. 여행을 만들 때 본인이 trip_members 에
+ *    ACTIVE 로 들어간다. (app/trips/new/budget-fund.tsx · seed.sql 다낭)
+ */
+export async function getMyParticipatingTrips(userId: string): Promise<Trip[]> {
+  const [trips, participating] = await Promise.all([
+    getTrips(userId),
+    getMyParticipatingTripIds(userId),
+  ]);
+  return trips.filter((trip) => participating.has(trip.id));
+}
+
+/** MY 전용 — 위와 같은 기준에 금액 요약을 붙인 것. */
+export async function getMyParticipatingTripsWithSummary(
+  userId: string,
+): Promise<TripWithSummary[]> {
+  const [trips, participating] = await Promise.all([
+    getTripsWithSummary(userId),
+    getMyParticipatingTripIds(userId),
+  ]);
+  return trips.filter((trip) => participating.has(trip.id));
+}
+
+/**
+ * 나 말고 이 여행에 남아 있는 참가자 수. (ACTIVE 만)
+ *
+ * ⚠️ **마지막 참가자인지 가리는 값이다.** 0 이면 나 혼자다.
+ *    (2026-09-10 확정) 마지막 참가자는 여행에서 나갈 수 없다. 여행을 그만두려면
+ *    '여행 취소' 를 쓴다 — 그건 다른 담당 기능이고 여기서 건드리지 않는다.
+ *
+ * ⚠️ 전체 ACTIVE 행을 세지 않는다. unique (trip_id, user_id) 가 없어서 내
+ *    행이 중복으로 있으면 전체 개수가 부풀려지고, 혼자인데도 "혼자가 아니다"
+ *    로 읽힌다. **내 행을 빼고** 세면 중복이 있어도 답이 맞는다.
+ *
+ * ⚠️ user_id 가 null 인 행은 남긴다. 아직 가입하지 않은 동행자를
+ *    display_name 으로 넣어 둔 행이고, 그 사람도 이 여행의 참가자다.
+ *    (`user_id.neq` 만 쓰면 null 행이 통째로 빠진다 — SQL 에서 null 비교는
+ *    참이 되지 않는다. 그래서 or 로 null 을 따로 살린다.)
+ */
+export async function getOtherActiveTripMemberCount(
+  tripId: string,
+  userId: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("trip_members")
+    .select("id", { count: "exact", head: true })
+    .eq("trip_id", tripId)
+    .eq("status", TRIP_MEMBER_STATUS.ACTIVE)
+    .or(`user_id.is.null,user_id.neq.${userId}`);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * 이 여행에서 나간다. (본인)
+ *
+ * ⚠️ status 를 LEFT 로 바꿀 뿐이다. 행을 지우지 않는다.
+ *
+ * ⚠️ **금융 데이터를 하나도 건드리지 않는다.** contributions · transactions ·
+ *    fund_sources · settlements 어디에도 접근하지 않는다. 이미 낸 돈이 있어도
+ *    나가기를 막지 않고, 자동 환불·재분배도 하지 않는다. (2026-09-09 확정)
+ *
+ * ⚠️ group_members 도 건드리지 않는다. 모임에서 나가는 것이 아니다.
+ *
+ * ⚠️ ACTIVE 행이 여러 개일 수 있어 `.eq('status', ACTIVE)` 로 **전부** 바꾼다.
+ *    하나만 바꾸면 참가자로 남는 행이 생긴다.
+ */
+export async function leaveTrip(tripId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("trip_members")
+    .update({ status: TRIP_MEMBER_STATUS.LEFT })
+    .eq("trip_id", tripId)
+    .eq("user_id", userId)
+    .eq("status", TRIP_MEMBER_STATUS.ACTIVE);
+
+  if (error) throw error;
 }

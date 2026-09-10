@@ -22,6 +22,7 @@ import { AUTH_PROVIDER } from '@/lib/constants/status';
 import {
   getUserProfile,
   readOAuthProfile,
+  toProductAuthProvider,
   updateUserName,
   withdrawUser,
 } from '@/lib/supabase/queries/users';
@@ -59,10 +60,15 @@ export default function ScreenMyAccount() {
    *
    * MVP 는 kakao 만 구현한다. (lib/constants/status.ts AUTH_PROVIDER)
    * 그 외 값이면 null 을 주고 화면에서 그 영역 자체를 그리지 않는다.
+   *
+   * ⚠️ 저장된 값을 그대로 비교하지 않는다. Custom OIDC 로 만들어진 행에는
+   *    'custom:kakao-oidc' 가 들어 있어서, 그대로 비교하면 카카오로 로그인한
+   *    사용자에게 '연결된 계정' 이 통째로 사라진다. 읽을 때 한 번 더
+   *    제품 기준으로 바꾼다. (toProductAuthProvider)
    */
   const toAccountLabel = useCallback(
     (authProvider: string | null): string | null => {
-      if (authProvider !== AUTH_PROVIDER.KAKAO) return null;
+      if (toProductAuthProvider(authProvider) !== AUTH_PROVIDER.KAKAO) return null;
 
       const nickname = session?.user ? readOAuthProfile(session.user).name : null;
       return nickname ? `카카오 로그인 · ${nickname}` : '카카오 로그인';
