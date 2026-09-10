@@ -972,6 +972,96 @@ export type Database = {
           },
         ]
       }
+      trip_cancel_requests: {
+        Row: {
+          expires_at: string
+          id: string
+          reason: string | null
+          requested_at: string
+          requested_by: string
+          resolved_at: string | null
+          resolved_note: string | null
+          status: string
+          trip_id: string
+        }
+        Insert: {
+          expires_at: string
+          id?: string
+          reason?: string | null
+          requested_at?: string
+          requested_by: string
+          resolved_at?: string | null
+          resolved_note?: string | null
+          status?: string
+          trip_id: string
+        }
+        Update: {
+          expires_at?: string
+          id?: string
+          reason?: string | null
+          requested_at?: string
+          requested_by?: string
+          resolved_at?: string | null
+          resolved_note?: string | null
+          status?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_cancel_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_cancel_requests_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_cancel_votes: {
+        Row: {
+          id: string
+          request_id: string
+          user_id: string
+          vote: string
+          voted_at: string
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          user_id: string
+          vote: string
+          voted_at?: string
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          user_id?: string
+          vote?: string
+          voted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_cancel_votes_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "trip_cancel_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_cancel_votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_invites: {
         Row: {
           created_at: string
@@ -1222,7 +1312,10 @@ export type Database = {
       }
       trips: {
         Row: {
+          cancel_reason: string | null
           canceled_at: string | null
+          canceled_by: string | null
+          canceled_fund_snapshot_json: Json | null
           created_at: string
           currency: string
           destination: string | null
@@ -1240,7 +1333,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancel_reason?: string | null
           canceled_at?: string | null
+          canceled_by?: string | null
+          canceled_fund_snapshot_json?: Json | null
           created_at?: string
           currency?: string
           destination?: string | null
@@ -1258,7 +1354,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancel_reason?: string | null
           canceled_at?: string | null
+          canceled_by?: string | null
+          canceled_fund_snapshot_json?: Json | null
           created_at?: string
           currency?: string
           destination?: string | null
@@ -1276,6 +1375,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "trips_canceled_by_fkey"
+            columns: ["canceled_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trips_group_id_fkey"
             columns: ["group_id"]

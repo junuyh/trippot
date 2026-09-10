@@ -59,6 +59,17 @@ export const TRIP_STATUS = {
    * trips.canceled_at 이 취소 확정 시각이며 되돌리기 72시간의 기준이다.
    * (20260909000001_trips_canceled_status.sql · 2026-09-09)
    */
+  /**
+   * 취소가 요청되어 동의 절차가 도는 중. 아직 취소된 게 아니다.
+   * trip_cancel_requests 에 PENDING 요청이 한 건 있고, 요청자를 뺀 전원이
+   * 동의하면 CANCELED 로 넘어간다. 7일 안에 안 모이면 만료된다.
+   * (20260910000002_trip_cancel.sql · 2026-09-10)
+   *
+   * ⚠️ 이 상태의 여행은 **홈 진행 중 목록에 보여야 한다.** 동의할 사람이
+   *    들어갈 길이 그 목록뿐이다. 지금 app/(tabs)/index.tsx 는 PLANNING·
+   *    TRAVELING 만 통과시켜 이 값이 빠진다. 취소 기능을 붙일 때 함께 고친다.
+   */
+  CANCEL_PENDING: "CANCEL_PENDING",
   CANCELED: "CANCELED",
 } as const;
 export type TripStatus = (typeof TRIP_STATUS)[keyof typeof TRIP_STATUS];
@@ -726,6 +737,7 @@ export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
   ENDED: "종료",
   SETTLED: "결산 완료",
   DELETED: "삭제됨",
+  CANCEL_PENDING: "취소 요청됨",
   CANCELED: "취소됨",
 };
 
