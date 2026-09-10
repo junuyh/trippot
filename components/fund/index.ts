@@ -8,3 +8,5 @@ export {
   TransactionDetailBody,
   type TransactionDetail,
 } from "./TransactionDetailBody";
+export { ReceiptSourceSheet } from "./ReceiptSourceSheet";
+export { ReceiptScanningOverlay } from "./ReceiptScanningOverlay";

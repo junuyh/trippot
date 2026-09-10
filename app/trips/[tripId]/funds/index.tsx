@@ -26,7 +26,7 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -37,6 +37,8 @@ import {
 
 import {
   FundSummaryCard,
+  ReceiptScanningOverlay,
+  ReceiptSourceSheet,
   RecentFundList,
   type FundDraft,
 } from "@/components/fund";
@@ -64,6 +66,15 @@ import {
   type RefundStatus,
   type TransactionType,
 } from "@/lib/constants/status";
+import {
+  receiptAmountKrw,
+  receiptCurrencyNote,
+  receiptDateNote,
+  receiptItemsLabel,
+  type ReceiptScanResult,
+} from "@/lib/budget/receiptScan";
+import { useReceiptScan } from "@/lib/hooks/useReceiptScan";
+import type { ReceiptImageSource } from "@/lib/receipt/pickReceiptImage";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
@@ -99,7 +110,11 @@ type FundData = {
 };
 
 export default function ScreenFUND01() {
-  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  const { tripId, scan: scanParam } = useLocalSearchParams<{
+    tripId: string;
+    /** 'receipt' 면 들어오자마자 영수증 기록 방법을 묻는다 (여행 홈 TODAY 카드) */
+    scan?: string;
+  }>();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
   useScreenView(SCREENS.TRANSACTION_LIST);
@@ -176,6 +191,25 @@ export default function ScreenFUND01() {
    */
   const [draftCategoryId, setDraftCategoryId] = useState<string | null>(null);
 
+  // ── 영수증으로 기록 ──────────────────────────────────────────────────
+  //
+  //   지출 버튼 → 방법 시트(촬영 / 앨범 / 직접 입력) → 사진 → Edge Function 이
+  //   가맹점·금액·날짜·카테고리를 읽음 → **지출 폼에 채워서** 보여줌 → 사용자가
+  //   확인하고 '기록하기'. 읽은 값은 제안이지 확정이 아니다. (CLAUDE.md 3장)
+  //
+  //   ⚠️ 영수증이 고른 카테고리는 category_method=AUTO 로 저장돼 '확인 필요' 에
+  //      잡힌다. 사용자가 폼에서 다른 칩을 고르면 그때부터 USER 다.
+  const [sourceOpen, setSourceOpen] = useState(false);
+  /** 폼에 채운 영수증. 배너와 저장 방식(AUTO)을 정한다. 직접 입력이면 null */
+  const [receipt, setReceipt] = useState<ReceiptScanResult | null>(null);
+  /** 영수증이 고른 카테고리 id. 사용자가 바꿨는지 비교한다 */
+  const receiptCategoryRef = useRef<string | null>(null);
+  const receiptScan = useReceiptScan({
+    destination: data?.trip.destination ?? null,
+    tripStart: data?.trip.start_date ?? null,
+    tripEnd: data?.trip.end_date ?? null,
+  });
+
   /**
    * 거래명으로 카테고리를 추측해 붙인다.
    *
@@ -222,8 +256,57 @@ export default function ScreenFUND01() {
     setOccurredOn(format(new Date(), "yyyy-MM-dd"));
     setDraftCategoryId(null);
     setNameError(null);
+    setReceipt(null);
+    receiptCategoryRef.current = null;
     setSheetType(type);
   }, []);
+
+  /**
+   * 영수증을 읽어 지출 폼에 채운다. 못 읽으면 훅이 안내하고 여기서는 아무것도 안 한다.
+   *
+   * ⚠️ 방법 시트(Modal)가 **완전히 내려간 뒤**에 사진 선택기를 연다. 닫히는 중에
+   *    열면 iOS 가 조용히 무시하고 아무 일도 안 일어난다. iOS 는 Modal 의
+   *    onDismiss 로, 그 콜백이 없는 Android 는 타이머로 이어 간다. 둘 중 먼저 온
+   *    쪽만 실행되게 ref 로 막는다.
+   */
+  const pendingSourceRef = useRef<ReceiptImageSource | null>(null);
+  const runPendingScan = useCallback(async () => {
+    const source = pendingSourceRef.current;
+    if (!source) return;
+    pendingSourceRef.current = null;
+
+    const result = await receiptScan.scan(source);
+    if (!result || !data) return;
+
+    const category = result.categoryCode
+      ? (data.categories.find((c) => c.category_code === result.categoryCode) ?? null)
+      : null;
+    setDraft({ name: result.merchant ?? "영수증 지출", amount: receiptAmountKrw(result) });
+    setOccurredOn(result.date ?? format(new Date(), "yyyy-MM-dd"));
+    setDraftCategoryId(category?.id ?? null);
+    receiptCategoryRef.current = category?.id ?? null;
+    setNameError(null);
+    setReceipt(result);
+    setSheetType(TRANSACTION_TYPE.WITHDRAWAL);
+  }, [data, receiptScan]);
+
+  const handleReceipt = useCallback(
+    (source: ReceiptImageSource) => {
+      pendingSourceRef.current = source;
+      setSourceOpen(false);
+      // Android 폴백. iOS 는 onDismiss 가 먼저 와서 이 타이머는 빈손으로 끝난다
+      setTimeout(() => void runPendingScan(), 700);
+    },
+    [runPendingScan],
+  );
+
+  /** 여행 홈 TODAY 카드에서 ?scan=receipt 로 들어오면 바로 방법을 묻는다. 한 번만 */
+  const scanParamUsedRef = useRef(false);
+  useEffect(() => {
+    if (scanParam !== "receipt" || !data || scanParamUsedRef.current) return;
+    scanParamUsedRef.current = true;
+    setSourceOpen(true);
+  }, [data, scanParam]);
 
   const handleSubmit = useCallback(async () => {
     if (!data || !sheetType || saving) return;
@@ -263,8 +346,14 @@ export default function ScreenFUND01() {
          *    null 을 넣을 수 없다. NONE 은 '아직 분류 안 함' 을 뜻한다.
          */
         category_method: draftCategoryId
-          ? CATEGORY_METHOD.USER
+          ? receipt && receiptCategoryRef.current === draftCategoryId
+            ? CATEGORY_METHOD.AUTO // 영수증이 고른 그대로면 추측이다. 확인 필요에 잡힌다
+            : CATEGORY_METHOD.USER
           : CATEGORY_METHOD.NONE,
+        category_confidence:
+          draftCategoryId && receipt && receiptCategoryRef.current === draftCategoryId
+            ? receipt.confidence
+            : null,
       });
       setSheetType(null);
       await load();
@@ -297,6 +386,7 @@ export default function ScreenFUND01() {
     draftCategoryId,
     load,
     occurredOn,
+    receipt,
     saving,
     sheetType,
   ]);
@@ -409,7 +499,8 @@ export default function ScreenFUND01() {
           targetAmount={targetAmount}
           spentAmount={data.withdrawalTotal}
           onRecordDeposit={() => openSheet(TRANSACTION_TYPE.DEPOSIT)}
-          onRecordExpense={() => openSheet(TRANSACTION_TYPE.WITHDRAWAL)}
+          /* 지출은 영수증/직접 입력 중에서 고른다. 입금은 영수증이 없으니 바로 폼 */
+          onRecordExpense={() => setSourceOpen(true)}
         />
 
         {/*
@@ -592,6 +683,38 @@ export default function ScreenFUND01() {
         }
       >
         <View style={{ gap: 13, paddingTop: 13 }}>
+          {receipt ? (
+            <View
+              style={{
+                borderRadius: 12,
+                backgroundColor: theme.primarySoft,
+                padding: 12,
+                gap: 4,
+              }}
+            >
+              <View className="flex-row items-center" style={{ gap: 6 }}>
+                <Ionicons name="receipt-outline" size={14} color={theme.primary} />
+                <Text style={{ fontSize: 12, fontWeight: "800", color: theme.primary }}>
+                  영수증에서 읽었어요 · 확인하고 기록해 주세요
+                </Text>
+              </View>
+              {receiptCurrencyNote(receipt) ? (
+                <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }}>
+                  {receiptCurrencyNote(receipt)}
+                </Text>
+              ) : null}
+              {receiptDateNote(receipt, data.trip.start_date, data.trip.end_date) ? (
+                <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }}>
+                  {receiptDateNote(receipt, data.trip.start_date, data.trip.end_date)}
+                </Text>
+              ) : null}
+              {receipt.items.length > 0 ? (
+                <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }} numberOfLines={3}>
+                  {receiptItemsLabel(receipt.items)}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           <Input
             label="거래명"
             required
@@ -703,11 +826,30 @@ export default function ScreenFUND01() {
               {"\n"}
               {deposit
                 ? "잘못 넣었다면 입출금 전체 내역에서 지울 수 있어요."
-                : "카테고리는 비어 있어요. 거래 상세에서 지정하면 그 카테고리의 실제 사용액에 반영돼요."}
+                : draftCategoryId
+                  ? receipt && receiptCategoryRef.current === draftCategoryId
+                    ? "영수증을 보고 고른 카테고리예요. 기록 뒤 '확인 필요' 에서 한 번 더 확인해요."
+                    : "고른 카테고리의 실제 사용액에 바로 반영돼요."
+                  : "카테고리는 비어 있어요. 거래 상세에서 지정하면 그 카테고리의 실제 사용액에 반영돼요."}
             </Text>
           </View>
         </View>
       </BottomSheet>
+
+      {/* ── 지출 기록 방법 ── 촬영 / 앨범 / 직접 입력 */}
+      <ReceiptSourceSheet
+        visible={sourceOpen}
+        onClose={() => setSourceOpen(false)}
+        theme={theme}
+        onCamera={() => handleReceipt("camera")}
+        onLibrary={() => handleReceipt("library")}
+        onDismiss={() => void runPendingScan()}
+        onManual={() => {
+          setSourceOpen(false);
+          openSheet(TRANSACTION_TYPE.WITHDRAWAL);
+        }}
+      />
+      <ReceiptScanningOverlay visible={receiptScan.phase === "scanning"} />
     </View>
   );
 }
