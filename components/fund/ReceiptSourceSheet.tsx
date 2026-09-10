@@ -21,6 +21,8 @@ type Props = {
   onCamera: () => void;
   onLibrary: () => void;
   onManual: () => void;
+  /** 시트가 완전히 내려간 뒤. 화면이 이때 사진 선택기를 연다 */
+  onDismiss?: () => void;
 };
 
 function Row({
@@ -71,13 +73,14 @@ function Row({
   );
 }
 
-export function ReceiptSourceSheet({ visible, onClose, theme, onCamera, onLibrary, onManual }: Props) {
+export function ReceiptSourceSheet({ visible, onClose, theme, onCamera, onLibrary, onManual, onDismiss }: Props) {
   return (
     <BottomSheet
       visible={visible}
       title="지출 기록"
       description="영수증을 찍으면 가맹점·금액·날짜를 읽어서 채워 드려요. 확인만 하고 기록하면 돼요."
       onClose={onClose}
+      onDismiss={onDismiss}
     >
       <View style={{ gap: 9, paddingTop: 12, paddingBottom: 4 }}>
         <Row

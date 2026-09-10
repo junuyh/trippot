@@ -259,25 +259,43 @@ export default function ScreenFUND01() {
     setSheetType(type);
   }, []);
 
-  /** 영수증을 읽어 지출 폼에 채운다. 못 읽으면 훅이 안내하고 여기서는 아무것도 안 한다 */
-  const handleReceipt = useCallback(
-    async (source: ReceiptImageSource) => {
-      setSourceOpen(false);
-      const result = await receiptScan.scan(source);
-      if (!result || !data) return;
+  /**
+   * 영수증을 읽어 지출 폼에 채운다. 못 읽으면 훅이 안내하고 여기서는 아무것도 안 한다.
+   *
+   * ⚠️ 방법 시트(Modal)가 **완전히 내려간 뒤**에 사진 선택기를 연다. 닫히는 중에
+   *    열면 iOS 가 조용히 무시하고 아무 일도 안 일어난다. iOS 는 Modal 의
+   *    onDismiss 로, 그 콜백이 없는 Android 는 타이머로 이어 간다. 둘 중 먼저 온
+   *    쪽만 실행되게 ref 로 막는다.
+   */
+  const pendingSourceRef = useRef<ReceiptImageSource | null>(null);
+  const runPendingScan = useCallback(async () => {
+    const source = pendingSourceRef.current;
+    if (!source) return;
+    pendingSourceRef.current = null;
 
-      const category = result.categoryCode
-        ? (data.categories.find((c) => c.category_code === result.categoryCode) ?? null)
-        : null;
-      setDraft({ name: result.merchant ?? "영수증 지출", amount: receiptAmountKrw(result) });
-      setOccurredOn(result.date ?? format(new Date(), "yyyy-MM-dd"));
-      setDraftCategoryId(category?.id ?? null);
-      receiptCategoryRef.current = category?.id ?? null;
-      setNameError(null);
-      setReceipt(result);
-      setSheetType(TRANSACTION_TYPE.WITHDRAWAL);
+    const result = await receiptScan.scan(source);
+    if (!result || !data) return;
+
+    const category = result.categoryCode
+      ? (data.categories.find((c) => c.category_code === result.categoryCode) ?? null)
+      : null;
+    setDraft({ name: result.merchant ?? "영수증 지출", amount: receiptAmountKrw(result) });
+    setOccurredOn(result.date ?? format(new Date(), "yyyy-MM-dd"));
+    setDraftCategoryId(category?.id ?? null);
+    receiptCategoryRef.current = category?.id ?? null;
+    setNameError(null);
+    setReceipt(result);
+    setSheetType(TRANSACTION_TYPE.WITHDRAWAL);
+  }, [data, receiptScan]);
+
+  const handleReceipt = useCallback(
+    (source: ReceiptImageSource) => {
+      pendingSourceRef.current = source;
+      setSourceOpen(false);
+      // Android 폴백. iOS 는 onDismiss 가 먼저 와서 이 타이머는 빈손으로 끝난다
+      setTimeout(() => void runPendingScan(), 700);
     },
-    [data, receiptScan],
+    [runPendingScan],
   );
 
   /** 여행 홈 TODAY 카드에서 ?scan=receipt 로 들어오면 바로 방법을 묻는다. 한 번만 */
@@ -812,8 +830,9 @@ export default function ScreenFUND01() {
         visible={sourceOpen}
         onClose={() => setSourceOpen(false)}
         theme={theme}
-        onCamera={() => void handleReceipt("camera")}
-        onLibrary={() => void handleReceipt("library")}
+        onCamera={() => handleReceipt("camera")}
+        onLibrary={() => handleReceipt("library")}
+        onDismiss={() => void runPendingScan()}
         onManual={() => {
           setSourceOpen(false);
           openSheet(TRANSACTION_TYPE.WITHDRAWAL);

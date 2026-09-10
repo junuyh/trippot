@@ -25,6 +25,11 @@ type Props = {
   children: ReactNode;
   /** 하단 고정 영역. 보통 취소 / 확인 버튼 */
   footer?: ReactNode;
+  /**
+   * 시트가 완전히 내려간 뒤(iOS 만). 시트를 닫고 곧바로 사진 선택기처럼
+   * 다른 네이티브 화면을 띄워야 할 때 쓴다. 닫히는 중에 띄우면 iOS 가 무시한다.
+   */
+  onDismiss?: () => void;
 };
 
 export function BottomSheet({
@@ -34,6 +39,7 @@ export function BottomSheet({
   onClose,
   children,
   footer,
+  onDismiss,
 }: Props) {
   return (
     <Modal
@@ -41,6 +47,7 @@ export function BottomSheet({
       transparent
       animationType="slide"
       onRequestClose={onClose}
+      onDismiss={onDismiss}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
