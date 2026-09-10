@@ -25,18 +25,16 @@
 //
 // 데이터 조회·상태 관리만 한다. UI 는 components/trip-edit/.
 // ============================================================================
-import * as Clipboard from "expo-clipboard";
 import { format, isAfter, parseISO } from "date-fns";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, Share, View } from "react-native";
 
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
-import { InviteMembersSheet, TripEditForm } from "@/components/trip-edit";
+import { TripEditForm } from "@/components/trip-edit";
 import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { TRIP_OWNER_TYPE, TRIP_STATUS } from "@/lib/constants/status";
-import { buildGroupInviteLink, buildInviteMessage, pickInviteTemplate } from "@/lib/invite/inviteLink";
 import { getGroupTrips, getMyGroups, type Group } from "@/lib/supabase/queries/groups";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
@@ -72,6 +70,35 @@ function goNewGroup(tripId: string, fromGroupId: string | null) {
   router.push(`${NEW_GROUP_HREF}?${query.toString()}` as never);
 }
 
+/**
+ * 여행 초대(INV) — 링크 발급 · 참여 요청 · 여행장 수락. 다빈 담당 (이슈 #73 · PR #74).
+ *
+ * ⚠️ 2026-09-10 · **모임 초대를 여행 초대로 흡수했다.**
+ *    이 화면이 직접 만들던 모임 초대 링크(trippot://groups/:id/join)는 폐기했다.
+ *      · 링크를 받는 화면이 없어 실제로 합류가 안 됐다
+ *      · 모임 id 를 그대로 실어 보냈고 만료도 수락 절차도 없었다
+ *    여행 초대는 토큰 · 7일 만료 · 여행장 수락까지 갖춰져 있다.
+ *
+ * ⚠️ 라우트(/invite/[token])와 서비스 함수가 아직 없다. 준비되면 여기를 바꾼다.
+ *      TRIP_INVITE_READY = true
+ *      goTripInvite() 안에서 초대 링크를 발급하고 INV-01 공유 시트를 연다
+ *
+ * ⚠️ 초대 문구 11종은 lib/invite/inviteLink.ts 에 그대로 남겨 뒀다.
+ *    여행 초대에서도 같은 문구를 쓰기로 했다. (2026-09-10 결정)
+ */
+const TRIP_INVITE_READY = false;
+
+function goTripInvite() {
+  if (!TRIP_INVITE_READY) {
+    Alert.alert(
+      "멤버 초대는 준비 중이에요",
+      "초대 링크를 보내면 상대가 참여를 요청하고, 여행장이 수락하면 합류하는 방식으로 준비하고 있어요. 곧 여기서 바로 이어져요.",
+    );
+    return;
+  }
+  // [팀원] 초대 링크 발급 → INV-01 공유 시트
+}
+
 export default function ScreenTripEdit() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   // 로그인한 사용자. 개인 여행으로 바꿀 때 소유자가 된다.
@@ -97,11 +124,6 @@ export default function ScreenTripEdit() {
 
   // ── 여행 멤버 초대 ────────────────────────────────────────────────────
   const [inviting, setInviting] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  /** 초대 문구 버전. 시트를 열 때마다 새로 뽑는다 (11종 랜덤) */
-  const [inviteVariant, setInviteVariant] = useState(0);
-  const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     if (!tripId) {
@@ -180,10 +202,6 @@ export default function ScreenTripEdit() {
     () => groups.find((g) => g.id === groupId) ?? null,
     [groupId, groups],
   );
-  const inviteLink = useMemo(
-    () => (selectedGroup ? buildGroupInviteLink(selectedGroup.id) : ""),
-    [selectedGroup],
-  );
   const periodLabel =
     startDate && endDate
       ? `${format(parseISO(startDate), "M.d")}–${format(parseISO(endDate), "M.d")}`
@@ -213,58 +231,13 @@ export default function ScreenTripEdit() {
         goNewGroup(trip.id, selectedGroup.id);
         return;
       }
-      setCopied(false);
-      setInviteVariant(pickInviteTemplate());
-      setInviteOpen(true);
+      goTripInvite();
     } catch {
       Alert.alert("확인하지 못했어요", "모임의 여행 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setInviting(false);
     }
   }, [inviting, selectedGroup, trip]);
-
-  /**
-   * 카카오톡으로 초대. OS 공유 시트를 연다. 카카오톡이 깔려 있으면 거기서 고른다.
-   * [검토 필요] 카카오톡 대화방 선택으로 바로 가려면 카카오 SDK 네이티브 모듈이
-   * 필요하다. Expo Go 에서는 못 쓰므로 dev build 로 갈 때 붙인다.
-   */
-  /** 초대 문구 + 링크. 카카오톡 공유와 링크 복사가 같은 글을 쓴다 */
-  const inviteMessage = useMemo(
-    () =>
-      selectedGroup && trip
-        ? buildInviteMessage(
-            {
-              destination: trip.destination ?? "여행",
-              groupName: selectedGroup.name,
-              periodLabel,
-              link: inviteLink,
-            },
-            inviteVariant,
-          )
-        : "",
-    [inviteLink, inviteVariant, periodLabel, selectedGroup, trip],
-  );
-
-  const handleShareKakao = useCallback(async () => {
-    if (!inviteMessage) return;
-    try {
-      await Share.share({ message: inviteMessage });
-    } catch {
-      // 공유 시트를 닫은 것도 여기로 온다. 실패로 알리지 않는다.
-    }
-  }, [inviteMessage]);
-
-  const handleCopyLink = useCallback(async () => {
-    if (!inviteMessage) return;
-    try {
-      await Clipboard.setStringAsync(inviteMessage);
-      setCopied(true);
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
-      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      Alert.alert("복사하지 못했어요", "잠시 후 다시 시도해 주세요.");
-    }
-  }, [inviteMessage]);
 
   // ── 4상태 ─────────────────────────────────────────────────────────────
   if (loading) {
@@ -376,16 +349,6 @@ export default function ScreenTripEdit() {
         inviting={inviting}
       />
 
-      {selectedGroup ? (
-        <InviteMembersSheet
-          visible={inviteOpen}
-          onClose={() => setInviteOpen(false)}
-          groupName={selectedGroup.name}
-          onShareKakao={() => void handleShareKakao()}
-          onCopyLink={() => void handleCopyLink()}
-          copied={copied}
-        />
-      ) : null}
     </ScrollView>
   );
 }

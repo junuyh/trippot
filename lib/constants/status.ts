@@ -59,6 +59,17 @@ export const TRIP_STATUS = {
    * trips.canceled_at 이 취소 확정 시각이며 되돌리기 72시간의 기준이다.
    * (20260909000001_trips_canceled_status.sql · 2026-09-09)
    */
+  /**
+   * 취소가 요청되어 동의 절차가 도는 중. 아직 취소된 게 아니다.
+   * trip_cancel_requests 에 PENDING 요청이 한 건 있고, 요청자를 뺀 전원이
+   * 동의하면 CANCELED 로 넘어간다. 7일 안에 안 모이면 만료된다.
+   * (20260910000002_trip_cancel.sql · 2026-09-10)
+   *
+   * ⚠️ 이 상태의 여행은 **홈 진행 중 목록에 보여야 한다.** 동의할 사람이
+   *    들어갈 길이 그 목록뿐이다. 지금 app/(tabs)/index.tsx 는 PLANNING·
+   *    TRAVELING 만 통과시켜 이 값이 빠진다. 취소 기능을 붙일 때 함께 고친다.
+   */
+  CANCEL_PENDING: "CANCEL_PENDING",
   CANCELED: "CANCELED",
 } as const;
 export type TripStatus = (typeof TRIP_STATUS)[keyof typeof TRIP_STATUS];
@@ -263,6 +274,14 @@ export type InsuranceReferralStatus =
  *
  * ⚠️ 화면·기능 코드에서는 type 문자열을 직접 쓰지 않고
  *    반드시 `NOTIFICATION_TYPE` 을 사용한다.
+ *
+ * ⚠️ 이 목록은 아래 둘과 **글자 하나까지 같아야 한다.** 하나라도 다르면 알림이
+ *    저장되지 않는다.
+ *      supabase/migrations/20260910000001_trip_invites_members.sql ⑥ 의 CHECK
+ *      docs/05_ERD 의 확정 목록
+ *
+ * ⚠️ INV 7종 · CXL 7종은 값만 열어 둔 상태다. 발송하는 코드는 아직 없다.
+ *    (2026-09-10 · 이슈 #73 확정본)
  */
 export const NOTIFICATION_TYPE = {
   /** 전체 목표 여행비 100% 최초 달성 */
@@ -271,6 +290,39 @@ export const NOTIFICATION_TYPE = {
   TRIP_D7: "TRIP_D7",
   /** 여행 종료 후 정산 가능 */
   SETTLEMENT_READY: "SETTLEMENT_READY",
+
+  // ── 초대 · 멤버 (INV/MEM) ─────────────────────────────────────────────
+  // 2026-09-10 · 이슈 #73 확정본. 발송 코드는 아직 없다. 값을 먼저 연다.
+  /** 초대 링크 발송 → 초대받은 사람 */
+  INVITE_SENT: "INVITE_SENT",
+  /** 참여 요청 도착 → 여행장 */
+  JOIN_REQUESTED: "JOIN_REQUESTED",
+  /** 수락됨 → 요청자 */
+  JOIN_ACCEPTED: "JOIN_ACCEPTED",
+  /** 거절됨 → 요청자 */
+  JOIN_REJECTED: "JOIN_REJECTED",
+  /** 새 멤버 합류 → 기존 멤버 */
+  MEMBER_JOINED: "MEMBER_JOINED",
+  /** 멤버 이탈 → 남은 멤버 */
+  MEMBER_LEFT: "MEMBER_LEFT",
+  /** 여행장 위임 → 새 여행장 */
+  OWNER_DELEGATED: "OWNER_DELEGATED",
+
+  // ── 여행 취소 (CXL) ──────────────────────────────────────────────────
+  /** 취소 요청 발생 → 동의 대상 전원 */
+  CANCEL_REQUESTED: "CANCEL_REQUESTED",
+  /** 멤버가 동의 → 요청자 */
+  CANCEL_VOTE_AGREED: "CANCEL_VOTE_AGREED",
+  /** 멤버가 반대 → 요청 폐기 → 전원 */
+  CANCEL_REJECTED: "CANCEL_REJECTED",
+  /** 만료 → 요청 폐기 → 전원 */
+  CANCEL_EXPIRED: "CANCEL_EXPIRED",
+  /** 요청자 철회 → 전원 */
+  CANCEL_WITHDRAWN: "CANCEL_WITHDRAWN",
+  /** 전원 동의 → 취소 확정 → 전원 */
+  CANCEL_CONFIRMED: "CANCEL_CONFIRMED",
+  /** 되돌리기 실행 → 전원 */
+  CANCEL_RESTORED: "CANCEL_RESTORED",
 } as const;
 export type NotificationType =
   (typeof NOTIFICATION_TYPE)[keyof typeof NOTIFICATION_TYPE];
@@ -726,6 +778,7 @@ export const TRIP_STATUS_LABEL: Record<TripStatus, string> = {
   ENDED: "종료",
   SETTLED: "결산 완료",
   DELETED: "삭제됨",
+  CANCEL_PENDING: "취소 요청됨",
   CANCELED: "취소됨",
 };
 
