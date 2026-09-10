@@ -284,7 +284,7 @@ export function TripEditForm({
             <Text style={{ fontSize: 13, fontWeight: "800", color: INK }}>여행 멤버 초대하기</Text>
             <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
               {selectedGroup
-                ? "카카오톡으로 보내거나 초대 링크를 복사해요. 이미 다녀온 여행이 있는 모임이면 새 모임을 만들어요."
+                ? "초대 링크를 보내면 상대가 참여를 요청하고, 수락하면 합류해요. 이미 다녀온 여행이 있는 모임이면 새 모임을 만들어요."
                 : "먼저 모임을 고르거나, 새 모임을 만들어 초대해요."}
             </Text>
           </View>

@@ -1,22 +1,16 @@
 // ============================================================================
-// 모임 초대 링크 · 초대 문구 (TRIP-02 여행 정보 수정 → 여행 멤버 초대하기)
+// 초대 문구 11종 — 여행 초대(INV)에서 쓴다
 //
-// ⚠️ [검토 필요] 지금 링크는 **모임 id 를 그대로 싣는다.** 링크를 받은 사람이
-//    실제로 모임에 합류하려면 group_members 에 자기 행을 넣어야 하는데, RLS 상
-//    모임원이 아닌 사용자는 넣을 수 없다. 합류를 열려면
-//      · group_invites(token · group_id · expires_at · created_by) 테이블  ← DB 담당
-//      · 토큰을 검증해 group_members 에 넣는 Edge Function
-//    이 필요하다. 그때 buildGroupInviteLink 는 토큰을 싣도록 바뀌고, 이 파일을
-//    쓰는 쪽은 안 바뀐다.
+// ⚠️ 2026-09-10 · **모임 초대 링크(trippot://groups/:id/join)를 폐기했다.**
+//    받는 화면이 없어 실제로 합류가 안 됐고, 모임 id 를 그대로 실어 보냈으며
+//    만료도 수락 절차도 없었다. 초대는 여행 초대(INV) 하나로 모은다.
+//    링크는 그쪽이 토큰으로 만든다 (trip_invites · 7일 만료 · 여행장 수락).
+//
+// 이 파일에는 **문구만** 남는다. 링크는 buildInviteMessage 의 인자로 받는다.
+// 어떤 링크를 넣든 문구는 그대로 쓸 수 있다.
 //
 // ⚠️ 순수 함수. 네트워크도 스토리지도 없다.
 // ============================================================================
-import * as Linking from "expo-linking";
-
-/** 초대를 받은 사람이 여는 경로. /groups/:groupId/join 은 아직 없다 [팀원] */
-export function buildGroupInviteLink(groupId: string): string {
-  return Linking.createURL(`/groups/${groupId}/join`);
-}
 
 /**
  * 초대 문구 11종. 보낼 때마다 하나를 고른다. (사용자가 정리한 문안 · 2026-09-09)
