@@ -293,6 +293,13 @@ export default function ScreenHOME01() {
   const ongoingTrips: OngoingTripCardData[] = trips
     .flatMap((trip) => {
       const status = toTripStatus(trip.status);
+      /*
+        ⚠️ CANCEL_PENDING 이 여기서 빠진다. (2026-09-10)
+           취소 동의 절차가 도는 여행은 홈 목록에서 사라지는데, 동의할 사람이
+           그 여행에 들어갈 길이 이 목록뿐이다. 취소 기능(CXL)을 붙일 때
+           이 조건에 CANCEL_PENDING 을 넣고 카드에 표시를 더한다.
+           지금은 이 값을 쓰는 코드가 없어 실제로 빠지는 여행이 없다.
+      */
       if (status !== TRIP_STATUS.PLANNING && status !== TRIP_STATUS.TRAVELING) return [];
       return [
         {
