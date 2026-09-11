@@ -83,7 +83,7 @@ export function DestinationDetailView({
         {/* ── OO는 이런 여행지예요! ──────────────────────────────────────── */}
         <View style={{ marginTop: GAP }}>
           <SectionHeading title={`${destination.nameKo}는 이런 여행지예요!`} accent={accent} />
-          <Text style={{ fontSize: 13.5, lineHeight: 22, color: CAPTION }}>
+          <Text style={{ fontSize: 14.5, lineHeight: 22, color: CAPTION }}>
             {destination.intro}
           </Text>
         </View>

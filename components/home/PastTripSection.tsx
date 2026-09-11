@@ -44,8 +44,7 @@ import type { EndedTripCardData } from './types';
 
 type Props = {
   trips: EndedTripCardData[];
-  /** 홈에 다 담지 못한 지난 여행이 더 있는가. 있을 때만 '전체 보기' 를 그린다. */
-  hasMore: boolean;
+
   onPressTrip: (tripId: string) => void;
   onPressSettle: (tripId: string) => void;
   onPressSeeAll: () => void;
@@ -73,7 +72,6 @@ const CARD_RATIO = 0.48;
 
 export function PastTripSection({
   trips,
-  hasMore,
   onPressTrip,
   onPressSettle,
   onPressSeeAll,
@@ -87,8 +85,15 @@ export function PastTripSection({
     <View>
       <SectionHeader
         title="지난 여행"
-        actionLabel={hasMore ? '전체 보기' : undefined}
-        onPressAction={hasMore ? onPressSeeAll : undefined}
+        /*
+          ⚠️ '전체 보기' 를 **항상 그린다.** (2026-09-11)
+             전에는 홈에 다 담지 못할 만큼(5개 이상) 많을 때만 보여줬는데,
+             그러면 여행이 한두 개인 사람은 이 링크를 영영 못 본다.
+             MY-02(내 여행)로 가는 길이 홈에서 여기 하나뿐이라, 적게 보일수록
+             오히려 더 필요하다.
+        */
+        actionLabel="전체 보기"
+        onPressAction={onPressSeeAll}
       />
 
       {trips.length === 0 ? (

@@ -112,7 +112,7 @@ export function HomeEmpty({
       {/* 아래 여백은 기존 홈(HomeView)과 같은 값이다. 떠 있는 버튼까지 덮는다. */}
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 pb-40 pt-2"
+        contentContainerClassName="px-4 pb-40 pt-6"
         onScroll={onScroll}
         scrollEventThrottle={16}
       >

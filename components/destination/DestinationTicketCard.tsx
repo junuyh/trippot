@@ -127,12 +127,12 @@ function barcodeBars(seed: string, targetWidth: number, count = 46) {
 function TicketField({ label, value, grow = 1 }: { label: string; value: string; grow?: number }) {
   return (
     <View style={{ flex: grow }}>
-      <Text style={{ fontSize: 10.5, color: SUBTLE, letterSpacing: -0.2 }}>{label}</Text>
+      <Text style={{ fontSize: 11.5, color: SUBTLE, letterSpacing: -0.2 }}>{label}</Text>
       <Text
         numberOfLines={2}
         style={{
           marginTop: 4,
-          fontSize: 13.5,
+          fontSize: 14.5,
           lineHeight: 18,
           fontWeight: '800',
           letterSpacing: -0.5,
@@ -169,7 +169,7 @@ export function DestinationTicketCard({ destination }: Props) {
         {/* ── 위: 도시 정보 + 사진 ────────────────────────────────────────── */}
         <View className="flex-row">
           <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 2, color: INK }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 2, color: INK }}>
               TRIPPOT
             </Text>
 
@@ -215,7 +215,7 @@ export function DestinationTicketCard({ destination }: Props) {
                   backgroundColor: '#FFFFFF',
                 }}
               >
-                <Text style={{ fontSize: 12 }}>{destination.flag}</Text>
+                <Text style={{ fontSize: 13 }}>{destination.flag}</Text>
               </View>
             </View>
 
@@ -223,7 +223,7 @@ export function DestinationTicketCard({ destination }: Props) {
 
             {/* 항로 — 비행기가 왼쪽에 서고 점선이 도착지로 이어진다 */}
             <View className="mt-2.5 flex-row items-center">
-              <Text style={{ fontSize: 12.5, fontWeight: '800', letterSpacing: 0.2, color: INK }}>
+              <Text style={{ fontSize: 13.5, fontWeight: '800', letterSpacing: 0.2, color: INK }}>
                 {ORIGIN_CITY} / {ORIGIN_CODE}
               </Text>
               <Ionicons name="airplane" size={14} color={INK} style={{ marginLeft: 8 }} />
@@ -236,7 +236,7 @@ export function DestinationTicketCard({ destination }: Props) {
                   borderColor: '#C8D0DD',
                 }}
               />
-              <Text style={{ fontSize: 12.5, fontWeight: '800', letterSpacing: 0.2, color: INK }}>
+              <Text style={{ fontSize: 13.5, fontWeight: '800', letterSpacing: 0.2, color: INK }}>
                 {destination.airportCode}
               </Text>
             </View>
@@ -279,7 +279,7 @@ export function DestinationTicketCard({ destination }: Props) {
                 paddingVertical: 3,
               }}
             >
-              <Text style={{ fontSize: 10, fontWeight: '800', letterSpacing: 0.6, color: '#FFFFFF' }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: '#FFFFFF' }}>
                 {destination.theme.code}
               </Text>
             </View>
@@ -306,7 +306,7 @@ export function DestinationTicketCard({ destination }: Props) {
                 <Rect key={index} x={bar.x} y={0} width={bar.w} height={30} fill={INK} />
               ))}
             </Svg>
-            <Text style={{ marginTop: 5, fontSize: 9.5, letterSpacing: 1.4, color: '#9AA7BD' }}>
+            <Text style={{ marginTop: 5, fontSize: 11, letterSpacing: 1.4, color: '#9AA7BD' }}>
               TRIPPOT TRAVEL TICKET
             </Text>
           </View>
@@ -322,7 +322,7 @@ export function DestinationTicketCard({ destination }: Props) {
                 borderColor: '#C8D0DD',
               }}
             />
-            <Text style={{ fontSize: 9.5, letterSpacing: 1.1, color: '#9AA7BD' }}>
+            <Text style={{ fontSize: 11, letterSpacing: 1.1, color: '#9AA7BD' }}>
               GOOD TRIP ALWAYS
             </Text>
           </View>

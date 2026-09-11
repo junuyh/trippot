@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text } from 'react-native';
 
 import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
 
@@ -23,11 +23,33 @@ export const TRIP_FILTER_TABS: { value: MyTripFilter; label: string }[] = [
   { value: 'past', label: '지난 여행' },
 ];
 
+/**
+ * MY-02 가 쓰는 탭. 기본 셋 뒤에 '취소된 여행' 과 '나간 여행' 이 붙는다.
+ *
+ * ⚠️ **기본 목록(TRIP_FILTER_TABS)에 넣지 않는다.** 그 목록은 GROUP-02(모임
+ *    상세)도 쓰는데, 모임 상세는 그 모임의 여행만 보여주는 자리라 '내가 나간
+ *    여행' 이라는 칸이 뜻에 맞지 않는다. 조회하는 데이터도 다르다.
+ *    (2026-09-11 — 공용 목록에 넣었더니 모임 상세에도 따라 들어갔다)
+ *
+ * ⚠️ 두 탭은 뒤에 둔다. 앞의 셋은 '진행 중인 내 여행' 이고 이 둘은 끝난
+ *    이야기다. 순서가 곧 사용자가 보는 빈도다.
+ */
+export const MY_TRIP_FILTER_TABS: { value: MyTripFilter; label: string }[] = [
+  ...TRIP_FILTER_TABS,
+  { value: 'canceled', label: TRIP_STATUS_LABEL.CANCELED },
+  { value: 'left', label: '나간 여행' },
+];
+
 type Props = {
   filter: MyTripFilter;
   onChangeFilter: (filter: MyTripFilter) => void;
   /** 탭 줄의 바탕. MY-02 는 흰색, GROUP-02 는 바탕과 같게 둔다. */
   className?: string;
+  /**
+   * 그릴 탭. 기본은 준비 중·여행 중·지난 여행 셋이다.
+   * MY-02 는 MY_TRIP_FILTER_TABS 를 넘겨 다섯 개를 그린다.
+   */
+  tabs?: { value: MyTripFilter; label: string }[];
 };
 
 /**
@@ -41,10 +63,35 @@ type Props = {
  *
  * ⚠️ supabase · track() 을 직접 부르지 않는다. 화면 파일이 부른다. (CLAUDE.md 9장)
  */
-export function TripFilterTabs({ filter, onChangeFilter, className = 'bg-white' }: Props) {
+export function TripFilterTabs({
+  filter,
+  onChangeFilter,
+  className = 'bg-white',
+  tabs = TRIP_FILTER_TABS,
+}: Props) {
   return (
-    <View className={`flex-row gap-2 px-4 pb-3 pt-2 ${className}`}>
-      {TRIP_FILTER_TABS.map((tab) => {
+    /*
+      ⚠️ 가로 스크롤이다. (2026-09-11) 탭이 다섯 개가 되면서 폭이 좁은 기기에서
+         마지막 '나간 여행' 이 잘렸다. 줄바꿈으로 두 줄을 만들면 탭 줄이
+         화면 위쪽을 두 배로 먹는다.
+      ⚠️ 스크롤 막대는 숨긴다. 탭이 다섯 개뿐이라 막대가 오히려 눈에 걸린다.
+    */
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      className={className}
+      /*
+        ⚠️ 이 두 값이 없으면 탭이 **세로로 길게 늘어난다.** (2026-09-11)
+           · flexGrow 0  — 가로 ScrollView 가 부모(flex-1)의 남은 높이를 전부
+             가져간다. 탭 줄은 내용 높이만큼만 차지해야 한다.
+           · alignItems center — contentContainer 의 기본값이 stretch 라
+             탭 하나하나가 ScrollView 높이만큼 늘어난다.
+      */
+      style={{ flexGrow: 0, flexShrink: 0 }}
+      contentContainerStyle={{ alignItems: 'center' }}
+      contentContainerClassName="flex-row gap-2 px-4 pb-3 pt-2"
+    >
+      {tabs.map((tab) => {
         const active = tab.value === filter;
         return (
           <Pressable
@@ -75,6 +122,6 @@ export function TripFilterTabs({ filter, onChangeFilter, className = 'bg-white' 
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }

@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from '@/components/home/format';
 import { HOME_TRACK } from '@/components/home/palette';
-import { TRIP_STATUS } from '@/lib/constants/status';
+import { TRIP_STATUS, TRIP_STATUS_LABEL } from '@/lib/constants/status';
 
 import type { MyTripItem } from './types';
 
@@ -30,7 +30,18 @@ type Props = {
 const NUM = { fontVariant: ['tabular-nums' as const] };
 /** 왼쪽 색 띠. 홈의 가로 카드와 같은 규칙이라 두 화면이 한 벌로 보인다. */
 const STRIPE = 4;
-/** 지난 여행은 색을 죽인다. */
+/**
+ * 색을 죽이는 자리.
+ *
+ * ⚠️ 지난 여행은 **색을 죽이지 않는다.** (2026-09-11)
+ *    전에는 끝난 여행이라 무채색으로 뒀는데, 목록이 통째로 회색이라 어느
+ *    여행인지 색으로 알아볼 수 없었다. 홈의 지난 여행 태그(LuggageTagCard)는
+ *    국가색을 그대로 쓰고 있어서 두 화면이 서로 달라 보이기도 했다.
+ *    끝났다는 것은 '결산 완료' 배지와 최종 여행비가 이미 말하고 있다.
+ *
+ * ⚠️ 이 값은 **취소된 여행과 나간 여행**에만 쓴다. 그 둘은 '더 이상 내
+ *    여행이 아니다' 라서 색을 빼는 것이 뜻과 맞는다.
+ */
 const MUTED = '#B6BCC6';
 
 /**
@@ -41,7 +52,9 @@ const MUTED = '#B6BCC6';
  */
 export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
   const past = trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED;
-  const accent = past ? MUTED : trip.color;
+  // 취소된 여행과 나간 여행만 색을 뺀다. 지난 여행은 국가색을 그대로 쓴다.
+  const dimmed = trip.status === TRIP_STATUS.CANCELED || trip.left === true;
+  const accent = dimmed ? MUTED : trip.color;
 
   const destination = trip.destination ?? '여행지 미정';
   const dday = formatDDay(trip.startDate);
@@ -81,7 +94,18 @@ export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
             {destination} {trip.flag}
           </Text>
 
-          {past ? (
+          {/*
+            ⚠️ 취소·나간 여행을 **먼저** 가른다. (2026-09-11)
+               아래로 내려가면 출발일이 남아 있는 한 D-Day 배지가 붙어서,
+               이미 끝난 여행에 '출발까지 12일' 이 뜬다.
+          */}
+          {dimmed ? (
+            <View className="rounded-full bg-pot-visual px-2 py-0.5">
+              <Text className="font-bold text-pot-mute" style={{ fontSize: 10 }}>
+                {trip.left ? '나간 여행' : TRIP_STATUS_LABEL.CANCELED}
+              </Text>
+            </View>
+          ) : past ? (
             <View className="rounded-full bg-pot-visual px-2 py-0.5">
               <Text className="font-bold text-pot-mute" style={{ fontSize: 10 }}>
                 {trip.status === TRIP_STATUS.SETTLED ? '결산 완료' : '결산 전'}
@@ -119,7 +143,13 @@ export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
           ) : null}
         </View>
 
-        {past ? (
+        {/*
+          ⚠️ 취소·나간 여행에는 **금액 줄을 그리지 않는다.** (2026-09-11)
+             취소된 여행의 예산은 확정된 값이 아니고, 나간 여행의 금액은 더 이상
+             내 몫이 아니다. 그대로 두면 '— / —원' 과 빈 진행률 막대가 남아
+             무언가 불러오지 못한 것처럼 보인다.
+        */}
+        {dimmed ? null : past ? (
           <View className="mt-2.5 flex-row items-end justify-between">
             <Text className="text-pot-faint" style={{ fontSize: 10.5 }}>
               최종 여행비

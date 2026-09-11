@@ -73,7 +73,7 @@ export function DestinationCommunitySection({
             hitSlop={8}
             className="flex-row items-center active:opacity-60"
           >
-            <Text style={{ fontSize: 11.5, color: SUBTLE }}>전체보기</Text>
+            <Text style={{ fontSize: 12.5, color: SUBTLE }}>전체보기</Text>
             <Ionicons name="chevron-forward" size={12} color={SUBTLE} />
           </Pressable>
         }
@@ -119,19 +119,19 @@ export function DestinationCommunitySection({
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text
                 numberOfLines={1}
-                style={{ fontSize: 13, fontWeight: '600', letterSpacing: -0.3, color: INK }}
+                style={{ fontSize: 14, fontWeight: '600', letterSpacing: -0.3, color: INK }}
               >
                 {post.title}
               </Text>
 
               <View className="mt-1.5 flex-row items-center">
-                <Text numberOfLines={1} style={{ fontSize: 10.5, color: SUBTLE, flexShrink: 1 }}>
+                <Text numberOfLines={1} style={{ fontSize: 11.5, color: SUBTLE, flexShrink: 1 }}>
                   {post.categoryLabel} · {post.publishedLabel}
                 </Text>
 
                 <View className="ml-auto flex-row items-center">
                   <Ionicons name="heart-outline" size={11} color={SUBTLE} />
-                  <Text style={{ marginLeft: 3, fontSize: 10.5, color: MUTED }}>
+                  <Text style={{ marginLeft: 3, fontSize: 11.5, color: MUTED }}>
                     {post.likeCount}
                   </Text>
                   <Ionicons
@@ -140,7 +140,7 @@ export function DestinationCommunitySection({
                     color={SUBTLE}
                     style={{ marginLeft: 8 }}
                   />
-                  <Text style={{ marginLeft: 3, fontSize: 10.5, color: MUTED }}>
+                  <Text style={{ marginLeft: 3, fontSize: 11.5, color: MUTED }}>
                     {post.commentCount}
                   </Text>
                 </View>

@@ -76,7 +76,7 @@ export function BudgetGuideSection({ guide, accent, accentSoft }: Props) {
         title="여행비 가이드"
         accent={accent}
         right={
-          <Text style={{ fontSize: 10.5, color: SUBTLE }}>
+          <Text style={{ fontSize: 11.5, color: SUBTLE }}>
             {guide.updatedAt} 기준
           </Text>
         }
@@ -104,14 +104,14 @@ export function BudgetGuideSection({ guide, accent, accentSoft }: Props) {
         <View style={{ width: 3, borderRadius: 2, backgroundColor: accent, marginRight: 11 }} />
 
         <View style={{ flex: 1.25, paddingRight: 10 }}>
-          <Text style={{ fontSize: 11.5, fontWeight: '600', color: INK }}>일반적인 여행의 평균 예산이에요.</Text>
+          <Text style={{ fontSize: 12.5, fontWeight: '600', color: INK }}>일반적인 여행의 평균 예산이에요.</Text>
           <View className="mt-1.5 flex-row flex-wrap items-baseline">
             <Text
               style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.6, color: accent }}
             >
               {formatRange(guide.perPerson)}
             </Text>
-            <Text style={{ marginLeft: 5, fontSize: 11.5, color: CAPTION }}>/ 1인</Text>
+            <Text style={{ marginLeft: 5, fontSize: 12.5, color: CAPTION }}>/ 1인</Text>
           </View>
         </View>
 
@@ -120,7 +120,7 @@ export function BudgetGuideSection({ guide, accent, accentSoft }: Props) {
         <View style={{ width: 1, backgroundColor: '#FFFFFF', opacity: 0.85 }} />
 
         <View style={{ flex: 1, paddingLeft: 11, justifyContent: 'center' }}>
-          <Text style={{ fontSize: 11, lineHeight: 16, color: INK }}>
+          <Text style={{ fontSize: 11.5, lineHeight: 17, color: INK }}>
             여행 시기, 인원, 여행 스타일에 따라 달라질 수 있어요.
           </Text>
         </View>
@@ -132,7 +132,7 @@ export function BudgetGuideSection({ guide, accent, accentSoft }: Props) {
           <View style={{ width: 3, height: 15, borderRadius: 2, backgroundColor: accent }} />
           <Text style={{ marginLeft: 8, ...TITLE }}>항목별 평균 예산</Text>
         </View>
-        <Text style={{ fontSize: 10.5, color: SUBTLE }}>
+        <Text style={{ fontSize: 11.5, color: SUBTLE }}>
           {guide.nights}박 {guide.days}일 · 1인 기준
         </Text>
       </View>
@@ -160,7 +160,7 @@ export function BudgetGuideSection({ guide, accent, accentSoft }: Props) {
                 않아 잘렸다. 내용만큼 차지하고 그래프가 남는 폭을 쓴다. */}
             <Text
               numberOfLines={1}
-              style={{ fontSize: 12, color: CAPTION, marginRight: 8, flexShrink: 0 }}
+              style={{ fontSize: 13, color: CAPTION, marginRight: 8, flexShrink: 0 }}
             >
               {row.label}
             </Text>
@@ -191,7 +191,7 @@ export function BudgetGuideSection({ guide, accent, accentSoft }: Props) {
             {/* '약' 을 뺀 짧은 표기를 쓴다. 위 요약 칸이 이미 '약' 을 달고 있다. */}
             <Text
               numberOfLines={1}
-              style={{ textAlign: 'right', fontSize: 11.5, color: INK, flexShrink: 0 }}
+              style={{ textAlign: 'right', fontSize: 12.5, color: INK, flexShrink: 0 }}
             >
               {formatRangeCompact(row.range)}
             </Text>
