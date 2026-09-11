@@ -12,7 +12,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 
-import { INK, LINE, MUTED, RADIUS, SUBTLE, TINT } from './tokens';
+import { CAPTION, INK, LINE, RADIUS, SUBTLE, TINT, TITLE } from './tokens';
 
 /** 섹션 제목. 앞의 짧은 세로 라인만 국가색이다. */
 export function SectionHeading({
@@ -29,18 +29,8 @@ export function SectionHeading({
     <View className="mb-3 flex-row items-center justify-between">
       <View className="flex-1 flex-row items-center">
         <View style={{ width: 3, height: 15, borderRadius: 2, backgroundColor: accent }} />
-        <Text
-          numberOfLines={1}
-          style={{
-            marginLeft: 8,
-            fontSize: 16,
-            lineHeight: 22,
-            // ⚠️ 제목을 800 으로 두지 않는다. 도시명과 예산 숫자만 굵게 간다.
-            fontWeight: '600',
-            letterSpacing: -0.4,
-            color: INK,
-          }}
-        >
+        {/* 제목 단은 여행 준비 홈 카드 제목과 같다. (tokens.TITLE) */}
+        <Text numberOfLines={1} style={{ marginLeft: 8, ...TITLE }}>
           {title}
         </Text>
       </View>
@@ -100,8 +90,8 @@ export function HighlightRow({
             numberOfLines={2}
             style={{
               marginTop: 3,
-              fontSize: 13,
-              lineHeight: 18,
+              fontSize: 12.5,
+              lineHeight: 17,
               // 핵심 숫자만 굵게. 세 칸 중 가운데(예산)는 국가색이다.
               fontWeight: '700',
               letterSpacing: -0.4,
@@ -154,7 +144,7 @@ export function RecommendedForSection({
             <Ionicons name="checkmark" size={12} color={accent} />
           </View>
           <Text
-            style={{ marginLeft: 9, flex: 1, fontSize: 13, lineHeight: 19, color: MUTED }}
+            style={{ marginLeft: 9, flex: 1, fontSize: 13, lineHeight: 19, color: CAPTION }}
           >
             {item}
           </Text>

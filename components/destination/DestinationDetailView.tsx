@@ -33,7 +33,10 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { DestinationBudgetGuide } from '@/lib/destination/budgetGuide';
+import {
+  formatRangeCompact,
+  type DestinationBudgetGuide,
+} from '@/lib/destination/budgetGuide';
 
 import { BudgetGuideSection } from './BudgetGuideSection';
 import {
@@ -43,7 +46,7 @@ import {
 import { HighlightRow, RecommendedForSection, SectionHeading } from './DestinationSections';
 import { DestinationTicketCard } from './DestinationTicketCard';
 import { HeadcountBudgetSection } from './HeadcountBudgetSection';
-import { INK, LINE, MUTED, RADIUS } from './tokens';
+import { CAPTION, INK, LINE, RADIUS } from './tokens';
 import type { DestinationDetailData } from './types';
 
 type Props = {
@@ -90,7 +93,7 @@ export function DestinationDetailView({
         {/* ── OO는 이런 여행지예요! ──────────────────────────────────────── */}
         <View style={{ marginTop: GAP }}>
           <SectionHeading title={`${destination.nameKo}는 이런 여행지예요!`} accent={accent} />
-          <Text style={{ fontSize: 13.5, lineHeight: 22, color: MUTED }}>
+          <Text style={{ fontSize: 13.5, lineHeight: 22, color: CAPTION }}>
             {destination.intro}
           </Text>
         </View>
@@ -102,10 +105,9 @@ export function DestinationDetailView({
             accentSoft={accentSoft}
             stayLabel={destination.nights}
             /* ⚠️ 여기 금액은 아래 '여행비 가이드' 와 같은 값이다. 두 곳이 다르면
-                  어느 쪽이 맞는지 알 수 없다. 같은 guide 에서 나온다. */
-            budgetLabel={`약 ${Math.floor(guide.perPerson.min / 10_000)}만 ~ ${Math.ceil(
-              guide.perPerson.max / 10_000,
-            )}만원`}
+                  어느 쪽이 맞는지 알 수 없다. 같은 guide 에서 나온다.
+                  칸이 좁아 짧은 표기를 쓴다. */
+            budgetLabel={formatRangeCompact(guide.perPerson)}
             seasonLabel={destination.season}
           />
         </View>

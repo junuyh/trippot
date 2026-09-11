@@ -150,10 +150,21 @@ export function HeadcountBudgetSection({
         </View>
 
         <View className="mt-3 flex-row items-center justify-between">
-          <Text style={{ fontSize: 12.5, color: MUTED }}>총 예상 여행비</Text>
+          <Text style={{ fontSize: 12.5, color: MUTED, flexShrink: 0 }}>총 예상 여행비</Text>
+          {/* ⚠️ 10명이면 '약 700만 ~ 1,250만원' 까지 길어진다. 줄어들 수 있게 두고
+              그래도 모자라면 글자를 줄인다. 자르지 않는다. */}
           <Text
             numberOfLines={1}
-            style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.5, color: accent }}
+            adjustsFontSizeToFit
+            style={{
+              flexShrink: 1,
+              marginLeft: 8,
+              textAlign: 'right',
+              fontSize: 16,
+              fontWeight: '800',
+              letterSpacing: -0.5,
+              color: accent,
+            }}
           >
             {formatRange(guide.total)}
           </Text>
@@ -162,8 +173,12 @@ export function HeadcountBudgetSection({
         <View style={{ height: 1, backgroundColor: LINE, marginVertical: 10 }} />
 
         <View className="flex-row items-center justify-between">
-          <Text style={{ fontSize: 12.5, color: MUTED }}>1인 평균</Text>
-          <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '700', color: INK }}>
+          <Text style={{ fontSize: 12.5, color: MUTED, flexShrink: 0 }}>1인 평균</Text>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={{ flexShrink: 1, marginLeft: 8, textAlign: 'right', fontSize: 14, fontWeight: '700', color: INK }}
+          >
             {formatRange(guide.perPerson)}
           </Text>
         </View>

@@ -189,6 +189,17 @@ export function toManwonCeil(amount: number): string {
   return `${Math.ceil(amount / 10_000).toLocaleString('ko-KR')}만`;
 }
 
+/**
+ * '75만~95만원' — 좁은 칸용. '약' 과 공백을 뺀다.
+ *
+ * ⚠️ 항목별 표와 값 세 칸은 폭이 좁아서 '약 15만 ~ 25만원' 이 들어가지 않는다.
+ *    글자가 잘리느니 '약' 을 뺀다. 그 자리 제목이 이미 '평균 예산' 이라고
+ *    말하고 있어 '약' 이 없다고 확정 금액으로 읽히지 않는다.
+ */
+export function formatRangeCompact(range: BudgetRange): string {
+  return `${toManwonFloor(range.min)}~${toManwonCeil(range.max)}원`;
+}
+
 /** '약 75만 ~ 95만원' 한 덩어리로 만든다. */
 export function formatRange(range: BudgetRange): string {
   return `약 ${toManwonFloor(range.min)} ~ ${toManwonCeil(range.max)}원`;
