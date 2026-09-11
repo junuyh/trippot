@@ -125,7 +125,7 @@ export function HeadcountBudgetSection({
               style={{
                 width: 42,
                 textAlign: 'center',
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: '700',
                 color: INK,
               }}
@@ -167,13 +167,13 @@ export function HeadcountBudgetSection({
           >
             <Ionicons name="people-outline" size={14} color={accent} />
           </View>
-          <Text style={{ marginLeft: 8, fontSize: 12.5, color: CAPTION }}>
+          <Text style={{ marginLeft: 8, fontSize: 13.5, color: CAPTION }}>
             {headcount}명이 함께 준비하는 경우 (평균 기준)
           </Text>
         </View>
 
         <View className="mt-3 flex-row items-center justify-between">
-          <Text style={{ fontSize: 12.5, color: CAPTION, flexShrink: 0 }}>총 예상 여행비</Text>
+          <Text style={{ fontSize: 13.5, color: CAPTION, flexShrink: 0 }}>총 예상 여행비</Text>
           {/* ⚠️ 10명이면 '약 700만 ~ 1,250만원' 까지 길어진다. 줄어들 수 있게 두고
               그래도 모자라면 글자를 줄인다. 자르지 않는다. */}
           <Text
@@ -195,7 +195,7 @@ export function HeadcountBudgetSection({
         <View style={{ height: 1, backgroundColor: LINE, marginVertical: 10 }} />
 
         <View className="flex-row items-center justify-between">
-          <Text style={{ fontSize: 12.5, color: CAPTION, flexShrink: 0 }}>1인 평균</Text>
+          <Text style={{ fontSize: 13.5, color: CAPTION, flexShrink: 0 }}>1인 평균</Text>
           <Text
             numberOfLines={1}
             style={{
@@ -222,10 +222,10 @@ export function HeadcountBudgetSection({
       >
         <Ionicons name="calculator-outline" size={16} color={accent} style={{ marginTop: 1 }} />
         <View style={{ marginLeft: 9, flex: 1 }}>
-          <Text style={{ fontSize: 12.5, fontWeight: '700', color: INK }}>
+          <Text style={{ fontSize: 13.5, fontWeight: '700', color: INK }}>
             정확한 금액이 궁금하다면?
           </Text>
-          <Text style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: INK, opacity: 0.75 }}>
+          <Text style={{ marginTop: 3, fontSize: 13, lineHeight: 18, color: INK, opacity: 0.75 }}>
             여행 기간, 숙소 스타일, 여행 목적에 맞춰 우리 모임만의 예상 예산을 계산해드려요.
           </Text>
         </View>

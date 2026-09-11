@@ -22,6 +22,10 @@ const TAB_EMPTY_MESSAGE: Record<MyTripFilter, string> = {
   planning: '준비 중인 여행이 없어요.',
   traveling: '지금 여행 중인 여행이 없어요.',
   past: '아직 다녀온 여행 기록이 없어요.',
+  // ⚠️ 모임 상세에는 이 두 탭이 없다. 타입(Record)을 채우기 위한 값이다.
+  //    TripFilterTabs 에 tabs 를 넘기지 않으므로 기본 셋만 그려진다.
+  canceled: '취소된 여행이 없어요.',
+  left: '나간 여행이 없어요.',
 };
 
 type Props = {

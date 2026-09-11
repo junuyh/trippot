@@ -185,10 +185,23 @@ export default function ScreenHOME01() {
       setGroups(nextGroups);
       setProfile(nextProfile);
 
-      // 여행이 하나도 없는 사람에게만 '여행자들은 이렇게 다녀왔어요' 칸이 나온다.
-      // 그 칸에 쓸 값이라 여기서만 조회한다. 실패해도 홈 전체를 오류로 만들지
-      // 않는다 — 그 칸만 사라지고 추천 여행지와 여행 만들기는 그대로 쓴다.
-      if (nextTrips.length === 0) {
+      // 준비 중이거나 여행 중인 여행이 하나라도 있는가.
+      const hasOngoing = nextTrips.some(
+        (trip) =>
+          trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING,
+      );
+
+      /*
+        커뮤니티 글 수. '여행자들은 이렇게 다녀왔어요' 목록과 '인기' 배지에 쓴다.
+
+        ⚠️ **준비 중인 여행이 없을 때만 조회한다.** 그때만 추천 여행지가 화면에
+           나오기 때문이다. 준비 중인 여행이 있는 사람의 홈은 이 값을 쓰지 않는데
+           매번 조회하면 홈이 그만큼 늦어진다. (2026-09-11 — 전에는 여행이
+           하나도 없을 때만 조회했는데, 추천 여행지가 기존 홈에도 나오게 되면서
+           범위를 넓혔다)
+        ⚠️ 실패해도 홈 전체를 오류로 만들지 않는다 — 배지와 그 칸만 빠진다.
+      */
+      if (!hasOngoing) {
         try {
           setPostCounts(await getPostDestinations());
         } catch {
@@ -346,28 +359,31 @@ export default function ScreenHOME01() {
   // 여행을 한 번도 만들지 않았으면 first, 기록이 있으면 return 이다.
   const emptyVariant: HomeEmptyVariant = trips.length === 0 ? 'first' : 'return';
 
+  /**
+   * '인기' 배지를 달 여행지.
+   *
+   * ⚠️ 근거 없이 '인기' 를 붙이지 않는다. 커뮤니티 글이 가장 많은 여행지
+   *    한 곳만 단다. 글이 하나도 없으면 아무 카드에도 배지가 없다.
+   *    postCounts 는 쿼리가 이미 글 수 내림차순으로 정렬해 돌려준다.
+   */
+  const topByPosts = postCounts.length > 0 ? postCounts[0].destination : null;
+
+  /**
+   * 추천 여행지.
+   *
+   * ⚠️ **두 홈이 함께 쓴다.** (2026-09-11) 신규 사용자 홈은 화면 전체에,
+   *    기존 홈은 준비 중인 여행이 하나도 없을 때 그 자리에 놓는다.
+   *    그래서 분기 안이 아니라 여기서 만든다.
+   */
+  const suggestions: DestinationSuggestion[] = HOME_SUGGESTION_BASE.map((base) => ({
+    ...base,
+    badge: base.nameKo === topByPosts ? '인기' : null,
+  }));
+
   // 여행이 하나도 없으면 신규 사용자 홈을 보여준다.
   // 기존 홈의 두 칸(보딩패스 슬라이드 · 러기지 태그 목록)을 그대로 쓰고
   // 내용만 '추천 여행지' 와 '여행자들은 이렇게 다녀왔어요' 로 바꾼 화면이다.
   if (trips.length === 0) {
-    // 여행지 한글명 → 커뮤니티 글 수.
-    const countByName = new Map(postCounts.map((row) => [row.destination, row.count]));
-
-    /**
-     * '인기' 배지를 달 여행지.
-     *
-     * ⚠️ 근거 없이 '인기' 를 붙이지 않는다. 커뮤니티 글이 가장 많은 여행지
-     *    한 곳만 단다. 글이 하나도 없으면 아무 카드에도 배지가 없다.
-     *    postCounts 는 쿼리가 이미 글 수 내림차순으로 정렬해 돌려준다.
-     */
-    const topByPosts = postCounts.length > 0 ? postCounts[0].destination : null;
-
-    const suggestions: DestinationSuggestion[] = HOME_SUGGESTION_BASE.map((base) => ({
-      ...base,
-
-      badge: base.nameKo === topByPosts ? '인기' : null,
-    }));
-
     /**
      * '여행자들은 이렇게 다녀왔어요' 목록.
      *
@@ -415,8 +431,10 @@ export default function ScreenHOME01() {
       daysToNextTrip={daysUntil(nearest?.startDate ?? null)}
       ongoingTrips={ongoingTrips}
       emptyVariant={emptyVariant}
+      // 준비 중인 여행이 하나도 없으면 그 자리에 추천 여행지가 들어간다.
+      suggestions={suggestions}
+      onPressSuggestion={handlePressDestination}
       pastTrips={pastTrips.slice(0, HOME_PAST_TRIP_LIMIT)}
-      hasMorePastTrips={pastTrips.length > HOME_PAST_TRIP_LIMIT}
       onPressTrip={handlePressTrip}
       onPressSettle={handlePressSettle}
       onPressCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.HOME)}

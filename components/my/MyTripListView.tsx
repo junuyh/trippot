@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { HOME_ACCENT } from '@/components/home/palette';
 
 import { MyTripCard } from './MyTripCard';
-import { TripFilterTabs } from './TripFilterTabs';
+import { MY_TRIP_FILTER_TABS, TripFilterTabs } from './TripFilterTabs';
 import type { MyTripFilter, MyTripItem } from './types';
 
 type Props = {
@@ -19,6 +19,8 @@ const EMPTY_MESSAGE: Record<MyTripFilter, string> = {
   planning: '준비 중인 여행이 없어요.',
   traveling: '지금 여행 중인 여행이 없어요.',
   past: '아직 다녀온 여행 기록이 없어요.',
+  canceled: '취소된 여행이 없어요.',
+  left: '나간 여행이 없어요.',
 };
 
 /**
@@ -42,7 +44,7 @@ export function MyTripListView({
   return (
     <View className="flex-1 bg-pot-visual">
       {/* 탭. GROUP-02 모임 상세와 같은 컴포넌트를 쓴다. */}
-      <TripFilterTabs filter={filter} onChangeFilter={onChangeFilter} />
+      <TripFilterTabs filter={filter} onChangeFilter={onChangeFilter} tabs={MY_TRIP_FILTER_TABS} />
 
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-16 pt-4">
         {trips.length === 0 ? (
@@ -74,7 +76,7 @@ export function MyTripListView({
         )}
 
         {/* 목록 끝에 안내 한 줄. 홈과 역할이 다르다는 걸 알려준다. */}
-        {trips.length > 0 && filter !== 'past' ? (
+        {trips.length > 0 && (filter === 'planning' || filter === 'traveling') ? (
           <Text
             className="mt-4 text-center"
             style={{ fontSize: 11.5, color: HOME_ACCENT }}

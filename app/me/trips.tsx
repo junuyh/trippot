@@ -33,7 +33,10 @@ import {
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
 import {
+  getCanceledTrips,
+  getLeftTrips,
   getMyParticipatingTripsWithSummary,
+  type Trip,
   type TripWithSummary,
 } from '@/lib/supabase/queries/trips';
 
@@ -66,18 +69,32 @@ export default function ScreenMY02() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [trips, setTrips] = useState<TripWithSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  /**
+   * 취소된 여행과 나간 여행.
+   *
+   * ⚠️ getTripsWithSummary 로는 안 나온다. 취소된 여행은 그 쿼리가 일부러
+   *    걸러내고, 나간 여행은 owner·group 어느 쪽으로도 안 걸린다.
+   *    (lib/supabase/queries/trips 의 getCanceledTrips·getLeftTrips 주석)
+   * ⚠️ 금액 요약을 붙이지 않는다. 두 탭 카드는 금액을 그리지 않는다.
+   */
+  const [canceledTrips, setCanceledTrips] = useState<Trip[]>([]);
+  const [leftTrips, setLeftTrips] = useState<Trip[]>([]);
 
   const load = useCallback(async () => {
     setLoadState('loading');
     try {
       if (!userId) return;
 
-      const [nextTrips, nextGroups] = await Promise.all([
+      const [nextTrips, nextGroups, nextCanceled, nextLeft] = await Promise.all([
         getMyParticipatingTripsWithSummary(userId),
         getMyGroups(userId),
+        getCanceledTrips(userId),
+        getLeftTrips(userId),
       ]);
       setTrips(nextTrips);
       setGroups(nextGroups);
+      setCanceledTrips(nextCanceled);
+      setLeftTrips(nextLeft);
       setLoadState('ready');
     } catch {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
@@ -144,17 +161,78 @@ export default function ScreenMY02() {
     ];
   });
 
+  /**
+   * 취소된 여행·나간 여행을 카드 모양으로 바꾼다.
+   *
+   * ⚠️ 금액을 넣지 않는다. 취소된 여행의 예산은 확정된 값이 아니고, 나간
+   *    여행의 금액은 더 이상 내 몫이 아니다. 카드가 '—' 를 그린다.
+   * @param left 내가 나간 여행인가. 카드가 색을 뺄지 정하는 데 쓴다.
+   */
+  function toArchivedItems(rows: Trip[], left: boolean): MyTripItem[] {
+    return rows.flatMap((trip) => {
+      const status = toTripStatus(trip.status);
+      if (status === null || status === TRIP_STATUS.DELETED) return [];
+
+      const meta = findDestinationByName(trip.destination);
+      const theme = countryTheme(meta?.countryKo);
+
+      return [
+        {
+          tripId: trip.id,
+          destination: trip.destination,
+          flag: meta?.flag ?? '🌍',
+          startDate: trip.start_date,
+          endDate: trip.end_date,
+          status,
+          ownerLabel:
+            trip.owner_type === TRIP_OWNER_TYPE.GROUP
+              ? (groupNameById.get(trip.group_id ?? '') ?? TRIP_OWNER_TYPE_LABEL.GROUP)
+              : TRIP_OWNER_TYPE_LABEL.PERSONAL,
+          currentAmount: null,
+          targetAmount: null,
+          finalAmount: null,
+          color: theme.primary,
+          colorSoft: theme.primarySoft,
+          left,
+        },
+      ];
+    });
+  }
+
   const planning = items.filter((item) => item.status === TRIP_STATUS.PLANNING);
   const traveling = items.filter((item) => item.status === TRIP_STATUS.TRAVELING);
   const past = items.filter((item) => PAST.includes(item.status));
+  const left = toArchivedItems(leftTrips, true);
+
+  /**
+   * 취소된 여행.
+   *
+   * ⚠️ 나간 여행과 겹칠 수 있다. 내가 나간 뒤 남은 사람들이 취소한 경우다.
+   *    그때는 **'나간 여행' 쪽에만** 둔다 — 나에게는 '내가 나갔다' 가 먼저고,
+   *    한 여행이 두 탭에 다 보이면 목록이 두 배로 보인다.
+   */
+  const leftIds = new Set(left.map((item) => item.tripId));
+  const canceled = toArchivedItems(canceledTrips, false).filter(
+    (item) => !leftIds.has(item.tripId),
+  );
 
   // 준비 중은 출발이 가까운 순, 여행 중은 먼저 돌아오는 순,
   // 지난 여행은 최근에 다녀온 순으로 본다. 탭마다 급한 것이 다르다.
   planning.sort((a, b) => (a.startDate ?? '9999-12-31').localeCompare(b.startDate ?? '9999-12-31'));
   traveling.sort((a, b) => (a.endDate ?? '9999-12-31').localeCompare(b.endDate ?? '9999-12-31'));
   past.sort((a, b) => (b.endDate ?? '').localeCompare(a.endDate ?? ''));
+  // 취소·나간 여행도 최근 것부터. 출발일이 없는 여행이 있어 시작일로 센다.
+  canceled.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+  left.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
 
-  const visible = filter === 'past' ? past : filter === 'traveling' ? traveling : planning;
+  const BY_FILTER: Record<MyTripFilter, MyTripItem[]> = {
+    planning,
+    traveling,
+    past,
+    canceled,
+    left,
+  };
+  const visible = BY_FILTER[filter];
 
   return (
     <>

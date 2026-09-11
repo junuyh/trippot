@@ -520,3 +520,79 @@ export async function leaveTrip(tripId: string, userId: string): Promise<void> {
 
   if (error) throw error;
 }
+
+/**
+ * 취소된 여행. (MY-02 '취소된 여행' 탭 · 2026-09-11)
+ *
+ * ⚠️ **getTrips 로는 안 나온다.** 그 함수가 CANCELED 를 일부러 걸러내기
+ *    때문이다. 홈·모임 목록에 취소된 여행이 섞이면 안 되므로 그 동작은
+ *    그대로 두고, 취소된 여행만 따로 보는 함수를 여기에 둔다.
+ *
+ * ⚠️ 조회 범위는 getTrips 와 같은 규칙이다 — 내가 주인인 개인 여행과
+ *    내가 속한 모임의 여행. 남의 여행을 읽을 수 있는 통로를 만들지 않는다.
+ *    (CLAUDE.md 7장)
+ */
+export async function getCanceledTrips(userId: string): Promise<Trip[]> {
+  const { data: myGroups, error: groupError } = await supabase
+    .from("group_members")
+    .select("group_id")
+    .eq("user_id", userId)
+    .eq("status", GROUP_MEMBER_STATUS.ACTIVE);
+
+  if (groupError) throw groupError;
+  const groupIds = (myGroups ?? []).map((row) => row.group_id);
+
+  const { data: personal, error: personalError } = await supabase
+    .from("trips")
+    .select("*")
+    .eq("owner_user_id", userId)
+    .eq("status", TRIP_STATUS.CANCELED);
+
+  if (personalError) throw personalError;
+
+  let groupTrips: Trip[] = [];
+  if (groupIds.length > 0) {
+    const { data, error } = await supabase
+      .from("trips")
+      .select("*")
+      .in("group_id", groupIds)
+      .eq("status", TRIP_STATUS.CANCELED);
+    if (error) throw error;
+    groupTrips = data ?? [];
+  }
+
+  const byId = new Map<string, Trip>();
+  for (const trip of [...(personal ?? []), ...groupTrips]) byId.set(trip.id, trip);
+  return [...byId.values()];
+}
+
+/**
+ * 내가 나간 여행. (MY-02 '나간 여행' 탭 · 2026-09-11)
+ *
+ * ⚠️ **trips.status 로는 알 수 없다.** 여행 자체는 살아 있고 나만 빠진
+ *    것이라 trip_members 를 봐야 한다.
+ *
+ * ⚠️ getTrips 로도 안 나온다. 그 함수는 owner_user_id 와 group_id 로만 찾는데,
+ *    나간 사람은 둘 다에서 빠지기 때문이다. (개인 여행이면 주인이 아니고,
+ *    모임을 나갔으면 group_members 에도 없다)
+ *
+ * ⚠️ 지워진 여행은 빼고 보여준다. 취소된 여행은 남긴다 — 내가 나간 뒤에
+ *    남은 사람들이 취소했을 수 있고, 그것도 내 기록이다.
+ */
+export async function getLeftTrips(userId: string): Promise<Trip[]> {
+  const { data, error } = await supabase
+    .from("trip_members")
+    .select("trips!inner(*)")
+    .eq("user_id", userId)
+    .eq("status", TRIP_MEMBER_STATUS.LEFT)
+    .neq("trips.status", TRIP_STATUS.DELETED);
+
+  if (error) throw error;
+
+  const byId = new Map<string, Trip>();
+  for (const row of data ?? []) {
+    const trip = row.trips as Trip | null;
+    if (trip) byId.set(trip.id, trip);
+  }
+  return [...byId.values()];
+}

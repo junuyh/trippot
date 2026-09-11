@@ -88,13 +88,13 @@ export function HighlightRow({
           >
             <Ionicons name={item.icon} size={15} color={accent} />
           </View>
-          <Text style={{ marginTop: 8, fontSize: 10.5, color: CAPTION }}>{item.caption}</Text>
+          <Text style={{ marginTop: 8, fontSize: 11.5, color: CAPTION }}>{item.caption}</Text>
           <Text
             numberOfLines={2}
             style={{
               marginTop: 3,
-              fontSize: 12.5,
-              lineHeight: 17,
+              fontSize: 13.5,
+              lineHeight: 18,
               // 핵심 숫자만 굵게. 세 칸 중 가운데(예산)는 국가색이다.
               fontWeight: '700',
               letterSpacing: -0.4,
@@ -155,7 +155,7 @@ export function RecommendedForSection({
             <Ionicons name="checkmark" size={11} color="#FFFFFF" />
           </View>
           <Text
-            style={{ marginLeft: 10, flex: 1, fontSize: 13.5, lineHeight: 20, color: INK }}
+            style={{ marginLeft: 10, flex: 1, fontSize: 14.5, lineHeight: 20, color: INK }}
           >
             {item}
           </Text>
