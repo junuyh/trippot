@@ -12,6 +12,16 @@
 
 /** 진행률·강조 숫자·CTA. 서비스 대표 색. */
 export const HOME_ACCENT = '#6C5CE7';
+
+/**
+ * 새 여행 만들기 버튼(CreateTripFab) 색. 짙은 보라. (2026-09-10)
+ *
+ * ⚠️ HOME_ACCENT 를 이 값으로 바꾸지 않고 따로 뒀다. 그 상수는
+ *    마이페이지(components/my/MyTripListView)도 쓰고 있어서, 값을 바꾸면
+ *    담당이 다른 화면의 색까지 같이 바뀐다. (CLAUDE.md 13장)
+ *    두 색을 하나로 합칠지는 팀에서 정할 일이다. [검토 필요]
+ */
+export const HOME_FAB = '#4941B8';
 /** 보라를 흰 바탕에 얹은 옅은 톤. 카드 배경·배지에 쓴다. */
 export const HOME_ACCENT_SOFT = '#EFEDFF';
 

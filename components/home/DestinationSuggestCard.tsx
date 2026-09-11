@@ -9,7 +9,7 @@
 //   맛있는 음식과 활기찬 거리가
 //   함께하는, 언제나 설레는 여행지
 //   ──────────────────────────────────────────────
-//   🗓 3박 4일 │ 💬 여행기 12개        [ 여행 만들기 → ]
+//   🗓 추천 여행 기간 3~4일 │ 📍 대만   [ 타이베이 둘러보기 → ]
 //
 // ⚠️ **준비 중인 여행 카드(NextTripBanner)와 같은 물건이다.**
 //    치수·색·그림자·항로 줄·랜드마크 선그림을 값 하나까지 그대로 가져왔다.
@@ -22,19 +22,31 @@
 //    "여기가 어떤 곳이고 내가 무엇을 할 수 있나" 다. 그건 글이 답한다.
 //
 // ⚠️ **금액을 쓰지 않는다.** 시안의 '추천 예산 ₩850,000~' 자리에 추천 기간과
-//    여행기 수를 뒀다. 이유는 types.ts 의 DestinationSuggestion 주석에 있다.
+//    나라를 뒀다. 이유는 types.ts 의 DestinationSuggestion 주석에 있다.
 //
 // ⚠️ 배지는 근거가 있을 때만 나온다. 화면 파일이 커뮤니티 글 수로 정한다.
 //    아무 여행지에나 '인기' 를 붙이지 않는다.
 //
-// ⚠️ 버튼 문구가 '둘러보기' 가 아니라 '여행 만들기' 다. 시안과 다르다.
-//    이 버튼은 여행 만들기(TRIP-01)로 간다. 하는 일과 다른 말을 쓰면
-//    누른 사람이 다른 화면에 도착한다. 둘러보는 자리는 아래 '발견한 여행지' 다.
+// ⚠️ **이 카드는 여행지를 소개하는 카드다. 여행을 만드는 카드가 아니다.**
+//    (2026-09-10) 아랫줄의 값과 버튼 문구를 그 뜻에 맞춰 고쳤다.
 //
-// ⚠️ 누르면 여행 만들기로 간다. **목적지는 따라가지 않는다.**
-//    TRIP-01(/trips/new/owner)이 지금 destination param 을 받지 않는다.
-//    받게 하려면 그 화면을 고쳐야 하는데 담당이 달라 손대지 않았다.
-//    (CLAUDE.md 13장) TODO: TRIP-01 이 목적지를 받으면 code 를 함께 넘긴다.
+//      전                        후                     왜
+//      ────────────────────      ──────────────────    ──────────────────────
+//      3박 4일                   추천 여행 기간 3~4일    '3박 4일' 은 이미 정해진
+//                                                      일정처럼 읽혔다
+//      여행기 12개 / 첫 여행기…   대만 (나라 이름)        글 수는 남의 후기 이야기라
+//                                                      여행지 소개와 어긋났다
+//      여행 만들기 →             타이베이 둘러보기 →      누르면 여행지 상세로 간다
+//
+// 🔴 **[미완] 여행지 상세 화면이 아직 없다.** (2026-09-10)
+//    버튼은 '둘러보기' 라고 말하지만 지금 누르면 여행 만들기(TRIP-01)로 간다.
+//    **하는 일과 다른 말을 쓰고 있는 상태다.** 문구는 사용자 요청으로 먼저
+//    바꿨고, 상세 화면이 생기면 그때 이동만 바꾸면 된다.
+//    → app/destinations/[code].tsx 같은 라우트가 필요하다. 사람에게 알렸다.
+//
+// ⚠️ 지금은 목적지가 따라가지도 않는다. TRIP-01(/trips/new/owner)이
+//    destination param 을 받지 않는다. 받게 하려면 그 화면을 고쳐야 하는데
+//    담당이 달라 손대지 않았다. (CLAUDE.md 13장)
 // ============================================================================
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
@@ -114,7 +126,7 @@ export function DestinationSuggestCard({ suggestion, width, onPress }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${suggestion.nameKo}, ${suggestion.countryKo}. 새 여행 만들기`}
+      accessibilityLabel={`${suggestion.nameKo}, ${suggestion.countryKo}. 여행지 둘러보기`}
       onPress={() => onPress(suggestion.code)}
       className="overflow-hidden bg-white active:opacity-90"
       style={{
@@ -252,16 +264,16 @@ export function DestinationSuggestCard({ suggestion, width, onPress }: Props) {
           <View className="flex-1 flex-row items-center">
             <Ionicons name="calendar-outline" size={12} color={LABEL} />
             <Text style={{ marginLeft: 4, fontSize: 11, color: BODY }} numberOfLines={1}>
-              {suggestion.nights}
+              추천 여행 기간 {suggestion.days}
             </Text>
 
             <View
               style={{ width: 1, height: 9, marginHorizontal: 8, backgroundColor: '#e5e7eb' }}
             />
 
-            <Ionicons name="chatbubble-outline" size={11} color={LABEL} />
+            <Ionicons name="location-outline" size={11} color={LABEL} />
             <Text style={{ marginLeft: 4, fontSize: 11, color: BODY }} numberOfLines={1}>
-              {suggestion.postCount > 0 ? `여행기 ${suggestion.postCount}개` : '첫 여행기 주인공'}
+              {suggestion.countryKo}
             </Text>
           </View>
 
@@ -281,7 +293,9 @@ export function DestinationSuggestCard({ suggestion, width, onPress }: Props) {
               paddingVertical: 5,
             }}
           >
-            <Text style={{ fontSize: 11, fontWeight: '800', color: accent }}>여행 만들기</Text>
+            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: accent }}>
+              {suggestion.nameKo} 둘러보기
+            </Text>
             <Ionicons name="arrow-forward" size={11} color={accent} style={{ marginLeft: 3 }} />
           </View>
         </View>
