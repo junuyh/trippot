@@ -240,6 +240,16 @@ export default function ScreenHOME01() {
     router.push(`/community?destination=${encodeURIComponent(nameKo)}`);
   }
 
+  /**
+   * 추천 여행지 카드를 눌렀을 때. 그 여행지 상세로 보낸다. (2026-09-11)
+   *
+   * ⚠️ 전에는 여행 만들기로 보냈다. 카드가 '○○ 둘러보기' 라고 말하는데 갈
+   *    화면이 없어서였다. 이제 DEST-01 이 생겨 말과 동작이 맞는다.
+   */
+  function handlePressDestination(code: string) {
+    router.push(`/destinations/${code}`);
+  }
+
   function handlePressCreateTrip(entryPoint: EntryPoint) {
     // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint param 을 읽어 기록한다.
     // 홈에서도 track() 하면 trip_create_started 가 두 번 쌓여 퍼널이 부풀려진다.
@@ -393,7 +403,7 @@ export default function ScreenHOME01() {
         onCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
         // 목적지 코드를 받지만 아직 넘기지 않는다. TRIP-01 이 destination param 을
         // 받게 되면 그때 붙인다. (components/home/DestinationSuggestCard 주석)
-        onPressSuggestion={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
+        onPressSuggestion={handlePressDestination}
         onPressDiscovery={handlePressDiscovery}
       />
     );
