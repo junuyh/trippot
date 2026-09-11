@@ -17,11 +17,11 @@
 --     token 검증                 Edge Function → service_role
 --
 --   [service_role]
---     trip_invites 직접 접근     가능 (③ GRANT)
+--     trip_invites SELECT        가능 (③ GRANT · 수신자 token 검증용. 쓰기 권한 없음)
 --
--- ── 요청 SQL 에서 더한 것 두 가지 ──────────────────────────────────────────
+-- ── 요청 SQL 과 달라진 3건 — 적용 후 요청자 확인 완료 (2026-09-11) ──────────
 --
---   요청이 적은 "최종 권한 구조" 가 실제로 성립하도록 채운 것이다. 새 정책이 아니다.
+--   DB 담당이 먼저 적용하고 사후 확인을 받았다. 판정: ⑴ 유지 · ⑵ SELECT 로 축소 · ⑶ 유지
 --
 --   ⑴ dev_open_all 을 이 표에서만 drop 한다.
 --      요청은 "invites_owner 를 지우고 멤버 정책으로 교체" 였는데, invites_owner 는
@@ -31,11 +31,14 @@
 --      모든 token 을 읽는다. → "수신자 직접 SELECT 불가" 가 거짓이 된다.
 --      다른 표의 dev_open_all 은 건드리지 않는다.
 --
---   ⑵ service_role 에 GRANT 를 준다.
+--   ⑵ service_role 에 SELECT 를 준다.
 --      service_role 은 RLS 는 우회하지만 **테이블 GRANT 는 우회하지 않는다.**
---      지금 이 표의 service_role 권한은 REFERENCES · TRIGGER · TRUNCATE 뿐이라
+--      기존 권한이 REFERENCES · TRIGGER · TRUNCATE 뿐이라
 --      수신자용 Edge Function 의 token 조회가 42501 로 막힌다.
---      20260907000002 가 같은 이유로 고친 것과 같은 판단이다.
+--      처음엔 SELECT · INSERT · UPDATE · DELETE 를 줬고, 요청자 판정으로 SELECT 만 남겼다.
+--      수신자 검증은 조회만 한다. 강제 폐기 등 서버 쓰기가 확정되면 그때 필요한 권한만 더한다.
+--
+--   ⑶ gen_random_bytes 를 extensions. 로 부른다. (① 주석 참조)
 --
 -- ⚠️ 20260910000001 을 고치지 않는다. 그 파일 하단의 배포용 RLS 초안
 --    (invites_owner · 여행장 전용)은 이 파일로 **대체됐다.** 주석은 이력으로 남긴다.
@@ -240,12 +243,17 @@ grant select on public.trip_invites to authenticated;
 --   UPDATE → revoked_at 은 MVP 정상 흐름에서 쓰지 않는다 (§5-1).
 --            강제 폐기 기능이 생기면 service_role 경로에서만 수정
 --
--- ⚠️ service_role 은 수신자용 Edge Function 의 token 검증 주체다.
+-- ⚠️ service_role 은 수신자용 Edge Function 의 token 검증 주체다. **SELECT 만.**
 --    GRANT 없이는 RLS 를 우회해도 42501 로 막힌다. (⑵ 파일 상단 참조)
+--    revoke 는 원격에 먼저 줬던 쓰기 권한을 걷어 낸 것이다. 새 환경에서는 아무 일도 안 한다.
 -- ============================================================================
 revoke insert on public.trip_invites from anon, authenticated;
 revoke update on public.trip_invites from anon, authenticated;
 
-grant select, insert, update, delete
+revoke insert, update, delete
+  on public.trip_invites
+  from service_role;
+
+grant select
   on public.trip_invites
   to service_role;
