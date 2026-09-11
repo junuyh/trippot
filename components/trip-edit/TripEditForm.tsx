@@ -244,7 +244,8 @@ export function TripEditForm({
 
         {/*
           초대 자리. 점선 테두리라 "여기에 사람을 더 넣는다" 로 읽힌다.
-          지난 여행이 있는 모임이면 화면이 새 모임 생성으로 보낸다.
+          모임을 안 골랐어도 링크는 나간다. 모임 정리는 여행장이 수락할 때 한다.
+          (docs/10_여행초대정책_v2.md §9-5 · 2026-09-11)
         */}
         <Pressable
           accessibilityRole="button"
@@ -283,9 +284,7 @@ export function TripEditForm({
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 13, fontWeight: "800", color: INK }}>여행 멤버 초대하기</Text>
             <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
-              {selectedGroup
-                ? "초대 링크를 보내면 상대가 참여를 요청하고, 수락하면 합류해요. 이미 다녀온 여행이 있는 모임이면 새 모임을 만들어요."
-                : "먼저 모임을 고르거나, 새 모임을 만들어 초대해요."}
+              초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요.
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={15} color={FAINT} />
