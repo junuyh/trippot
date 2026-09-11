@@ -5,7 +5,7 @@
 //
 //   여행지 티켓 카드 → OO는 이런 여행지예요! → 값 세 칸 →
 //   이런 분들께 추천해요 → 여행비 가이드 → 항목별 평균 예산 →
-//   함께 가면 이런 예산이에요 → OO 관련 커뮤니티 → [OO로 여행 만들기]
+//   함께 가면 이런 예산이에요 → OO 관련 커뮤니티
 //
 // ⚠️⚠️ **예산 금액은 여행 만들기가 쓰는 계산 그대로다.**
 //    lib/destination/budgetGuide 가 buildBudgetRecommendation(TRIP-03 이 부르는
@@ -46,7 +46,6 @@ import {
   REGION_LABEL,
   type DestinationCode,
 } from '@/lib/constants/destinations';
-import { ENTRY_POINT } from '@/lib/constants/status';
 import { destinationBudgetGuide } from '@/lib/destination/budgetGuide';
 import { getPosts, type PostListItem } from '@/lib/supabase/queries/community';
 
@@ -187,12 +186,6 @@ export default function ScreenDEST01() {
         // 커뮤니티 탭의 이 여행지 칸으로 보낸다. 홈의 태그가 쓰는 것과 같은 경로다.
         onPressSeeAllPosts={() =>
           router.push(`/community?destination=${encodeURIComponent(meta.nameKo)}`)
-        }
-        // ⚠️ 목적지가 따라가지 않는다. TRIP-01(/trips/new/owner)이 destination
-        //    param 을 받지 않는다. 담당이 달라 손대지 않았다. (CLAUDE.md 13장)
-        //    TODO: TRIP-01 이 목적지를 받으면 meta.code 를 함께 넘긴다.
-        onPressCreateTrip={() =>
-          router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)
         }
       />
     </>

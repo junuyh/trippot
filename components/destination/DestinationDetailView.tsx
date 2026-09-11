@@ -9,8 +9,6 @@
 //   항목별 평균 예산
 //   함께 가면 이런 예산이에요
 //   OO 관련 커뮤니티
-//   ───────────────────────────
-//   [ OO로 여행 만들기 ]            ← 화면 아래 고정
 //
 // ⚠️ **섹션을 임의로 늘리지 않는다.** 위 목록이 전부다. 여행지마다 'OO' 자리만
 //    도시 이름으로 바뀐다.
@@ -20,18 +18,14 @@
 //    일본에서 프랑스로 넘어가도 같은 TripPot 으로 보여야 한다.
 //    포인트 컬러가 칠해지는 자리는 tokens.ts 머리말에 적어 두었다.
 //
-// ⚠️ 맨 아래 '여행 만들기' 는 화면에 고정한다. 예산과 여행기를 한참 내려본
-//    사람이 마음먹었을 때 버튼이 화면 밖에 있으면 안 된다.
-//    홈의 떠 있는 버튼(CreateTripFab)과 같은 이유다.
-//
-// ⚠️ **이 버튼만 국가색 면을 크게 쓴다.** 화면에서 유일한 확정 동작이라
-//    여기까지 무채색으로 두면 어디를 눌러야 하는지 알 수 없다. 나머지 국가색은
-//    전부 선·아이콘·숫자처럼 좁은 자리다.
+// ⚠️ **여행 만들기 버튼을 두지 않는다.** (2026-09-11)
+//    이 화면은 여행지를 '둘러보는' 자리다. 여행 만들기는 홈의 떠 있는
+//    버튼(CreateTripFab)과 여행 탭이 맡는다. 둘러보러 들어온 사람에게
+//    화면 아래를 계속 차지하는 확정 버튼을 들이밀지 않는다.
 //
 // 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, Text, View } from 'react-native';
 
 import {
   formatRangeCompact,
@@ -46,7 +40,7 @@ import {
 import { HighlightRow, RecommendedForSection, SectionHeading } from './DestinationSections';
 import { DestinationTicketCard } from './DestinationTicketCard';
 import { HeadcountBudgetSection } from './HeadcountBudgetSection';
-import { CAPTION, INK, LINE, RADIUS } from './tokens';
+import { CAPTION, INK } from './tokens';
 import type { DestinationDetailData } from './types';
 
 type Props = {
@@ -56,7 +50,6 @@ type Props = {
   onChangeHeadcount: (next: number) => void;
   onPressPost: (postId: string) => void;
   onPressSeeAllPosts: () => void;
-  onPressCreateTrip: () => void;
 };
 
 /** 좌우 여백. 시안의 밀도를 그대로 따른다. */
@@ -71,9 +64,7 @@ export function DestinationDetailView({
   onChangeHeadcount,
   onPressPost,
   onPressSeeAllPosts,
-  onPressCreateTrip,
 }: Props) {
-  const insets = useSafeAreaInsets();
   const accent = destination.theme.primary;
   const accentSoft = destination.theme.primarySoft;
 
@@ -84,8 +75,7 @@ export function DestinationDetailView({
         contentContainerStyle={{
           paddingHorizontal: GUTTER,
           paddingTop: 12,
-          // 아래 고정 버튼에 마지막 내용이 가리지 않게 버튼 높이만큼 비운다.
-          paddingBottom: 130,
+          paddingBottom: 40,
         }}
       >
         <DestinationTicketCard destination={destination} />
@@ -150,40 +140,6 @@ export function DestinationDetailView({
         </View>
       </ScrollView>
 
-      {/* ── 아래 고정 버튼 ─────────────────────────────────────────────── */}
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          paddingHorizontal: GUTTER,
-          paddingTop: 12,
-          paddingBottom: Math.max(insets.bottom, 12) + 4,
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: LINE,
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${destination.nameKo}로 여행 만들기`}
-          onPress={onPressCreateTrip}
-          className="items-center justify-center active:opacity-90"
-          style={{ height: 52, borderRadius: RADIUS.card, backgroundColor: accent }}
-        >
-          <Text
-            style={{
-              fontSize: 15,
-              fontWeight: '700',
-              letterSpacing: -0.3,
-              color: destination.theme.onPrimary,
-            }}
-          >
-            {destination.nameKo}로 여행 만들기
-          </Text>
-        </Pressable>
-      </View>
     </View>
   );
 }

@@ -43,10 +43,11 @@ import {
   ACCENT_BAR_COUNT,
   BAR_NEUTRAL,
   BAR_TRACK,
+  CAPTION,
   INK,
   LINE,
-  MUTED,
   RADIUS,
+  softer,
   SUBTLE,
   TITLE,
 } from './tokens';
@@ -81,34 +82,45 @@ export function BudgetGuideSection({ guide, accent, accentSoft }: Props) {
         }
       />
 
-      {/* ── 요약 칸 ─────────────────────────────────────────────────────── */}
+      {/*
+        요약 칸.
+
+        ⚠️ 바탕은 국가색 옅은 톤(primarySoft), **글자는 잉크색**이다. (2026-09-11)
+           처음엔 이 바탕 위에 연한 회색 글자(#8b94a2)를 올려 읽기 어려웠다.
+           바탕을 뺐더니 화면이 허옇게 비어 보였다. 고칠 것은 바탕이 아니라
+           글자색이었다 — 옅은 색 위에 연한 회색 글자를 올리지 않는다.
+      */}
       <View
         className="flex-row"
         style={{
-          backgroundColor: accentSoft,
+          // 넓은 칸이라 한 번 더 연하게 만든다. (tokens.softer)
+          backgroundColor: softer(accentSoft),
           borderRadius: RADIUS.card,
-          paddingVertical: 14,
+          paddingVertical: 15,
           paddingHorizontal: 14,
         }}
       >
+        {/* 금액 쪽임을 알리는 짧은 세로 라인. 국가색이 들어가는 좁은 자리다. */}
+        <View style={{ width: 3, borderRadius: 2, backgroundColor: accent, marginRight: 11 }} />
+
         <View style={{ flex: 1.25, paddingRight: 10 }}>
-          <Text style={{ fontSize: 11.5, color: MUTED }}>일반적인 여행의 평균 예산이에요.</Text>
+          <Text style={{ fontSize: 11.5, fontWeight: '600', color: INK }}>일반적인 여행의 평균 예산이에요.</Text>
           <View className="mt-1.5 flex-row flex-wrap items-baseline">
             <Text
               style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.6, color: accent }}
             >
               {formatRange(guide.perPerson)}
             </Text>
-            <Text style={{ marginLeft: 5, fontSize: 11.5, color: MUTED }}>/ 1인</Text>
+            <Text style={{ marginLeft: 5, fontSize: 11.5, color: CAPTION }}>/ 1인</Text>
           </View>
         </View>
 
         {/* 세로선 하나로 '금액' 과 '주의' 를 가른다. 주의 문구가 금액에 붙어
             보이면 금액의 일부처럼 읽힌다. */}
-        <View style={{ width: 1, backgroundColor: '#FFFFFF', opacity: 0.9 }} />
+        <View style={{ width: 1, backgroundColor: '#FFFFFF', opacity: 0.85 }} />
 
-        <View style={{ flex: 1, paddingLeft: 10, justifyContent: 'center' }}>
-          <Text style={{ fontSize: 10.5, lineHeight: 16, color: MUTED }}>
+        <View style={{ flex: 1, paddingLeft: 11, justifyContent: 'center' }}>
+          <Text style={{ fontSize: 11, lineHeight: 16, color: INK }}>
             여행 시기, 인원, 여행 스타일에 따라 달라질 수 있어요.
           </Text>
         </View>
@@ -148,7 +160,7 @@ export function BudgetGuideSection({ guide, accent, accentSoft }: Props) {
                 않아 잘렸다. 내용만큼 차지하고 그래프가 남는 폭을 쓴다. */}
             <Text
               numberOfLines={1}
-              style={{ fontSize: 12, color: MUTED, marginRight: 8, flexShrink: 0 }}
+              style={{ fontSize: 12, color: CAPTION, marginRight: 8, flexShrink: 0 }}
             >
               {row.label}
             </Text>

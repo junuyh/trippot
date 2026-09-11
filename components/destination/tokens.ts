@@ -82,3 +82,27 @@ export const TITLE = {
  *    금액이 큰 위쪽 몇 개만 국가색이고 나머지는 블루그레이다.
  */
 export const ACCENT_BAR_COUNT = 3;
+
+/**
+ * 국가색 옅은 톤(primarySoft)을 **한 번 더 연하게** 만든다. (2026-09-11)
+ *
+ * ⚠️ countryTheme.primarySoft 는 카드 배지·작은 강조 배경에 쓰라고 만든 값이라,
+ *    이 화면처럼 **넓은 칸을 통째로 채우면 색이 세게 느껴진다.** 같은 색이라도
+ *    면적이 커지면 진해 보이기 때문이다.
+ *    그래서 칸 배경에는 이 함수를 거친 값을 쓴다. 아이콘 뒤 작은 원처럼 좁은
+ *    자리는 primarySoft 를 그대로 쓴다.
+ *
+ * ⚠️ 반투명(알파)이 아니라 흰색과 아예 섞는다. 알파를 쓰면 겹친 자리마다 색이
+ *    달라져 같은 톤으로 맞출 수 없다.
+ *    (components/home/NextTripBanner 의 pastel 과 같은 방식)
+ */
+export function softer(hex: string, ratio = 0.45): string {
+  const value = hex.replace('#', '');
+  if (value.length !== 6) return hex;
+  const mix = (start: number) => {
+    const channel = parseInt(value.slice(start, start + 2), 16);
+    return Math.round(255 + (channel - 255) * ratio);
+  };
+  const to2 = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${to2(mix(0))}${to2(mix(2))}${to2(mix(4))}`;
+}

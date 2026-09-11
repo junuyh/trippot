@@ -3,10 +3,10 @@
 //
 //   ┃┌──────────────────────────────────────────┐┃
 //   ┃│ TRIPPOT              ┌─────────────────┐ │┃
-//   ┃│ TOKYO                │  사진   Good Trip!│ │┃
+//   ┃│ TOKYO                │      사진       │ │┃
 //   ┃│ JAPAN 🇯🇵              │            [JP] │ │┃
 //   ┃│ ──────────────────   └─────────────────┘ │┃
-//   ●│ SEOUL / ICN ✈┄┄┄ NRT        ((스탬프))≋≋ │●   ← ● 티켓 노치
+//   ●│ SEOUL / ICN  ✈ ┄┄┄┄┄┄┄┄┄┄┄┄  NRT       │●   ← ● 티켓 노치
 //   ┃│ ─────────────────────────────────────────│┃
 //   ┃│ 여행 기간  │ 추천 시기 │ 여행 스타일        │┃
 //   ┃│ 3박 4일    │ 봄, 가을  │ 도시·쇼핑·미식     │┃
@@ -16,7 +16,7 @@
 //    ↑ 국기 첫 번째 색                국기 두 번째 색 ↑
 //
 // ⚠️ **국가가 바뀌어도 이 구조는 그대로다.** 바뀌는 것은 사진·도시명·국가명·
-//    국기·공항 코드, 그리고 좌우 띠와 스탬프 색뿐이다.
+//    국기·공항 코드, 그리고 좌우 띠 색뿐이다.
 //
 // ⚠️ **좌우 띠는 여행 준비 홈의 방식을 그대로 따른다.** (2026-09-11)
 //    components/trip-home/BaggageTagCard 가 좌우 컬러 라인에 국기 두 색
@@ -26,7 +26,7 @@
 //    두 화면의 티켓이 같은 체계로 보여야 하고, 색을 이 화면에서 새로 정하면
 //    나중에 국기 색이 바뀔 때 한 곳만 남는다. (countryTheme 한 곳에서 온다)
 //
-// ⚠️ **국가색은 좁게 쓴다.** 좌우 띠와 스탬프뿐이다. 카드 바탕은 흰색,
+// ⚠️ **국가색은 좁게 쓴다.** 좌우 컬러 라인뿐이다. 카드 바탕은 흰색,
 //    글자는 딥네이비다. 큰 면을 국기색으로 채우면 나라가 바뀔 때마다 앱이
 //    다른 서비스처럼 보인다. (tokens.ts 머리말)
 //
@@ -35,15 +35,11 @@
 //
 // ⚠️ 바코드는 아무 값도 담지 않는 무늬다. 숫자를 붙이지 않는다.
 //    (components/home/LuggageTagCard 와 같은 규칙)
-//
-// ⚠️ 'Good Trip!' 손글씨는 Caveat 다. 글꼴이 아직 안 실렸으면 그리지 않는다.
-//    글꼴 없이 그리면 시스템 고딕으로 나와서 손글씨가 아니라 오타처럼 보인다.
+
 // ============================================================================
 import { Ionicons } from '@expo/vector-icons';
 import { Image, Text, View } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
-
-import { useStoryFonts } from '@/lib/hooks/useStoryFonts';
+import Svg, { Rect } from 'react-native-svg';
 
 import { INK, SUBTLE } from './tokens';
 import type { DestinationDetailData } from './types';
@@ -74,6 +70,32 @@ const PAD = 15;
 const NOTCH = 9;
 /** 페이지 바탕. 노치를 이 색으로 뚫는다. ⚠️ 화면 바탕과 같아야 한다. */
 const PAGE_BG = '#FFFFFF';
+
+/**
+ * 도시 이름 크기. **글자 수로 정한다.**
+ *
+ * ⚠️ adjustsFontSizeToFit 에 맡기지 않는다. 웹(react-native-web)이 그 속성을
+ *    구현하지 않아서 글자가 줄지 않고 **그대로 잘린다.** 'HONG KONG' 이
+ *    'HONG KON…' 으로 나왔다. 길이로 미리 정하면 어느 플랫폼에서나 같다.
+ *    (components/home/NextTripBanner 의 cityFontRatio 와 같은 방식)
+ */
+function cityFontSize(name: string): number {
+  if (name.length <= 5) return 40;
+  if (name.length <= 7) return 34;
+  if (name.length <= 9) return 27;
+  return 23;
+}
+
+/**
+ * 국가명 크기. 도시 이름과 같은 이유로 글자 수로 정한다.
+ * 'PHILIPPINES'(11자)가 가장 길다.
+ */
+function countryFontSize(name: string): number {
+  if (name.length <= 6) return 17;
+  if (name.length <= 8) return 15;
+  if (name.length <= 10) return 13.5;
+  return 12.5;
+}
 
 /** 바코드 무늬. 목적지 코드로 만들어 다시 그려도 같은 무늬가 나온다. */
 function barcodeBars(seed: string, targetWidth: number, count = 46) {
@@ -125,8 +147,9 @@ function TicketField({ label, value, grow = 1 }: { label: string; value: string;
 
 export function DestinationTicketCard({ destination }: Props) {
   const accent = destination.theme.primary;
-  const fontsReady = useStoryFonts();
 
+  const cityFont = cityFontSize(destination.nameEn);
+  const countryFont = countryFontSize(destination.theme.nameEn);
   const bars = barcodeBars(destination.code, 178);
 
   return (
@@ -152,11 +175,10 @@ export function DestinationTicketCard({ destination }: Props) {
 
             <Text
               numberOfLines={1}
-              adjustsFontSizeToFit
               style={{
                 marginTop: 4,
-                fontSize: 40,
-                lineHeight: 44,
+                fontSize: cityFont,
+                lineHeight: cityFont * 1.1,
                 // 카드에서 가장 큰 글자. 여기와 값 세 칸만 굵게 간다.
                 fontWeight: '900',
                 letterSpacing: -1.6,
@@ -167,13 +189,23 @@ export function DestinationTicketCard({ destination }: Props) {
             </Text>
 
             <View className="mt-0.5 flex-row items-center">
-              <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.2, color: '#9AA7BD' }}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  flexShrink: 1,
+                  fontSize: countryFont,
+                  fontWeight: '800',
+                  letterSpacing: -0.2,
+                  color: '#9AA7BD',
+                }}
+              >
                 {destination.theme.nameEn}
               </Text>
               {/* 국기를 흰 칸에 넣어 배지로 만든다.
                   ⚠️ 윈도우에는 국기 글꼴이 없어 'JP' 처럼 글자로 보인다. */}
               <View
                 style={{
+                  flexShrink: 0,
                   marginLeft: 7,
                   paddingHorizontal: 5,
                   paddingVertical: 2,
@@ -230,26 +262,9 @@ export function DestinationTicketCard({ destination }: Props) {
               />
             ) : null}
 
-            {/* 손글씨. 글꼴이 실리지 않았으면 그리지 않는다. (위 주석) */}
-            {fontsReady ? (
-              <Text
-                pointerEvents="none"
-                style={{
-                  position: 'absolute',
-                  left: 10,
-                  top: 12,
-                  fontFamily: 'Caveat_700Bold',
-                  fontSize: 20,
-                  color: '#FFFFFF',
-                  // 밝은 사진 위에서도 읽히게 그늘을 준다.
-                  textShadowColor: 'rgba(0,0,0,0.45)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 4,
-                }}
-              >
-                Good Trip!
-              </Text>
-            ) : null}
+            {/* ⚠️ 사진 위 'Good Trip!' 손글씨를 뺐다. (2026-09-11)
+                사진을 가리기만 하고 알려주는 것이 없었다. 같은 인사는 카드
+                아래 'GOOD TRIP ALWAYS' 가 이미 하고 있어 두 번 말하는 셈이었다. */}
 
             {/* 국가 코드 배지. 딥네이비 — 나라가 바뀌어도 같은 색이다. */}
             <View
@@ -318,68 +333,15 @@ export function DestinationTicketCard({ destination }: Props) {
       <View style={{ width: SIDE, backgroundColor: destination.theme.stripe[1] }} />
 
       {/*
-        국가 스탬프 — 카드에서 국가색이 칠해지는 두 번째 자리.
-        사진 아래 오른쪽에 걸치게 두고, 오른쪽으로 소인 물결을 흘린다.
-      */}
-      <View
-        pointerEvents="none"
-        style={{ position: 'absolute', right: SIDE + 4, top: '46%' }}
-      >
-        <View style={{ width: 78, height: 66 }}>
-          <Svg width={78} height={66} style={{ position: 'absolute' }}>
-            {/* 소인 물결. 도장 오른쪽으로 흘러 나간다. */}
-            {[0, 1, 2, 3].map((line) => {
-              const y = 24 + line * 6;
-              return (
-                <Path
-                  key={line}
-                  d={`M 58 ${y} q 5 -3 10 0 t 10 0`}
-                  stroke={accent}
-                  strokeWidth={1.4}
-                  strokeLinecap="round"
-                  fill="none"
-                />
-              );
-            })}
-            {/* 이중 원 */}
-            <Circle cx={33} cy={33} r={30} stroke={accent} strokeWidth={1.8} fill={PAGE_BG} opacity={0.96} />
-            <Circle cx={33} cy={33} r={25.5} stroke={accent} strokeWidth={0.9} fill="none" opacity={0.85} />
-          </Svg>
+        ⚠️ **국가 스탬프를 뺐다.** (2026-09-11)
+           사진 오른쪽 아래 모서리에 도장을 찍었는데, 사진 위에 얹히다 보니
+           사진을 가리고 글자(TRIPPOT·도시명·국가명)가 겹쳐 지저분했다.
+           자리를 옮기고 기울여도 가리는 것은 그대로였다.
 
-          <View
-            style={{
-              position: 'absolute',
-              left: 3,
-              top: 3,
-              width: 60,
-              height: 60,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={{ fontSize: 7, fontWeight: '800', letterSpacing: 0.9, color: accent }}>
-              TRIPPOT
-            </Text>
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              style={{
-                maxWidth: 52,
-                fontSize: 13,
-                fontWeight: '900',
-                letterSpacing: -0.3,
-                color: accent,
-              }}
-            >
-              {destination.nameEn}
-            </Text>
-            <Text style={{ fontSize: 6.5, fontWeight: '800', letterSpacing: 0.8, color: accent }}>
-              {destination.theme.nameEn}
-            </Text>
-            <Ionicons name="airplane" size={9} color={accent} style={{ marginTop: 1 }} />
-          </View>
-        </View>
-      </View>
+           국가색이 사라지는 것은 아니다. 이 카드에는 좌우 컬러 라인이 있고,
+           도장이 하던 말(어느 나라 티켓인가)은 국가명·국기 배지·국가 코드
+           배지가 이미 하고 있었다. 도장은 같은 말을 한 번 더 한 셈이다.
+      */}
 
       {/*
         티켓 노치. 양옆에서 카드를 파고든다.

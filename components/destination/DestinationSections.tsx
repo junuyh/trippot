@@ -12,7 +12,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 
-import { CAPTION, INK, LINE, RADIUS, SUBTLE, TINT, TITLE } from './tokens';
+import { CAPTION, INK, LINE, RADIUS, softer, TITLE } from './tokens';
 
 /** 섹션 제목. 앞의 짧은 세로 라인만 국가색이다. */
 export function SectionHeading({
@@ -64,10 +64,13 @@ export function HighlightRow({
       {items.map((item) => (
         <View
           key={item.caption}
-          className="flex-1 items-center bg-white"
+          className="flex-1 items-center"
           style={{
             borderWidth: 1,
-            borderColor: LINE,
+            // 가운데 예산 칸만 국가색 옅은 톤이다. 세 칸이 다 희면 줄 전체가
+            // 비어 보이고, 셋 다 색이면 어디를 봐야 하는지 알 수 없다.
+            borderColor: item.caption === '여행비 가이드' ? softer(accentSoft) : LINE,
+            backgroundColor: item.caption === '여행비 가이드' ? softer(accentSoft) : '#FFFFFF',
             borderRadius: RADIUS.card,
             paddingVertical: 14,
             paddingHorizontal: 8,
@@ -78,14 +81,14 @@ export function HighlightRow({
               width: 28,
               height: 28,
               borderRadius: 14,
-              backgroundColor: accentSoft,
+              backgroundColor: item.caption === '여행비 가이드' ? '#FFFFFF' : accentSoft,
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
             <Ionicons name={item.icon} size={15} color={accent} />
           </View>
-          <Text style={{ marginTop: 8, fontSize: 10.5, color: SUBTLE }}>{item.caption}</Text>
+          <Text style={{ marginTop: 8, fontSize: 10.5, color: CAPTION }}>{item.caption}</Text>
           <Text
             numberOfLines={2}
             style={{
@@ -120,13 +123,21 @@ export function RecommendedForSection({
   if (items.length === 0) return null;
 
   return (
+    /*
+      ⚠️ 바탕은 국가색 옅은 톤이되 **글자는 잉크색**이다. (2026-09-11)
+         처음에 옅은 회색(#f4f6f8) 위에 회색 글자(#8b94a2)를 올려 읽기 어려웠다.
+         그래서 바탕을 뺐더니 이번엔 화면이 통째로 허옇게 보였다.
+         고칠 것은 바탕이 아니라 **글자색**이었다 — 옅은 색 위에 연한 회색 글자를
+         올리지 않는다. 이 규칙만 지키면 색을 넣어도 읽기 어렵지 않다.
+    */
     <View
       style={{
-        backgroundColor: TINT,
+        // 넓은 칸이라 primarySoft 를 그대로 쓰면 색이 세다. (tokens.softer)
+        backgroundColor: softer(accentSoft),
         borderRadius: RADIUS.card,
-        paddingVertical: 14,
+        paddingVertical: 15,
         paddingHorizontal: 14,
-        gap: 10,
+        gap: 12,
       }}
     >
       {items.map((item) => (
@@ -135,16 +146,16 @@ export function RecommendedForSection({
             style={{
               width: 18,
               height: 18,
-              borderRadius: 5,
-              backgroundColor: accentSoft,
+              borderRadius: 9,
+              backgroundColor: accent,
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <Ionicons name="checkmark" size={12} color={accent} />
+            <Ionicons name="checkmark" size={11} color="#FFFFFF" />
           </View>
           <Text
-            style={{ marginLeft: 9, flex: 1, fontSize: 13, lineHeight: 19, color: CAPTION }}
+            style={{ marginLeft: 10, flex: 1, fontSize: 13.5, lineHeight: 20, color: INK }}
           >
             {item}
           </Text>

@@ -31,7 +31,7 @@ import { Pressable, Text, View } from 'react-native';
 import { formatRange, type DestinationBudgetGuide } from '@/lib/destination/budgetGuide';
 
 import { SectionHeading } from './DestinationSections';
-import { INK, LINE, MUTED, RADIUS, SUBTLE, TINT } from './tokens';
+import { CAPTION, INK, LINE, RADIUS, softer, SUBTLE } from './tokens';
 
 type Props = {
   guide: DestinationBudgetGuide;
@@ -39,6 +39,20 @@ type Props = {
   accentSoft: string;
   onChangeHeadcount: (next: number) => void;
 };
+
+/**
+ * 금액 글자 크기. **글자 수로 정한다.**
+ *
+ * ⚠️ adjustsFontSizeToFit 에 맡기지 않는다. 웹(react-native-web)이 그 속성을
+ *    구현하지 않아 글자가 줄지 않고 그대로 잘린다. 10명이면
+ *    '약 1,400만 ~ 2,500만원' 까지 길어진다.
+ *    (components/destination/DestinationTicketCard 와 같은 방식)
+ */
+function moneyFontSize(text: string, base: number): number {
+  if (text.length <= 14) return base;
+  if (text.length <= 17) return base - 2;
+  return base - 3.5;
+}
 
 /** 인원 상한·하한. 혼자 가는 여행부터 모임 여행까지 담는다. */
 const MIN_HEADCOUNT = 1;
@@ -49,11 +63,16 @@ function StepButton({
   disabled,
   onPress,
   label,
+  tint,
+  color,
 }: {
   icon: 'remove' | 'add';
   disabled: boolean;
   onPress: () => void;
   label: string;
+  /** 버튼 바탕. 국가색 옅은 톤이다. */
+  tint: string;
+  color: string;
 }) {
   return (
     <Pressable
@@ -68,13 +87,11 @@ function StepButton({
         width: 26,
         height: 26,
         borderRadius: 8,
-        borderWidth: 1,
-        borderColor: LINE,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: tint,
         opacity: disabled ? 0.4 : 1,
       }}
     >
-      <Ionicons name={icon} size={14} color={INK} />
+      <Ionicons name={icon} size={14} color={color} />
     </Pressable>
   );
 }
@@ -86,6 +103,8 @@ export function HeadcountBudgetSection({
   onChangeHeadcount,
 }: Props) {
   const { headcount } = guide;
+  const totalText = formatRange(guide.total);
+  const perPersonText = formatRange(guide.perPerson);
 
   return (
     <View>
@@ -97,6 +116,8 @@ export function HeadcountBudgetSection({
             <StepButton
               icon="remove"
               label="인원 줄이기"
+              tint={accentSoft}
+              color={accent}
               disabled={headcount <= MIN_HEADCOUNT}
               onPress={() => onChangeHeadcount(Math.max(MIN_HEADCOUNT, headcount - 1))}
             />
@@ -114,6 +135,8 @@ export function HeadcountBudgetSection({
             <StepButton
               icon="add"
               label="인원 늘리기"
+              tint={accentSoft}
+              color={accent}
               disabled={headcount >= MAX_HEADCOUNT}
               onPress={() => onChangeHeadcount(Math.min(MAX_HEADCOUNT, headcount + 1))}
             />
@@ -144,57 +167,65 @@ export function HeadcountBudgetSection({
           >
             <Ionicons name="people-outline" size={14} color={accent} />
           </View>
-          <Text style={{ marginLeft: 8, fontSize: 12.5, color: MUTED }}>
+          <Text style={{ marginLeft: 8, fontSize: 12.5, color: CAPTION }}>
             {headcount}명이 함께 준비하는 경우 (평균 기준)
           </Text>
         </View>
 
         <View className="mt-3 flex-row items-center justify-between">
-          <Text style={{ fontSize: 12.5, color: MUTED, flexShrink: 0 }}>총 예상 여행비</Text>
+          <Text style={{ fontSize: 12.5, color: CAPTION, flexShrink: 0 }}>총 예상 여행비</Text>
           {/* ⚠️ 10명이면 '약 700만 ~ 1,250만원' 까지 길어진다. 줄어들 수 있게 두고
               그래도 모자라면 글자를 줄인다. 자르지 않는다. */}
           <Text
             numberOfLines={1}
-            adjustsFontSizeToFit
             style={{
               flexShrink: 1,
               marginLeft: 8,
               textAlign: 'right',
-              fontSize: 16,
+              fontSize: moneyFontSize(totalText, 16),
               fontWeight: '800',
               letterSpacing: -0.5,
               color: accent,
             }}
           >
-            {formatRange(guide.total)}
+            {totalText}
           </Text>
         </View>
 
         <View style={{ height: 1, backgroundColor: LINE, marginVertical: 10 }} />
 
         <View className="flex-row items-center justify-between">
-          <Text style={{ fontSize: 12.5, color: MUTED, flexShrink: 0 }}>1인 평균</Text>
+          <Text style={{ fontSize: 12.5, color: CAPTION, flexShrink: 0 }}>1인 평균</Text>
           <Text
             numberOfLines={1}
-            adjustsFontSizeToFit
-            style={{ flexShrink: 1, marginLeft: 8, textAlign: 'right', fontSize: 14, fontWeight: '700', color: INK }}
+            style={{
+              flexShrink: 1,
+              marginLeft: 8,
+              textAlign: 'right',
+              fontSize: moneyFontSize(perPersonText, 14),
+              fontWeight: '700',
+              color: INK,
+            }}
           >
-            {formatRange(guide.perPerson)}
+            {perPersonText}
           </Text>
         </View>
       </View>
 
       {/* ── 안내. 버튼이 아니다. ───────────────────────────────────────── */}
+      {/* ⚠️ 옅은 국가색 바탕에 **잉크색 글자**다. 연한 회색 글자를 올리지 않는다.
+          (2026-09-11 — 대비 때문에 한 번 바탕을 뺐다가, 화면이 허옇게 비어
+           보여 되돌렸다. 문제는 바탕이 아니라 글자색이었다) */}
       <View
         className="mt-2.5 flex-row"
-        style={{ backgroundColor: TINT, borderRadius: RADIUS.card, padding: 14 }}
+        style={{ backgroundColor: softer(accentSoft), borderRadius: RADIUS.card, padding: 14 }}
       >
-        <Ionicons name="calculator-outline" size={16} color={SUBTLE} style={{ marginTop: 1 }} />
+        <Ionicons name="calculator-outline" size={16} color={accent} style={{ marginTop: 1 }} />
         <View style={{ marginLeft: 9, flex: 1 }}>
-          <Text style={{ fontSize: 12.5, fontWeight: '600', color: INK }}>
+          <Text style={{ fontSize: 12.5, fontWeight: '700', color: INK }}>
             정확한 금액이 궁금하다면?
           </Text>
-          <Text style={{ marginTop: 3, fontSize: 11.5, lineHeight: 17, color: MUTED }}>
+          <Text style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: INK, opacity: 0.75 }}>
             여행 기간, 숙소 스타일, 여행 목적에 맞춰 우리 모임만의 예상 예산을 계산해드려요.
           </Text>
         </View>
