@@ -1122,6 +1122,10 @@ export default function ScreenTRIP03() {
           // trips_owner_shape CHECK — GROUP 이면 owner_user_id 를 비운다
           owner_user_id: isGroupTrip ? null : userId,
           group_id: isGroupTrip ? groupId : null,
+          // 여행장 = 만든 사람. 참가 요청을 수락·거절할 권한의 유일한 근거다.
+          // PERSONAL · GROUP 모두 채운다. 비워 두면 승인 함수가 LEADER_NOT_CONFIGURED 로 막는다.
+          // (docs/12_여행초대_승인_RPC계약_v1.md §2-1 · 2026-09-13)
+          leader_user_id: userId,
           destination: draft.destinationName,
           start_date: draft.startDate,
           end_date: draft.endDate,
