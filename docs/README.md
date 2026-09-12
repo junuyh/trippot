@@ -32,7 +32,7 @@
 | **`10_여행초대정책_v2.md`** ← 기준 | **✅ 현재 정책 · 여행 초대 · 멤버 Source of Truth.** 권한표(ACTIVE 멤버 누구나 초대 · 수락은 여행장) · POL-INV-014 링크 생명주기 · **모임 분기 최신 기준(대상 여행 외 다른 유효 여행 존재)** · headcount · **PR #86 RPC/RLS 현재 구현** · §15 폐기 정책표 · §16 [STALE IMPLEMENTATION] | 413 |
 | ~~`10_여행초대정책_v1.md`~~ | ⚠️ **SUPERSEDED (2026-09-11).** 과거 의사결정 기록. token 생성 주체·RLS 가 "미확정" 으로 적혀 있다 — 지금은 확정됐다 | 223 |
 | **`11_모임정책_v1.md`** ← 기준 | **모임(GROUP) 정책 Source of Truth.** 개인 여행 = DB 에 모임 없음(`owner_type PERSONAL · group_id null`) · **GROUP-01 에 개인 여행 카드 1장**(전부 묶음 · display model 만, 가짜 group 없음) · 개인 여행 상세 `/groups/personal`(연결 계좌 aggregate · 4탭) · **모임 상세 lifecycle 4탭 + 나간 여행은 배지**(PR #88 판단) · LEFT 최종 정책 vs 구현 공백 §6-2 · 미참여 접근 범위 미확정 §6-3 · 72h 복구는 다른 담당 · headcount 와 개인/모임 판정 무관 · 실제 모임만 이름 수정(RLS 권한) · **PERSONAL → GROUP 은 accept 시점**(후속 정책) · 여행 나가기 swipe 진입 | 267 |
-| `12_여행초대_승인_RPC계약_v1.md` | **DB 담당 요청서.** 수신자 초대 확인 · 참가 요청 · 취소 · 대기 목록 · 승인(CASE A/B/C/D · PERSONAL→GROUP · headcount 재검사 · 원자적) · 거절 — 5개 서버 함수의 auth · 검사 · 쓰기 · 반환 · 멱등 · race 계약. 앱은 이 계약 없이는 Receiver/승인을 시작할 수 없다. §8 미확정 5건 포함 | 254 |
+| **`12_여행초대_승인_RPC계약_v1.md`** ← 기준 | **DB 담당 구현 계약 · 팀 확정(2026-09-13).** 수신자 초대 확인 · 참가 요청 · 취소 · 대기 목록 · 승인(CASE A/B/C/D · **새 모임 = target 여행 ACTIVE 참여자 + 요청자** · PERSONAL→GROUP · headcount 재검사 · 원자적) · 거절 — 6개 서버 함수의 auth · 검사 · 쓰기 · 반환 · 멱등 · race. REJECTED 는 (invite, user) 단위 · `pending_group_name` 미사용 · `leader_user_id` 선행 조건. §13 에 10_v2·11_v1 과의 차이(이 문서 우선) | 346 |
 
 `05_v6`, `06_v3`, `09` 는 크다. 통째로 읽지 말고 해당 절만 읽는다.
 특히 `06_v3` 는 로깅 작업이 아니면 열지 않는다.
