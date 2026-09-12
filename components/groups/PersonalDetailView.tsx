@@ -85,13 +85,16 @@ export function PersonalDetailView({
           ? data.canceledTrips
           : data.planningTrips;
 
-  const tripCount =
-    data.planningTrips.length + data.travelingTrips.length + data.pastTrips.length;
-
   return (
     <View className="flex-1 bg-pot-visual">
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-10 pt-5">
-        {/* 상단 소개. 모임 상세의 기본정보 자리다. 이름 대신 시스템 표시명, 만든 날 대신 여행 수. */}
+        {/*
+          상단 소개. 모임 상세의 기본정보 자리다. 이름 대신 시스템 표시명.
+          ⚠️ 여행 수를 적지 않는다 — "준비하는 여행 3개" 는 준비 중 탭의 수와 헷갈린다.
+          ⚠️ '만든 날' 을 적지 않는다 — 이 묶음은 groups 행이 아니라 created_at 이 없다.
+             가장 오래된 여행의 날짜를 그 자리에 넣으면 실제 모임의 만든 날과 혼동된다.
+          ⚠️ "멤버가 없다" 고 쓰지 않는다 — 개인 여행에도 본인은 trip_members ACTIVE 다.
+        */}
         <View>
           <Text
             className="font-black text-pot-ink"
@@ -100,9 +103,7 @@ export function PersonalDetailView({
             개인 여행
           </Text>
           <Text className="mt-1.5 text-pot-mute" style={{ fontSize: 12.5 }}>
-            {tripCount > 0
-              ? `혼자 준비하는 여행 ${tripCount}개 · 모임이 아니라 멤버가 없어요.`
-              : '혼자 준비하는 여행이 여기 모여요.'}
+            내 개인 여행을 한곳에서 관리해요.
           </Text>
         </View>
 
