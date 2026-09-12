@@ -49,11 +49,13 @@ type GroupTravelCardBase = {
  *
  * ⚠️ 두 종류다. (docs/11_모임정책_v1.md §2 · 2026-09-12)
  *   GROUP     DB 에 groups 행이 있는 실제 모임
- *   PERSONAL  owner_type = PERSONAL 인 개인 여행. **groups 행이 없다.**
- *             group_id 도 group_members 도 없으므로 groupId · memberCount 를 갖지 않는다.
+ *   PERSONAL  내 개인 여행(owner_type = PERSONAL) **전부를 묶은 카드 하나.**
+ *             groups 행이 없으니 groupId · memberCount 가 없다. 여행이 몇 개든
+ *             이 카드는 항상 최대 1장이다 — 여행마다 카드를 만들지 않는다.
  *             목록 UX 에서 함께 보이는 것뿐, DB 상 모임이 아니다.
  *
  * ⚠️ PERSONAL 에 가짜 groupId 를 만들어 GROUP-02 로 보내지 않는다.
+ *    누르면 개인 여행 상세(/groups/personal)로 간다.
  *    편집 모드(숨기기)도 GROUP 만 대상이다 — 숨김 설정이 group_id 기준이라서다.
  */
 export type GroupTravelCardData =
@@ -65,13 +67,11 @@ export type GroupTravelCardData =
     })
   | (GroupTravelCardBase & {
       kind: 'PERSONAL';
-      /** 이 카드가 곧 여행 하나다. 누르면 여행 준비 홈으로 간다. */
-      tripId: string;
     });
 
-/** 카드 key · 선택 판별에 쓰는 안정된 id. 종류가 달라 겹치지 않는다. */
+/** 카드 key · 선택 판별에 쓰는 안정된 id. 개인 여행 카드는 하나뿐이라 고정 key 다. */
 export function groupTravelCardKey(card: GroupTravelCardData): string {
-  return card.kind === 'GROUP' ? `group:${card.groupId}` : `trip:${card.tripId}`;
+  return card.kind === 'GROUP' ? `group:${card.groupId}` : 'personal';
 }
 
 /** 3-2. 모임 상세의 멤버 한 명. (docs/09_IA_v1.md §3-2) */
@@ -197,6 +197,16 @@ export type GroupDetailData = {
   planningTrips: MyTripItem[];
   travelingTrips: MyTripItem[];
   pastTrips: MyTripItem[];
+  /**
+   * 취소된 여행(trips.status = CANCELED). **표시만** 한다. (2026-09-12)
+   * ⚠️ 72시간 복구·만료는 다른 담당의 기능이다. 여기서는 세지도 계산하지도 않는다.
+   */
+  canceledTrips: MyTripItem[];
+  /**
+   * 내가 나간 여행(trip_members.status = LEFT). 이 모임 것만.
+   * 카드는 읽기 전용이다 — 누르면 이유를 알리고 이동하지 않는다.
+   */
+  leftTrips: MyTripItem[];
 };
 
 /** 편집 모드 '숨긴 모임' 바텀시트 한 줄. 이름과 다시 표시만 있으면 된다. */

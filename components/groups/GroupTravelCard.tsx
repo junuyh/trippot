@@ -97,7 +97,7 @@ export function GroupTravelCard({
             : `${group.name} (숨길 수 없음)`
           : group.kind === 'GROUP'
             ? `${group.name} 모임 상세로 이동`
-            : `${group.name} 여행 홈으로 이동`
+            : `${group.name} 상세로 이동`
       }
       accessibilityState={{ selected: editMode && selectable ? selected : undefined }}
       onPress={handlePress}

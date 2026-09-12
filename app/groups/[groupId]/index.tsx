@@ -46,12 +46,14 @@ import { countryTheme } from '@/lib/constants/countryTheme';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import { getGroupTripAccounts } from '@/lib/supabase/queries/funds';
 import {
+  getLeftTrips,
   getMyParticipatingTripIds,
   getOtherActiveTripMemberCount,
   leaveTrip,
 } from '@/lib/supabase/queries/trips';
 import {
   getGroupById,
+  getGroupCanceledTrips,
   getGroupMemberCount,
   getGroupMembers,
   getGroupTrips,
@@ -76,6 +78,9 @@ export default function ScreenGROUP02() {
   const [allAccountsOpen, setAllAccountsOpen] = useState(false);
   /** 나가기 확인창에 올라온 여행. null 이면 닫혀 있다. */
   const [leavingTrip, setLeavingTrip] = useState<MyTripItem | null>(null);
+
+  /** 나간 여행 카드를 눌렀을 때 띄우는 안내. 이동하지 않는다. */
+  const [leftNoticeOpen, setLeftNoticeOpen] = useState(false);
 
   // ── 모임 이름 수정 ─────────────────────────────────────────────────────
   // 헤더 연필 → GroupRenameModal(기존) → updateGroup(기존). 새 UI 를 만들지 않는다.
@@ -113,7 +118,8 @@ export default function ScreenGROUP02() {
         return;
       }
 
-      const [memberCount, members, accounts, participating, trips] = await Promise.all([
+      const [memberCount, members, accounts, participating, trips, canceledTrips, myLeftTrips] =
+        await Promise.all([
         // 인원 수는 GROUP-01 카드와 같은 기준을 쓴다.
         // ⚠️ getGroupMembers() 는 탈퇴 회원까지 추가로 걸러서 members.length 와
         //    숫자가 다를 수 있다. 이번 화면에서 임의로 맞추지 않는다. (후속 확인)
@@ -125,6 +131,10 @@ export default function ScreenGROUP02() {
         // 진행 중(PLANNING·TRAVELING) / 지난(ENDED·SETTLED) 분류는 쿼리가 한다.
         // HOME-01 과 같은 기준이다.
         getGroupTrips(groupId),
+        // 취소됨 탭. **표시만.** 72시간 복구는 다른 담당이다. (docs/11 §6)
+        getGroupCanceledTrips(groupId),
+        // 나간 여행. MY 와 같은 쿼리를 쓰고 이 모임 것만 남긴다. 새 쿼리를 만들지 않는다.
+        getLeftTrips(userId),
       ]);
 
       /**
@@ -179,6 +189,23 @@ export default function ScreenGROUP02() {
       };
 
       const items = all.map(toItem);
+
+      /**
+       * 취소된 여행·나간 여행 카드. MY-02 의 toArchivedItems 와 같은 규칙이다.
+       *   금액을 넣지 않는다 — 취소된 예산은 확정값이 아니고, 나간 여행의 금액은
+       *   더 이상 내 몫이 아니다. 카드가 '—' 를 그린다.
+       *   나간 여행은 left 플래그로 색을 뺀다.
+       * ⚠️ MY 와 같이, 나갔는데 취소까지 된 여행은 '나간 여행' 에만 둔다.
+       */
+      const toArchived = (trip: (typeof all)[number], left: boolean): MyTripItem => ({
+        ...toItem(trip),
+        currentAmount: null,
+        targetAmount: null,
+        finalAmount: null,
+        left,
+      });
+      const leftInGroup = myLeftTrips.filter((trip) => trip.group_id === groupId);
+      const leftIds = new Set(leftInGroup.map((trip) => trip.id));
 
       setGroup({
         groupId: found.id,
@@ -255,6 +282,10 @@ export default function ScreenGROUP02() {
         pastTrips: items.filter(
           (item) => item.status === TRIP_STATUS.ENDED || item.status === TRIP_STATUS.SETTLED,
         ),
+        canceledTrips: canceledTrips
+          .filter((trip) => !leftIds.has(trip.id))
+          .map((trip) => toArchived(trip, false)),
+        leftTrips: leftInGroup.map((trip) => toArchived(trip, true)),
       });
       setLoadState('ready');
     } catch {
@@ -460,6 +491,19 @@ export default function ScreenGROUP02() {
         onPressAccount={(account) => setPickingAccount(account)}
         onPressAllAccounts={() => setAllAccountsOpen(true)}
         onPressLeaveTrip={(trip) => void handlePressLeaveTrip(trip)}
+        // 나간 여행은 열 수 없다. "눌렀는데 아무 일도 없음" 대신 이유를 알린다.
+        onPressLeftTrip={() => setLeftNoticeOpen(true)}
+      />
+
+      <ConfirmModal
+        visible={leftNoticeOpen}
+        title="이미 나간 여행이에요"
+        description="이 여행에서는 나간 상태라 여행 준비 화면을 열 수 없어요."
+        confirmLabel="확인"
+        hideCancel
+        busy={false}
+        onCancel={() => setLeftNoticeOpen(false)}
+        onConfirm={() => setLeftNoticeOpen(false)}
       />
 
       {/* 메인에서 계좌를 누르면 열린다. 여행이 하나뿐이어도 거친다. */}

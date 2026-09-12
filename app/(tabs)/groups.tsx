@@ -169,36 +169,50 @@ export default function ScreenGROUP01() {
         }),
       );
 
-      // 개인 여행 카드. 여행 하나가 카드 하나다. 이름은 시스템 표시명 '개인 여행'.
-      // ⚠️ 여행 상태에 따라 실제 모임 카드와 같은 칸에 놓는다 —
-      //    준비 중·여행 중이면 '진행 중인 여행' 줄에, 끝났으면 지난 여행 수로.
-      //    HOME-01 과 같은 분류 기준이다. (getGroupTrips 와 동일)
-      const personalItems: Row[] = personalTrips.map((trip) => {
-        const ongoing =
-          trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING;
-        return {
-          sortOrder: null,
-          lastStartedTripDate: latestStartedTripDate([trip]),
-          card: {
-            kind: 'PERSONAL',
-            tripId: trip.id,
-            name: '개인 여행',
-            // 모임이 없으니 여행 생성 시각으로 정렬한다. 가짜 모임 값을 만들지 않는다.
-            createdAt: trip.created_at,
-            ongoingTrips: ongoing
-              ? [
-                  {
+      /**
+       * 개인 여행 카드 — 내 개인 여행 **전부를 하나로** 묶는다. (docs/11 §2)
+       *
+       * ⚠️ 여행마다 카드를 만들지 않는다. 몇 개든 '개인 여행' 카드는 최대 1장이다.
+       *    실제 모임 카드와 같은 규칙으로 요약한다:
+       *      진행 중 줄   PLANNING · TRAVELING 여행 (start_date 최신순 · getGroupTrips 와 같다)
+       *      지난 여행 수  ENDED · SETTLED 수
+       * ⚠️ 정렬 키도 가짜를 만들지 않는다.
+       *      최근 여행순   개인 여행 중 이미 시작한 것의 가장 늦은 start_date
+       *      생성순        개인 여행 중 가장 최근 trips.created_at
+       */
+      const personalOngoing = personalTrips
+        .filter(
+          (trip) =>
+            trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING,
+        )
+        .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''));
+      const personalPastCount = personalTrips.filter(
+        (trip) => trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED,
+      ).length;
+      const personalItems: Row[] =
+        personalTrips.length === 0
+          ? []
+          : [
+              {
+                sortOrder: null,
+                lastStartedTripDate: latestStartedTripDate(personalTrips),
+                card: {
+                  kind: 'PERSONAL',
+                  name: '개인 여행',
+                  createdAt: personalTrips
+                    .map((trip) => trip.created_at)
+                    .sort()
+                    .at(-1) as string,
+                  ongoingTrips: personalOngoing.map((trip) => ({
                     tripId: trip.id,
                     destination: trip.destination,
                     startDate: trip.start_date,
                     endDate: trip.end_date,
-                  },
-                ]
-              : [],
-            pastTripCount: ongoing ? 0 : 1,
-          },
-        };
-      });
+                  })),
+                  pastTripCount: personalPastCount,
+                },
+              },
+            ];
 
       const items = [...groupItems, ...personalItems];
 
@@ -236,9 +250,9 @@ export default function ScreenGROUP01() {
   function handlePressGroup(card: GroupTravelCardData) {
     if (card.kind === 'PERSONAL') {
       // 개인 여행에는 모임 상세가 없다. groupId 가 없으니 GROUP-02 로 갈 수 없고,
-      // 가짜 id 를 만들지 않는다. 카드 = 여행 하나이므로 여행 준비 홈으로 간다.
+      // 가짜 id 를 만들지 않는다. 개인 여행 상세(내 개인 여행 전부)로 간다.
       // (docs/11_모임정책_v1.md §2-3 · 2026-09-12)
-      router.push(`/trips/${card.tripId}`);
+      router.push('/groups/personal');
       return;
     }
     // 홈·모임·마이페이지 어디서 눌러도 같은 모임 상세로 간다. (docs/03 POL-NAV-001)

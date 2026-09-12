@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   MyTripCard,
+  MY_TRIP_FILTER_TABS,
   TripFilterTabs,
   type MyTripFilter,
   type MyTripItem,
@@ -23,8 +24,7 @@ const TAB_EMPTY_MESSAGE: Record<MyTripFilter, string> = {
   planning: '준비 중인 여행이 없어요.',
   traveling: '지금 여행 중인 여행이 없어요.',
   past: '아직 다녀온 여행 기록이 없어요.',
-  // ⚠️ 모임 상세에는 이 두 탭이 없다. 타입(Record)을 채우기 위한 값이다.
-  //    TripFilterTabs 에 tabs 를 넘기지 않으므로 기본 셋만 그려진다.
+  // 2026-09-12 · 모임 상세도 MY-02 와 같은 5탭이다. (docs/11_모임정책_v1.md §6)
   canceled: '취소된 여행이 없어요.',
   left: '나간 여행이 없어요.',
 };
@@ -42,6 +42,11 @@ type Props = {
   onPressAllAccounts: () => void;
   /** 준비 중 여행에서 나가기. 참가자에게만 보인다. */
   onPressLeaveTrip: (trip: MyTripItem) => void;
+  /**
+   * 나간 여행 카드를 눌렀을 때. 화면이 이유를 알린다 — 이동하지 않는다.
+   * 눌러도 아무 일이 없는 카드를 두지 않기 위해서다. (2026-09-12)
+   */
+  onPressLeftTrip: (trip: MyTripItem) => void;
 };
 
 /** 섹션 제목 + 본문. 상세 화면의 블록이 전부 같은 리듬을 갖게 한다. */
@@ -147,6 +152,7 @@ export function GroupDetailView({
   onPressAccount,
   onPressAllAccounts,
   onPressLeaveTrip,
+  onPressLeftTrip,
 }: Props) {
   // 이 화면은 (tabs) 밖 Stack 화면이라 FloatingTabBar 가 없다.
   // 대신 홈 인디케이터 자리는 직접 비켜 준다.
@@ -167,7 +173,11 @@ export function GroupDetailView({
       ? group.pastTrips
       : filter === 'traveling'
         ? group.travelingTrips
-        : group.planningTrips;
+        : filter === 'canceled'
+          ? group.canceledTrips
+          : filter === 'left'
+            ? group.leftTrips
+            : group.planningTrips;
 
   return (
     <View className="flex-1 bg-pot-visual">
@@ -253,7 +263,9 @@ export function GroupDetailView({
       {/* ⚠️ 다른 섹션과 같은 mt-10(40) 을 쓴다. */}
       <View className="mt-10">
         <View className="-mx-4">
+          {/* MY-02 와 같은 5탭. 취소됨·나간 여행은 표시만 한다. (docs/11 §6) */}
           <TripFilterTabs
+            tabs={MY_TRIP_FILTER_TABS}
             filter={filter}
             onChangeFilter={setFilter}
             className="bg-transparent"
@@ -285,12 +297,19 @@ export function GroupDetailView({
                 ⚠️ 모임 이름을 끈다. 이미 이 모임 상세 안이라 카드마다
                    같은 이름이 반복된다. MY 는 그대로다. (2026-09-09)
               */
+              /*
+                나간 여행은 참가자가 아니라 상세로 못 간다. 그렇다고 눌러도 아무 일이
+                없으면 고장 난 것처럼 보이니, 누르면 이유를 알린다. (2026-09-12)
+                취소된 여행은 MY-02 와 같이 그대로 연다 — 복구·72시간 처리는 다른 담당.
+              */
+              const onPress = trip.left
+                ? () => onPressLeftTrip(trip)
+                : participant
+                  ? onPressTrip
+                  : null;
+
               const card = (
-                <MyTripCard
-                  trip={trip}
-                  onPress={participant ? onPressTrip : null}
-                  showGroupName={false}
-                />
+                <MyTripCard trip={trip} onPress={onPress} showGroupName={false} />
               );
 
               /*
