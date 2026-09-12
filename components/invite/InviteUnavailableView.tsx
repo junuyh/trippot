@@ -29,24 +29,23 @@ const COPY: Record<InviteFailReason, Copy> = {
     title: "초대 링크가 만료됐어요",
     description: "링크는 7일간만 쓸 수 있어요. 초대한 분에게 새 링크를 받아 주세요.",
   },
+  // ⚠️ "새 링크가 발급되어" 라고 쓰지 않는다. 재발급이 기존 링크를 끊는 정책은 폐기됐다.
+  //    (docs/10_v2 §4) revoked_at 이 채워지는 경로는 지금 없다 — 자리만 둔다.
   REVOKED: {
     icon: "time-outline",
-    title: "초대 링크가 만료됐어요",
-    description: "새 링크가 발급되어 이 링크는 더 이상 쓸 수 없어요. 초대한 분에게 새 링크를 받아 주세요.",
+    title: "사용할 수 없는 초대 링크예요",
+    description: "이 링크는 더 이상 쓸 수 없어요. 초대한 분에게 새 링크를 받아 주세요.",
   },
-  FULL: {
-    icon: "people-outline",
-    title: "인원이 다 찼어요",
-    description: "이 여행은 예정한 인원이 모두 모였어요. 초대한 분에게 문의해 주세요.",
-  },
+  // ⚠️ FULL 은 없다. 인원이 차도 링크는 유효하고 요청도 받는다. (docs/12 §3)
+  // 같은 invite 에서 거절된 사람. 다른 사람·새 링크에는 영향이 없다. (docs/12 §4)
   ALREADY_REJECTED: {
     icon: "lock-closed-outline",
-    title: "이 링크로는 참여할 수 없어요",
-    description: "초대한 분이 새 링크를 보내 주면 다시 요청할 수 있어요.",
+    title: "이 초대에서는 다시 요청할 수 없어요",
+    description: "새 초대 링크를 받으면 다시 참여 요청을 보낼 수 있어요.",
   },
   NOT_FOUND: {
     icon: "link-outline",
-    title: "잘못된 링크예요",
+    title: "초대 정보를 찾을 수 없어요",
     description: "주소가 바르게 복사됐는지 확인해 주세요.",
   },
 };
