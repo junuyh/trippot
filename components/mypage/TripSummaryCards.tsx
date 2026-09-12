@@ -40,10 +40,13 @@ function CountCard({
         <Text numberOfLines={1} className="shrink text-pot-mute" style={{ fontSize: 12.5, lineHeight: 17 }}>
           {label}
         </Text>
-        <Ionicons name="chevron-forward" size={13} color="#8B94A2" />
+        {/* chevron 색은 마이페이지 MenuRow · 개인 여행 상세와 같은 #C3C9D2 다. */}
+        <Ionicons name="chevron-forward" size={13} color="#C3C9D2" />
       </View>
 
-      <Text className="mt-3 text-center font-black text-pot-ink" style={{ fontSize: 22, lineHeight: 28, ...NUM }}>
+      {/* 숫자는 라벨과 같은 왼쪽 선에 둔다. 라벨은 왼쪽인데 숫자만 가운데면
+          카드마다 시작점이 둘로 갈려 읽는 눈이 흔들렸다. (2026-09-13) */}
+      <Text className="mt-2.5 font-black text-pot-ink" style={{ fontSize: 22, lineHeight: 28, ...NUM }}>
         {count}
       </Text>
     </Pressable>

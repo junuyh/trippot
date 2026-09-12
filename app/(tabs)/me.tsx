@@ -23,7 +23,8 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -426,22 +427,25 @@ export default function ScreenMY01() {
           MenuRow 에 끼워 넣지 않고 여백을 띄워 위계를 구분한다.
         */}
         <View className="mt-7">
-          <View className="self-start">
-            <Text
-              accessibilityRole="button"
-              accessibilityLabel="로그아웃"
-              onPress={handlePressLogout}
-              suppressHighlighting
-              // py-3 + lineHeight 19 → 높이 43. 터치 영역을 지킨다.
-              // ⚠️ 색은 위 설정 메뉴(MenuRow)와 같은 text-pot-ink 다. pot-mute 는
-              //    비활성처럼 읽혀서, 실제로 눌리는 동작인데 못 누르는 것처럼 보였다.
-              //    빨강으로 강조하지는 않는다. 로그아웃은 파괴적 동작이 아니다.
-              className="py-3 text-pot-ink"
-              style={{ fontSize: 13.5, lineHeight: 19 }}
-            >
+          {/*
+            MenuRow 와 같은 높이(py-3.5 + 19 = 47)·글자 단이라 위 메뉴와 한 리듬이다.
+            다른 점은 구분선이 없고 아이콘이 앞에 붙는 것뿐 — "이동" 이 아니라
+            "동작" 이라는 표시다. chevron 도 없다.
+            ⚠️ 색은 MenuRow 와 같은 text-pot-ink 다. pot-mute 는 비활성처럼 읽혀서
+               실제로 눌리는 동작인데 못 누르는 것처럼 보였다.
+               빨강으로 강조하지는 않는다. 로그아웃은 파괴적 동작이 아니다.
+          */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="로그아웃"
+            onPress={handlePressLogout}
+            className="flex-row items-center self-start py-3.5 active:opacity-60"
+          >
+            <Ionicons name="log-out-outline" size={16} color="#8B94A2" />
+            <Text className="ml-1.5 text-pot-ink" style={{ fontSize: 13.5, lineHeight: 19 }}>
               로그아웃
             </Text>
-          </View>
+          </Pressable>
         </View>
       </View>
 

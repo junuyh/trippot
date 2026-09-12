@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 type Props = {
@@ -10,12 +11,14 @@ type Props = {
 /**
  * 메뉴 한 줄. 커뮤니티·설정 섹션이 함께 쓴다.
  *
- * ⚠️ chevron 을 넣지 않는다. 확정된 디자인은 chevron 을 반복 배치하지 않고
- *    row + divider 로 이동 가능함을 표현한다. 오른쪽을 다른 아이콘이나
- *    장식으로 대신 채우지도 않는다.
+ * 오른쪽 끝에 chevron 을 둔다. (2026-09-13)
+ *    같은 화면의 '내 여행' 카드, 개인 여행 상세의 '전체 계좌', 모임 상세의
+ *    섹션 제목이 전부 chevron(13 · #C3C9D2)으로 "누르면 이동" 을 말한다.
+ *    이 줄만 아무 표시가 없으면 눌리는지 아닌지가 다른 화면과 어긋난다.
+ *    아이콘은 글자보다 약하게(faint 보다 옅은 #C3C9D2) 둔다.
  *
- * ⚠️ chevron 을 뺐다고 터치 영역을 줄이지 않는다. Pressable 이 줄 전체를
- *    덮고 py-3.5 + lineHeight 19 로 높이 47 을 지킨다.
+ * ⚠️ 터치 영역은 줄 전체다. Pressable 이 줄을 덮고 py-3.5 + lineHeight 19 로
+ *    높이 47 을 지킨다.
  *
  * 글자 단·구분선 색·press 는 홈의 '지금 챙겨야 할 것' 행과 같다.
  * (components/home/ActionRequiredSection — 구분선 #F1F3F6 · active:bg-pot-visual)
@@ -32,12 +35,17 @@ export function MenuRow({ label, onPress, isLast = false }: Props) {
       className="active:bg-pot-visual"
     >
       <View
-        className="py-3.5"
+        className="flex-row items-center py-3.5"
         style={isLast ? undefined : { borderBottomWidth: 1, borderBottomColor: '#F1F3F6' }}
       >
-        <Text className="text-pot-ink" style={{ fontSize: 13.5, lineHeight: 19 }}>
+        <Text
+          numberOfLines={1}
+          className="flex-1 text-pot-ink"
+          style={{ fontSize: 13.5, lineHeight: 19 }}
+        >
           {label}
         </Text>
+        <Ionicons name="chevron-forward" size={13} color="#C3C9D2" />
       </View>
     </Pressable>
   );

@@ -60,7 +60,7 @@ function TripLine({ trip, suffix }: { trip: GroupTripItem; suffix?: string }) {
  * 폭은 부모가 정하고, 높이는 콘텐츠와 무관하게 정해진다.
  *   - 모든 텍스트가 1줄 고정 + 명시적 leading
  *   - 진행 중 여행 영역은 건수와 무관하게 TRIP_SLOT_HEIGHT 고정
- *   - 편집 UI 는 absolute + 가로 여백이라 세로에 영향이 없다
+ *   - 편집 UI(선택 원)는 제목 줄 오른쪽 배지 자리에 들어가 세로에 영향이 없다
  * 따라서 편집 모드로 들어가도 카드 크기가 그대로다.
  */
 export function GroupTravelCard({
@@ -101,7 +101,9 @@ export function GroupTravelCard({
       }
       accessibilityState={{ selected: editMode && selectable ? selected : undefined }}
       onPress={handlePress}
-      className="rounded-2xl bg-white px-4 py-4 active:opacity-90"
+      // 카드 껍데기는 MyTripCard · 내 여행 CountCard 와 같은 값이다. (2xl · 흰색 · 같은 그림자)
+      // 같은 앱의 카드가 화면마다 다른 모서리·그림자를 쓰면 다른 제품처럼 읽힌다.
+      className="rounded-2xl bg-white px-4 py-3.5 active:opacity-80"
       style={{
         shadowColor: '#111827',
         shadowOpacity: 0.05,
@@ -112,55 +114,64 @@ export function GroupTravelCard({
     >
       <View>
         {/*
-          제목 줄. 세 요소가 서로의 자리를 밀지 않는다.
+          제목 줄 — 이름은 **왼쪽 정렬**, 오른쪽에 종류 배지.
 
-          ⚠️ 모임 이름만 **카드 폭 기준 중앙**이다. 폭을 다 쓰는 Text 에
-             text-center 를 주고, 인원·선택 원은 absolute 로 띄웠다.
-             flex-row + justify-between 으로는 인원 폭만큼 이름이 왼쪽으로
-             밀려 카드 중앙이 되지 않는다.
+          ⚠️ 가운데 정렬을 버렸다. (2026-09-13) 앱의 다른 카드(MyTripCard ·
+             GroupAccountList · 상세의 Section 제목)가 전부 왼쪽 정렬이라
+             이 카드만 가운데면 다른 제품처럼 읽혔다.
 
           ⚠️ 편집 모드로 들어가도 이름이 좌우로 움직이지 않는다.
-             전에는 선택 원이 뜨면서 본문 전체에 paddingLeft 를 걸어
-             카드 내용이 통째로 오른쪽으로 밀렸다. 그 padding 을 없앴다.
+             선택 원은 왼쪽에 끼워 넣지 않고 **오른쪽 배지 자리에 대신** 놓는다.
+             왼쪽에 두면 이름이 원 폭만큼 밀린다. 오른쪽은 어차피 이름이
+             shrink 되는 쪽이라 위치가 흔들리지 않는다.
 
-          ⚠️ px-9 는 좌우 대칭이라 중앙을 흐트러뜨리지 않는다.
-             긴 이름이 인원·선택 원 위로 올라타지 않게 자리를 비워 둔다.
+          ⚠️ 높이 23 고정 — 제목 줄이 늘어나면 카드 높이 정책이 깨진다.
         */}
-        <View className="relative" style={{ height: 23 }}>
+        <View className="flex-row items-center" style={{ height: 23 }}>
           <Text
             numberOfLines={1}
-            className="px-9 text-center font-black text-pot-ink"
-            style={{ fontSize: 17, lineHeight: 23, letterSpacing: -0.5 }}
+            className="flex-1 font-black text-pot-ink"
+            style={{ fontSize: 16.5, lineHeight: 23, letterSpacing: -0.5 }}
           >
             {group.name}
           </Text>
 
-          <View className="absolute bottom-0 right-0 top-0 justify-center">
-            <Text className="text-pot-mute" style={{ fontSize: 12.5 }}>
-              {/* 개인 여행은 모임원이 없다. 인원 대신 종류를 적는다. */}
-              {group.kind === 'GROUP' ? formatMemberCount(group.memberCount) : '개인'}
-            </Text>
-          </View>
-
-          {/* 선택 원 — 제목 줄 안에서만 absolute 다. 카드 전체 높이를 덮으면
-              가운데(여행 줄) 위로 올라간다. */}
           {editMode && selectable ? (
-            <View className="absolute bottom-0 left-0 top-0 justify-center">
+            <View className="ml-3 justify-center">
               <Ionicons
                 name={selected ? 'checkmark-circle' : 'ellipse-outline'}
                 size={22}
                 color={selected ? '#2563eb' : '#d1d5db'}
               />
             </View>
-          ) : null}
+          ) : (
+            // 종류 배지. MyTripCard 의 상태 배지(pot-visual · 10~11 · bold)와 같은 언어다.
+            // 개인 여행은 모임원이 없어 인원 대신 종류('개인')를 적는다.
+            // 제목이 이미 '개인 여행' 이라 배지까지 같은 말이면 두 번 읽힌다.
+            // 아이콘은 글자를 돕는 정도(faint)로만 둔다.
+            <View className="ml-3 flex-row items-center rounded-full bg-pot-visual py-0.5 pl-1.5 pr-2">
+              <Ionicons
+                name={group.kind === 'GROUP' ? 'people-outline' : 'person-outline'}
+                size={11}
+                color="#8B94A2"
+              />
+              <Text className="ml-1 font-bold text-pot-mute" style={{ fontSize: 11 }}>
+                {group.kind === 'GROUP' ? formatMemberCount(group.memberCount) : '개인'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        <View className="mt-3.5 border-t border-pot-line pt-3">
+        {/* 구분선은 마이페이지 MenuRow 와 같은 #F1F3F6. pot-line 은 카드 안에서는 진했다. */}
+        <View
+          className="mt-3 pt-3"
+          style={{ borderTopWidth: 1, borderTopColor: '#F1F3F6' }}
+        >
           <Text className="font-semibold text-pot-faint" style={{ fontSize: 11, lineHeight: 15 }}>
             준비 중인 여행
           </Text>
 
-          <View style={{ height: TRIP_SLOT_HEIGHT }} className="mt-1.5">
+          <View style={{ height: TRIP_SLOT_HEIGHT }} className="mt-1">
             {visibleTrips.length === 0 ? (
               <View style={{ height: TRIP_LINE_HEIGHT }} className="justify-center">
                 <Text className="text-pot-faint" style={{ fontSize: 13, lineHeight: 20 }}>
@@ -177,7 +188,11 @@ export function GroupTravelCard({
             )}
           </View>
 
-          <Text className="mt-3 text-pot-faint" style={{ fontSize: 11.5, lineHeight: 16 }}>
+          {/* 지난 여행 수. 보조 정보라 가장 약한 단(faint · 11.5)이다. 숫자만 tabular. */}
+          <Text
+            className="mt-2.5 text-pot-faint"
+            style={{ fontSize: 11.5, lineHeight: 16, fontVariant: ['tabular-nums'] }}
+          >
             {`지난 여행 ${pastTripCount}회`}
           </Text>
         </View>
