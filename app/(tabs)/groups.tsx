@@ -37,7 +37,7 @@ import {
 import { EmptyState, ErrorState, Header, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
 import { useCurrentUserId } from '@/lib/auth/AuthProvider';
-import { ENTRY_POINT } from '@/lib/constants/status';
+import { ENTRY_POINT, TRIP_STATUS } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import {
   getGroupMemberCount,
@@ -48,6 +48,7 @@ import {
   unhideGroup,
   type GroupSortMode,
 } from '@/lib/supabase/queries/groups';
+import { getMyPersonalTrips } from '@/lib/supabase/queries/trips';
 
 /**
  * "이미 시작한 여행" 중 가장 늦은 start_date. 없으면 null.
@@ -128,10 +129,16 @@ export default function ScreenGROUP01() {
 
       // 숨김 제외·정렬·정렬 모드 판정까지 쿼리가 끝낸다.
       // getMyGroups() 는 HOME-01·TRIP-01 도 쓰므로 건드리지 않는다.
-      const list = await getMyGroupListForDisplay(userId);
+      // 실제 모임과 개인 여행을 같이 읽는다. (docs/11_모임정책_v1.md §2)
+      // ⚠️ 개인 여행은 groups 행이 없어 getMyGroupListForDisplay 로는 절대 안 잡힌다.
+      //    DB 에 가짜 모임을 만들지 않고, 여기 display model 단계에서만 합친다.
+      const [list, personalTrips] = await Promise.all([
+        getMyGroupListForDisplay(userId),
+        getMyPersonalTrips(userId),
+      ]);
 
       // 모임 수만큼 상세 조회가 나간다. 모임은 사람당 많아야 몇 개라 그대로 둔다.
-      const items = await Promise.all(
+      const groupItems = await Promise.all(
         list.entries.map(async (entry): Promise<Row> => {
           // 진행 중(PLANNING·TRAVELING) / 지난(ENDED·SETTLED) 분류는 쿼리가 한다.
           // HOME-01 과 같은 기준이다. (app/(tabs)/index.tsx)
@@ -145,6 +152,7 @@ export default function ScreenGROUP01() {
             sortOrder: entry.sortOrder,
             lastStartedTripDate: latestStartedTripDate([...trips.ongoing, ...trips.past]),
             card: {
+              kind: 'GROUP',
               groupId: entry.group.id,
               name: entry.group.name,
               createdAt: entry.group.created_at,
@@ -161,11 +169,46 @@ export default function ScreenGROUP01() {
         }),
       );
 
+      // 개인 여행 카드. 여행 하나가 카드 하나다. 이름은 시스템 표시명 '개인 여행'.
+      // ⚠️ 여행 상태에 따라 실제 모임 카드와 같은 칸에 놓는다 —
+      //    준비 중·여행 중이면 '진행 중인 여행' 줄에, 끝났으면 지난 여행 수로.
+      //    HOME-01 과 같은 분류 기준이다. (getGroupTrips 와 동일)
+      const personalItems: Row[] = personalTrips.map((trip) => {
+        const ongoing =
+          trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING;
+        return {
+          sortOrder: null,
+          lastStartedTripDate: latestStartedTripDate([trip]),
+          card: {
+            kind: 'PERSONAL',
+            tripId: trip.id,
+            name: '개인 여행',
+            // 모임이 없으니 여행 생성 시각으로 정렬한다. 가짜 모임 값을 만들지 않는다.
+            createdAt: trip.created_at,
+            ongoingTrips: ongoing
+              ? [
+                  {
+                    tripId: trip.id,
+                    destination: trip.destination,
+                    startDate: trip.start_date,
+                    endDate: trip.end_date,
+                  },
+                ]
+              : [],
+            pastTripCount: ongoing ? 0 : 1,
+          },
+        };
+      });
+
+      const items = [...groupItems, ...personalItems];
+
       setRows(items);
       setHiddenCount(list.hiddenCount);
-      // 목록이 바뀌면 사라진 모임의 선택은 버린다.
+      // 목록이 바뀌면 사라진 모임의 선택은 버린다. (개인 여행은 선택 대상이 아니다)
       setSelectedIds((prev) =>
-        prev.filter((id) => items.some((row) => row.card.groupId === id)),
+        prev.filter((id) =>
+          items.some((row) => row.card.kind === 'GROUP' && row.card.groupId === id),
+        ),
       );
       setLoadState('ready');
     } catch {
@@ -190,9 +233,16 @@ export default function ScreenGROUP01() {
   }, [load]);
 
   // ── 일반 모드 ──────────────────────────────────────────────────────────
-  function handlePressGroup(groupId: string) {
+  function handlePressGroup(card: GroupTravelCardData) {
+    if (card.kind === 'PERSONAL') {
+      // 개인 여행에는 모임 상세가 없다. groupId 가 없으니 GROUP-02 로 갈 수 없고,
+      // 가짜 id 를 만들지 않는다. 카드 = 여행 하나이므로 여행 준비 홈으로 간다.
+      // (docs/11_모임정책_v1.md §2-3 · 2026-09-12)
+      router.push(`/trips/${card.tripId}`);
+      return;
+    }
     // 홈·모임·마이페이지 어디서 눌러도 같은 모임 상세로 간다. (docs/03 POL-NAV-001)
-    router.push(`/groups/${groupId}`);
+    router.push(`/groups/${card.groupId}`);
   }
 
   function handleToggleEdit() {
@@ -243,9 +293,11 @@ export default function ScreenGROUP01() {
       if (!userId) return;
 
       // sort_order 를 함께 보낸다. upsert 는 빠뜨린 칼럼을 기본값으로 덮어쓴다.
-      const items = rows
-        .filter((row) => selectedIds.includes(row.card.groupId))
-        .map((row) => ({ groupId: row.card.groupId, sortOrder: row.sortOrder }));
+      const items = rows.flatMap((row) =>
+        row.card.kind === 'GROUP' && selectedIds.includes(row.card.groupId)
+          ? [{ groupId: row.card.groupId, sortOrder: row.sortOrder }]
+          : [],
+      );
 
       await hideGroups(userId, items);
       setRemoveOpen(false);

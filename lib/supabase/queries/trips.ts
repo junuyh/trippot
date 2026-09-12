@@ -10,6 +10,7 @@ import {
   TRANSACTION_TYPE,
   TRIP_STATUS,
   TRIP_MEMBER_STATUS,
+  TRIP_OWNER_TYPE,
 } from "@/lib/constants/status";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 
@@ -184,6 +185,29 @@ export async function getTripsWithSummary(
  * `>= 2` 인 비율이 재사용률이고 가설 5 의 직접 지표다. (docs/06 §7-1)
  * 이번에 만드는 여행을 포함한 순번이므로 **저장이 끝난 뒤** 센다.
  */
+/**
+ * 내가 소유한 **개인 여행**. GROUP-01 이 실제 모임 옆에 함께 보여준다.
+ * (docs/11_모임정책_v1.md §2 · 2026-09-12)
+ *
+ * ⚠️ 개인 여행은 groups 행이 없다. owner_type = PERSONAL · owner_user_id = 나 ·
+ *    group_id = null 이 전부다. (trips_owner_shape CHECK) 그래서 group_members 로는
+ *    절대 잡히지 않고, 여기서 trips 를 직접 읽는다.
+ *
+ * ⚠️ 상태 필터는 getTrips 와 같다. DELETED · CANCELED 만 뺀다. 새 규칙을 만들지 않는다.
+ */
+export async function getMyPersonalTrips(userId: string): Promise<Trip[]> {
+  const { data, error } = await supabase
+    .from("trips")
+    .select("*")
+    .eq("owner_type", TRIP_OWNER_TYPE.PERSONAL)
+    .eq("owner_user_id", userId)
+    .not("status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function getMyTripCount(userId: string): Promise<number> {
   return (await getTrips(userId)).length;
 }

@@ -10,6 +10,7 @@ import {
   type MyTripItem,
 } from '@/components/my';
 import { TRIP_STATUS } from '@/lib/constants/status';
+import { SwipeToAction } from '@/components/mypage';
 import { Button } from '@/components/ui';
 
 import { GroupAccountList } from './GroupAccountList';
@@ -270,43 +271,54 @@ export function GroupDetailView({
             visibleTrips.map((trip) => {
               const participant = group.participatingTripIds.has(trip.tripId);
 
-              return (
-                <View key={trip.tripId}>
-                  {/*
-                    ⚠️ 참가자가 아니면 카드를 누를 수 없다. (2026-09-09 확정)
-                       여행 정보는 그대로 보여주되 상세로 들어가지 않는다.
-                       여행 상세에는 수정 진입점이 여럿인데 참가자 검사가 없어서,
-                       비참가자를 들여보내면 남의 여행을 고칠 수 있게 된다.
-                    ⚠️ MyTripCard 는 MY 와 함께 쓰는 컴포넌트다. onPress 에 null 을
-                       넘길 수 있게만 넓혔고 MY 동작은 그대로다.
-                  */}
-                  {/* ⚠️ 모임 이름을 끈다. 이미 이 모임 상세 안이라 카드마다
-                      같은 이름이 반복된다. MY 는 그대로다. (2026-09-09) */}
-                  <MyTripCard
-                    trip={trip}
-                    onPress={participant ? onPressTrip : null}
-                    showGroupName={false}
-                  />
+              // 나가기 가능 조건은 그대로다 — 준비 중 + 내가 참가자.
+              // 여행 중·지난 여행에는 없고, 남을 내보내는 기능도 없다.
+              const canLeave = participant && trip.status === TRIP_STATUS.PLANNING;
 
-                  {/*
-                    여행에서 나가기. 준비 중 + 내가 참가자일 때만 보인다.
-                    여행 중·지난 여행에는 없고, 남을 내보내는 기능도 없다.
-                  */}
-                  {participant && trip.status === TRIP_STATUS.PLANNING ? (
-                    <View className="mt-1.5 items-end">
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${trip.destination ?? '여행'} 에서 나가기`}
-                        hitSlop={8}
-                        onPress={() => onPressLeaveTrip(trip)}
-                        className="px-1 py-1 active:opacity-60"
-                      >
-                        <Text className="text-pot-faint" style={{ fontSize: 11.5 }}>
-                          여행에서 나가기
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
+              /*
+                ⚠️ 참가자가 아니면 카드를 누를 수 없다. (2026-09-09 확정)
+                   여행 정보는 그대로 보여주되 상세로 들어가지 않는다.
+                   여행 상세에는 수정 진입점이 여럿인데 참가자 검사가 없어서,
+                   비참가자를 들여보내면 남의 여행을 고칠 수 있게 된다.
+                ⚠️ MyTripCard 는 MY 와 함께 쓰는 컴포넌트다. onPress 에 null 을
+                   넘길 수 있게만 넓혔고 MY 동작은 그대로다.
+                ⚠️ 모임 이름을 끈다. 이미 이 모임 상세 안이라 카드마다
+                   같은 이름이 반복된다. MY 는 그대로다. (2026-09-09)
+              */
+              const card = (
+                <MyTripCard
+                  trip={trip}
+                  onPress={participant ? onPressTrip : null}
+                  showGroupName={false}
+                />
+              );
+
+              /*
+                여행에서 나가기 — 카드를 왼쪽으로 밀면 오른쪽에 나온다. (2026-09-12)
+                항상 보이던 텍스트 버튼을 뺐다. 나가기는 자주 쓰는 동작이 아니라
+                카드마다 늘 떠 있으면 목록이 소란스럽다.
+
+                ⚠️ 삭제가 아니다. trash 아이콘을 쓰지 않는다. 여행 설정 시트의
+                   '여행 나가기' 와 같은 exit-outline 이다. (TripSettingsSheet)
+                ⚠️ SwipeToAction 은 MY 커뮤니티 활동이 쓰는 그 컴포넌트다.
+                   같은 폭·같은 동작. 누르면 스와이프를 닫고 기존 확인 흐름으로 간다.
+                ⚠️ 나갈 수 없는 여행은 감싸지 않는다. 밀어도 아무것도 안 나온다.
+              */
+              return (
+                <View key={trip.tripId} className="overflow-hidden rounded-2xl">
+                  {canLeave ? (
+                    <SwipeToAction
+                      label="여행 나가기"
+                      accessibilityLabel={`${trip.destination ?? '여행'} 에서 나가기`}
+                      icon="exit-outline"
+                      color="#6B7280"
+                      onPress={() => onPressLeaveTrip(trip)}
+                    >
+                      {card}
+                    </SwipeToAction>
+                  ) : (
+                    card
+                  )}
                 </View>
               );
             })

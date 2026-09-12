@@ -15,13 +15,16 @@
 //       app/trips/new/owner.tsx 가 groupId param 을 받지 않는다.
 //       그 파일은 L 담당이라 여기서 고치지 않는다. 담당자 요청 후 &groupId= 를 붙인다.
 // ============================================================================
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { Pressable } from 'react-native';
 
 import {
   AccountTripPickerSheet,
   AllAccountsSheet,
   GroupDetailView,
+  GroupRenameModal,
   isActiveTripStatus,
   toGroupTripStatusLabel,
   type GroupAccountItem,
@@ -53,6 +56,7 @@ import {
   getGroupMembers,
   getGroupTrips,
   getTripAmountSummaries,
+  updateGroup,
 } from '@/lib/supabase/queries/groups';
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'denied' | 'error';
@@ -72,6 +76,13 @@ export default function ScreenGROUP02() {
   const [allAccountsOpen, setAllAccountsOpen] = useState(false);
   /** 나가기 확인창에 올라온 여행. null 이면 닫혀 있다. */
   const [leavingTrip, setLeavingTrip] = useState<MyTripItem | null>(null);
+
+  // ── 모임 이름 수정 ─────────────────────────────────────────────────────
+  // 헤더 연필 → GroupRenameModal(기존) → updateGroup(기존). 새 UI 를 만들지 않는다.
+  // GroupMoreMenu 는 대표 이미지·모임원 관리가 아직 없어 띄우지 않는다.
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   /**
    * 마지막 참가자라서 나갈 수 없다는 안내. null 이면 닫혀 있다.
    *
@@ -260,6 +271,28 @@ export default function ScreenGROUP02() {
   );
 
   /**
+   * 모임 이름 저장. (docs/11_모임정책_v1.md §3 · 2026-09-12)
+   *
+   * ⚠️ 권한은 RLS 가 본다. (updateGroup 주석 · ERD §6-2 — 소유자 또는 ACTIVE 멤버)
+   *    앱에서 모임장 검사를 따로 두지 않는다. 실패하면 화면이 안내한다.
+   * ⚠️ 성공하면 서버가 돌려준 이름으로 바로 그린다. 다시 읽지 않는다.
+   */
+  async function handleSubmitRename(name: string) {
+    if (!group || renaming) return;
+    setRenaming(true);
+    setRenameError(null);
+    try {
+      const updated = await updateGroup(group.groupId, { name });
+      setGroup((prev) => (prev ? { ...prev, name: updated.name } : prev));
+      setRenameOpen(false);
+    } catch {
+      setRenameError('이름을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setRenaming(false);
+    }
+  }
+
+  /**
    * '여행에서 나가기' 를 눌렀을 때.
    *
    * ⚠️ 확인창을 열기 전에 **나 말고 남은 참가자가 있는지 먼저 본다.**
@@ -391,7 +424,27 @@ export default function ScreenGROUP02() {
 
   return (
     <>
-      <Stack.Screen options={{ title: group.name }} />
+      <Stack.Screen
+        options={{
+          title: group.name,
+          // 이름 수정 진입점. 실제 모임(groupId 있음)에서만 이 화면이 열리므로
+          // 개인 여행에는 애초에 나타나지 않는다. (docs/11_모임정책_v1.md §3)
+          headerRight: () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="모임 이름 수정"
+              hitSlop={8}
+              onPress={() => {
+                setRenameError(null);
+                setRenameOpen(true);
+              }}
+              className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
+            >
+              <Ionicons name="pencil-outline" size={20} color="#111827" />
+            </Pressable>
+          ),
+        }}
+      />
       <GroupDetailView
         group={group}
         onPressTrip={handlePressTrip}
@@ -418,6 +471,15 @@ export default function ScreenGROUP02() {
           // ⚠️ 모임에서 들어왔다는 것만 넘긴다. 뒤로가기가 이 모임으로 돌아온다.
           router.push(`/trips/${tripId}/funds/connect?fromGroupId=${groupId}`);
         }}
+      />
+
+      {/* 모임 이름 수정. 20자 · 공백 금지 검증은 모달이 한다. */}
+      <GroupRenameModal
+        initialName={renameOpen ? group.name : null}
+        saving={renaming}
+        submitError={renameError}
+        onClose={() => setRenameOpen(false)}
+        onSubmit={(name) => void handleSubmitRename(name)}
       />
 
       {/* 여행에서 나가기 확인창. 남은 참가자가 있을 때만 열린다. */}

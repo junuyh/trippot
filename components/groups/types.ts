@@ -24,16 +24,17 @@ export type GroupTripItem = {
  * ⚠️ 실제로 DB 에 있는 값만 둔다.
  *    groups 테이블에는 대표 이미지 컬럼이 없고 정책도 미확정이라 이미지 필드를 두지 않는다.
  */
-export type GroupTravelCardData = {
-  groupId: string;
+/**
+ * 카드가 공통으로 그리는 것. 실제 모임이든 개인 여행이든 같은 카드다.
+ */
+type GroupTravelCardBase = {
   name: string;
   /**
-   * groups.created_at.
-   * ⚠️ 카드에 표시하지 않는다. '여행 생성일 순' 정렬에만 쓴다.
+   * 정렬용 생성 시각. ⚠️ 카드에 표시하지 않는다. '모임 생성순' 정렬에만 쓴다.
+   *   GROUP     groups.created_at
+   *   PERSONAL  trips.created_at  — 모임이 없으니 여행 것을 쓴다. 가짜 값을 만들지 않는다
    */
   createdAt: string;
-  /** group_members 중 ACTIVE 인원 수. 사용자가 직접 고치는 값이 아니다. */
-  memberCount: number;
   /**
    * 진행 중인 여행 전체(PLANNING · TRAVELING).
    * 카드는 앞의 2건만 그리고 나머지는 '외 N건' 으로 접는다. 자르는 판단은 카드가 한다.
@@ -42,6 +43,36 @@ export type GroupTravelCardData = {
   /** 지난 여행 수(ENDED · SETTLED). */
   pastTripCount: number;
 };
+
+/**
+ * GROUP-01 카드 한 장.
+ *
+ * ⚠️ 두 종류다. (docs/11_모임정책_v1.md §2 · 2026-09-12)
+ *   GROUP     DB 에 groups 행이 있는 실제 모임
+ *   PERSONAL  owner_type = PERSONAL 인 개인 여행. **groups 행이 없다.**
+ *             group_id 도 group_members 도 없으므로 groupId · memberCount 를 갖지 않는다.
+ *             목록 UX 에서 함께 보이는 것뿐, DB 상 모임이 아니다.
+ *
+ * ⚠️ PERSONAL 에 가짜 groupId 를 만들어 GROUP-02 로 보내지 않는다.
+ *    편집 모드(숨기기)도 GROUP 만 대상이다 — 숨김 설정이 group_id 기준이라서다.
+ */
+export type GroupTravelCardData =
+  | (GroupTravelCardBase & {
+      kind: 'GROUP';
+      groupId: string;
+      /** group_members 중 ACTIVE 인원 수. 사용자가 직접 고치는 값이 아니다. */
+      memberCount: number;
+    })
+  | (GroupTravelCardBase & {
+      kind: 'PERSONAL';
+      /** 이 카드가 곧 여행 하나다. 누르면 여행 준비 홈으로 간다. */
+      tripId: string;
+    });
+
+/** 카드 key · 선택 판별에 쓰는 안정된 id. 종류가 달라 겹치지 않는다. */
+export function groupTravelCardKey(card: GroupTravelCardData): string {
+  return card.kind === 'GROUP' ? `group:${card.groupId}` : `trip:${card.tripId}`;
+}
 
 /** 3-2. 모임 상세의 멤버 한 명. (docs/09_IA_v1.md §3-2) */
 export type GroupMemberItem = {
