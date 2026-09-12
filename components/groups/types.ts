@@ -24,16 +24,17 @@ export type GroupTripItem = {
  * ⚠️ 실제로 DB 에 있는 값만 둔다.
  *    groups 테이블에는 대표 이미지 컬럼이 없고 정책도 미확정이라 이미지 필드를 두지 않는다.
  */
-export type GroupTravelCardData = {
-  groupId: string;
+/**
+ * 카드가 공통으로 그리는 것. 실제 모임이든 개인 여행이든 같은 카드다.
+ */
+type GroupTravelCardBase = {
   name: string;
   /**
-   * groups.created_at.
-   * ⚠️ 카드에 표시하지 않는다. '여행 생성일 순' 정렬에만 쓴다.
+   * 정렬용 생성 시각. ⚠️ 카드에 표시하지 않는다. '모임 생성순' 정렬에만 쓴다.
+   *   GROUP     groups.created_at
+   *   PERSONAL  trips.created_at  — 모임이 없으니 여행 것을 쓴다. 가짜 값을 만들지 않는다
    */
   createdAt: string;
-  /** group_members 중 ACTIVE 인원 수. 사용자가 직접 고치는 값이 아니다. */
-  memberCount: number;
   /**
    * 진행 중인 여행 전체(PLANNING · TRAVELING).
    * 카드는 앞의 2건만 그리고 나머지는 '외 N건' 으로 접는다. 자르는 판단은 카드가 한다.
@@ -42,6 +43,36 @@ export type GroupTravelCardData = {
   /** 지난 여행 수(ENDED · SETTLED). */
   pastTripCount: number;
 };
+
+/**
+ * GROUP-01 카드 한 장.
+ *
+ * ⚠️ 두 종류다. (docs/11_모임정책_v1.md §2 · 2026-09-12)
+ *   GROUP     DB 에 groups 행이 있는 실제 모임
+ *   PERSONAL  내 개인 여행(owner_type = PERSONAL) **전부를 묶은 카드 하나.**
+ *             groups 행이 없으니 groupId · memberCount 가 없다. 여행이 몇 개든
+ *             이 카드는 항상 최대 1장이다 — 여행마다 카드를 만들지 않는다.
+ *             목록 UX 에서 함께 보이는 것뿐, DB 상 모임이 아니다.
+ *
+ * ⚠️ PERSONAL 에 가짜 groupId 를 만들어 GROUP-02 로 보내지 않는다.
+ *    누르면 개인 여행 상세(/groups/personal)로 간다.
+ *    편집 모드(숨기기)도 GROUP 만 대상이다 — 숨김 설정이 group_id 기준이라서다.
+ */
+export type GroupTravelCardData =
+  | (GroupTravelCardBase & {
+      kind: 'GROUP';
+      groupId: string;
+      /** group_members 중 ACTIVE 인원 수. 사용자가 직접 고치는 값이 아니다. */
+      memberCount: number;
+    })
+  | (GroupTravelCardBase & {
+      kind: 'PERSONAL';
+    });
+
+/** 카드 key · 선택 판별에 쓰는 안정된 id. 개인 여행 카드는 하나뿐이라 고정 key 다. */
+export function groupTravelCardKey(card: GroupTravelCardData): string {
+  return card.kind === 'GROUP' ? `group:${card.groupId}` : 'personal';
+}
 
 /** 3-2. 모임 상세의 멤버 한 명. (docs/09_IA_v1.md §3-2) */
 export type GroupMemberItem = {
@@ -166,6 +197,17 @@ export type GroupDetailData = {
   planningTrips: MyTripItem[];
   travelingTrips: MyTripItem[];
   pastTrips: MyTripItem[];
+  /**
+   * 취소된 여행(trips.status = CANCELED). **표시만** 한다. (2026-09-12)
+   * ⚠️ 72시간 복구·만료는 다른 담당의 기능이다. 여기서는 세지도 계산하지도 않는다.
+   */
+  canceledTrips: MyTripItem[];
+  /*
+   * ⚠️ '나간 여행' 목록은 따로 두지 않는다. (2026-09-13 · PR #88 판단 존중)
+   *    나간 여행은 여행의 상태가 아니라 **나와 여행 사이의 membership** 이다.
+   *    같은 여행이 준비 중 탭과 나간 여행 탭에 두 번 나오는 문제가 있었다.
+   *    위 네 목록의 카드에 MyTripItem.left 로만 표시한다. (docs/11 §6)
+   */
 };
 
 /** 편집 모드 '숨긴 모임' 바텀시트 한 줄. 이름과 다시 표시만 있으면 된다. */

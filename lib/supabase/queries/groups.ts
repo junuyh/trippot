@@ -222,6 +222,28 @@ export async function getGroupTrips(groupId: string): Promise<GroupTrips> {
 }
 
 /**
+ * 이 모임의 **취소된 여행**(trips.status = CANCELED). GROUP-02 '취소됨' 탭용.
+ * (docs/11_모임정책_v1.md §6 · 2026-09-12)
+ *
+ * ⚠️ getGroupTrips 는 CANCELED 를 일부러 뺀다(모임 카드·진행 중 줄에 섞이면 안 된다).
+ *    그 함수를 고치지 않고 탭 하나를 위해 따로 읽는다.
+ *
+ * ⚠️ **표시만 한다.** 72시간 안 되돌리기·만료 후 숨김은 다른 담당의 기능이다.
+ *    여기서 canceled_at 을 읽거나 경과 시간을 계산하지 않는다.
+ */
+export async function getGroupCanceledTrips(groupId: string): Promise<Trip[]> {
+  const { data, error } = await supabase
+    .from('trips')
+    .select('*')
+    .eq('group_id', groupId)
+    .eq('status', TRIP_STATUS.CANCELED)
+    .order('start_date', { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
  * 모임 정보 수정. 지금은 이름 변경에만 쓴다.
  *
  * 권한은 RLS 가 판단한다. (docs/05_ERD_v3.md §6-2 — groups 는 소유자 또는 ACTIVE 멤버만)
