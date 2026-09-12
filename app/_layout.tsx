@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router';
+import { Stack, useLocalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -27,6 +27,7 @@ const PUBLIC_SEGMENT = 'login';
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { status, isPreview } = useAuth();
   const segments = useSegments();
+  const pathname = usePathname();
   const params = useLocalSearchParams<{ next?: string }>();
   const router = useRouter();
 
@@ -45,10 +46,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (status === 'loading') return;
 
     if (!canEnter && !onLoginScreen) {
-      // ⚠️ 어디로 가려던 길이었는지 남긴다. 나중에 카카오톡 초대 링크로
-      //    들어온 사람이 로그인 뒤 원래 링크로 돌아가야 한다.
-      //    (초대 기능 자체는 이번 범위가 아니다)
-      const next = `/${segments.join('/')}`;
+      // ⚠️ 어디로 가려던 길이었는지 남긴다. 카카오톡 초대 링크로 들어온 사람이
+      //    로그인 뒤 원래 링크로 돌아가야 한다. (/invite/:token · 2026-09-11)
+      //
+      // ⚠️ segments 가 아니라 **pathname** 을 쓴다. useSegments() 는 파일 경로를
+      //    그대로 돌려줘서 /invite/abc123 이 ['invite', '[token]'] 이 된다.
+      //    그걸 이어 붙이면 '/invite/[token]' — 실제 토큰이 사라진다.
+      //    usePathname() 은 정규화된 '/invite/abc123' 을 준다.
+      //    (expo-router hooks.d.ts: "Segments are not normalized" / "Segments will be normalized")
+      const next = pathname;
       router.replace(next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
       return;
     }
@@ -63,7 +69,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       const isInternalPath = next !== null && next.startsWith('/') && !next.startsWith('//');
       router.replace(isInternalPath ? (next as never) : '/');
     }
-  }, [status, canEnter, onLoginScreen, segments, params.next, router]);
+  }, [status, canEnter, onLoginScreen, pathname, params.next, router]);
 
   if (status === 'loading') {
     return (
