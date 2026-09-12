@@ -24,10 +24,21 @@ const TAB_EMPTY_MESSAGE: Record<MyTripFilter, string> = {
   planning: '준비 중인 여행이 없어요.',
   traveling: '지금 여행 중인 여행이 없어요.',
   past: '아직 다녀온 여행 기록이 없어요.',
-  // 2026-09-12 · 모임 상세도 MY-02 와 같은 5탭이다. (docs/11_모임정책_v1.md §6)
   canceled: '취소된 여행이 없어요.',
+  // ⚠️ 모임 상세에는 '나간 여행' 탭이 없다. 타입(Record)을 채우기 위한 값이다.
+  //    나간 여행은 여행 상태가 아니라 membership 이라 lifecycle 탭 안에서
+  //    배지로만 보인다. (PR #88 · docs/11 §6 · 2026-09-13)
   left: '나간 여행이 없어요.',
 };
+
+/**
+ * 모임 상세의 탭 — 여행 **lifecycle** 4개. (docs/11_모임정책_v1.md §6)
+ *
+ * ⚠️ MY-02 의 MY_TRIP_FILTER_TABS(5개)를 그대로 쓰지 않는다. PR #88 이 그 목록을
+ *    MY 전용으로 분리한 이유가 바로 "모임 상세에 '내가 나간 여행' 칸은 뜻에 맞지
+ *    않는다" 였다. 취소됨은 여행 자체의 상태라 여기 있다.
+ */
+const GROUP_TRIP_TABS = MY_TRIP_FILTER_TABS.filter((tab) => tab.value !== 'left');
 
 type Props = {
   group: GroupDetailData;
@@ -50,7 +61,7 @@ type Props = {
 };
 
 /** 섹션 제목 + 본문. 상세 화면의 블록이 전부 같은 리듬을 갖게 한다. */
-function Section({
+export function Section({
   title,
   description,
   titleSuffix,
@@ -175,9 +186,7 @@ export function GroupDetailView({
         ? group.travelingTrips
         : filter === 'canceled'
           ? group.canceledTrips
-          : filter === 'left'
-            ? group.leftTrips
-            : group.planningTrips;
+          : group.planningTrips;
 
   return (
     <View className="flex-1 bg-pot-visual">
@@ -263,9 +272,9 @@ export function GroupDetailView({
       {/* ⚠️ 다른 섹션과 같은 mt-10(40) 을 쓴다. */}
       <View className="mt-10">
         <View className="-mx-4">
-          {/* MY-02 와 같은 5탭. 취소됨·나간 여행은 표시만 한다. (docs/11 §6) */}
+          {/* lifecycle 4탭. 취소됨은 표시만 한다. 나간 여행은 탭이 아니라 카드 배지다. */}
           <TripFilterTabs
-            tabs={MY_TRIP_FILTER_TABS}
+            tabs={GROUP_TRIP_TABS}
             filter={filter}
             onChangeFilter={setFilter}
             className="bg-transparent"
@@ -298,8 +307,11 @@ export function GroupDetailView({
                    같은 이름이 반복된다. MY 는 그대로다. (2026-09-09)
               */
               /*
-                나간 여행은 참가자가 아니라 상세로 못 간다. 그렇다고 눌러도 아무 일이
-                없으면 고장 난 것처럼 보이니, 누르면 이유를 알린다. (2026-09-12)
+                나간 여행(trip.left) — 최종 정책은 "볼 수 있지만 수정할 수 없다" 다.
+                그런데 membership 기준 read-only 여행 홈이 아직 없어, 지금 보내면
+                수정까지 된다. 그래서 **임시로** 이동하지 않고 안내만 한다.
+                read-only 여행 홈이 생기면 onPressTrip 으로 잇는다. (docs/11 §6-2)
+                미참여(participant 아님)는 접근 범위가 미확정이라 그대로 둔다 — 눌리지 않는다.
                 취소된 여행은 MY-02 와 같이 그대로 연다 — 복구·72시간 처리는 다른 담당.
               */
               const onPress = trip.left

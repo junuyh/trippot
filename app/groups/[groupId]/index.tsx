@@ -133,7 +133,7 @@ export default function ScreenGROUP02() {
         getGroupTrips(groupId),
         // 취소됨 탭. **표시만.** 72시간 복구는 다른 담당이다. (docs/11 §6)
         getGroupCanceledTrips(groupId),
-        // 나간 여행. MY 와 같은 쿼리를 쓰고 이 모임 것만 남긴다. 새 쿼리를 만들지 않는다.
+        // 내가 나간 여행 id. 탭이 아니라 카드 배지에만 쓴다. MY 와 같은 쿼리다.
         getLeftTrips(userId),
       ]);
 
@@ -158,6 +158,20 @@ export default function ScreenGROUP02() {
       // getTripsWithSummary() 와 같은 칼럼을 읽어 MY 목록과 값이 어긋나지 않는다.
       const all = [...trips.ongoing, ...trips.past];
       const summaries = await getTripAmountSummaries(all.map((trip) => trip.id));
+
+      /**
+       * 내가 나간 여행 id. **membership 메타일 뿐** 목록의 근거가 아니다.
+       * (2026-09-13 · docs/11 §6) 카드는 lifecycle 탭(준비 중 등)에 한 번만 나오고,
+       * left 가 참이면 '나간 여행' 배지와 무채색으로 그려진다.
+       * 전에는 나간 여행을 따로 모아 탭을 하나 더 뒀는데, 같은 여행이 두 탭에
+       * 두 번 나왔다. 여행 상태와 나의 참여 상태는 축이 다르다.
+       */
+      // ⚠️ trip_members 에 unique 가 없어 같은 여행에 ACTIVE 행과 LEFT 행이 함께
+      //    있을 수 있다. 그때는 ACTIVE 가 이긴다 — trips.ts 의 "ACTIVE 행이 하나
+      //    이상이면 참여 중" 규칙과 같다. 참여 중인 사람에게 나간 여행 배지를 달지 않는다.
+      const leftIds = new Set(
+        myLeftTrips.map((trip) => trip.id).filter((id) => !participating.has(id)),
+      );
 
       /**
        * DB 행을 MY 여행 카드가 받는 모양으로 바꾼다.
@@ -185,27 +199,24 @@ export default function ScreenGROUP02() {
           finalAmount: amount?.finalAmount ?? null,
           color: theme.primary,
           colorSoft: theme.primarySoft,
+          // 나간 여행이면 카드가 배지를 달고 색을 뺀다. 목록 위치는 그대로다.
+          left: leftIds.has(trip.id),
         };
       };
 
       const items = all.map(toItem);
 
       /**
-       * 취소된 여행·나간 여행 카드. MY-02 의 toArchivedItems 와 같은 규칙이다.
-       *   금액을 넣지 않는다 — 취소된 예산은 확정값이 아니고, 나간 여행의 금액은
-       *   더 이상 내 몫이 아니다. 카드가 '—' 를 그린다.
-       *   나간 여행은 left 플래그로 색을 뺀다.
-       * ⚠️ MY 와 같이, 나갔는데 취소까지 된 여행은 '나간 여행' 에만 둔다.
+       * 취소된 여행 카드. MY-02 의 toArchivedItems 와 같은 규칙이다 —
+       * 금액을 넣지 않는다. 취소된 예산은 확정값이 아니다. 카드가 '—' 를 그린다.
        */
-      const toArchived = (trip: (typeof all)[number], left: boolean): MyTripItem => ({
+      const toCanceled = (trip: (typeof all)[number]): MyTripItem => ({
         ...toItem(trip),
         currentAmount: null,
         targetAmount: null,
         finalAmount: null,
-        left,
+        left: leftIds.has(trip.id),
       });
-      const leftInGroup = myLeftTrips.filter((trip) => trip.group_id === groupId);
-      const leftIds = new Set(leftInGroup.map((trip) => trip.id));
 
       setGroup({
         groupId: found.id,
@@ -282,10 +293,7 @@ export default function ScreenGROUP02() {
         pastTrips: items.filter(
           (item) => item.status === TRIP_STATUS.ENDED || item.status === TRIP_STATUS.SETTLED,
         ),
-        canceledTrips: canceledTrips
-          .filter((trip) => !leftIds.has(trip.id))
-          .map((trip) => toArchived(trip, false)),
-        leftTrips: leftInGroup.map((trip) => toArchived(trip, true)),
+        canceledTrips: canceledTrips.map(toCanceled),
       });
       setLoadState('ready');
     } catch {
@@ -495,10 +503,16 @@ export default function ScreenGROUP02() {
         onPressLeftTrip={() => setLeftNoticeOpen(true)}
       />
 
+      {/*
+        ⚠️ LEFT read-only 여행 홈 연결 전 **임시 보호 UX**다. (2026-09-13 · docs/11 §6-2)
+           최종 정책은 "볼 수 있지만 수정할 수 없다" 인데, 지금은 membership 기준
+           수정 차단이 없어 여행 홈으로 보내면 수정까지 된다. 그래서 이동을 막고
+           수정 불가만 알린다. "볼 수 없다" 고 말하지 않는다.
+      */}
       <ConfirmModal
         visible={leftNoticeOpen}
-        title="이미 나간 여행이에요"
-        description="이 여행에서는 나간 상태라 여행 준비 화면을 열 수 없어요."
+        title="나간 여행이에요"
+        description="이 여행은 더 이상 수정할 수 없어요."
         confirmLabel="확인"
         hideCancel
         busy={false}

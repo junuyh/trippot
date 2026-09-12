@@ -12,11 +12,6 @@ type Props = {
   onChangeFilter: (filter: MyTripFilter) => void;
   onPressTrip: (tripId: string) => void;
   onPressCreateTrip: () => void;
-  /**
-   * 탭 목록. 기본은 MY-02 의 5탭이다.
-   * 개인 여행 상세(/groups/personal)가 '나간 여행' 을 뺀 4탭으로 쓴다. (2026-09-12)
-   */
-  tabs?: typeof MY_TRIP_FILTER_TABS;
 };
 
 /** 탭마다 비었을 때 할 말이 다르다. */
@@ -45,12 +40,11 @@ export function MyTripListView({
   onChangeFilter,
   onPressTrip,
   onPressCreateTrip,
-  tabs = MY_TRIP_FILTER_TABS,
 }: Props) {
   return (
     <View className="flex-1 bg-pot-visual">
       {/* 탭. GROUP-02 모임 상세와 같은 컴포넌트를 쓴다. */}
-      <TripFilterTabs filter={filter} onChangeFilter={onChangeFilter} tabs={tabs} />
+      <TripFilterTabs filter={filter} onChangeFilter={onChangeFilter} tabs={MY_TRIP_FILTER_TABS} />
 
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-16 pt-4">
         {trips.length === 0 ? (
