@@ -36,7 +36,7 @@ export type TripMemberItem = {
 };
 
 /**
- * 나가기가 가능한지. lib/trip/tripOwner.ts 의 canLeaveTrip() 결과와 같은 모양.
+ * 나가기가 가능한지. lib/trip/tripLeader.ts 의 canLeaveTrip() 결과와 같은 모양.
  *
  * `member`        일반 멤버. 바로 나갈 수 있다
  * `needsDelegate` 여행장인데 남은 멤버가 있다. 위임 후에만 나갈 수 있다
