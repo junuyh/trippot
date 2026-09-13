@@ -258,6 +258,12 @@ export type VoteResult = { outcome: 'PENDING' | 'APPROVED' | 'REJECTED' };
  *
  * ⚠️ 반대가 나오면 **즉시 폐기한다.** 나머지 동의를 계속 받지 않는다.
  *    (POL-CXL-062) 계속 물으면 반대한 사람을 압박하는 구조가 된다.
+ *
+ * ⚠️⚠️ **요청자는 투표하지 않는다.** ⚠️⚠️
+ *    동의 대상(targetCount)은 요청자를 빼고 센다. 그런데 agreedCount 는
+ *    trip_cancel_votes 를 그대로 세므로, 요청자 표가 섞이면 분자만 1 늘어난다.
+ *    3명 여행이면 남은 2명 중 1명만 동의해도 2/2 로 읽혀 **취소가 확정된다.**
+ *    화면에서도 막지만 여기서 한 번 더 막는다. 판정을 뚫는 경로를 남기지 않는다.
  */
 export async function castCancelVote(input: {
   request: CancelRequest;
@@ -266,6 +272,10 @@ export async function castCancelVote(input: {
   /** 확정될 경우 저장할 자금 스냅샷 */
   fundSnapshot: CanceledFundSnapshot;
 }): Promise<VoteResult> {
+  if (input.userId === input.request.requested_by) {
+    throw new Error('REQUESTER_CANNOT_VOTE');
+  }
+
   const { error: insertError } = await supabase.from('trip_cancel_votes').insert({
     request_id: input.request.id,
     user_id: input.userId,
