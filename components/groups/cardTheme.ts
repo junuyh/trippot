@@ -5,21 +5,27 @@
 // 카드마다 다른 색을 입혀 목록에서 한 장 한 장이 구분되게 한다.
 //
 // ── 테마 배정 규칙 (2026-09-14 · 총 7종) ───────────────────────────────────
-//   · PERSONAL(개인 여행) 카드는 **Lavender Air 1종 고정**. 해시를 돌리지 않는다.
+//   · PERSONAL(개인 여행) 카드는 **Lavender Air 1종 고정**.
 //     내 여권(마이페이지)과 같은 계열이라 "내 것" 으로 읽힌다.
 //   · 실제 모임은 **GROUP 전용 6종**(Mint Journey · Sky Route · Sunset Rose · Sand Dune ·
-//     Night Indigo · Terracotta Route) 중 groupId 해시로 고정 배정한다. 랜덤이 아니다.
-//     같은 모임은 앱을 껐다 켜도, 정렬이 바뀌어도 늘 같은 색이다.
+//     Night Indigo · Terracotta Route)을 **겹치지 않게 순서대로** 받는다.
+//       모임을 created_at ASC → groupId ASC 로 세운 "안정 순서" 에서
+//       0번째 = mint, 1번째 = sky, … 5번째 = terracotta, 6번째 = 다시 mint.
+//     그래서 개인 카드 1장 + 모임 6장까지는 7색이 전부 다르고, 7번째 모임부터 순환한다.
+//   · ⚠️ 해시 % 6 을 폐기했다. 모임이 두세 개뿐인데도 충돌로 같은 색이 나왔다.
+//   · ⚠️ 화면 정렬(최근 여행순 · 사용자 지정순)과 무관하다. 색은 안정 순서로만 정한다.
+//     정렬을 바꿔도, 화면에 다시 들어와도, 앱을 껐다 켜도 같은 모임은 같은 색이다.
+//     created_at 오름차순이라 새 모임이 생겨도 기존 모임의 자리가 밀리지 않는다.
 //   · 두 풀은 겹치지 않는다 — Lavender 는 모임에 나오지 않는다.
 //   · 이름(name)은 개발용 토큰이다. 화면에 보여주지 않는다.
-//   · DB 에 저장하지 않는다. 나중에 사용자가 직접 고르는 기능이 생기면 그 값이
-//     이 함수 결과를 덮으면 된다.
+//   · DB 에 저장하지 않는다. 나중에 사용자가 직접 고르는 기능(groups.theme_key 같은
+//     명시 컬럼)이 생기면 그 값이 이 배정을 덮으면 된다. [검토 필요]
 //
 // ⚠️ components/mypage/passport.tsx 를 가져다 쓰지 않는다. 폴더 경계도 다르고,
 //    여권(종이)과 카드(플라스틱)는 다른 물건이라 같은 색을 쓰면 안 된다.
 // ⚠️ 실제 카드번호 · VALID THRU · 칩 · NFC 는 그리지 않는다. 금융 카드인 척하지 않는다.
 // ============================================================================
-import type { GroupTravelCardData } from './types';
+import { groupTravelCardKey, type GroupTravelCardData } from './types';
 
 export type GroupCardTheme = {
   /** 이름. 디버깅·나중에 사용자 선택 UI 에 쓴다 */
@@ -141,11 +147,39 @@ function hashString(value: string): number {
   return hash;
 }
 
-/** 카드가 쓸 테마. PERSONAL 은 Lavender Air 고정, GROUP 은 groupId 해시 % 6 으로 고정 배정. */
-export function pickGroupCardTheme(card: GroupTravelCardData): GroupCardTheme {
-  if (card.kind === 'PERSONAL') return LAVENDER;
-  return GROUP_THEMES[hashString(card.groupId) % GROUP_THEMES.length];
+/**
+ * 목록 전체의 테마 배정. key = groupTravelCardKey(card).
+ *
+ * PERSONAL → Lavender Air. GROUP → created_at ASC · groupId ASC 순서로 6색을 한 번씩,
+ * 7번째부터 순환. 화면 정렬과 무관하게 같은 입력이면 같은 결과다.
+ *
+ * ⚠️ 카드 하나만 보고는 못 정한다. 겹치지 않으려면 목록 전체가 필요하다.
+ *    그래서 GroupTravelCardList 가 한 번 계산해 카드에 내려준다.
+ */
+export function assignGroupCardThemes(
+  cards: GroupTravelCardData[],
+): Map<string, GroupCardTheme> {
+  const themes = new Map<string, GroupCardTheme>();
+
+  const stableGroups = cards
+    .filter((card): card is Extract<GroupTravelCardData, { kind: 'GROUP' }> => card.kind === 'GROUP')
+    .sort(
+      (a, b) => a.createdAt.localeCompare(b.createdAt) || a.groupId.localeCompare(b.groupId),
+    );
+
+  stableGroups.forEach((card, index) => {
+    themes.set(groupTravelCardKey(card), GROUP_THEMES[index % GROUP_THEMES.length]);
+  });
+
+  for (const card of cards) {
+    if (card.kind === 'PERSONAL') themes.set(groupTravelCardKey(card), LAVENDER);
+  }
+
+  return themes;
 }
+
+/** Map 에 없을 때의 안전값. 목록을 거치지 않고 카드를 그리는 경우는 없지만 타입상 둔다. */
+export const FALLBACK_GROUP_CARD_THEME: GroupCardTheme = LAVENDER;
 
 /** 장식 위치를 조금씩 다르게 할 때 쓰는 0…N 인덱스. 테마와 같은 규칙으로 고정된다. */
 export function pickGroupCardVariant(card: GroupTravelCardData, variants: number): number {

@@ -3,7 +3,7 @@ import { useId, useState } from 'react';
 import { Image, Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
-import { pickGroupCardTheme, pickGroupCardVariant, type GroupCardTheme } from './cardTheme';
+import { pickGroupCardVariant, type GroupCardTheme } from './cardTheme';
 import { formatCardDate, formatMemberCount, formatShortDateRange } from './format';
 import type { GroupTravelCardData, GroupTripItem } from './types';
 
@@ -52,6 +52,11 @@ const NUM = { fontVariant: ['tabular-nums' as const] };
 
 type Props = {
   group: GroupTravelCardData;
+  /**
+   * 이 카드의 색. 목록(GroupTravelCardList)이 assignGroupCardThemes 로 겹치지 않게
+   * 정해서 내려준다. 카드 혼자서는 다른 카드와 겹치는지 알 수 없다.
+   */
+  theme: GroupCardTheme;
   /** 일반 모드에서 카드를 눌렀을 때. 편집 모드에서는 불리지 않는다. 어디로 갈지는 화면이 종류를 보고 정한다. */
   onPress: (card: GroupTravelCardData) => void;
 
@@ -229,7 +234,7 @@ function MetaLabel({ children, theme }: { children: string; theme: GroupCardThem
  *   │                                26.09.04 │
  *   └─────────────────────────────────────────┘
  *
- * 색은 카드마다 다르다 — cardTheme.pickGroupCardTheme 이 모임별로 고정 배정한다.
+ * 색은 카드마다 다르다 — 목록이 cardTheme.assignGroupCardThemes 로 겹치지 않게 배정해 준다.
  *
  * ⚠️ 실물 카드의 **모양**만 빌린다. 가짜 카드번호 · VALID THRU · 칩 · NFC 는 없다.
  *    CREATED 는 유효기간 자리에 놓인 실제 groups.created_at 이다.
@@ -248,6 +253,7 @@ function MetaLabel({ children, theme }: { children: string; theme: GroupCardThem
  */
 export function GroupTravelCard({
   group,
+  theme,
   onPress,
   editMode = false,
   selected = false,
@@ -255,7 +261,6 @@ export function GroupTravelCard({
   actionsDisabled = false,
 }: Props) {
   const { ongoingTrips, pastTripCount } = group;
-  const theme = pickGroupCardTheme(group);
   const variant = pickGroupCardVariant(group, PATTERN_VARIANTS);
 
   const visibleTrips = ongoingTrips.slice(0, MAX_VISIBLE_TRIPS);
