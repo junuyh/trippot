@@ -72,7 +72,7 @@ type Props = {
  * 5-1 프로필 — 여권 정보 페이지의 윗칸. (docs/09_IA_v1.md §5-1 · 2026-09-13)
  *
  *   왼쪽  사진 칸(3:4) + 편집 배지
- *   오른쪽 TripPot 로고 · MY TRAVEL PASSPORT · 필드들
+ *   오른쪽 필드들 (브랜드 줄은 TravelPassportPanel 이 위에 따로 그린다)
  *
  * 필드는 실제 여권의 것을 **TripPot 서비스 정보로 바꿔** 쓴다.
  *   TYPE = TRAVELER            (서비스 분류. 개인정보 아님)
@@ -92,24 +92,18 @@ export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: 
   return (
     <View className="flex-row">
       {/* ── 왼쪽: 사진 칸 ─────────────────────────────────────────────── */}
+      {/*
+        ⚠️ 'PHOTO' 라벨을 두지 않는다. (2026-09-13) 사진 칸의 위 끝이 오른쪽
+           TYPE 라벨의 위 끝과 같은 높이라야 한 줄로 읽힌다. 라벨이 있으면
+           사진이 그만큼 내려가 정보와 어긋난다.
+      */}
       <View>
-        <Text
-          style={{
-            fontSize: 9.5,
-            lineHeight: 13,
-            letterSpacing: 0.8,
-            fontWeight: '600',
-            color: PASSPORT.label,
-          }}
-        >
-          PHOTO
-        </Text>
         {/* 사진 전체가 이미지 변경 터치 영역이다. 배지는 그 안에서 한 번 더 강조한다. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="프로필 사진 변경"
           onPress={onPressChangeImage}
-          className="mt-1.5 items-center justify-center overflow-hidden bg-white active:opacity-70"
+          className="items-center justify-center overflow-hidden bg-white active:opacity-70"
           style={{
             width: PHOTO_WIDTH,
             height: PHOTO_HEIGHT,
@@ -144,32 +138,11 @@ export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: 
         </Pressable>
       </View>
 
-      {/* ── 오른쪽: 브랜드 + 필드 ─────────────────────────────────────── */}
-      <View className="ml-4 flex-1">
-        {/* 브랜드. 로고는 홈 헤더와 같은 파일 · 조금 작게. 새 로고를 그리지 않는다. */}
-        <View className="flex-row items-center">
-          <Image
-            source={require('@/assets/logo.png')}
-            style={{ width: 26, height: 21 }}
-            resizeMode="contain"
-            accessibilityRole="image"
-            accessibilityLabel="TripPot"
-          />
-          <Text
-            className="ml-1.5"
-            style={{ fontSize: 15, lineHeight: 20, fontWeight: '700', letterSpacing: -0.3, color: PASSPORT.ink }}
-          >
-            TripPot
-          </Text>
-        </View>
-        <Text
-          className="mt-0.5"
-          style={{ fontSize: 11, lineHeight: 15, letterSpacing: 1.1, fontWeight: '700', color: PASSPORT.accent }}
-        >
-          MY TRAVEL PASSPORT
-        </Text>
-
-        <View className="mt-3 gap-2.5">
+      {/* ── 오른쪽: 필드 ──────────────────────────────────────────────── */}
+      {/* 브랜드(MY TRAVEL PASSPORT · 로고)는 패널 맨 윗줄로 올라갔다. (TravelPassportPanel)
+          여기는 TYPE 부터 시작해 사진 칸과 위 끝이 맞는다. */}
+      <View className="ml-5 flex-1">
+        <View className="gap-3">
           <View className="flex-row gap-3">
             <Field label="TYPE" value="TRAVELER" />
             <Field label="TRAVEL BASE" value="KOR" />

@@ -23,7 +23,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -389,29 +388,27 @@ export default function ScreenMY01() {
       {header}
 
       <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
-      {/* ── 상단: 여권 패널 (프로필 · 내 여행) ─────────────────────────── */}
-      <View className="px-4 pt-3">
-        <TravelPassportPanel
-          profile={profile}
-          pickedImageUri={pickedImageUri}
-          onPressChangeImage={() => void handleChangeProfileImage()}
-          counts={counts}
-          onPressPlanning={handlePressPlanningTrips}
-          onPressTraveling={handlePressTravelingTrips}
-          onPressPast={handlePressPastTrips}
-        />
-      </View>
+      {/* ── 상단: 여권 영역 (프로필 · 내 여행) — 화면 폭 전체에 깔린다 ──── */}
+      <TravelPassportPanel
+        profile={profile}
+        pickedImageUri={pickedImageUri}
+        onPressChangeImage={() => void handleChangeProfileImage()}
+        counts={counts}
+        onPressPlanning={handlePressPlanningTrips}
+        onPressTraveling={handlePressTravelingTrips}
+        onPressPast={handlePressPastTrips}
+      />
 
       {/* ── 하단: 메뉴 · action ───────────────────────────────────────── */}
-      <View className="px-4 pt-8">
-        <MenuSection title="내 커뮤니티 활동">
+      <View className="px-4 pt-7">
+        <MenuSection title="내 커뮤니티 활동" icon="chatbubbles-outline">
           <MenuRow label="작성한 게시글" onPress={handlePressMyPosts} />
           <MenuRow label="작성한 댓글" onPress={handlePressMyComments} />
           <MenuRow label="좋아요" onPress={handlePressMyLikes} isLast />
         </MenuSection>
 
         <View className="mt-7">
-          <MenuSection title="설정">
+          <MenuSection title="설정" icon="settings-outline">
             <MenuRow label="계정 관리" onPress={handlePressAccount} />
             <MenuRow label="알림 설정" onPress={handlePressNotification} />
             <MenuRow label="이용약관" onPress={handlePressTerms} />
@@ -425,9 +422,9 @@ export default function ScreenMY01() {
         */}
         <View className="mt-7">
           {/*
-            MenuRow 와 같은 높이(py-3.5 + 19 = 47)·글자 단이라 위 메뉴와 한 리듬이다.
-            다른 점은 구분선이 없고 아이콘이 앞에 붙는 것뿐 — "이동" 이 아니라
-            "동작" 이라는 표시다. chevron 도 없다.
+            MenuRow 와 같은 높이(py-3.5 + 19 = 47)·글자 크기라 위 메뉴와 한 리듬이다.
+            다른 점은 구분선·chevron 이 없고 글자가 조금 굵은 것 — "이동" 이 아니라
+            "동작" 이라는 표시다. 아이콘은 두지 않는다. (2026-09-13)
             ⚠️ 색은 MenuRow 와 같은 text-pot-ink 다. pot-mute 는 비활성처럼 읽혀서
                실제로 눌리는 동작인데 못 누르는 것처럼 보였다.
                빨강으로 강조하지는 않는다. 로그아웃은 파괴적 동작이 아니다.
@@ -436,10 +433,9 @@ export default function ScreenMY01() {
             accessibilityRole="button"
             accessibilityLabel="로그아웃"
             onPress={handlePressLogout}
-            className="flex-row items-center self-start py-3.5 active:opacity-60"
+            className="self-start py-3.5 active:opacity-60"
           >
-            <Ionicons name="log-out-outline" size={16} color="#8B94A2" />
-            <Text className="ml-1.5 text-pot-ink" style={{ fontSize: 13.5, lineHeight: 19 }}>
+            <Text className="font-semibold text-pot-ink" style={{ fontSize: 13.5, lineHeight: 19 }}>
               로그아웃
             </Text>
           </Pressable>

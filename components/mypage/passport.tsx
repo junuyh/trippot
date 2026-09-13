@@ -18,16 +18,22 @@ import Svg, { Path } from 'react-native-svg';
 export const PASSPORT = {
   /** 내지 바탕. 아주 연한 라벤더 */
   paper: '#F4F1FB',
-  /** 내지 테두리. 있는 듯 없는 듯 */
-  edge: '#E3DEF0',
-  /** 구분선 · 워터마크 · 사진 칸 테두리 */
+  /** 구분선 · 사진 칸 테두리 */
   rule: '#DDD8EA',
   /** 제목 · 이름 · 값. 진한 남보라 */
   ink: '#2E2A5E',
   /** 라벨 · 보조 글자. 회보라 */
   label: '#8A84A8',
-  /** 숫자 강조. 홈 HOME_ACCENT · 커뮤니티 FREE_TIP 과 같은 TripPot 보라 */
-  accent: '#6C5CE7',
+  /** chevron 처럼 "눌린다" 만 알리는 표시. 라벨보다 옅다 */
+  hint: '#B3AEC8',
+  /**
+   * 강조. MY TRAVEL PASSPORT · 내 여행 숫자.
+   * ⚠️ 홈의 #6C5CE7 을 쓰지 않는다. (2026-09-13) 종이 위에서 네온처럼 떴다.
+   *    채도를 낮추고 어둡게 — 여권 인쇄 잉크 같은 보라.
+   */
+  accent: '#4B3F8F',
+  /** 워터마크 색. 잉크보다 조금 푸른 회보라 */
+  watermark: '#5B5490',
   /** 사진 칸 안 기본 아이콘 */
   placeholder: '#C9C3DD',
 } as const;
@@ -36,17 +42,47 @@ export const PASSPORT = {
 export const MRZ_FONT = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
 /**
- * 세계지도 워터마크. 대륙을 아주 거칠게 다듬은 실루엣이다.
+ * 세계지도 워터마크. 대륙 실루엣을 단순화한 일반적인 세계지도다.
  *
- * ⚠️ 정확한 지도가 아니다. 여권 내지의 "지도 같은 무늬" 만 흉내 낸다.
- *    실제 여권 지도 · 참고 이미지를 가져오지 않는다. 좌표는 200 × 100.
+ * ⚠️ 정밀 지도가 아니다. 대륙의 자리 · 크기 · 대략의 윤곽만 맞춘 실루엣이라
+ *    "지도" 로 읽히되 장식에 머문다. 실제 여권 지도 · 외부 자산을 가져오지 않는다.
  * ⚠️ 색 하나 · 낮은 opacity. 글자보다 튀면 실패다.
+ *    좌표는 등장방형 도법 기준 360 × 180 (경도 −180…180 · 위도 90…−90).
  */
+const CONTINENTS: string[] = [
+  // 북아메리카 (알래스카 → 캐나다 → 미국 → 멕시코 → 중앙아메리카)
+  'M12 26 L26 22 L38 18 L50 14 L64 12 L80 10 L96 12 L108 10 L118 14 L122 22 L114 28 L104 32 L98 38 L104 44 L110 48 L104 54 L98 58 L96 66 L90 72 L86 80 L80 86 L84 92 L80 96 L74 98 L70 92 L64 86 L58 80 L52 76 L46 68 L40 62 L34 56 L30 48 L24 44 L18 40 L12 36 Z',
+  // 그린란드
+  'M116 6 L132 4 L146 8 L148 16 L140 26 L128 30 L118 24 L112 14 Z',
+  // 남아메리카
+  'M88 100 L98 98 L108 100 L116 104 L122 110 L124 120 L118 132 L112 144 L106 156 L102 166 L98 172 L92 166 L90 154 L88 140 L84 128 L82 116 L84 106 Z',
+  // 유럽 (이베리아 → 프랑스 → 북유럽 → 동유럽)
+  'M166 44 L172 40 L182 34 L192 30 L204 28 L216 30 L220 38 L214 44 L208 50 L212 56 L206 62 L196 66 L188 64 L180 62 L172 58 L168 52 Z',
+  // 영국·아일랜드
+  'M166 34 L172 32 L176 38 L172 44 L166 42 Z',
+  // 아프리카
+  'M172 70 L184 66 L198 64 L212 66 L222 72 L226 84 L224 96 L228 106 L226 118 L220 130 L214 140 L206 146 L198 142 L194 130 L190 118 L184 106 L176 96 L172 84 Z',
+  // 마다가스카르
+  'M232 120 L236 118 L238 128 L234 136 L230 130 Z',
+  // 아시아 (중동 → 인도 → 중국 → 시베리아 → 동남아)
+  'M216 30 L234 24 L252 20 L272 18 L292 16 L312 18 L332 20 L346 26 L350 34 L340 40 L332 46 L322 50 L316 56 L310 62 L302 66 L296 72 L288 78 L282 86 L274 92 L268 96 L262 90 L256 82 L250 76 L246 86 L242 98 L236 92 L234 82 L232 74 L226 68 L222 60 L216 54 L220 46 L226 40 L222 34 Z',
+  // 아라비아반도
+  'M222 62 L232 60 L240 66 L238 76 L232 82 L226 78 L222 70 Z',
+  // 일본
+  'M338 52 L344 48 L348 54 L344 62 L338 60 Z',
+  // 인도네시아 · 동남아 섬
+  'M296 96 L306 94 L316 96 L326 100 L322 104 L310 104 L300 102 Z',
+  // 오세아니아
+  'M296 118 L310 114 L326 116 L338 122 L342 134 L336 146 L324 150 L310 146 L300 138 L294 128 Z',
+  // 뉴질랜드
+  'M344 144 L348 142 L350 152 L346 158 L342 152 Z',
+];
+
 export function WorldMapWatermark({
   width,
   height,
-  color = PASSPORT.ink,
-  opacity = 0.04,
+  color = PASSPORT.watermark,
+  opacity = 0.065,
 }: {
   width: number;
   height: number;
@@ -54,37 +90,10 @@ export function WorldMapWatermark({
   opacity?: number;
 }) {
   return (
-    <Svg width={width} height={height} viewBox="0 0 200 100" pointerEvents="none">
-      {/* 그린란드 */}
-      <Path d="M60 3 L76 2 L78 8 L70 12 L62 10 Z" fill={color} opacity={opacity} />
-      {/* 북아메리카 */}
-      <Path
-        d="M14 14 L36 8 L54 10 L68 16 L64 26 L56 34 L50 46 L40 54 L32 46 L26 36 L18 28 Z"
-        fill={color}
-        opacity={opacity}
-      />
-      {/* 남아메리카 */}
-      <Path
-        d="M42 56 L56 54 L66 62 L62 76 L54 92 L48 86 L42 70 Z"
-        fill={color}
-        opacity={opacity}
-      />
-      {/* 유럽 */}
-      <Path d="M84 14 L104 10 L112 18 L106 28 L94 32 L84 26 Z" fill={color} opacity={opacity} />
-      {/* 아프리카 */}
-      <Path
-        d="M88 34 L110 32 L122 46 L116 66 L106 78 L96 72 L88 54 Z"
-        fill={color}
-        opacity={opacity}
-      />
-      {/* 아시아 */}
-      <Path
-        d="M108 8 L150 4 L180 12 L186 26 L168 36 L152 44 L136 42 L120 34 L112 22 Z"
-        fill={color}
-        opacity={opacity}
-      />
-      {/* 오세아니아 */}
-      <Path d="M150 62 L172 60 L182 72 L172 84 L156 82 L146 72 Z" fill={color} opacity={opacity} />
+    <Svg width={width} height={height} viewBox="0 0 360 170" pointerEvents="none">
+      {CONTINENTS.map((d) => (
+        <Path key={d} d={d} fill={color} opacity={opacity} />
+      ))}
     </Svg>
   );
 }

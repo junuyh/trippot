@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
@@ -11,8 +12,8 @@ const NUM = { fontVariant: ['tabular-nums' as const] };
  * 한 칸. 작은 라벨 아래 큰 숫자. 여권 내지의 통계 칸이다.
  *
  * ⚠️ 흰 카드가 아니다. 셋이 한 패널 안에 나란히 놓이고 사이에 얇은 세로선만 있다.
- * ⚠️ chevron 을 두지 않는다. 칸 전체가 눌리고, 누르면 그 탭의 목록으로 간다.
- *    눌리는 표시는 active opacity 로만 한다.
+ * 라벨 오른쪽에 chevron 을 둔다. 칸 전체가 눌리고, 누르면 그 탭의 목록으로 간다.
+ *    chevron 은 라벨보다 옅은 hint 색이라 "눌린다" 만 알리고 튀지 않는다. (2026-09-13)
  */
 function CountColumn({
   label,
@@ -31,15 +32,18 @@ function CountColumn({
       accessibilityRole="button"
       accessibilityLabel={`${label} ${count}건`}
       onPress={onPress}
-      className="flex-1 py-1 active:opacity-60"
-      style={divider ? { borderLeftWidth: 1, borderLeftColor: PASSPORT.rule, paddingLeft: 14 } : undefined}
+      className="flex-1 py-1.5 active:opacity-60"
+      style={divider ? { borderLeftWidth: 1, borderLeftColor: PASSPORT.rule, paddingLeft: 16 } : undefined}
     >
-      <Text numberOfLines={1} style={{ fontSize: 11.5, lineHeight: 15, color: PASSPORT.label }}>
-        {label}
-      </Text>
+      <View className="flex-row items-center">
+        <Text numberOfLines={1} className="shrink" style={{ fontSize: 12, lineHeight: 16, color: PASSPORT.label }}>
+          {label}
+        </Text>
+        <Ionicons name="chevron-forward" size={12} color={PASSPORT.hint} />
+      </View>
       <Text
-        className="mt-1 font-black"
-        style={{ fontSize: 28, lineHeight: 34, letterSpacing: -0.6, color: PASSPORT.accent, ...NUM }}
+        className="mt-1.5 font-black"
+        style={{ fontSize: 30, lineHeight: 36, letterSpacing: -0.6, color: PASSPORT.accent, ...NUM }}
       >
         {count}
       </Text>
@@ -85,7 +89,7 @@ export function TripSummaryCards({
         내 여행
       </Text>
 
-      <View className="mt-3 flex-row">
+      <View className="mt-3.5 flex-row">
         <CountColumn
           label={TRIP_STATUS_LABEL.PLANNING}
           count={counts.planning}
