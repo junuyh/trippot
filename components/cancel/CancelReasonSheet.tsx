@@ -31,6 +31,13 @@ import {
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /**
+   * 시트가 **완전히 내려간 뒤**(iOS). 다음 시트를 이어서 열 때 쓴다.
+   *
+   * ⚠️ 닫는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고, 보이지 않는 Modal 이
+   *    화면 전체의 터치를 삼킨다. 타이머로 어림잡지 말고 이 신호를 쓴다.
+   */
+  onDismiss?: () => void;
 
   destination: string;
   /** 날짜가 지난 여행이면 문구가 통째로 바뀐다 */
@@ -59,6 +66,7 @@ type Props = {
 export function CancelReasonSheet({
   visible,
   onClose,
+  onDismiss,
   destination,
   isEnded,
   needsAgreement,
@@ -92,6 +100,7 @@ export function CancelReasonSheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
+      onDismiss={onDismiss}
       title={title}
       description={lead}
       footer={

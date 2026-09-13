@@ -26,6 +26,13 @@ const VISIBLE = 5;
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /**
+   * 시트가 **완전히 내려간 뒤**(iOS). 다음 시트를 이어서 열 때 쓴다.
+   *
+   * ⚠️ 닫는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고, 보이지 않는 Modal 이
+   *    화면 전체의 터치를 삼킨다. 타이머로 어림잡지 말고 이 신호를 쓴다.
+   */
+  onDismiss?: () => void;
 
   destination: string;
   /** 모임 여행이면 멤버 알림 고지를 붙인다 */
@@ -48,6 +55,7 @@ type Props = {
 export function RestoreConfirmSheet({
   visible,
   onClose,
+  onDismiss,
   destination,
   isGroupTrip,
   changes,
@@ -64,6 +72,7 @@ export function RestoreConfirmSheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
+      onDismiss={onDismiss}
       title={`${destination} 여행을 다시 준비할까요?`}
       description={
         has

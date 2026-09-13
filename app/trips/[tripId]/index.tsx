@@ -26,6 +26,7 @@ import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -171,8 +172,13 @@ type CancelSheet =
   | "restore";
 
 /**
- * 시트가 완전히 닫히기를 기다리는 시간.
- * BottomSheet 의 CLOSE_MS(180) 보다 넉넉히 잡는다.
+ * 시트가 완전히 닫히기를 기다리는 시간. **Android 전용 대비책이다.**
+ *
+ * ⚠️ iOS 는 이 값을 쓰지 않는다. Modal 의 onDismiss 를 쓴다. 시간으로 어림잡으면
+ *    틀린다 — BottomSheet 의 CLOSE_MS(180) 는 JS 애니메이션이 끝나는 시점일
+ *    뿐이고, 그 뒤에 iOS 가 네이티브 Modal 을 내리는 시간이 또 있다. 240ms 로
+ *    잡았더니 그 안에 안 끝나서 CXL-01 → CXL-03 이 아예 안 열렸다.
+ *    (2026-09-13 시뮬레이터에서 확인)
  */
 const SHEET_SWAP_MS = 240;
 
@@ -273,16 +279,52 @@ export default function ScreenTripHome() {
   const [busy, setBusy] = useState(false);
 
   /**
-   * 열려 있는 시트를 닫고, 완전히 내려간 뒤 다음 시트를 연다.
+   * 닫히는 시트가 다 내려가면 열어야 할 다음 시트.
    *
-   * ⚠️ setSheet(next) 로 바로 갈아끼우면 iOS 에서 화면이 먹통이 된다.
-   *    위 sheet 상태 주석 참조.
+   * ⚠️ state 가 아니라 ref 다. 이 값이 바뀐다고 다시 그릴 이유가 없고,
+   *    onDismiss 는 렌더 밖에서 불린다.
    */
-  const openSheetAfterClose = useCallback((next: CancelSheet) => {
-    setSettingsOpen(false);
-    setSheet(null);
-    setTimeout(() => setSheet(next), SHEET_SWAP_MS);
+  const pendingSheetRef = useRef<CancelSheet>(null);
+
+  /**
+   * 시트가 완전히 내려간 뒤 다음 시트를 연다. 각 시트의 onDismiss 가 부른다.
+   *
+   * ⚠️ 멱등이어야 한다. onDismiss 와 Android 대비 타이머가 둘 다 부를 수 있다.
+   *    ref 를 먼저 비워서 두 번째 호출은 아무것도 하지 않는다.
+   */
+  const flushPendingSheet = useCallback(() => {
+    const next = pendingSheetRef.current;
+    if (!next) return;
+    pendingSheetRef.current = null;
+    setSheet(next);
   }, []);
+
+  /**
+   * 열려 있는 시트를 닫고, **완전히 내려간 뒤** 다음 시트를 연다.
+   *
+   * ⚠️⚠️ setSheet(next) 로 바로 갈아끼우면 iOS 에서 화면이 먹통이 된다.
+   *    앞 Modal 이 닫히는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고,
+   *    보이지 않는 Modal 이 화면 전체의 터치를 삼킨다.
+   *
+   * ⚠️ 그렇다고 타이머로 어림잡지도 않는다. 얼마나 걸리는지는 기기와 상황이
+   *    정한다. 실제로 240ms 는 모자랐다. iOS 는 Modal 의 onDismiss 가 정확한
+   *    신호를 주므로 그걸 쓰고, 타이머는 onDismiss 가 없는 Android 몫이다.
+   *
+   * ⚠️ 열린 시트가 없으면 기다리지 않는다. 기다리면 onDismiss 가 영영 안 와서
+   *    아무 시트도 열리지 않는다. (설정 시트는 별도 Modal 이라 여기 안 센다)
+   */
+  const openSheetAfterClose = useCallback(
+    (next: CancelSheet) => {
+      setSettingsOpen(false);
+      setSheet((current) => {
+        if (current === null) return next;
+        pendingSheetRef.current = next;
+        if (Platform.OS !== "ios") setTimeout(flushPendingSheet, SHEET_SWAP_MS);
+        return null;
+      });
+    },
+    [flushPendingSheet],
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -934,10 +976,23 @@ export default function ScreenTripHome() {
         : (fund?.current_amount ?? 0) > 0 || data.depositTotal > 0
           ? "MANUAL"
           : "ZERO";
+    /**
+     * 누적 모금액. 아래 raisedAmount 와 **같은 규칙**이다.
+     *
+     * ⚠️ depositTotal 만 쓰지 않는다. 직접 입력한 여행자금은 거래로 남지 않고
+     *    fund_sources.current_amount 에만 있다. depositTotal 만 보면 수기 입력
+     *    여행의 스냅샷이 **0원으로 굳는다.** 취소 화면이 "직접 입력한 여행자금
+     *    0원" 이라고 말했다. (2026-09-13 시뮬레이터에서 확인)
+     *
+     * ⚠️ raisedAmount 를 그대로 쓰지 못한다. 그건 이 함수보다 아래에서
+     *    만들어지는데 cancelSnapshot 이 렌더 도중 이 함수를 부른다.
+     */
+    const savedTotal =
+      data.depositTotal > 0 ? data.depositTotal : (fund?.current_amount ?? 0);
     const remaining = cancelRemainingAmount({
       fundKind,
       currentBalance: fund?.current_amount ?? 0,
-      totalSaved: data.depositTotal,
+      totalSaved: savedTotal,
       actualSpent: spentTotal,
     });
     return {
@@ -946,7 +1001,7 @@ export default function ScreenTripHome() {
       //    이 화면은 그걸 읽지 않는다. 스냅샷에는 null 로 남기고, 화면은
       //    "연결한 계좌" 로 대신 부른다. 필요해지면 조회를 추가한다.
       masked_account: null,
-      total_saved: data.depositTotal,
+      total_saved: savedTotal,
       actual_spent: spentTotal,
       remaining,
       goal_amount: targetAmount,
@@ -1394,6 +1449,7 @@ export default function ScreenTripHome() {
         <RestoreConfirmSheet
           visible={sheet === "restore"}
           onClose={() => setSheet(null)}
+          onDismiss={flushPendingSheet}
           destination={trip.destination ?? "여행"}
           isGroupTrip={Boolean(trip.group_id)}
           changes={cancelChangeItems}
@@ -1469,6 +1525,7 @@ export default function ScreenTripHome() {
       <LeaveTripSheet
         visible={sheet === "leave"}
         onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
         mode={leaveMode}
         destination={trip.destination ?? "여행"}
         groupName={data.groupName ?? "모임"}
@@ -1487,6 +1544,7 @@ export default function ScreenTripHome() {
       <DelegateLeaderSheet
         visible={sheet === "delegate"}
         onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
         candidates={delegateCandidates}
         selectedMemberId={delegateId}
         onSelect={setDelegateId}
@@ -1500,6 +1558,7 @@ export default function ScreenTripHome() {
       <CancelReasonSheet
         visible={sheet === "cancelReason"}
         onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
         destination={trip.destination ?? "여행"}
         isEnded={status === TRIP_STATUS.ENDED}
         needsAgreement={voteTargetCount > 0}
@@ -1515,6 +1574,7 @@ export default function ScreenTripHome() {
       <CancelConfirmSheet
         visible={sheet === "cancelConfirm"}
         onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
         isEnded={status === TRIP_STATUS.ENDED}
         needsAgreement={voteTargetCount > 0}
         voteTargetCount={voteTargetCount}
@@ -1541,6 +1601,7 @@ export default function ScreenTripHome() {
       <CancelVoteSheet
         visible={sheet === "vote"}
         onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
         requesterName={cancelRequesterName}
         destination={trip.destination ?? "여행"}
         expiresAtLabel={cancelExpiresLabel}
@@ -1562,6 +1623,7 @@ export default function ScreenTripHome() {
       <RestoreConfirmSheet
         visible={sheet === "restore"}
         onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
         destination={trip.destination ?? "여행"}
         isGroupTrip={Boolean(trip.group_id)}
         changes={cancelChangeItems}
