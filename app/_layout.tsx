@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HeaderBackButton, Loading } from '@/components/ui';
 import { initAnalytics } from '@/lib/analytics/track';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthProvider';
+import { PushInboxObserver } from '@/lib/notifications/PushInboxObserver';
 
 import '../global.css';
 
@@ -121,6 +122,8 @@ export default function RootLayout() {
     // expo-router 가 gesture-handler 를 의존으로 갖고 있어 새 패키지는 아니다.
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
+        {/* 기기에 도착한 알림을 사용자별로 보관한다. 화면을 그리지 않는다. (lib/notifications) */}
+        <PushInboxObserver />
         <AuthGate>
           <RootStack />
         </AuthGate>
