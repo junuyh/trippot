@@ -68,20 +68,25 @@ export type LeaveDecision = {
 /**
  * 나갈 수 있는가. (POL-MEM-003 · 004)
  *
- *   일반 멤버          바로 나간다
- *   여행장 + 멤버 ≥ 1   위임 후에만 (requiresDelegation)
- *   여행장 + 멤버 0     나갈 수 없다 (LEADER_ALONE) → 초대 또는 취소로 안내
+ *   일반 멤버               바로 나간다
+ *   여행장 + 넘길 사람 ≥ 1   위임 후에만 (requiresDelegation)
+ *   여행장 + 넘길 사람 0     나갈 수 없다 (LEADER_ALONE) → 초대 또는 취소로 안내
  *
  * ⚠️ 여행장이 그냥 나가면 **여행장 없는 여행**이 남는다. 그러면 참여 요청을
  *    수락할 사람이 없어져 초대가 영영 막힌다.
  *
- * @param activeMemberCount 나를 **포함한** ACTIVE 멤버 수
+ * ⚠️⚠️ 기준은 '남은 멤버 수' 가 아니라 **'여행장이 될 수 있는 사람 수'** 다.
+ *    미가입 동행자(user_id 가 null)는 인원 수에는 들어가지만 계정이 없어
+ *    여행장이 될 수 없다. 멤버 수로 세면 '여행장 + 미가입 동행자 1명' 여행이
+ *    위임하라는 안내를 받는데, 정작 MEM-02 를 열면 고를 사람이 아무도 없다.
+ *    (2026-09-13 확인)
  */
 export function canLeaveTrip(input: {
   trip: TripLeaderLike;
   userId: string | null;
   isActiveMember: boolean;
-  activeMemberCount: number;
+  /** 나를 뺀, **여행장이 될 수 있는** 멤버 수. 미가입 동행자는 세지 않는다 */
+  delegatableCount: number;
 }): LeaveDecision {
   if (!input.isActiveMember) {
     return { allowed: false, requiresDelegation: false, reason: "NOT_MEMBER" };
@@ -91,9 +96,7 @@ export function canLeaveTrip(input: {
     return { allowed: true, requiresDelegation: false };
   }
 
-  // 나 말고 남는 사람이 있는가
-  const othersCount = Math.max(0, input.activeMemberCount - 1);
-  if (othersCount === 0) {
+  if (input.delegatableCount <= 0) {
     return { allowed: false, requiresDelegation: false, reason: "LEADER_ALONE" };
   }
   return { allowed: false, requiresDelegation: true };

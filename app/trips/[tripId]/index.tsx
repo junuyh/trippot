@@ -990,14 +990,6 @@ export default function ScreenTripHome() {
   /** 나를 포함한 참여 인원. 나가기 판정의 분모다 */
   const activeMemberCount = data.members.length;
   const isActiveMember = data.members.some((m) => m.user_id === userId);
-  const leaveDecision = canLeaveTrip({
-    trip,
-    userId,
-    isActiveMember,
-    activeMemberCount,
-  });
-  const leaveMode = leaveModeOf(leaveDecision);
-
   /** 위임 대상 — 나를 뺀 가입 멤버. 미가입 동행자는 여행장이 될 수 없다 */
   const delegateCandidates = data.members
     .filter((m) => m.user_id !== null && m.user_id !== userId)
@@ -1008,8 +1000,33 @@ export default function ScreenTripHome() {
       isTripLeader: false,
     }));
 
-  /** 동의 대상 수 = 참여 인원 − 요청자. 개인 여행이면 0이라 즉시 확정된다 */
-  const voteTargetCount = Math.max(0, activeMemberCount - 1);
+  /*
+    ⚠️ 넘길 수 있는 사람 수로 판정한다. 멤버 수가 아니다. 미가입 동행자는
+       인원에는 들어가지만 계정이 없어 여행장이 될 수 없다.
+  */
+  const leaveDecision = canLeaveTrip({
+    trip,
+    userId,
+    isActiveMember,
+    delegatableCount: delegateCandidates.length,
+  });
+  const leaveMode = leaveModeOf(leaveDecision);
+
+  /**
+   * 동의 대상 수 = **가입 멤버** − 요청자. 0이면 즉시 확정된다. (POL-CXL-066)
+   *
+   * ⚠️⚠️ 인원 수로 세지 않는다. 미가입 동행자(user_id 가 null)는 인원에는
+   *    들어가지만 계정이 없어 **동의를 누를 수 없다.** 인원으로 세면 나와
+   *    동행자 둘뿐인 여행에서 동의 대상이 1명으로 잡혀 요청이 대기 상태로
+   *    들어가는데, 정작 누를 사람이 없어 **영영 확정되지 않는다.**
+   *    (2026-09-13 상하이 테스트 여행에서 확인)
+   *
+   * ⚠️ getVoteProgress().targetCount 와 **같은 기준**이어야 한다. 그쪽도
+   *    user_id 가 없는 행을 빼고 센다. 두 값이 갈리면 화면이 보여주는 분모와
+   *    서버가 판정하는 분모가 달라진다.
+   */
+  const registeredMemberCount = data.members.filter((m) => m.user_id !== null).length;
+  const voteTargetCount = Math.max(0, registeredMemberCount - 1);
   const isCancelRequester = data.cancelRequest?.requested_by === userId;
   const hasVoted = Boolean(
     data.voteProgress?.votes.some((v) => v.user_id === userId),
