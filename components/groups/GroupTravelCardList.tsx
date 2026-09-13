@@ -34,9 +34,11 @@ export function GroupTravelCardList({
 
   // ⚠️ pb-28. pb-10 이면 마지막 카드가 떠 있는 탭바(FloatingTabBar)에 가려
   //    편집 모드에서 선택조차 되지 않는다. 다른 탭 화면과 같은 값이다.
+  // 카드 사이 20. (2026-09-13 · 12 → 20) 실물 카드처럼 한 장씩 읽히려면 그림자가
+  //    다음 카드에 닿지 않을 만큼 띄워야 한다. 12 에서는 목록이 한 덩어리로 보였다.
   return (
-    <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-1">
-      <View className="gap-3">
+    <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-2">
+      <View className="gap-5">
         {groups.map((group) => (
           <GroupTravelCard
             key={groupTravelCardKey(group)}
