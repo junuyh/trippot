@@ -1,5 +1,5 @@
 // ============================================================================
-// 신규 사용자 홈 — 이런 여행지는 어때요? (2026-09-09)
+// 신규 사용자 홈 — 여행자들은 이렇게 다녀왔어요 (2026-09-09)
 //
 // 위 '추천 여행지' 가 "여기로 가보세요" 라면, 이 칸은 "다른 사람은 여기
 // 다녀왔대요" 다. 그래서 누르면 여행 만들기가 아니라 **커뮤니티의 그 여행지
@@ -52,7 +52,7 @@ export function DiscoverDestinationSection({ destinations, onPressDestination }:
 
   return (
     <View>
-      <SectionHeader title="이런 여행지는 어때요?" />
+      <SectionHeader title="여행자들은 이렇게 다녀왔어요" />
 
       <ScrollView
         horizontal

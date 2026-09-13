@@ -15,7 +15,7 @@
 //     한 번 읽은 뒤에는 아이콘만으로 충분하다. 그래서 접었다 편다.
 //     내용을 읽는 동안 버튼이 본문을 덜 가린다.
 //
-// ⚠️ 색은 보라(HOME_ACCENT) 하나다. palette.ts 에 이미 있는 서비스 대표 색이고,
+// ⚠️ 색은 짙은 보라(HOME_FAB, #4941B8) 하나다. palette.ts 에 이 버튼 전용으로 두었고,
 //    새로 만들지 않았다. 국가 색(countryTheme)은 여행을 구분하는 자리에만 쓴다.
 //
 // ⚠️ 하단 탭바(FloatingTabBar) 가 화면 위에 떠 있어서, 그 높이만큼 띄운다.
@@ -31,7 +31,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HOME_ACCENT } from './palette';
+import { HOME_FAB } from './palette';
 
 type Props = {
   /** true 면 글자까지 있는 알약, false 면 아이콘만 있는 동그라미. */
@@ -120,8 +120,8 @@ export function CreateTripFab({ expanded, onPress }: Props) {
           flexDirection: 'row',
           alignItems: 'center',
           overflow: 'hidden',
-          backgroundColor: HOME_ACCENT,
-          shadowColor: HOME_ACCENT,
+          backgroundColor: HOME_FAB,
+          shadowColor: HOME_FAB,
           shadowOpacity: 0.3,
           shadowRadius: 12,
           shadowOffset: { width: 0, height: 5 },

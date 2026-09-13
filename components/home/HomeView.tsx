@@ -1,10 +1,16 @@
 import { ScrollView, View } from 'react-native';
 
 import { CreateTripFab } from './CreateTripFab';
+import { DestinationSuggestSection } from './DestinationSuggestSection';
 import { HomeHeader } from './HomeHeader';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
 import { PastTripSection } from './PastTripSection';
-import type { EndedTripCardData, HomeEmptyVariant, OngoingTripCardData } from './types';
+import type {
+  DestinationSuggestion,
+  EndedTripCardData,
+  HomeEmptyVariant,
+  OngoingTripCardData,
+} from './types';
 import { useFabExpand } from './useFabExpand';
 
 type Props = {
@@ -17,10 +23,16 @@ type Props = {
   /** 진행 중 여행이 하나도 없을 때 문구를 고르는 값. (docs/03 REQ-HOME-002) */
   emptyVariant: HomeEmptyVariant;
 
+  /**
+   * 추천 여행지. **준비 중인 여행이 하나도 없을 때** 그 자리에 들어간다.
+   * 상수 조회는 화면 파일이 하고 결과만 받는다.
+   */
+  suggestions: DestinationSuggestion[];
+  /** 추천 여행지 카드를 눌렀을 때. 목적지 코드를 넘긴다. */
+  onPressSuggestion: (code: string) => void;
+
   /** 홈에 보여줄 지난 여행. 최근 몇 개만이다. 전체는 MY-02. */
   pastTrips: EndedTripCardData[];
-  /** 홈에 다 담지 못한 지난 여행이 더 있는가. */
-  hasMorePastTrips: boolean;
 
   onPressTrip: (tripId: string) => void;
   /** 지난 여행 카드의 '결산하기' 를 눌렀을 때. 결산 화면으로 바로 보낸다. */
@@ -70,8 +82,9 @@ export function HomeView({
   daysToNextTrip,
   ongoingTrips,
   emptyVariant,
+  suggestions,
+  onPressSuggestion,
   pastTrips,
-  hasMorePastTrips,
   onPressTrip,
   onPressSettle,
   onPressCreateTrip,
@@ -88,21 +101,38 @@ export function HomeView({
           그러지 않으면 끝까지 내렸을 때 마지막 카드가 버튼에 가린다. */}
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 pb-40 pt-2"
+        contentContainerClassName="px-4 pb-40 pt-6"
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
-        <OngoingTripCarousel
-          trips={ongoingTrips}
-          emptyVariant={emptyVariant}
-          onPressTrip={onPressTrip}
-          onPressCreateTrip={onPressCreateTrip}
-        />
+        {/*
+          ⚠️ **준비 중인 여행이 없으면 그 자리에 추천 여행지를 놓는다.** (2026-09-11)
+             전에는 점선 테두리 빈 카드에 '준비 중인 여행이 없어요' 만 떴다.
+             맞는 말이지만 **없다는 사실만 알리고 끝나서**, 다음에 무엇을 할지는
+             사용자가 알아서 찾아야 했다. 여행이 하나도 없는 사람에게 추천
+             여행지를 보여주기로 한 것과 같은 이유다. (HomeStates 의 HomeEmpty)
+
+          ⚠️ **지난 여행은 그대로 남긴다.** 이 자리만 바꾼다.
+             홈에서 종료 여행을 보여주는 것은 REQ-HOME-001(Must)이라, 아래
+             칸까지 추천으로 덮으면 요구사항을 못 채운다.
+        */}
+        {ongoingTrips.length === 0 && suggestions.length > 0 ? (
+          <DestinationSuggestSection
+            suggestions={suggestions}
+            onPressSuggestion={onPressSuggestion}
+          />
+        ) : (
+          <OngoingTripCarousel
+            trips={ongoingTrips}
+            emptyVariant={emptyVariant}
+            onPressTrip={onPressTrip}
+            onPressCreateTrip={onPressCreateTrip}
+          />
+        )}
 
         <View className="mt-7">
           <PastTripSection
             trips={pastTrips}
-            hasMore={hasMorePastTrips}
             onPressTrip={onPressTrip}
             onPressSettle={onPressSettle}
             onPressSeeAll={onPressAllPastTrips}

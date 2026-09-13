@@ -90,7 +90,7 @@ const HOME_PAST_TRIP_LIMIT = 4;
 const SUGGESTION_LIMIT = 8;
 
 /**
- * 홈 '발견한 여행지' 에 보여줄 여행지 수.
+ * 홈 '여행자들은 이렇게 다녀왔어요' 에 보여줄 여행지 수.
  *
  * 태그가 한 화면에 두 장 보이므로 3번 넘겨서 다 본다.
  * 여기서 다 보여주면 홈이 여행지 목록 페이지가 된다. (CLAUDE.md 2장)
@@ -101,7 +101,7 @@ const DISCOVER_LIMIT = 6;
  * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-09 개편)
  *
  * 상수만 읽어 만드는 부분이다. 렌더마다 다시 계산할 이유가 없어 모듈에서
- * 한 번 만든다. 커뮤니티 글 수(postCount)와 배지는 조회 결과라서
+ * 한 번 만든다. 배지는 커뮤니티 글 수에서 나오는 조회 결과라서
  * 아래 컴포넌트에서 붙인다.
  *
  * ⚠️ **나라마다 한 곳씩만 고른다.** 목적지 상수는 나라별로 묶여 있어서 앞에서부터
@@ -117,7 +117,7 @@ const DISCOVER_LIMIT = 6;
  */
 const HOME_SUGGESTION_BASE = (() => {
   const usedCountries = new Set<string>();
-  const picked: Omit<DestinationSuggestion, 'postCount' | 'badge'>[] = [];
+  const picked: Omit<DestinationSuggestion, 'badge'>[] = [];
 
   for (const destination of DESTINATIONS) {
     if (picked.length >= SUGGESTION_LIMIT) break;
@@ -135,7 +135,7 @@ const HOME_SUGGESTION_BASE = (() => {
       airportCode: destination.airportCode,
       flag: destination.flag,
       blurb: editorial.blurb,
-      nights: editorial.nights,
+      days: editorial.days,
       theme: countryTheme(destination.countryKo),
     });
   }
@@ -185,10 +185,23 @@ export default function ScreenHOME01() {
       setGroups(nextGroups);
       setProfile(nextProfile);
 
-      // 여행이 하나도 없는 사람에게만 '이런 여행지는 어때요?' 칸이 나온다.
-      // 그 칸에 쓸 값이라 여기서만 조회한다. 실패해도 홈 전체를 오류로 만들지
-      // 않는다 — 그 칸만 사라지고 추천 여행지와 여행 만들기는 그대로 쓴다.
-      if (nextTrips.length === 0) {
+      // 준비 중이거나 여행 중인 여행이 하나라도 있는가.
+      const hasOngoing = nextTrips.some(
+        (trip) =>
+          trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING,
+      );
+
+      /*
+        커뮤니티 글 수. '여행자들은 이렇게 다녀왔어요' 목록과 '인기' 배지에 쓴다.
+
+        ⚠️ **준비 중인 여행이 없을 때만 조회한다.** 그때만 추천 여행지가 화면에
+           나오기 때문이다. 준비 중인 여행이 있는 사람의 홈은 이 값을 쓰지 않는데
+           매번 조회하면 홈이 그만큼 늦어진다. (2026-09-11 — 전에는 여행이
+           하나도 없을 때만 조회했는데, 추천 여행지가 기존 홈에도 나오게 되면서
+           범위를 넓혔다)
+        ⚠️ 실패해도 홈 전체를 오류로 만들지 않는다 — 배지와 그 칸만 빠진다.
+      */
+      if (!hasOngoing) {
         try {
           setPostCounts(await getPostDestinations());
         } catch {
@@ -226,7 +239,7 @@ export default function ScreenHOME01() {
   }
 
   /**
-   * '이런 여행지는 어때요?' 태그를 눌렀을 때. 커뮤니티의 그 여행지 글로 보낸다.
+   * '여행자들은 이렇게 다녀왔어요' 태그를 눌렀을 때. 커뮤니티의 그 여행지 글로 보낸다.
    *
    * ⚠️ 넘기는 값은 **한글 도시명**이다. 커뮤니티 여행지 필터가 글에 연결된
    *    여행의 trips.destination 으로 거르는데 그 칼럼이 한글 도시명이다.
@@ -238,6 +251,16 @@ export default function ScreenHOME01() {
    */
   function handlePressDiscovery(nameKo: string) {
     router.push(`/community?destination=${encodeURIComponent(nameKo)}`);
+  }
+
+  /**
+   * 추천 여행지 카드를 눌렀을 때. 그 여행지 상세로 보낸다. (2026-09-11)
+   *
+   * ⚠️ 전에는 여행 만들기로 보냈다. 카드가 '○○ 둘러보기' 라고 말하는데 갈
+   *    화면이 없어서였다. 이제 DEST-01 이 생겨 말과 동작이 맞는다.
+   */
+  function handlePressDestination(code: string) {
+    router.push(`/destinations/${code}`);
   }
 
   function handlePressCreateTrip(entryPoint: EntryPoint) {
@@ -336,30 +359,33 @@ export default function ScreenHOME01() {
   // 여행을 한 번도 만들지 않았으면 first, 기록이 있으면 return 이다.
   const emptyVariant: HomeEmptyVariant = trips.length === 0 ? 'first' : 'return';
 
+  /**
+   * '인기' 배지를 달 여행지.
+   *
+   * ⚠️ 근거 없이 '인기' 를 붙이지 않는다. 커뮤니티 글이 가장 많은 여행지
+   *    한 곳만 단다. 글이 하나도 없으면 아무 카드에도 배지가 없다.
+   *    postCounts 는 쿼리가 이미 글 수 내림차순으로 정렬해 돌려준다.
+   */
+  const topByPosts = postCounts.length > 0 ? postCounts[0].destination : null;
+
+  /**
+   * 추천 여행지.
+   *
+   * ⚠️ **두 홈이 함께 쓴다.** (2026-09-11) 신규 사용자 홈은 화면 전체에,
+   *    기존 홈은 준비 중인 여행이 하나도 없을 때 그 자리에 놓는다.
+   *    그래서 분기 안이 아니라 여기서 만든다.
+   */
+  const suggestions: DestinationSuggestion[] = HOME_SUGGESTION_BASE.map((base) => ({
+    ...base,
+    badge: base.nameKo === topByPosts ? '인기' : null,
+  }));
+
   // 여행이 하나도 없으면 신규 사용자 홈을 보여준다.
   // 기존 홈의 두 칸(보딩패스 슬라이드 · 러기지 태그 목록)을 그대로 쓰고
-  // 내용만 '추천 여행지' 와 '이런 여행지는 어때요?' 로 바꾼 화면이다.
+  // 내용만 '추천 여행지' 와 '여행자들은 이렇게 다녀왔어요' 로 바꾼 화면이다.
   if (trips.length === 0) {
-    // 여행지 한글명 → 커뮤니티 글 수.
-    const countByName = new Map(postCounts.map((row) => [row.destination, row.count]));
-
     /**
-     * '인기' 배지를 달 여행지.
-     *
-     * ⚠️ 근거 없이 '인기' 를 붙이지 않는다. 커뮤니티 글이 가장 많은 여행지
-     *    한 곳만 단다. 글이 하나도 없으면 아무 카드에도 배지가 없다.
-     *    postCounts 는 쿼리가 이미 글 수 내림차순으로 정렬해 돌려준다.
-     */
-    const topByPosts = postCounts.length > 0 ? postCounts[0].destination : null;
-
-    const suggestions: DestinationSuggestion[] = HOME_SUGGESTION_BASE.map((base) => ({
-      ...base,
-      postCount: countByName.get(base.nameKo) ?? 0,
-      badge: base.nameKo === topByPosts ? '인기' : null,
-    }));
-
-    /**
-     * '이런 여행지는 어때요?' 목록.
+     * '여행자들은 이렇게 다녀왔어요' 목록.
      *
      * ⚠️ **글이 있는 여행지에서만 만든다.** 눌렀을 때 빈 목록이 나오지 않는다.
      * ⚠️ 목적지 상수에 없는 이름(직접 입력한 여행지)은 건너뛴다.
@@ -393,7 +419,7 @@ export default function ScreenHOME01() {
         onCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
         // 목적지 코드를 받지만 아직 넘기지 않는다. TRIP-01 이 destination param 을
         // 받게 되면 그때 붙인다. (components/home/DestinationSuggestCard 주석)
-        onPressSuggestion={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
+        onPressSuggestion={handlePressDestination}
         onPressDiscovery={handlePressDiscovery}
       />
     );
@@ -405,8 +431,10 @@ export default function ScreenHOME01() {
       daysToNextTrip={daysUntil(nearest?.startDate ?? null)}
       ongoingTrips={ongoingTrips}
       emptyVariant={emptyVariant}
+      // 준비 중인 여행이 하나도 없으면 그 자리에 추천 여행지가 들어간다.
+      suggestions={suggestions}
+      onPressSuggestion={handlePressDestination}
       pastTrips={pastTrips.slice(0, HOME_PAST_TRIP_LIMIT)}
-      hasMorePastTrips={pastTrips.length > HOME_PAST_TRIP_LIMIT}
       onPressTrip={handlePressTrip}
       onPressSettle={handlePressSettle}
       onPressCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.HOME)}

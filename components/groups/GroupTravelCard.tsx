@@ -23,8 +23,8 @@ const TRIP_SLOT_HEIGHT = TRIP_LINE_HEIGHT * MAX_VISIBLE_TRIPS;
 
 type Props = {
   group: GroupTravelCardData;
-  /** 일반 모드에서 카드를 눌렀을 때. 편집 모드에서는 불리지 않는다. */
-  onPress: (groupId: string) => void;
+  /** 일반 모드에서 카드를 눌렀을 때. 편집 모드에서는 불리지 않는다. 어디로 갈지는 화면이 종류를 보고 정한다. */
+  onPress: (card: GroupTravelCardData) => void;
 
   // ── 편집 모드 ────────────────────────────────────────────────────────
   editMode?: boolean;
@@ -76,12 +76,15 @@ export function GroupTravelCard({
   const visibleTrips = ongoingTrips.slice(0, MAX_VISIBLE_TRIPS);
   const hiddenCount = ongoingTrips.length - visibleTrips.length;
 
+  // 개인 여행은 숨길 수 없다. 숨김 설정이 group_id 기준이라 대상이 없다.
+  const selectable = group.kind === 'GROUP';
+
   function handlePress() {
     if (editMode) {
-      onToggleSelect?.(group.groupId);
+      if (selectable) onToggleSelect?.(group.groupId);
       return;
     }
-    onPress(group.groupId);
+    onPress(group);
   }
 
   return (
@@ -89,10 +92,14 @@ export function GroupTravelCard({
       accessibilityRole="button"
       accessibilityLabel={
         editMode
-          ? `${group.name} ${selected ? '선택 해제' : '선택'}`
-          : `${group.name} 모임 상세로 이동`
+          ? selectable
+            ? `${group.name} ${selected ? '선택 해제' : '선택'}`
+            : `${group.name} (숨길 수 없음)`
+          : group.kind === 'GROUP'
+            ? `${group.name} 모임 상세로 이동`
+            : `${group.name} 상세로 이동`
       }
-      accessibilityState={{ selected: editMode ? selected : undefined }}
+      accessibilityState={{ selected: editMode && selectable ? selected : undefined }}
       onPress={handlePress}
       className="rounded-2xl bg-white px-4 py-4 active:opacity-90"
       style={{
@@ -130,13 +137,14 @@ export function GroupTravelCard({
 
           <View className="absolute bottom-0 right-0 top-0 justify-center">
             <Text className="text-pot-mute" style={{ fontSize: 12.5 }}>
-              {formatMemberCount(group.memberCount)}
+              {/* 개인 여행은 모임원이 없다. 인원 대신 종류를 적는다. */}
+              {group.kind === 'GROUP' ? formatMemberCount(group.memberCount) : '개인'}
             </Text>
           </View>
 
           {/* 선택 원 — 제목 줄 안에서만 absolute 다. 카드 전체 높이를 덮으면
               가운데(여행 줄) 위로 올라간다. */}
-          {editMode ? (
+          {editMode && selectable ? (
             <View className="absolute bottom-0 left-0 top-0 justify-center">
               <Ionicons
                 name={selected ? 'checkmark-circle' : 'ellipse-outline'}

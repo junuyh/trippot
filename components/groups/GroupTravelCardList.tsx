@@ -1,11 +1,11 @@
 import { ScrollView, View } from 'react-native';
 
 import { GroupTravelCard } from './GroupTravelCard';
-import type { GroupTravelCardData } from './types';
+import { groupTravelCardKey, type GroupTravelCardData } from './types';
 
 type Props = {
   groups: GroupTravelCardData[];
-  onPressGroup: (groupId: string) => void;
+  onPressGroup: (card: GroupTravelCardData) => void;
 
   // ── 편집 모드 ────────────────────────────────────────────────────────
   editMode?: boolean;
@@ -37,13 +37,13 @@ export function GroupTravelCardList({
   return (
     <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-1">
       <View className="gap-3">
-        {groups.map((group, index) => (
+        {groups.map((group) => (
           <GroupTravelCard
-            key={group.groupId}
+            key={groupTravelCardKey(group)}
             group={group}
             onPress={onPressGroup}
             editMode={editMode}
-            selected={selected.has(group.groupId)}
+            selected={group.kind === 'GROUP' && selected.has(group.groupId)}
             onToggleSelect={onToggleSelect}
             actionsDisabled={actionsDisabled}
           />

@@ -15,13 +15,16 @@
 //       app/trips/new/owner.tsx 가 groupId param 을 받지 않는다.
 //       그 파일은 L 담당이라 여기서 고치지 않는다. 담당자 요청 후 &groupId= 를 붙인다.
 // ============================================================================
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { Pressable } from 'react-native';
 
 import {
   AccountTripPickerSheet,
   AllAccountsSheet,
   GroupDetailView,
+  GroupRenameModal,
   isActiveTripStatus,
   toGroupTripStatusLabel,
   type GroupAccountItem,
@@ -43,16 +46,19 @@ import { countryTheme } from '@/lib/constants/countryTheme';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import { getGroupTripAccounts } from '@/lib/supabase/queries/funds';
 import {
+  getLeftTrips,
   getMyParticipatingTripIds,
   getOtherActiveTripMemberCount,
   leaveTrip,
 } from '@/lib/supabase/queries/trips';
 import {
   getGroupById,
+  getGroupCanceledTrips,
   getGroupMemberCount,
   getGroupMembers,
   getGroupTrips,
   getTripAmountSummaries,
+  updateGroup,
 } from '@/lib/supabase/queries/groups';
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'denied' | 'error';
@@ -72,6 +78,16 @@ export default function ScreenGROUP02() {
   const [allAccountsOpen, setAllAccountsOpen] = useState(false);
   /** 나가기 확인창에 올라온 여행. null 이면 닫혀 있다. */
   const [leavingTrip, setLeavingTrip] = useState<MyTripItem | null>(null);
+
+  /** 나간 여행 카드를 눌렀을 때 띄우는 안내. 이동하지 않는다. */
+  const [leftNoticeOpen, setLeftNoticeOpen] = useState(false);
+
+  // ── 모임 이름 수정 ─────────────────────────────────────────────────────
+  // 헤더 연필 → GroupRenameModal(기존) → updateGroup(기존). 새 UI 를 만들지 않는다.
+  // GroupMoreMenu 는 대표 이미지·모임원 관리가 아직 없어 띄우지 않는다.
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   /**
    * 마지막 참가자라서 나갈 수 없다는 안내. null 이면 닫혀 있다.
    *
@@ -102,7 +118,8 @@ export default function ScreenGROUP02() {
         return;
       }
 
-      const [memberCount, members, accounts, participating, trips] = await Promise.all([
+      const [memberCount, members, accounts, participating, trips, canceledTrips, myLeftTrips] =
+        await Promise.all([
         // 인원 수는 GROUP-01 카드와 같은 기준을 쓴다.
         // ⚠️ getGroupMembers() 는 탈퇴 회원까지 추가로 걸러서 members.length 와
         //    숫자가 다를 수 있다. 이번 화면에서 임의로 맞추지 않는다. (후속 확인)
@@ -114,6 +131,10 @@ export default function ScreenGROUP02() {
         // 진행 중(PLANNING·TRAVELING) / 지난(ENDED·SETTLED) 분류는 쿼리가 한다.
         // HOME-01 과 같은 기준이다.
         getGroupTrips(groupId),
+        // 취소됨 탭. **표시만.** 72시간 복구는 다른 담당이다. (docs/11 §6)
+        getGroupCanceledTrips(groupId),
+        // 내가 나간 여행 id. 탭이 아니라 카드 배지에만 쓴다. MY 와 같은 쿼리다.
+        getLeftTrips(userId),
       ]);
 
       /**
@@ -137,6 +158,20 @@ export default function ScreenGROUP02() {
       // getTripsWithSummary() 와 같은 칼럼을 읽어 MY 목록과 값이 어긋나지 않는다.
       const all = [...trips.ongoing, ...trips.past];
       const summaries = await getTripAmountSummaries(all.map((trip) => trip.id));
+
+      /**
+       * 내가 나간 여행 id. **membership 메타일 뿐** 목록의 근거가 아니다.
+       * (2026-09-13 · docs/11 §6) 카드는 lifecycle 탭(준비 중 등)에 한 번만 나오고,
+       * left 가 참이면 '나간 여행' 배지와 무채색으로 그려진다.
+       * 전에는 나간 여행을 따로 모아 탭을 하나 더 뒀는데, 같은 여행이 두 탭에
+       * 두 번 나왔다. 여행 상태와 나의 참여 상태는 축이 다르다.
+       */
+      // ⚠️ trip_members 에 unique 가 없어 같은 여행에 ACTIVE 행과 LEFT 행이 함께
+      //    있을 수 있다. 그때는 ACTIVE 가 이긴다 — trips.ts 의 "ACTIVE 행이 하나
+      //    이상이면 참여 중" 규칙과 같다. 참여 중인 사람에게 나간 여행 배지를 달지 않는다.
+      const leftIds = new Set(
+        myLeftTrips.map((trip) => trip.id).filter((id) => !participating.has(id)),
+      );
 
       /**
        * DB 행을 MY 여행 카드가 받는 모양으로 바꾼다.
@@ -164,10 +199,24 @@ export default function ScreenGROUP02() {
           finalAmount: amount?.finalAmount ?? null,
           color: theme.primary,
           colorSoft: theme.primarySoft,
+          // 나간 여행이면 카드가 배지를 달고 색을 뺀다. 목록 위치는 그대로다.
+          left: leftIds.has(trip.id),
         };
       };
 
       const items = all.map(toItem);
+
+      /**
+       * 취소된 여행 카드. MY-02 의 toArchivedItems 와 같은 규칙이다 —
+       * 금액을 넣지 않는다. 취소된 예산은 확정값이 아니다. 카드가 '—' 를 그린다.
+       */
+      const toCanceled = (trip: (typeof all)[number]): MyTripItem => ({
+        ...toItem(trip),
+        currentAmount: null,
+        targetAmount: null,
+        finalAmount: null,
+        left: leftIds.has(trip.id),
+      });
 
       setGroup({
         groupId: found.id,
@@ -244,6 +293,7 @@ export default function ScreenGROUP02() {
         pastTrips: items.filter(
           (item) => item.status === TRIP_STATUS.ENDED || item.status === TRIP_STATUS.SETTLED,
         ),
+        canceledTrips: canceledTrips.map(toCanceled),
       });
       setLoadState('ready');
     } catch {
@@ -258,6 +308,28 @@ export default function ScreenGROUP02() {
       void load();
     }, [load]),
   );
+
+  /**
+   * 모임 이름 저장. (docs/11_모임정책_v1.md §3 · 2026-09-12)
+   *
+   * ⚠️ 권한은 RLS 가 본다. (updateGroup 주석 · ERD §6-2 — 소유자 또는 ACTIVE 멤버)
+   *    앱에서 모임장 검사를 따로 두지 않는다. 실패하면 화면이 안내한다.
+   * ⚠️ 성공하면 서버가 돌려준 이름으로 바로 그린다. 다시 읽지 않는다.
+   */
+  async function handleSubmitRename(name: string) {
+    if (!group || renaming) return;
+    setRenaming(true);
+    setRenameError(null);
+    try {
+      const updated = await updateGroup(group.groupId, { name });
+      setGroup((prev) => (prev ? { ...prev, name: updated.name } : prev));
+      setRenameOpen(false);
+    } catch {
+      setRenameError('이름을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setRenaming(false);
+    }
+  }
 
   /**
    * '여행에서 나가기' 를 눌렀을 때.
@@ -391,7 +463,27 @@ export default function ScreenGROUP02() {
 
   return (
     <>
-      <Stack.Screen options={{ title: group.name }} />
+      <Stack.Screen
+        options={{
+          title: group.name,
+          // 이름 수정 진입점. 실제 모임(groupId 있음)에서만 이 화면이 열리므로
+          // 개인 여행에는 애초에 나타나지 않는다. (docs/11_모임정책_v1.md §3)
+          headerRight: () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="모임 이름 수정"
+              hitSlop={8}
+              onPress={() => {
+                setRenameError(null);
+                setRenameOpen(true);
+              }}
+              className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
+            >
+              <Ionicons name="pencil-outline" size={20} color="#111827" />
+            </Pressable>
+          ),
+        }}
+      />
       <GroupDetailView
         group={group}
         onPressTrip={handlePressTrip}
@@ -407,6 +499,25 @@ export default function ScreenGROUP02() {
         onPressAccount={(account) => setPickingAccount(account)}
         onPressAllAccounts={() => setAllAccountsOpen(true)}
         onPressLeaveTrip={(trip) => void handlePressLeaveTrip(trip)}
+        // 나간 여행은 열 수 없다. "눌렀는데 아무 일도 없음" 대신 이유를 알린다.
+        onPressLeftTrip={() => setLeftNoticeOpen(true)}
+      />
+
+      {/*
+        ⚠️ LEFT read-only 여행 홈 연결 전 **임시 보호 UX**다. (2026-09-13 · docs/11 §6-2)
+           최종 정책은 "볼 수 있지만 수정할 수 없다" 인데, 지금은 membership 기준
+           수정 차단이 없어 여행 홈으로 보내면 수정까지 된다. 그래서 이동을 막고
+           수정 불가만 알린다. "볼 수 없다" 고 말하지 않는다.
+      */}
+      <ConfirmModal
+        visible={leftNoticeOpen}
+        title="나간 여행이에요"
+        description="이 여행은 더 이상 수정할 수 없어요."
+        confirmLabel="확인"
+        hideCancel
+        busy={false}
+        onCancel={() => setLeftNoticeOpen(false)}
+        onConfirm={() => setLeftNoticeOpen(false)}
       />
 
       {/* 메인에서 계좌를 누르면 열린다. 여행이 하나뿐이어도 거친다. */}
@@ -418,6 +529,15 @@ export default function ScreenGROUP02() {
           // ⚠️ 모임에서 들어왔다는 것만 넘긴다. 뒤로가기가 이 모임으로 돌아온다.
           router.push(`/trips/${tripId}/funds/connect?fromGroupId=${groupId}`);
         }}
+      />
+
+      {/* 모임 이름 수정. 20자 · 공백 금지 검증은 모달이 한다. */}
+      <GroupRenameModal
+        initialName={renameOpen ? group.name : null}
+        saving={renaming}
+        submitError={renameError}
+        onClose={() => setRenameOpen(false)}
+        onSubmit={(name) => void handleSubmitRename(name)}
       />
 
       {/* 여행에서 나가기 확인창. 남은 참가자가 있을 때만 열린다. */}

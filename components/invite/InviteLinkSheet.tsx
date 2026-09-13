@@ -1,14 +1,24 @@
 // ============================================================================
 // INV-01 초대 링크 공유 — 바텀시트
 //
-// 초대할 사람을 고르면 카카오톡으로 링크를 보낸다. 고른 사람에 따라 모임이
-// 어떻게 되는지 **누르기 전에** 알린다.
+// 여행 초대 링크 하나를 OS 공유 시트로 보낸다. 링크는 여행 단위 하나뿐이고
+// 7일간 누구나 쓸 수 있다. (docs/10_여행초대정책_v2.md §4 · §5)
 //
-//   모임 밖 사람 없음                 안내 없음
-//   모임 밖 사람 + 결산 이력 없음      기존 모임에 합류
-//   모임 밖 사람 + 결산 이력 있음      새 모임이 만들어진다 → 다음 단계 INV-05
+// ⚠️ candidates · branch 는 **선택 props** 다. (2026-09-11 · Sender P0)
+//    링크는 여러 사람이 쓰는 하나의 URL 이라, 고른 사람이 실제 수신자와 이어지지
+//    않는다. 새 모임 분기도 발송 시점이 아니라 **여행장이 수락할 때** 실제 요청자
+//    기준으로 판정한다. (§9-4 · §9-5) 그래서 sender 는 이 둘을 넘기지 않는다.
+//    넘기지 않으면 후보 목록·분기 안내를 그리지 않고, 공유 버튼은 바로 열린다.
+//    (props 자체는 남겨 둔다 — 수락 시점 화면이 같은 안내 블록을 쓴다)
 //
-// ⚠️ 초대는 여행장만 할 수 있다. 이 시트를 여는 쪽에서 판정한다. (§2-1 권한표)
+//   branch 안내 (넘겼을 때만)
+//     joinGroup   모임 밖 사람 + 다른 여행 없음        기존 모임에 합류
+//     newGroup    모임 밖 사람 + 다른 여행 하나라도    새 모임이 만들어진다
+//     ⚠️ "결산 이력" · "지난 여행 기록" 기준은 폐기됐다. (§9-2)
+//
+// ⚠️ 초대는 **ACTIVE 여행 멤버 누구나** 한다. 여행장 여부로 이 시트를 막지 않는다.
+//    (2026-09-10 확정 · docs/10_여행초대정책_v2.md §3) 수락 권한만 여행장이 쥔다.
+//    이전 주석 "초대는 여행장만 (§2-1 권한표)" 은 폐기된 과거 권한표다.
 // ⚠️ supabase · track() 을 부르지 않는다. 복사·공유도 화면이 한다. (CLAUDE.md §9)
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
@@ -22,14 +32,15 @@ type Props = {
   visible: boolean;
   onClose: () => void;
 
-  /** 초대 대상 후보. 모임 멤버 + 모임 밖 사람 */
-  candidates: InviteCandidate[];
-  selectedUserIds: string[];
-  onToggle: (userId: string) => void;
+  /** 초대 대상 후보. 넘기지 않으면 목록을 그리지 않는다 (multi-use 링크) */
+  candidates?: InviteCandidate[];
+  selectedUserIds?: string[];
+  onToggle?: (userId: string) => void;
 
-  branch: GroupBranch;
+  /** 모임 분기 안내. 넘기지 않으면 그리지 않는다 — sender 는 넘기지 않는다 */
+  branch?: GroupBranch;
   /** 현재 모임 이름. branch 안내 문구에 쓴다 */
-  groupName: string;
+  groupName?: string;
   destination: string;
 
   /** 초대 링크 전문. 복사 버튼이 쓴다 */
@@ -38,7 +49,10 @@ type Props = {
   /** 방금 복사했으면 true. 버튼 문구가 바뀐다 */
   copied: boolean;
 
-  /** 인원이 차면 링크가 자동으로 닫힌다는 안내에 쓴다 */
+  /**
+   * 예정 인원. 안내 문구에 쓴다.
+   * ⚠️ 인원이 차도 링크는 닫히지 않는다. 추가 **수락**만 제한된다. (§10)
+   */
   headcount: number;
 
   onShareKakao: () => void;
@@ -62,19 +76,26 @@ export function InviteLinkSheet({
   onShareKakao,
   sending,
 }: Props) {
-  const canSend = selectedUserIds.length > 0 && !sending;
+  // 후보를 받았으면 하나는 골라야 보낸다. 안 받았으면(링크만 공유) 바로 보낸다.
+  const hasCandidates = candidates !== undefined;
+  const selected = selectedUserIds ?? [];
+  const canSend = !sending && (!hasCandidates || selected.length > 0);
 
   return (
     <BottomSheet
       visible={visible}
       onClose={onClose}
       title="누구와 함께 갈까요?"
-      description="초대할 사람을 고르면 카카오톡으로 링크를 보내드려요."
+      description={
+        hasCandidates
+          ? "초대할 사람을 고르면 링크를 보내드려요."
+          : "링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요."
+      }
       footer={
         <View style={{ gap: 8 }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="카카오톡으로 초대 보내기"
+            accessibilityLabel="초대 링크 보내기"
             accessibilityState={{ disabled: !canSend }}
             disabled={!canSend}
             onPress={onShareKakao}
@@ -89,7 +110,7 @@ export function InviteLinkSheet({
                 color: canSend ? "#191919" : "#B0B8C1",
               }}
             >
-              카카오톡으로 초대 보내기
+              초대 링크 보내기
             </Text>
           </Pressable>
         </View>
@@ -100,17 +121,18 @@ export function InviteLinkSheet({
           <BranchNotice
             tone="info"
             title="모임 밖 사람이 함께하면 새 모임이 만들어져요"
-            body={`${groupName}에는 지난 여행 기록이 있어서, 이번 ${destination} 여행은 새 모임으로 옮겨져요. 다음 단계에서 이름을 정할 수 있어요.`}
+            body={`${groupName ?? "이 모임"}에는 다른 여행이 있어서, 이번 ${destination} 여행은 새 모임으로 옮겨져요. 이름은 수락할 때 정할 수 있어요.`}
           />
         ) : null}
         {branch === "joinGroup" ? (
           <BranchNotice
             tone="info"
-            title={`${groupName}에 새로 합류해요`}
-            body="지난 여행 기록이 없는 모임이라 그대로 진행돼요. 기존 멤버들에게도 알려드릴게요."
+            title={`${groupName ?? "이 모임"}에 새로 합류해요`}
+            body="다른 여행이 없는 모임이라 그대로 진행돼요. 기존 멤버들에게도 알려드릴게요."
           />
         ) : null}
 
+        {hasCandidates ? (
         <View style={{ gap: 8 }}>
           {candidates.length === 0 ? (
             <Text style={{ fontSize: 12.5, lineHeight: 19, color: "#8B94A2" }}>
@@ -119,7 +141,7 @@ export function InviteLinkSheet({
           ) : null}
 
           {candidates.map((candidate) => {
-            const on = selectedUserIds.includes(candidate.userId);
+            const on = selected.includes(candidate.userId);
             return (
               <Pressable
                 key={candidate.userId}
@@ -127,7 +149,7 @@ export function InviteLinkSheet({
                 accessibilityState={{ checked: on, disabled: sending }}
                 accessibilityLabel={candidate.name}
                 disabled={sending}
-                onPress={() => onToggle(candidate.userId)}
+                onPress={() => onToggle?.(candidate.userId)}
                 className={`flex-row items-center gap-2.5 rounded-xl border px-3.5 py-3 active:opacity-70 ${
                   on ? "border-blue-600 bg-white" : "border-gray-200 bg-white"
                 } ${sending ? "opacity-40" : ""}`}
@@ -151,6 +173,7 @@ export function InviteLinkSheet({
             );
           })}
         </View>
+        ) : null}
 
         {/* 링크 박스. 고른 사람이 없어도 링크는 언제나 복사할 수 있다 */}
         <View className="flex-row items-center gap-2 rounded-xl bg-gray-100 px-3.5 py-3">
@@ -173,7 +196,7 @@ export function InviteLinkSheet({
         </View>
 
         <Text style={{ fontSize: 11.5, lineHeight: 18, color: "#8B94A2" }}>
-          링크는 7일간 쓸 수 있어요 · {headcount}명이 차면 자동으로 닫혀요
+          링크는 7일간 쓸 수 있어요 · {headcount}명 예정이라 그 인원까지만 수락돼요
         </Text>
       </View>
     </BottomSheet>

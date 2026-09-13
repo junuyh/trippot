@@ -1491,7 +1491,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_or_create_trip_invite: {
+        Args: { p_trip_id: string }
+        Returns: {
+          expires_at: string
+          invite_id: string
+          token: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

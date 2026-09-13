@@ -10,6 +10,7 @@ import {
   TRANSACTION_TYPE,
   TRIP_STATUS,
   TRIP_MEMBER_STATUS,
+  TRIP_OWNER_TYPE,
 } from "@/lib/constants/status";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 
@@ -184,6 +185,29 @@ export async function getTripsWithSummary(
  * `>= 2` 인 비율이 재사용률이고 가설 5 의 직접 지표다. (docs/06 §7-1)
  * 이번에 만드는 여행을 포함한 순번이므로 **저장이 끝난 뒤** 센다.
  */
+/**
+ * 내가 소유한 **개인 여행**. GROUP-01 이 실제 모임 옆에 함께 보여준다.
+ * (docs/11_모임정책_v1.md §2 · 2026-09-12)
+ *
+ * ⚠️ 개인 여행은 groups 행이 없다. owner_type = PERSONAL · owner_user_id = 나 ·
+ *    group_id = null 이 전부다. (trips_owner_shape CHECK) 그래서 group_members 로는
+ *    절대 잡히지 않고, 여기서 trips 를 직접 읽는다.
+ *
+ * ⚠️ 상태 필터는 getTrips 와 같다. DELETED · CANCELED 만 뺀다. 새 규칙을 만들지 않는다.
+ */
+export async function getMyPersonalTrips(userId: string): Promise<Trip[]> {
+  const { data, error } = await supabase
+    .from("trips")
+    .select("*")
+    .eq("owner_type", TRIP_OWNER_TYPE.PERSONAL)
+    .eq("owner_user_id", userId)
+    .not("status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function getMyTripCount(userId: string): Promise<number> {
   return (await getTrips(userId)).length;
 }
@@ -519,4 +543,80 @@ export async function leaveTrip(tripId: string, userId: string): Promise<void> {
     .eq("status", TRIP_MEMBER_STATUS.ACTIVE);
 
   if (error) throw error;
+}
+
+/**
+ * 취소된 여행. (MY-02 '취소된 여행' 탭 · 2026-09-11)
+ *
+ * ⚠️ **getTrips 로는 안 나온다.** 그 함수가 CANCELED 를 일부러 걸러내기
+ *    때문이다. 홈·모임 목록에 취소된 여행이 섞이면 안 되므로 그 동작은
+ *    그대로 두고, 취소된 여행만 따로 보는 함수를 여기에 둔다.
+ *
+ * ⚠️ 조회 범위는 getTrips 와 같은 규칙이다 — 내가 주인인 개인 여행과
+ *    내가 속한 모임의 여행. 남의 여행을 읽을 수 있는 통로를 만들지 않는다.
+ *    (CLAUDE.md 7장)
+ */
+export async function getCanceledTrips(userId: string): Promise<Trip[]> {
+  const { data: myGroups, error: groupError } = await supabase
+    .from("group_members")
+    .select("group_id")
+    .eq("user_id", userId)
+    .eq("status", GROUP_MEMBER_STATUS.ACTIVE);
+
+  if (groupError) throw groupError;
+  const groupIds = (myGroups ?? []).map((row) => row.group_id);
+
+  const { data: personal, error: personalError } = await supabase
+    .from("trips")
+    .select("*")
+    .eq("owner_user_id", userId)
+    .eq("status", TRIP_STATUS.CANCELED);
+
+  if (personalError) throw personalError;
+
+  let groupTrips: Trip[] = [];
+  if (groupIds.length > 0) {
+    const { data, error } = await supabase
+      .from("trips")
+      .select("*")
+      .in("group_id", groupIds)
+      .eq("status", TRIP_STATUS.CANCELED);
+    if (error) throw error;
+    groupTrips = data ?? [];
+  }
+
+  const byId = new Map<string, Trip>();
+  for (const trip of [...(personal ?? []), ...groupTrips]) byId.set(trip.id, trip);
+  return [...byId.values()];
+}
+
+/**
+ * 내가 나간 여행. (MY-02 '나간 여행' 탭 · 2026-09-11)
+ *
+ * ⚠️ **trips.status 로는 알 수 없다.** 여행 자체는 살아 있고 나만 빠진
+ *    것이라 trip_members 를 봐야 한다.
+ *
+ * ⚠️ getTrips 로도 안 나온다. 그 함수는 owner_user_id 와 group_id 로만 찾는데,
+ *    나간 사람은 둘 다에서 빠지기 때문이다. (개인 여행이면 주인이 아니고,
+ *    모임을 나갔으면 group_members 에도 없다)
+ *
+ * ⚠️ 지워진 여행은 빼고 보여준다. 취소된 여행은 남긴다 — 내가 나간 뒤에
+ *    남은 사람들이 취소했을 수 있고, 그것도 내 기록이다.
+ */
+export async function getLeftTrips(userId: string): Promise<Trip[]> {
+  const { data, error } = await supabase
+    .from("trip_members")
+    .select("trips!inner(*)")
+    .eq("user_id", userId)
+    .eq("status", TRIP_MEMBER_STATUS.LEFT)
+    .neq("trips.status", TRIP_STATUS.DELETED);
+
+  if (error) throw error;
+
+  const byId = new Map<string, Trip>();
+  for (const row of data ?? []) {
+    const trip = row.trips as Trip | null;
+    if (trip) byId.set(trip.id, trip);
+  }
+  return [...byId.values()];
 }

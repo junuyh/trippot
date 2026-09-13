@@ -4,13 +4,13 @@
 // TRIP-HOME-01 여행명 아래 수정 버튼으로 들어온다. (시안 v4)
 // 일정 · 인원 · 모임을 고친다. 맨 아래 '여행 멤버 초대하기' 도 여기다.
 //
-// 초대 규칙
-//   · 고른 모임에 **지난 여행이 있으면** 새 모임 생성 화면으로 보낸다.
-//     이미 다녀온 사람들이 모인 모임에 새 사람을 섞지 않는다.
-//   · 지난 여행이 없으면 초대 시트: 카카오톡으로 초대 / 초대 링크 복사
-//   · 개인 여행(모임 없음)이면 초대할 모임이 없으므로 새 모임 생성으로 보낸다.
-//     [검토 필요] 개인 여행 → 새 모임 흐름은 팀원이 만드는 화면에서 이어 받는다.
-//   · 새 모임 생성 화면(/groups/new)은 다른 팀원이 만든다. 경로만 여기서 정한다.
+// 초대 규칙 (docs/10_여행초대정책_v2.md §5 · 2026-09-11)
+//   · 여행 멤버 초대하기 → get_or_create_trip_invite RPC → 링크 하나 → 공유 시트
+//   · 링크는 여행당 하나. 7일간 누구나 쓴다. 다시 눌러도 같은 링크가 온다.
+//   · ACTIVE 여행 멤버면 누구나 초대한다. 여행장 여부로 막지 않는다. (§3)
+//   · 발송 시점에 새 모임을 만들거나 여행을 옮기지 않는다. 모임 분기는
+//     **여행장이 참가 요청을 수락할 때** 실제 요청자 기준으로 판정한다. (§9-4 · §9-5)
+//     그래서 "지난 여행이 있으면 새 모임으로" 하던 발송 전 분기는 걷어냈다. (§9-2)
 //
 // ⚠️ **끝난 여행은 못 고친다.** 결산은 그 시점의 기록이라, 확정한 뒤에
 //    일정이나 인원을 바꾸면 이미 남은 결산·유형 결과와 어긋난다.
@@ -28,14 +28,22 @@
 import { format, isAfter, parseISO } from "date-fns";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as Clipboard from "expo-clipboard";
 import { Alert, ScrollView, Share, View } from "react-native";
 
-import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { useAuth, useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { InviteLinkSheet } from "@/components/invite";
 import { TripEditForm } from "@/components/trip-edit";
 import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { TRIP_OWNER_TYPE, TRIP_STATUS } from "@/lib/constants/status";
-import { getGroupTrips, getMyGroups, type Group } from "@/lib/supabase/queries/groups";
+import {
+  buildTripInviteLink,
+  buildTripInviteMessage,
+  pickTripInviteOpener,
+} from "@/lib/invite/tripInviteLink";
+import { getMyGroups, type Group } from "@/lib/supabase/queries/groups";
+import { getOrCreateTripInvite } from "@/lib/supabase/queries/tripInvites";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
   getTripById,
@@ -43,66 +51,12 @@ import {
   type Trip,
 } from "@/lib/supabase/queries/trips";
 
-/**
- * 새 모임 생성 화면. app/groups/new.tsx (2026-09-09 추가)
- *
- * ⚠️ 정적 라우트가 [groupId] 보다 우선한다. 파일이 생기기 전에는 /groups/new 가
- *    app/groups/[groupId].tsx 로 가서 "new" 를 모임 id 로 받아 실패했다.
- *    (2026-09-09 오류 보고) 이제 파일이 있어 그대로 이어진다.
- *
- * ⚠️ tripId 를 반드시 넘긴다. 새 모임 화면이 어느 여행을 옮길지 알아야 한다.
- *    fromGroupId 는 **저장 전 화면에서 고른 모임**이다. trip.group_id 를 쓰면
- *    사용자가 모임을 바꾸고 저장하지 않은 상태에서 이전 모임의 멤버를 데려온다.
- */
-const NEW_GROUP_HREF = "/groups/new";
-const NEW_GROUP_SCREEN_READY = true;
-
-function goNewGroup(tripId: string, fromGroupId: string | null) {
-  if (!NEW_GROUP_SCREEN_READY) {
-    Alert.alert(
-      "새 모임 만들기는 준비 중이에요",
-      "이미 다녀온 여행이 있는 모임에는 새 사람을 넣지 않아요. 새 모임 만들기 화면이 열리면 여기서 바로 이어져요.",
-    );
-    return;
-  }
-  const query = new URLSearchParams({ tripId });
-  if (fromGroupId) query.set("fromGroupId", fromGroupId);
-  router.push(`${NEW_GROUP_HREF}?${query.toString()}` as never);
-}
-
-/**
- * 여행 초대(INV) — 링크 발급 · 참여 요청 · 여행장 수락. 다빈 담당 (이슈 #73 · PR #74).
- *
- * ⚠️ 2026-09-10 · **모임 초대를 여행 초대로 흡수했다.**
- *    이 화면이 직접 만들던 모임 초대 링크(trippot://groups/:id/join)는 폐기했다.
- *      · 링크를 받는 화면이 없어 실제로 합류가 안 됐다
- *      · 모임 id 를 그대로 실어 보냈고 만료도 수락 절차도 없었다
- *    여행 초대는 토큰 · 7일 만료 · 여행장 수락까지 갖춰져 있다.
- *
- * ⚠️ 라우트(/invite/[token])와 서비스 함수가 아직 없다. 준비되면 여기를 바꾼다.
- *      TRIP_INVITE_READY = true
- *      goTripInvite() 안에서 초대 링크를 발급하고 INV-01 공유 시트를 연다
- *
- * ⚠️ 초대 문구 11종은 lib/invite/inviteLink.ts 에 그대로 남겨 뒀다.
- *    여행 초대에서도 같은 문구를 쓰기로 했다. (2026-09-10 결정)
- */
-const TRIP_INVITE_READY = false;
-
-function goTripInvite() {
-  if (!TRIP_INVITE_READY) {
-    Alert.alert(
-      "멤버 초대는 준비 중이에요",
-      "초대 링크를 보내면 상대가 참여를 요청하고, 여행장이 수락하면 합류하는 방식으로 준비하고 있어요. 곧 여기서 바로 이어져요.",
-    );
-    return;
-  }
-  // [팀원] 초대 링크 발급 → INV-01 공유 시트
-}
-
 export default function ScreenTripEdit() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   // 로그인한 사용자. 개인 여행으로 바꿀 때 소유자가 된다.
   const userId = useCurrentUserId();
+  // 개발용 미리보기인가. 미리보기에는 Supabase 세션이 없어 초대 RPC 를 부를 수 없다.
+  const { isPreview } = useAuth();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -124,6 +78,12 @@ export default function ScreenTripEdit() {
 
   // ── 여행 멤버 초대 ────────────────────────────────────────────────────
   const [inviting, setInviting] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  /** RPC 가 돌려준 링크. 유효한 게 있으면 같은 값이 다시 온다 (§4-1) */
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  /** 시트를 열 때 한 번 고른 첫 문장. 공유·복사가 같은 글을 쓴다 */
+  const [inviteOpener, setInviteOpener] = useState<string>("");
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     if (!tripId) {
@@ -198,46 +158,90 @@ export default function ScreenTripEdit() {
     }
   }, [endDate, groupId, headcount, saving, startDate, trip, userId]);
 
-  const selectedGroup = useMemo(
-    () => groups.find((g) => g.id === groupId) ?? null,
-    [groupId, groups],
-  );
   const periodLabel =
     startDate && endDate
       ? `${format(parseISO(startDate), "M.d")}–${format(parseISO(endDate), "M.d")}`
       : null;
 
   /**
-   * 여행 멤버 초대하기.
-   * 여행중이거나 끝난 여행이 있는 모임 → 새 모임 생성. 없으면 초대 시트.
-   * 모임을 안 골랐으면(개인 여행) 초대할 곳이 없으니 새 모임 생성으로.
+   * 여행 멤버 초대하기. (v2 §5)
    *
-   * ⚠️ 판정에 **여행중(TRAVELING)도 넣는다.** 지난 여행(ENDED·SETTLED)만 보면,
-   *    지금 함께 여행 중인 모임에 새 사람이 그대로 들어와 그 여행의 예산과
-   *    지출까지 보게 된다. 이미 같이 다니고 있는 사람들이라는 점은 다녀온
-   *    사람들과 다르지 않다. (2026-09-09 L 협의)
+   * RPC 가 유효한 링크를 돌려주면 그걸 쓰고, 없으면 DB 가 새로 만든다.
+   * 앱은 token 을 만들지 않고 trip_invites 에 쓰지도 않는다. (§12)
+   *
+   * ⚠️ 발송 전 새 모임 분기를 하지 않는다. 모임을 안 골랐어도(개인 여행) 링크는
+   *    나간다 — 상대가 요청하고 여행장이 수락할 때 모임이 정리된다. (§9-4)
+   *
+   * ⚠️ 권한은 RPC 가 본다. ACTIVE 멤버가 아니면 42501 이 온다. 여기서 여행장
+   *    여부를 미리 따지지 않는다. (§3)
    */
   const handleInvite = useCallback(async () => {
     if (inviting || !trip) return;
-    if (!selectedGroup) {
-      goNewGroup(trip.id, null);
+
+    // 개발용 미리보기 — 실제 세션이 없어 서버가 auth.uid() 를 못 본다. RPC 를 부르지
+    // 않고 바로 알린다. "참여 중인 멤버만" 안내는 여기서는 틀린 설명이다.
+    // ⚠️ 미리보기를 위해 RPC·RLS 를 풀거나 가짜 링크를 만들지 않는다.
+    if (isPreview) {
+      Alert.alert(
+        "개발용 둘러보기에서는 초대 링크를 만들 수 없어요",
+        "실제 초대 기능은 카카오 로그인 후 확인할 수 있어요.",
+      );
       return;
     }
+
     setInviting(true);
     try {
-      const { ongoing, past } = await getGroupTrips(selectedGroup.id);
-      const traveling = ongoing.some((t) => t.status === TRIP_STATUS.TRAVELING);
-      if (past.length > 0 || traveling) {
-        goNewGroup(trip.id, selectedGroup.id);
-        return;
-      }
-      goTripInvite();
+      const invite = await getOrCreateTripInvite(trip.id);
+      setInviteLink(buildTripInviteLink(invite.token));
+      setInviteOpener(pickTripInviteOpener());
+      setCopied(false);
+      setInviteOpen(true);
     } catch {
-      Alert.alert("확인하지 못했어요", "모임의 여행 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+      Alert.alert(
+        "초대 링크를 준비하지 못했어요",
+        "이 여행에 참여 중인 멤버만 초대할 수 있어요. 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
       setInviting(false);
     }
-  }, [inviting, selectedGroup, trip]);
+  }, [inviting, isPreview, trip]);
+
+  /** 초대 글 전문. 공유와 복사가 같은 글을 쓴다 */
+  const inviteMessage = useMemo(
+    () =>
+      trip && inviteLink
+        ? buildTripInviteMessage({
+            opener: inviteOpener,
+            destination: trip.destination ?? "여행",
+            periodLabel,
+            link: inviteLink,
+          })
+        : "",
+    [inviteLink, inviteOpener, periodLabel, trip],
+  );
+
+  /**
+   * OS 공유 시트. 카카오톡이든 문자든 사용자가 고른다.
+   * ⚠️ 카카오 talk_message API 를 붙이지 않는다. (v2 §13)
+   */
+  const handleShare = useCallback(async () => {
+    if (!inviteMessage) return;
+    try {
+      await Share.share({ message: inviteMessage });
+    } catch {
+      // 사용자가 시트를 닫은 것도 여기로 온다. 알리지 않는다.
+    }
+  }, [inviteMessage]);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!inviteMessage) return;
+    try {
+      await Clipboard.setStringAsync(inviteMessage);
+      setCopied(true);
+    } catch {
+      Alert.alert("복사하지 못했어요", "잠시 후 다시 시도해 주세요.");
+    }
+  }, [inviteMessage]);
 
   // ── 4상태 ─────────────────────────────────────────────────────────────
   if (loading) {
@@ -349,6 +353,21 @@ export default function ScreenTripEdit() {
         inviting={inviting}
       />
 
+      {/* 초대 링크 공유. candidates · branch 는 넘기지 않는다 — 링크는 여행당
+          하나이고, 모임 분기는 수락 시점에 판정한다. (InviteLinkSheet 헤더) */}
+      {inviteLink ? (
+        <InviteLinkSheet
+          visible={inviteOpen}
+          onClose={() => setInviteOpen(false)}
+          destination={trip.destination ?? "여행"}
+          inviteUrl={inviteLink}
+          onCopyLink={() => void handleCopyLink()}
+          copied={copied}
+          headcount={headcount}
+          onShareKakao={() => void handleShare()}
+          sending={false}
+        />
+      ) : null}
     </ScrollView>
   );
 }

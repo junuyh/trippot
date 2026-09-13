@@ -5,11 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   MyTripCard,
+  MY_TRIP_FILTER_TABS,
   TripFilterTabs,
   type MyTripFilter,
   type MyTripItem,
 } from '@/components/my';
 import { TRIP_STATUS } from '@/lib/constants/status';
+import { SwipeToAction } from '@/components/mypage';
 import { Button } from '@/components/ui';
 
 import { GroupAccountList } from './GroupAccountList';
@@ -22,7 +24,21 @@ const TAB_EMPTY_MESSAGE: Record<MyTripFilter, string> = {
   planning: '준비 중인 여행이 없어요.',
   traveling: '지금 여행 중인 여행이 없어요.',
   past: '아직 다녀온 여행 기록이 없어요.',
+  canceled: '취소된 여행이 없어요.',
+  // ⚠️ 모임 상세에는 '나간 여행' 탭이 없다. 타입(Record)을 채우기 위한 값이다.
+  //    나간 여행은 여행 상태가 아니라 membership 이라 lifecycle 탭 안에서
+  //    배지로만 보인다. (PR #88 · docs/11 §6 · 2026-09-13)
+  left: '나간 여행이 없어요.',
 };
+
+/**
+ * 모임 상세의 탭 — 여행 **lifecycle** 4개. (docs/11_모임정책_v1.md §6)
+ *
+ * ⚠️ MY-02 의 MY_TRIP_FILTER_TABS(5개)를 그대로 쓰지 않는다. PR #88 이 그 목록을
+ *    MY 전용으로 분리한 이유가 바로 "모임 상세에 '내가 나간 여행' 칸은 뜻에 맞지
+ *    않는다" 였다. 취소됨은 여행 자체의 상태라 여기 있다.
+ */
+const GROUP_TRIP_TABS = MY_TRIP_FILTER_TABS.filter((tab) => tab.value !== 'left');
 
 type Props = {
   group: GroupDetailData;
@@ -37,10 +53,15 @@ type Props = {
   onPressAllAccounts: () => void;
   /** 준비 중 여행에서 나가기. 참가자에게만 보인다. */
   onPressLeaveTrip: (trip: MyTripItem) => void;
+  /**
+   * 나간 여행 카드를 눌렀을 때. 화면이 이유를 알린다 — 이동하지 않는다.
+   * 눌러도 아무 일이 없는 카드를 두지 않기 위해서다. (2026-09-12)
+   */
+  onPressLeftTrip: (trip: MyTripItem) => void;
 };
 
 /** 섹션 제목 + 본문. 상세 화면의 블록이 전부 같은 리듬을 갖게 한다. */
-function Section({
+export function Section({
   title,
   description,
   titleSuffix,
@@ -142,6 +163,7 @@ export function GroupDetailView({
   onPressAccount,
   onPressAllAccounts,
   onPressLeaveTrip,
+  onPressLeftTrip,
 }: Props) {
   // 이 화면은 (tabs) 밖 Stack 화면이라 FloatingTabBar 가 없다.
   // 대신 홈 인디케이터 자리는 직접 비켜 준다.
@@ -162,7 +184,9 @@ export function GroupDetailView({
       ? group.pastTrips
       : filter === 'traveling'
         ? group.travelingTrips
-        : group.planningTrips;
+        : filter === 'canceled'
+          ? group.canceledTrips
+          : group.planningTrips;
 
   return (
     <View className="flex-1 bg-pot-visual">
@@ -248,7 +272,9 @@ export function GroupDetailView({
       {/* ⚠️ 다른 섹션과 같은 mt-10(40) 을 쓴다. */}
       <View className="mt-10">
         <View className="-mx-4">
+          {/* lifecycle 4탭. 취소됨은 표시만 한다. 나간 여행은 탭이 아니라 카드 배지다. */}
           <TripFilterTabs
+            tabs={GROUP_TRIP_TABS}
             filter={filter}
             onChangeFilter={setFilter}
             className="bg-transparent"
@@ -266,43 +292,64 @@ export function GroupDetailView({
             visibleTrips.map((trip) => {
               const participant = group.participatingTripIds.has(trip.tripId);
 
-              return (
-                <View key={trip.tripId}>
-                  {/*
-                    ⚠️ 참가자가 아니면 카드를 누를 수 없다. (2026-09-09 확정)
-                       여행 정보는 그대로 보여주되 상세로 들어가지 않는다.
-                       여행 상세에는 수정 진입점이 여럿인데 참가자 검사가 없어서,
-                       비참가자를 들여보내면 남의 여행을 고칠 수 있게 된다.
-                    ⚠️ MyTripCard 는 MY 와 함께 쓰는 컴포넌트다. onPress 에 null 을
-                       넘길 수 있게만 넓혔고 MY 동작은 그대로다.
-                  */}
-                  {/* ⚠️ 모임 이름을 끈다. 이미 이 모임 상세 안이라 카드마다
-                      같은 이름이 반복된다. MY 는 그대로다. (2026-09-09) */}
-                  <MyTripCard
-                    trip={trip}
-                    onPress={participant ? onPressTrip : null}
-                    showGroupName={false}
-                  />
+              // 나가기 가능 조건은 그대로다 — 준비 중 + 내가 참가자.
+              // 여행 중·지난 여행에는 없고, 남을 내보내는 기능도 없다.
+              const canLeave = participant && trip.status === TRIP_STATUS.PLANNING;
 
-                  {/*
-                    여행에서 나가기. 준비 중 + 내가 참가자일 때만 보인다.
-                    여행 중·지난 여행에는 없고, 남을 내보내는 기능도 없다.
-                  */}
-                  {participant && trip.status === TRIP_STATUS.PLANNING ? (
-                    <View className="mt-1.5 items-end">
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${trip.destination ?? '여행'} 에서 나가기`}
-                        hitSlop={8}
-                        onPress={() => onPressLeaveTrip(trip)}
-                        className="px-1 py-1 active:opacity-60"
-                      >
-                        <Text className="text-pot-faint" style={{ fontSize: 11.5 }}>
-                          여행에서 나가기
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
+              /*
+                ⚠️ 참가자가 아니면 카드를 누를 수 없다. (2026-09-09 확정)
+                   여행 정보는 그대로 보여주되 상세로 들어가지 않는다.
+                   여행 상세에는 수정 진입점이 여럿인데 참가자 검사가 없어서,
+                   비참가자를 들여보내면 남의 여행을 고칠 수 있게 된다.
+                ⚠️ MyTripCard 는 MY 와 함께 쓰는 컴포넌트다. onPress 에 null 을
+                   넘길 수 있게만 넓혔고 MY 동작은 그대로다.
+                ⚠️ 모임 이름을 끈다. 이미 이 모임 상세 안이라 카드마다
+                   같은 이름이 반복된다. MY 는 그대로다. (2026-09-09)
+              */
+              /*
+                나간 여행(trip.left) — 최종 정책은 "볼 수 있지만 수정할 수 없다" 다.
+                그런데 membership 기준 read-only 여행 홈이 아직 없어, 지금 보내면
+                수정까지 된다. 그래서 **임시로** 이동하지 않고 안내만 한다.
+                read-only 여행 홈이 생기면 onPressTrip 으로 잇는다. (docs/11 §6-2)
+                미참여(participant 아님)는 접근 범위가 미확정이라 그대로 둔다 — 눌리지 않는다.
+                취소된 여행은 MY-02 와 같이 그대로 연다 — 복구·72시간 처리는 다른 담당.
+              */
+              const onPress = trip.left
+                ? () => onPressLeftTrip(trip)
+                : participant
+                  ? onPressTrip
+                  : null;
+
+              const card = (
+                <MyTripCard trip={trip} onPress={onPress} showGroupName={false} />
+              );
+
+              /*
+                여행에서 나가기 — 카드를 왼쪽으로 밀면 오른쪽에 나온다. (2026-09-12)
+                항상 보이던 텍스트 버튼을 뺐다. 나가기는 자주 쓰는 동작이 아니라
+                카드마다 늘 떠 있으면 목록이 소란스럽다.
+
+                ⚠️ 삭제가 아니다. trash 아이콘을 쓰지 않는다. 여행 설정 시트의
+                   '여행 나가기' 와 같은 exit-outline 이다. (TripSettingsSheet)
+                ⚠️ SwipeToAction 은 MY 커뮤니티 활동이 쓰는 그 컴포넌트다.
+                   같은 폭·같은 동작. 누르면 스와이프를 닫고 기존 확인 흐름으로 간다.
+                ⚠️ 나갈 수 없는 여행은 감싸지 않는다. 밀어도 아무것도 안 나온다.
+              */
+              return (
+                <View key={trip.tripId} className="overflow-hidden rounded-2xl">
+                  {canLeave ? (
+                    <SwipeToAction
+                      label="여행 나가기"
+                      accessibilityLabel={`${trip.destination ?? '여행'} 에서 나가기`}
+                      icon="exit-outline"
+                      color="#6B7280"
+                      onPress={() => onPressLeaveTrip(trip)}
+                    >
+                      {card}
+                    </SwipeToAction>
+                  ) : (
+                    card
+                  )}
                 </View>
               );
             })
