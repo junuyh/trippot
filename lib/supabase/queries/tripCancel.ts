@@ -107,6 +107,13 @@ export type VoteProgress = {
  *
  * ⚠️ 동의 대상은 **요청자를 뺀 ACTIVE 멤버**다. 나간 사람(LEFT)은 분모에서
  *    빠진다. (POL-CXL-068)
+ *
+ * ⚠️⚠️ **분자도 ACTIVE 멤버만 센다.** ⚠️⚠️
+ *    나간 사람의 표를 지우지 않으므로(기록이라 남긴다) 그냥 세면 분모에서는
+ *    빠진 사람이 분자에는 남는다. 3명 여행(요청자 A · B · C)에서 B 가 동의하고
+ *    나가면 분모가 1로 줄고 분자는 그대로 1이라, **C 가 동의한 적도 없는데
+ *    만장일치로 판정된다.** 나간 사람에게는 동의를 묻지 않는다는 규칙
+ *    (POL-MEM-014)은 분모와 분자 양쪽에 걸린다.
  */
 export async function getVoteProgress(
   request: CancelRequest,
@@ -132,7 +139,9 @@ export async function getVoteProgress(
 
   // 요청자는 동의 대상이 아니다
   const targetCount = Math.max(0, nameByUserId.size - 1);
-  const voteRows = votes.data ?? [];
+
+  // 나간 사람의 표는 세지 않는다. 행은 기록으로 남기되 판정에서만 뺀다
+  const voteRows = (votes.data ?? []).filter((v) => nameByUserId.has(v.user_id));
 
   return {
     requestId: request.id,
@@ -453,19 +462,35 @@ export async function restoreCanceledTrip(tripId: string): Promise<void> {
 }
 
 /**
- * 멤버가 나갔을 때 동의를 다시 판정한다. (POL-CXL-068)
+ * 멤버가 나갔을 때 동의를 다시 판정한다. (POL-CXL-068 · POL-MEM-014 · 016)
  *
  * ⚠️ **나감으로 남은 인원이 전원 동의 상태가 되면 그 순간 취소가 확정된다.**
- *    INV 의 leaveTrip() 안에서 이 함수를 불러야 한다. 안 부르면 이미 전원이
+ *    leaveTrip() 을 부른 화면이 반드시 이어서 부른다. 안 부르면 이미 전원이
  *    동의했는데도 요청이 계속 대기로 남는다.
+ *
+ * ⚠️ **요청자 본인이 나가면 요청을 철회한다.** (POL-MEM-016) 요청한 사람이
+ *    없어졌는데 남은 사람들에게 계속 동의를 물으면, 아무도 원하지 않는 취소가
+ *    진행된다. 화면상으로는 평범한 나가기와 같아서 따로 알리지 않는다.
+ *
+ * @param leftUserId 방금 나간 사람. 요청자 판정에 쓴다
+ * @returns 나간 뒤의 요청 상태. 화면이 MEM-03 의 갈래를 정하는 데 쓴다
  */
+export type AfterLeaveOutcome = 'NONE' | 'PENDING' | 'CANCELED' | 'REJECTED' | 'WITHDRAWN';
+
 export async function recheckAfterMemberLeft(input: {
   tripId: string;
   tripStartDate: string | null;
+  leftUserId: string;
   fundSnapshot: CanceledFundSnapshot;
-}): Promise<void> {
+}): Promise<AfterLeaveOutcome> {
   const request = await getActiveCancelRequest(input.tripId, input.tripStartDate);
-  if (!request) return;
+  if (!request) return 'NONE';
+
+  // 요청자가 나갔다. 남은 사람에게 물을 이유가 없다 (POL-MEM-016)
+  if (request.requested_by === input.leftUserId) {
+    await withdrawCancelRequest(request.id, input.tripId);
+    return 'WITHDRAWN';
+  }
 
   const progress = await getVoteProgress(request);
   const outcome = resolveVoteOutcome({
@@ -482,7 +507,13 @@ export async function recheckAfterMemberLeft(input: {
       reason: request.reason,
       fundSnapshot: input.fundSnapshot,
     });
-  } else if (outcome === 'rejected') {
-    await rejectCancelRequest(request.id, input.tripId);
+    return 'CANCELED';
   }
+
+  if (outcome === 'rejected') {
+    await rejectCancelRequest(request.id, input.tripId);
+    return 'REJECTED';
+  }
+
+  return 'PENDING';
 }

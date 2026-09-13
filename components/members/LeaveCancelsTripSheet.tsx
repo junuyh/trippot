@@ -34,10 +34,11 @@ type Props = {
 
   destination: string;
   /**
-   * 이미 취소에 동의한 멤버 이름들.
+   * 이미 취소에 동의한 멤버 이름들. **나는 뺀다.**
    *
-   * ⚠️ 빈 배열로 넘기지 않는다. 동의한 사람이 없으면 나가도 취소되지 않으므로
-   *    애초에 이 시트가 뜰 조건이 아니다. (POL-MEM-015)
+   * ⚠️ 빌 수 있다. 동의 대상이 나뿐이었으면(요청자 + 나 둘뿐인 여행) 아무도
+   *    동의하지 않았는데도 내가 나가는 순간 동의를 기다릴 사람이 0명이 되어
+   *    취소가 확정된다. (POL-CXL-066) 그때는 제목이 달라진다.
    */
   agreedNames: string[];
 
@@ -75,7 +76,15 @@ export function LeaveCancelsTripSheet({
       <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 10 }}>
         <BranchNotice
           tone="warn"
-          title={`${agreedNames.join(" · ")}님이 이미 취소에 동의했어요`}
+          /*
+            ⚠️ 이름을 못 채우면 "님이 이미 취소에 동의했어요" 가 된다.
+               동의 대상이 나뿐인 여행에서 실제로 일어난다. 문장을 바꾼다.
+          */
+          title={
+            agreedNames.length > 0
+              ? `${agreedNames.join(" · ")}님이 이미 취소에 동의했어요`
+              : "동의를 기다릴 사람이 회원님뿐이에요"
+          }
           body={
             "회원님이 나가면 동의를 기다릴 사람이 없어져서, 나가는 순간 여행이 취소돼요. " +
             "되돌리려면 남은 멤버가 3일 안에 되돌려야 해요."

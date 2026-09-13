@@ -137,6 +137,7 @@ import {
   cancelPerPersonAmount,
   cancelRemainingAmount,
   canRestoreTrip,
+  resolveVoteOutcome,
   restoredRemainingAmount,
   restoreRemainingLabel,
   type FundKind,
@@ -155,7 +156,12 @@ import {
   type CancelReasonCode,
   type VoteItem,
 } from "@/components/cancel";
-import { DelegateLeaderSheet, LeaveTripSheet } from "@/components/members";
+import {
+  DelegateLeaderSheet,
+  LeaveCancelsTripSheet,
+  LeaveDoneView,
+  LeaveTripSheet,
+} from "@/components/members";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
@@ -165,6 +171,8 @@ const PAGE_COLOR = "#ffffff";
 type CancelSheet =
   | null
   | "leave"
+  /** MEM-04 즉시 취소 경고. 나가면 바로 취소되는 경우에만 거친다 */
+  | "leaveCancels"
   | "delegate"
   | "cancelReason"
   | "cancelConfirm"
@@ -275,6 +283,20 @@ export default function ScreenTripHome() {
   const [doneKind, setDoneKind] = useState<"requested" | "canceled" | null>(null);
   /** CXL-07 동의 현황. 이것도 라우트가 아니라 이 화면의 분기다 */
   const [progressOpen, setProgressOpen] = useState(false);
+  /**
+   * MEM-03 나가기 완료. null 이면 안 뜬다.
+   *
+   * ⚠️ 나간 뒤에는 **다시 조회하지 않는다.** 이미 멤버가 아니라서 조회해도
+   *    볼 수 없는 여행이다. 화면에 쓸 이름은 나가기 직전의 data 를 그대로 쓴다.
+   *
+   * ⚠️ 바로 홈으로 보내지 않는다. (POL-MEM-010) 되돌릴 수 없는 행동이라
+   *    무엇이 일어났는지 한 번은 알려야 한다.
+   */
+  const [leaveDone, setLeaveDone] = useState<{
+    variant: "left" | "delegated" | "canceled";
+    alsoLeftGroup: boolean;
+    newLeaderName?: string;
+  } | null>(null);
   /** 저장·요청 중. 중복 제출을 막는다 (NFR-005) */
   const [busy, setBusy] = useState(false);
 
@@ -993,6 +1015,41 @@ export default function ScreenTripHome() {
     data.voteProgress?.votes.some((v) => v.user_id === userId),
   );
 
+  /**
+   * 내가 나가면 **그 순간 여행이 취소되는가.** MEM-04 를 거칠지 정한다.
+   * (POL-MEM-015)
+   *
+   * 내가 빠지면 동의 대상 수가 하나 줄고, 내 표도 분자에서 빠진다.
+   * 그 상태로 판정해서 approved 면 나가는 순간 확정된다.
+   *
+   * ⚠️ 판정을 여기서 새로 만들지 않는다. resolveVoteOutcome 하나만 쓴다.
+   *    같은 판정이 두 곳에 생기면 화면과 서버가 다른 말을 한다.
+   *
+   * ⚠️ 요청자 본인은 제외한다. 요청자가 나가면 요청이 철회되지(POL-MEM-016)
+   *    취소되지 않는다. 경고할 일이 아니다.
+   *
+   * ⚠️ 아직 미동의자가 있으면 경고 없이 그냥 나간다. 모든 나가기에 경고를
+   *    붙이면 경고가 무뎌진다.
+   */
+  const myVote =
+    data.voteProgress?.votes.find((v) => v.user_id === userId)?.vote ?? null;
+  const leaveCancelsTrip =
+    Boolean(data.cancelRequest) &&
+    !isCancelRequester &&
+    resolveVoteOutcome({
+      targetCount: Math.max(0, (data.voteProgress?.targetCount ?? 0) - 1),
+      agreedCount: Math.max(
+        0,
+        (data.voteProgress?.agreedCount ?? 0) - (myVote === "AGREE" ? 1 : 0),
+      ),
+      hasDisagree: data.voteProgress?.hasDisagree ?? false,
+    }) === "approved";
+
+  /** MEM-04 가 이름을 부를 사람들. 나를 뺀, 이미 동의한 멤버 */
+  const agreedNames = (data.voteProgress?.votes ?? [])
+    .filter((v) => v.vote === "AGREE" && v.user_id !== userId)
+    .map((v) => v.name);
+
   const canRestore = canRestoreTrip({
     status,
     canceledAt: trip.canceled_at,
@@ -1174,13 +1231,27 @@ export default function ScreenTripHome() {
         alsoLeaveGroup,
         groupId: trip.group_id,
       });
-      await recheckAfterMemberLeft({
+      /**
+       * ⚠️ 결과를 **DB 를 다시 읽어서** 정한다. 위 leaveCancelsTrip 은 화면이
+       *    미리 계산한 값이라, 그 사이 다른 사람이 동의하거나 반대했으면
+       *    틀린다. 경고를 띄울지 정할 때만 쓰고 결과 표시에는 쓰지 않는다.
+       *
+       * ⚠️ 실패해도 나가기는 이미 끝났다. 평범한 나가기로 보여준다 —
+       *    "못 나갔다" 고 말하면 사실과 다르다.
+       */
+      const outcome = await recheckAfterMemberLeft({
         tripId: trip.id,
         tripStartDate: trip.start_date,
+        leftUserId: userId,
         fundSnapshot: buildFundSnapshot(),
-      }).catch(() => undefined);
+      }).catch(() => "NONE" as const);
+
       setSheet(null);
-      router.replace("/");
+      // MEM-03. 홈으로 바로 보내지 않는다 (POL-MEM-010)
+      setLeaveDone({
+        variant: outcome === "CANCELED" ? "canceled" : "left",
+        alsoLeftGroup: alsoLeaveGroup,
+      });
     } catch {
       Alert.alert("나가지 못했어요", "잠시 후 다시 시도해 주세요.");
       setBusy(false);
@@ -1201,13 +1272,25 @@ export default function ScreenTripHome() {
         alsoLeaveGroup: false,
         groupId: trip.group_id,
       });
-      await recheckAfterMemberLeft({
+      const outcome = await recheckAfterMemberLeft({
         tripId: trip.id,
         tripStartDate: trip.start_date,
+        leftUserId: userId,
         fundSnapshot: buildFundSnapshot(),
-      }).catch(() => undefined);
+      }).catch(() => "NONE" as const);
+
       setSheet(null);
-      router.replace("/");
+      /*
+        ⚠️ 넘긴 사람 이름을 반드시 싣는다. 여행장을 넘기고 나온 사람이 가장
+           궁금해하는 값이다. data 는 나가기 전 것이라 이름이 그대로 있다.
+        ⚠️ 위임했는데도 취소가 확정될 수 있다. 내가 빠지면서 남은 전원이
+           동의 상태가 되는 경우다. 그때는 새 여행장 이야기가 의미 없다.
+      */
+      setLeaveDone(
+        outcome === "CANCELED"
+          ? { variant: "canceled", alsoLeftGroup: false }
+          : { variant: "delegated", alsoLeftGroup: false, newLeaderName: target.name },
+      );
     } catch {
       Alert.alert("넘기지 못했어요", "잠시 후 다시 시도해 주세요.");
       setBusy(false);
@@ -1459,6 +1542,38 @@ export default function ScreenTripHome() {
       : `${dateLabel}에 이 여행을 취소했어요`;
   })();
 
+  /**
+   * MEM-03 나가기 완료.
+   *
+   * ⚠️ 반드시 **다른 분기보다 먼저** 본다. 나간 순간 이 여행은 더 이상 내
+   *    여행이 아니라서, 취소 알림이나 동의 현황을 그릴 자리가 아니다.
+   *
+   * ⚠️ 여기서도 훅을 쓰지 않는다. 위 분기들과 같은 이유다.
+   */
+  if (leaveDone) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen
+          options={{
+            title: trip.destination ?? "여행",
+            /* 나온 여행이다. 홈 버튼도 뒤로가기도 두지 않는다 — 아래 CTA 하나로 나간다 */
+            headerLeft: () => null,
+            headerRight: undefined,
+          }}
+        />
+        <LeaveDoneView
+          variant={leaveDone.variant}
+          destination={trip.destination ?? "여행"}
+          /* 개인 여행은 나가기 자체가 막혀 있어(leaderAlone) 이 경로로 오지 않는다 */
+          groupName={data.groupName ?? "모임"}
+          alsoLeftGroup={leaveDone.alsoLeftGroup}
+          newLeaderName={leaveDone.newLeaderName}
+          onGoHome={() => router.replace("/")}
+        />
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       className="flex-1"
@@ -1536,10 +1651,31 @@ export default function ScreenTripHome() {
         fundBalanceLabel={
           fund && fund.current_amount > 0 ? `${fund.current_amount.toLocaleString("ko-KR")}원` : null
         }
-        onLeave={() => void handleLeave()}
+        /*
+          ⚠️ 나가면 바로 취소되는 경우에만 MEM-04 를 거친다. (POL-MEM-015)
+             아직 미동의자가 있으면 경고 없이 그냥 나간다 — 모든 나가기에
+             경고를 붙이면 경고가 무뎌진다.
+        */
+        onLeave={() =>
+          leaveCancelsTrip ? openSheetAfterClose("leaveCancels") : void handleLeave()
+        }
         onOpenDelegate={() => openSheetAfterClose("delegate")}
         onInvite={() => router.push(`/trips/${trip.id}/edit`)}
         onCancelTrip={() => openSheetAfterClose("cancelReason")}
+        leaving={busy}
+      />
+
+      {/*
+        MEM-04. 나가기를 막지 않는다 (POL-MEM-013) — 경고만 하고 보낸다.
+        한 명이 취소 요청만 걸어두고 다른 사람을 여행에 묶어둘 수 있으면 안 된다.
+      */}
+      <LeaveCancelsTripSheet
+        visible={sheet === "leaveCancels"}
+        onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
+        destination={trip.destination ?? "여행"}
+        agreedNames={agreedNames}
+        onLeave={() => void handleLeave()}
         leaving={busy}
       />
 
