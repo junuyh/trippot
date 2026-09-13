@@ -142,7 +142,7 @@ import {
   type FundKind,
 } from "@/lib/trip/cancelPolicy";
 import {
-  CanceledTripView,
+  CanceledTripNotice,
   CancelConfirmSheet,
   CancelDoneView,
   CancelPendingBanner,
@@ -463,6 +463,13 @@ export default function ScreenTripHome() {
   const remindedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!data || remindedRef.current === data.trip.id) return;
+    /**
+     * ⚠️ 취소된 여행에는 잡지 않는다. scheduleSpendReminders 는 **날짜만 보고
+     *    상태를 안 본다.** 그래서 취소한 여행도 출발 11일 전이면 조건에 걸려
+     *    매일 21시에 "지출을 입력하세요" 알림이 갔다. 취소하고 나서 매일
+     *    알림을 받는 건 고장으로 읽힌다. (2026-09-13 확인)
+     */
+    if (data.trip.status === TRIP_STATUS.CANCELED) return;
     remindedRef.current = data.trip.id;
     scheduleSpendReminders(data.trip).catch(() => undefined);
   }, [data]);
@@ -486,6 +493,16 @@ export default function ScreenTripHome() {
   // 금고 카드의 퍼센트가 서로 다른 말을 하게 된다.
   useEffect(() => {
     if (!data || syncedRef.current) return;
+    /**
+     * ⚠️ 취소된 여행은 배분을 다시 저장하지 않는다. 취소 뒤에도 계좌 거래는
+     *    계속 들어오는데(POL-CXL-012) 그때마다 prepared_amount 가 갱신되면
+     *    "취소 시점 기록" 이 조용히 달라진다. 읽기 전용이라는 말에는 화면이
+     *    스스로 쓰지 않는다는 뜻도 들어 있다. (POL-CXL-005 · 011)
+     */
+    if (data.trip.status === TRIP_STATUS.CANCELED) {
+      syncedRef.current = true;
+      return;
+    }
 
     // 금고 채움도 누적 모금액 기준이다. 항공권을 사면 항공 금고가 0% 로
     // 되돌아가는 일이 없어야 한다. (스펙 12장)
@@ -911,7 +928,37 @@ export default function ScreenTripHome() {
   const hasExpense = data.transactions.some(
     (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
   );
-  const stage = tripStage({ status, hasPlan, hasExpense });
+  /**
+   * 레이아웃을 정하는 status.
+   *
+   * ⚠️ 취소된 여행은 **취소 직전에 보던 화면**을 그대로 그린다. (POL-CXL-005)
+   *    티켓도 예산도 자금도 그 자리에 있어야 하고, 못 고치기만 하면 된다.
+   *    tripStage 에 CANCELED 를 그대로 넘기면 stage 가 CANCELED 로 굳어
+   *    출발 전에 취소한 여행이 결산 영수증 화면을 그린다.
+   *
+   * ⚠️ 그때의 status 는 남아 있지 않다. **날짜로 되짚는다.** 규칙은
+   *    closeTripIfEnded() 와 같다 — 종료일 **다음 날**부터 끝난 것으로 본다.
+   *    종료일 당일을 끝으로 치면 아직 여행 중인 사람에게 정산을 들이민다.
+   */
+  const layoutStatus: TripStatus = (() => {
+    if (status !== TRIP_STATUS.CANCELED) return status;
+    const today = new Date();
+    if (
+      trip.end_date &&
+      differenceInCalendarDays(today, parseISO(trip.end_date)) > 0
+    ) {
+      return TRIP_STATUS.ENDED;
+    }
+    if (
+      trip.start_date &&
+      differenceInCalendarDays(today, parseISO(trip.start_date)) >= 0
+    ) {
+      return TRIP_STATUS.TRAVELING;
+    }
+    return TRIP_STATUS.PLANNING;
+  })();
+
+  const stage = tripStage({ status: layoutStatus, hasPlan, hasExpense });
   const ended = isAfterTrip(stage);
 
   // ── 취소 · 나가기 판정 ──────────────────────────────────────────────────
@@ -1251,12 +1298,17 @@ export default function ScreenTripHome() {
    *       그때는 누적 모금액을 따로 보관하거나 입금 합계로 계산해야 한다.
    *       (docs/README.md §5 에 기록)
    */
-  const raisedAmount =
-    data.depositTotal > 0 ? data.depositTotal : (fund?.current_amount ?? 0);
-  const actualTotal = data.categories.reduce(
-    (sum, c) => sum + c.actual_amount,
-    0,
-  );
+  const raisedAmount = isCanceled
+    ? // ⚠️ 취소된 여행은 **취소 시점 값**을 쓴다. 취소 뒤에도 계좌 거래는 계속
+      //    들어와서(POL-CXL-012) 그대로 두면 취소된 여행의 숫자가 혼자 움직인다.
+      //    위 취소 시점 기록과 아래 티켓이 다른 말을 하면 안 된다. (POL-CXL-011)
+      cancelSnapshot.total_saved
+    : data.depositTotal > 0
+      ? data.depositTotal
+      : (fund?.current_amount ?? 0);
+  const actualTotal = isCanceled
+    ? cancelSnapshot.actual_spent
+    : data.categories.reduce((sum, c) => sum + c.actual_amount, 0);
   // 100 을 넘겨 넘기지 않는다. 비행기가 도착지를 지나치면 안 된다. (스펙 3장)
   const progress =
     targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;
@@ -1387,80 +1439,25 @@ export default function ScreenTripHome() {
   }
 
   /**
-   * TRIP-HOME-03 취소된 여행. 전 항목 읽기 전용이다. (POL-CXL-005)
+   * TRIP-HOME-03 취소된 여행 — **여행 홈을 대체하지 않는다.**
    *
-   * ⚠️ 금액은 **취소 시점 스냅샷**이다. 다시 계산하지 않는다. (POL-CXL-011)
-   *    cancelSnapshot 이 그 값을 이미 골라 두었다.
-   *
-   * ⚠️ 72시간이 지나면 되돌리기 수단이 없다. 복사 기능을 제안하지 않는다.
-   *    (POL-CXL-031) 그 안내는 컴포넌트가 한다.
+   * ⚠️ 처음에는 요약 카드 한 장짜리 전용 화면으로 만들었는데, 되돌릴 수 있는
+   *    여행인데도 여행이 통째로 사라진 것처럼 보였다. (2026-09-13 다빈 확인)
+   *    스펙 문구도 "전 항목 읽기 전용" 이라 감추는 게 아니라 못 고치게 하는
+   *    것이 맞다. (POL-CXL-005) 티켓·예산·자금은 그대로 두고 회색으로 죽인다.
    */
-  if (isCanceled) {
-    const canceledDateLabel = trip.canceled_at
+  const canceledHistoryLabel = (() => {
+    const dateLabel = trip.canceled_at
       ? format(parseISO(trip.canceled_at), "M월 d일")
       : "";
-    const canceledByName =
+    const byName =
       data.members.find((m) => m.user_id === trip.canceled_by)?.name ?? "멤버";
     // 혼자인 여행은 동의 절차 없이 취소된다. 경위 문장도 달라야 한다
     const byAgreement = Boolean(trip.group_id) && data.members.length > 1;
-
-    return (
-      <View className="flex-1 bg-gray-50">
-        <Stack.Screen
-          options={{
-            title: trip.destination ?? "여행",
-            headerLeft: () => <AppHomeButton />,
-            /* 취소된 여행에는 고칠 것도 나갈 것도 취소할 것도 없다 */
-            headerRight: undefined,
-          }}
-        />
-
-        <CanceledTripView
-          destination={trip.destination ?? "여행"}
-          metaLabel={`${tripPeriodLabel ?? "일정 미정"} · ${trip.headcount}명`}
-          historyLabel={
-            byAgreement
-              ? `${canceledByName}님이 요청하고 멤버 모두가 동의해서 ${canceledDateLabel}에 취소됐어요`
-              : `${canceledDateLabel}에 이 여행을 취소했어요`
-          }
-          canRestore={canRestore}
-          remainingLabel={
-            (trip.canceled_at && restoreRemainingLabel(trip.canceled_at, new Date())) || "곧"
-          }
-          onOpenRestore={() => setSheet("restore")}
-          fundType={cancelSnapshot.fund_type}
-          goalLabel={`${cancelSnapshot.goal_amount.toLocaleString("ko-KR")}원`}
-          spentLabel={
-            cancelSnapshot.actual_spent > 0
-              ? `${cancelSnapshot.actual_spent.toLocaleString("ko-KR")}원`
-              : null
-          }
-          remainingFundLabel={
-            cancelSnapshot.fund_type === "ZERO"
-              ? null
-              : `${cancelSnapshot.remaining.toLocaleString("ko-KR")}원`
-          }
-        />
-
-        {/*
-          ⚠️ 되돌리기 시트를 이 분기 안에도 둔다. 아래 본 화면의 시트는 여기서
-             그려지지 않는다. 빼면 '되돌리기' 버튼이 아무 반응도 없다.
-        */}
-        <RestoreConfirmSheet
-          visible={sheet === "restore"}
-          onClose={() => setSheet(null)}
-          onDismiss={flushPendingSheet}
-          destination={trip.destination ?? "여행"}
-          isGroupTrip={Boolean(trip.group_id)}
-          changes={cancelChangeItems}
-          afterLabel={`${restoredRemaining.toLocaleString("ko-KR")}원`}
-          fundType={cancelSnapshot.fund_type}
-          onRestore={() => void handleRestore()}
-          restoring={busy}
-        />
-      </View>
-    );
-  }
+    return byAgreement
+      ? `${byName}님이 요청하고 멤버 모두가 동의해서 ${dateLabel}에 취소됐어요`
+      : `${dateLabel}에 이 여행을 취소했어요`;
+  })();
 
   return (
     <ScrollView
@@ -1481,10 +1478,15 @@ export default function ScreenTripHome() {
           title: trip.destination ?? "여행 홈",
           /* 왼쪽은 앱 홈(집), 오른쪽은 여행 설정(톱니). '<' 는 어디로 가는지 알 수 없었다 */
           headerLeft: () => <AppHomeButton />,
-          /* 끝난 여행은 고칠 것도 나갈 것도 취소할 것도 없다. 톱니를 아예 안 그린다 */
-          headerRight: ended
-            ? undefined
-            : () => <TripSettingsButton onPress={() => setSettingsOpen(true)} />,
+          /*
+            끝난 여행은 고칠 것도 나갈 것도 취소할 것도 없다. 톱니를 아예 안 그린다.
+            ⚠️ 취소된 여행도 마찬가지다. ended 로는 안 걸린다 — 출발 전에 취소한
+               여행은 layoutStatus 가 PLANNING 이라 ended 가 false 다.
+          */
+          headerRight:
+            ended || isCanceled
+              ? undefined
+              : () => <TripSettingsButton onPress={() => setSettingsOpen(true)} />,
         }}
       />
 
@@ -1496,7 +1498,7 @@ export default function ScreenTripHome() {
            BottomSheet 는 닫는 애니메이션 동안 Modal 을 살려 둔다.
       */}
       <TripSettingsSheet
-        visible={settingsOpen && !ended}
+        visible={settingsOpen && !ended && !isCanceled}
         onClose={() => setSettingsOpen(false)}
         destination={trip.destination ?? "여행"}
         groupName={data.groupName}
@@ -1678,12 +1680,47 @@ export default function ScreenTripHome() {
       ) : null}
 
       {/*
-        ── 되돌리기 배너는 여기 없다 ──
-        취소된 여행은 위 isCanceled 분기에서 TRIP-HOME-03(CanceledTripView)로
-        빠지고, 되돌리기 배너는 그 컴포넌트 안에 있다. 여기에 또 두면 같은
-        배너가 두 벌이 된다.
+        ── TRIP-HOME-03 취소된 여행 ──
+        ⚠️ 아래 여행 홈은 회색으로 죽어 있을 뿐 스스로 취소됐다고 말하지 않는다.
+           이 알림을 빼면 사용자가 회색인 이유를 알 수 없다.
       */}
+      {isCanceled ? (
+        <CanceledTripNotice
+          historyLabel={canceledHistoryLabel}
+          canRestore={canRestore}
+          remainingLabel={
+            (trip.canceled_at && restoreRemainingLabel(trip.canceled_at, new Date())) || "곧"
+          }
+          onOpenRestore={() => setSheet("restore")}
+          fundType={cancelSnapshot.fund_type}
+          goalLabel={`${cancelSnapshot.goal_amount.toLocaleString("ko-KR")}원`}
+          spentLabel={
+            cancelSnapshot.actual_spent > 0
+              ? `${cancelSnapshot.actual_spent.toLocaleString("ko-KR")}원`
+              : null
+          }
+          remainingFundLabel={
+            cancelSnapshot.fund_type === "ZERO"
+              ? null
+              : `${cancelSnapshot.remaining.toLocaleString("ko-KR")}원`
+          }
+        />
+      ) : null}
 
+      {/*
+        ── 여기부터 아래는 취소되면 회색으로 죽는다 ──
+        ⚠️⚠️ 핸들러를 하나씩 막지 않는다. 여행 홈에는 다른 화면으로 가는 곳이
+           열다섯 군데가 넘고, 앞으로도 늘어난다. 하나만 빠뜨려도 취소된 여행의
+           예산이 조용히 바뀐다. 통째로 pointerEvents 를 끊어 **빠질 수 없게** 한다.
+           (2026-09-13)
+        ⚠️ 시트들은 이 밖에 있다. 안에 넣으면 '되돌리기' 를 눌러도 안 열린다.
+        ⚠️ gap 24 를 여기로 옮겨 적는다. ScrollView 의 gap 은 이제 이 래퍼와
+           위 알림 사이에만 걸려서, 안 적으면 카드들이 서로 붙는다.
+      */}
+      <View
+        style={{ gap: 24, opacity: isCanceled ? 0.45 : 1 }}
+        pointerEvents={isCanceled ? "none" : "auto"}
+      >
       {ended ? (
         <View className="px-1 pt-1">
           <View className="flex-row items-start justify-between">
@@ -2224,6 +2261,13 @@ export default function ScreenTripHome() {
             </View>
           ) : null}
 
+          {/*
+            ⚠️ 취소된 여행에는 그리지 않는다. 여기만 '숨김' 이고 나머지는 회색인
+               이유는, 이 둘이 **여행 데이터가 아니라 제휴·유입 카드**이기 때문이다.
+               취소한 여행에 보험 견적과 여행 팁을 권하는 건 말이 안 된다.
+               (2026-09-13 다빈 결정)
+          */}
+          {isCanceled ? null : (
           <View className="gap-2.5">
             <View
               className="flex-row items-end justify-between"
@@ -2253,8 +2297,10 @@ export default function ScreenTripHome() {
               }
             />
           </View>
+          )}
         </>
       )}
+      </View>
     </ScrollView>
   );
 }

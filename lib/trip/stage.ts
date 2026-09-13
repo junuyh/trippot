@@ -34,7 +34,11 @@ export const TRIP_STAGE = {
   DONE: "DONE",
   /**
    * 8. 전원 동의로 취소됐다. 기간·내용과 무관하게 이 단계다.
-   *    여행 홈은 '취소된 여행 · 되돌리기' 만 보여준다. [팀원 개발 예정]
+   *
+   * ⚠️ 이 단계로 **화면 레이아웃을 정하지 않는다.** 취소된 여행도 티켓·예산·
+   *    자금을 그대로 보여주고 못 고치게만 한다. (POL-CXL-005) 여행 홈은
+   *    취소 직전 상태를 날짜로 되짚어 그리고, 취소 사실은 위에 얹는 알림이
+   *    말한다. (components/cancel/CanceledTripNotice)
    */
   CANCELED: "CANCELED",
 } as const;
@@ -93,16 +97,19 @@ export function tripStage({
 /**
  * 준비가 끝난 뒤의 단계인가. TRIP-HOME-02 를 그릴지 정한다.
  *
- * ⚠️ CANCELED 를 포함한다. 빼면 취소된 여행이 **'준비 중' 화면(TRIP-HOME-01)**
- *    을 그린다. 취소했는데 예산을 계속 세우라고 권하는 화면이 나온다.
- *    (2026-09-10 · TRIP-HOME-03 을 붙이면서 확인)
+ * ⚠️ CANCELED 를 **넣지 않는다.** 한 번 넣었다가 뺐다. (2026-09-13)
+ *    취소된 여행은 취소 직전에 보던 화면을 그대로 그리기로 했다. 출발 전에
+ *    취소한 여행에 결산 영수증을 보여줄 이유가 없다. 어느 화면을 그릴지는
+ *    호출부가 날짜로 되짚어 정한다. (POL-CXL-005 · app/trips/[tripId]/index.tsx)
+ *
+ * ⚠️ 그래서 이 함수에 CANCELED 를 넣으면 취소된 여행이 통째로 종료 홈으로
+ *    바뀐다. 넣지 말 것.
  */
 export function isAfterTrip(stage: TripStage): boolean {
   return (
     stage === TRIP_STAGE.NO_RECORD ||
     stage === TRIP_STAGE.NO_EXPENSE ||
     stage === TRIP_STAGE.SETTLING ||
-    stage === TRIP_STAGE.DONE ||
-    stage === TRIP_STAGE.CANCELED
+    stage === TRIP_STAGE.DONE
   );
 }
