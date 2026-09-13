@@ -42,9 +42,11 @@ function CountColumn({
         </Text>
         <Ionicons name="chevron-forward" size={12} color={PASSPORT.hint} />
       </View>
+      {/* 숫자는 MY TRAVEL PASSPORT 와 같은 단(16 / 800). (2026-09-13 · 30 → 16)
+          제목보다 큰 숫자가 여권 머리줄을 눌렀다. 색만 강조(accent)로 남긴다. */}
       <Text
-        className="mt-1.5 text-center font-black"
-        style={{ fontSize: 30, lineHeight: 36, letterSpacing: -0.6, color: PASSPORT.accent, ...NUM }}
+        className="mt-1 text-center"
+        style={{ fontSize: 16, lineHeight: 20, fontWeight: '800', color: PASSPORT.accent, ...NUM }}
       >
         {count}
       </Text>

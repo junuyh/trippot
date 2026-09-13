@@ -78,7 +78,9 @@ export function TravelPassportPanel({
         />
       </View>
 
-      <View className="mt-4">
+      {/* 머리줄과 본문 사이 24. (2026-09-13 · 16 → 24) 머리줄이 헤더로 읽히려면
+          바로 아래 사진 · 필드와 숨 쉴 자리가 있어야 한다. 그 이상 벌리면 두 화면처럼 갈린다. */}
+      <View className="mt-6">
         <ProfileSection
           profile={profile}
           pickedImageUri={pickedImageUri}
