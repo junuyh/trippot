@@ -25,17 +25,22 @@ const TRIP_LINE_HEIGHT = 20;
 const TRIP_SLOT_HEIGHT = TRIP_LINE_HEIGHT * MAX_VISIBLE_TRIPS;
 
 /**
- * 기간 칸의 고정 폭. '12.28 – 27.01.03'(가장 긴 꼴)은 100 이면 들어가지만 128 로 둔다 —
- * 기간이 카드 오른쪽 끝이 아니라 **가운데 조금 지나서** 시작해 여행지와 한 줄로 붙어 읽힌다.
+ * 준비 중 여행 한 줄 = **왼쪽에 붙은 작은 묶음** [여행지 칸][사이][기간 칸].
+ * 카드 폭을 다 쓰지 않는다. (2026-09-14)
  *
- * ⚠️ 폭을 고정하는 이유 — 여행지가 길든 짧든 기간은 **늘 같은 자리**에서 시작해야
- *    두 줄을 위아래로 훑을 때 눈이 흔들리지 않는다. flex 로 양끝에 밀면 기간이
- *    카드 끝에 붙어 여행지와 남남처럼 보였다. (2026-09-13)
+ *   오사카          09.18 – 09.21
+ *   퇴사기념 유…     12.04 – 12.07
+ *   └─ 120 ─┘ 14 └─── 112 ───┘      → 묶음 246 · 카드 안쪽(iPhone 17 기준 338)의 왼쪽
+ *
+ * ⚠️ 두 칸 다 고정 폭이다. 여행지가 길든 짧든 기간은 **늘 같은 x** 에서 시작하고,
+ *    여행지 옆 14 만 띄워 한 정보로 읽힌다. flex 로 양끝에 밀면 기간이 카드 끝에
+ *    붙어 여행지와 남남처럼 보였고(1차), 기간 칸만 넓혀도 아직 멀었다(2차).
+ * ⚠️ 여행지 칸 120 은 한글 7~8자. 넘치면 말줄임. '외 N건' 은 이 칸 안에서 여행지 뒤에
+ *    shrink-0 으로 남는다. 기간 칸 112 는 '12.28 – 27.01.03'(가장 긴 꼴)이 들어간다.
  */
-const DATE_COL_WIDTH = 128;
-
-/** 여행지와 기간 사이. 한 줄 정보로 읽힐 만큼만 띄운다. */
-const DATE_COL_GAP = 12;
+const DESTINATION_COL_WIDTH = 120;
+const DATE_COL_GAP = 14;
+const DATE_COL_WIDTH = 112;
 
 /** 실물 카드 모서리. */
 const CARD_RADIUS = 18;
@@ -135,12 +140,13 @@ function CardBackdrop({
 }
 
 /**
- * 한 줄짜리 여행 표시 — 여행지(가변) + 기간(고정 폭).
+ * 한 줄짜리 여행 표시 — 여행지 칸(고정 폭 · 말줄임) + 기간 칸(고정 폭 · 왼쪽 정렬).
  *
- *   [오사카 · 외 1건        ][10.31 – 11.01]
- *    ↑ 남는 폭 · 말줄임        ↑ DATE_COL_WIDTH 고정 · 왼쪽 정렬
+ *   [오사카 · 외 1건   ][  ][10.31 – 11.01]
+ *    ↑ 120 · 말줄임      14   ↑ 112 · 왼쪽 정렬
  *
  * '외 N건' 은 여행지 뒤에 shrink-0 으로 붙여 여행지가 잘려도 남는다.
+ * 줄 전체는 self-start 라 카드 오른쪽까지 뻗지 않는다.
  */
 function TripLine({
   trip,
@@ -152,10 +158,14 @@ function TripLine({
   theme: GroupCardTheme;
 }) {
   return (
-    <View style={{ height: TRIP_LINE_HEIGHT }} className="flex-row items-center">
-      <View className="flex-1 flex-row items-center" style={{ marginRight: DATE_COL_GAP }}>
+    <View style={{ height: TRIP_LINE_HEIGHT }} className="flex-row items-center self-start">
+      <View
+        className="flex-row items-center"
+        style={{ width: DESTINATION_COL_WIDTH, marginRight: DATE_COL_GAP }}
+      >
         <Text
           numberOfLines={1}
+          ellipsizeMode="tail"
           className="shrink font-semibold"
           style={{ fontSize: 13.5, lineHeight: 20, color: theme.ink }}
         >
@@ -212,8 +222,8 @@ function MetaLabel({ children, theme }: { children: string; theme: GroupCardThem
  *   ┌ [logo] TripPot 모임              👥 4명 ┐   ← 브랜드 라벨 · 인원(PERSONAL 은 종류)
  *   │ 여행계                                  │   ← 모임명 = 카드의 주인공
  *   │ 준비 중인 여행                           │
- *   │ 오사카                 10.31 – 11.01    │   ← 여행지(가변) + 기간(고정 폭)
- *   │ 후쿠오카 · 외 1건       12.04 – 12.07    │
+ *   │ 오사카        10.31 – 11.01             │   ← 여행지 칸 + 기간 칸, 왼쪽에 묶음
+ *   │ 후쿠오카 · 외 1건  12.04 – 12.07         │
  *   │ ──────────────────────────────────────  │
  *   │ 지난 여행 2회                   CREATED │   ← PERSONAL 은 오른쪽이 빈다
  *   │                                26.09.04 │

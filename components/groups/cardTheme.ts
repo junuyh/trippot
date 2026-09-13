@@ -4,11 +4,14 @@
 // 모임 목록 카드를 실물 금융 카드처럼 그린다. 여권(마이페이지)이 아니라 **카드**다.
 // 카드마다 다른 색을 입혀 목록에서 한 장 한 장이 구분되게 한다.
 //
-// ── 테마 배정 규칙 ──────────────────────────────────────────────────────────
-//   · 정해진 세트(6개) 중 하나를 **카드 key 로 고정** 배정한다. 랜덤이 아니다.
+// ── 테마 배정 규칙 (2026-09-14 · 총 7종) ───────────────────────────────────
+//   · PERSONAL(개인 여행) 카드는 **Lavender Air 1종 고정**. 해시를 돌리지 않는다.
+//     내 여권(마이페이지)과 같은 계열이라 "내 것" 으로 읽힌다.
+//   · 실제 모임은 **GROUP 전용 6종**(Mint Journey · Sky Route · Sunset Rose · Sand Dune ·
+//     Night Indigo · Terracotta Route) 중 groupId 해시로 고정 배정한다. 랜덤이 아니다.
 //     같은 모임은 앱을 껐다 켜도, 정렬이 바뀌어도 늘 같은 색이다.
-//   · PERSONAL(개인 여행) 카드는 Lavender 고정. 내 여권(마이페이지)과 같은 계열이라
-//     "내 것" 으로 읽힌다. 실제 모임은 나머지 5개에서 groupId 해시로 고른다.
+//   · 두 풀은 겹치지 않는다 — Lavender 는 모임에 나오지 않는다.
+//   · 이름(name)은 개발용 토큰이다. 화면에 보여주지 않는다.
 //   · DB 에 저장하지 않는다. 나중에 사용자가 직접 고르는 기능이 생기면 그 값이
 //     이 함수 결과를 덮으면 된다.
 //
@@ -38,6 +41,7 @@ export type GroupCardTheme = {
   unselected: string;
 };
 
+/** Lavender Air — 개인 여행 전용. */
 const LAVENDER: GroupCardTheme = {
   name: 'lavender',
   paperStart: '#EFECF9',
@@ -50,7 +54,12 @@ const LAVENDER: GroupCardTheme = {
   unselected: '#B9B4D2',
 };
 
-/** 실제 모임이 나눠 갖는 테마. Lavender 는 개인 여행 전용이라 여기 없다. */
+/**
+ * 실제 모임이 나눠 갖는 6종. Lavender 는 개인 여행 전용이라 여기 없다.
+ *   mint = Mint Journey · sky = Sky Route · rose = Sunset Rose · sand = Sand Dune ·
+ *   indigo = Night Indigo · terracotta = Terracotta Route
+ * ⚠️ 순서를 바꾸면 기존 모임의 색이 바뀐다. 끝에만 붙인다.
+ */
 const GROUP_THEMES: GroupCardTheme[] = [
   {
     name: 'mint',
@@ -107,6 +116,20 @@ const GROUP_THEMES: GroupCardTheme[] = [
     pattern: '#4A569E',
     unselected: '#B3B9D8',
   },
+  {
+    // Terracotta Route — 따뜻한 벽돌 · 살구 · 브라운. 석양 진 오래된 골목.
+    // rose(핑크) · sand(베이지) 사이가 아니라 그 옆의 **주황빛 갈색** 이다.
+    // 쨍한 주황이 아니라 채도를 낮춘 벽돌색. 잉크는 가지색 섞인 진갈색.
+    name: 'terracotta',
+    paperStart: '#F9E8DE',
+    paperEnd: '#EFD1C0',
+    ink: '#4A2C26',
+    secondary: '#A47B6B',
+    accent: '#9B5A3F',
+    rule: '#E7CDBF',
+    pattern: '#B9744F',
+    unselected: '#D8B7A5',
+  },
 ];
 
 /** 문자열 → 작은 정수. 같은 입력이면 늘 같은 값. (djb2) */
@@ -118,7 +141,7 @@ function hashString(value: string): number {
   return hash;
 }
 
-/** 카드가 쓸 테마. PERSONAL 은 Lavender 고정, GROUP 은 groupId 로 고정 배정. */
+/** 카드가 쓸 테마. PERSONAL 은 Lavender Air 고정, GROUP 은 groupId 해시 % 6 으로 고정 배정. */
 export function pickGroupCardTheme(card: GroupTravelCardData): GroupCardTheme {
   if (card.kind === 'PERSONAL') return LAVENDER;
   return GROUP_THEMES[hashString(card.groupId) % GROUP_THEMES.length];
