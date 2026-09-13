@@ -1,15 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { format, isValid, parseISO } from 'date-fns';
-import { Image, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
 
-import { PASSPORT } from './passport';
+import { PASSPORT, WorldMapWatermark } from './passport';
 import type { MyProfile } from './types';
 
-// 여권 사진 칸. 3:4 세로 직사각형이다. 원형이 아니다.
-// ⚠️ 배지는 같이 키우지 않는다. absolute bottom/right 라 칸 크기가 바뀌어도 모서리에 붙는다.
-const PHOTO_WIDTH = 92;
-const PHOTO_HEIGHT = 122;
-const EDIT_BADGE_SIZE = 24;
+// 여권 사진 칸. 세로 직사각형이다. 원형이 아니다.
+// ⚠️ 모서리는 4 — 실제 여권 사진처럼 거의 각지게. (2026-09-13 · 12 → 4)
+// ⚠️ 배지는 칸 **바깥** 우하단에 걸친다. 칸 안에 있으면 사진을 가리고 답답했다.
+const PHOTO_WIDTH = 104;
+const PHOTO_HEIGHT = 132;
+const PHOTO_RADIUS = 4;
+const EDIT_BADGE_SIZE = 28;
+/** 배지가 칸 바깥으로 나가는 만큼. 바깥 View 가 이만큼 여백을 가져 잘리지 않는다. */
+const EDIT_BADGE_OVERHANG = 10;
 
 /** 없는 값. 자동으로 추정해 채우지 않는다. */
 const EMPTY = '—';
@@ -89,16 +94,27 @@ export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: 
   // 이번 세션에서 고른 이미지가 최우선. 없으면 저장된 이미지, 그것도 없으면 기본 아이콘.
   const imageUri = pickedImageUri ?? profile.profileImageUrl;
 
+  // 워터마크는 **정보 칼럼 안에서만** 보인다. 사진 칸 뒤로 깔리지 않는다.
+  // 칼럼 폭을 onLayout 으로 재서 그 폭에 맞춘다. 절대 좌표를 박지 않는다.
+  const [infoWidth, setInfoWidth] = useState(0);
+  const onInfoLayout = (e: LayoutChangeEvent) => setInfoWidth(e.nativeEvent.layout.width);
+
   return (
     <View className="flex-row">
       {/* ── 왼쪽: 사진 칸 ─────────────────────────────────────────────── */}
       {/*
         ⚠️ 'PHOTO' 라벨을 두지 않는다. (2026-09-13) 사진 칸의 위 끝이 오른쪽
-           TYPE 라벨의 위 끝과 같은 높이라야 한 줄로 읽힌다. 라벨이 있으면
-           사진이 그만큼 내려가 정보와 어긋난다.
+           TYPE 라벨의 위 끝과 같은 높이라야 한 줄로 읽힌다.
+        ⚠️ 바깥 View 는 overflow 를 자르지 않는다. 배지가 칸 밖으로 나간다.
+           오른쪽·아래 여백(EDIT_BADGE_OVERHANG)만큼 자리를 비워 둔다.
       */}
-      <View>
-        {/* 사진 전체가 이미지 변경 터치 영역이다. 배지는 그 안에서 한 번 더 강조한다. */}
+      {/* ⚠️ self-start — flex-row 의 기본 stretch 로 이 칼럼이 오른쪽 높이만큼 늘어나면
+          배지의 bottom:0 이 행 바닥으로 내려가 사진에서 떨어진다. */}
+      <View
+        className="self-start"
+        style={{ paddingRight: EDIT_BADGE_OVERHANG, paddingBottom: EDIT_BADGE_OVERHANG }}
+      >
+        {/* 사진 전체가 이미지 변경 터치 영역이다. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="프로필 사진 변경"
@@ -107,7 +123,7 @@ export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: 
           style={{
             width: PHOTO_WIDTH,
             height: PHOTO_HEIGHT,
-            borderRadius: 12,
+            borderRadius: PHOTO_RADIUS,
             borderWidth: 1,
             borderColor: PASSPORT.rule,
           }}
@@ -121,34 +137,61 @@ export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: 
             />
           ) : (
             // 기본 아이콘. 새 이미지 에셋을 추가하지 않는다.
-            <Ionicons name="person" size={56} color={PASSPORT.placeholder} />
+            <Ionicons name="person" size={60} color={PASSPORT.placeholder} />
           )}
+        </Pressable>
 
-          {/* 편집 배지 — absolute 라 레이아웃에 영향이 없다. */}
-          <View
-            style={{
-              width: EDIT_BADGE_SIZE,
-              height: EDIT_BADGE_SIZE,
-              borderColor: PASSPORT.rule,
-            }}
-            className="absolute bottom-1.5 right-1.5 items-center justify-center rounded-full border bg-white"
-          >
-            <Ionicons name="pencil" size={12} color={PASSPORT.label} />
-          </View>
+        {/*
+          편집 배지 — 칸 바깥 우하단에 살짝 걸친다. 같은 handler 다.
+          ⚠️ 사진 칸의 형제라 칸의 overflow hidden 에 잘리지 않는다.
+        */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="프로필 사진 변경"
+          hitSlop={6}
+          onPress={onPressChangeImage}
+          style={{
+            position: 'absolute',
+            right: 0,
+            bottom: 0,
+            width: EDIT_BADGE_SIZE,
+            height: EDIT_BADGE_SIZE,
+            borderColor: PASSPORT.rule,
+            shadowColor: PASSPORT.ink,
+            shadowOpacity: 0.08,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 1 },
+            elevation: 1,
+          }}
+          className="items-center justify-center rounded-full border bg-white active:opacity-70"
+        >
+          <Ionicons name="pencil" size={13} color={PASSPORT.label} />
         </Pressable>
       </View>
 
       {/* ── 오른쪽: 필드 ──────────────────────────────────────────────── */}
-      {/* 브랜드(MY TRAVEL PASSPORT · 로고)는 패널 맨 윗줄로 올라갔다. (TravelPassportPanel)
+      {/* 브랜드(MY TRAVEL PASSPORT · 로고)는 패널 맨 윗줄에 있다. (TravelPassportPanel)
           여기는 TYPE 부터 시작해 사진 칸과 위 끝이 맞는다. */}
-      <View className="ml-5 flex-1">
+      <View className="ml-4 flex-1" onLayout={onInfoLayout}>
+        {/* 워터마크. 이 칼럼 폭에 맞춰 오른쪽 위에. 글자 뒤 · 터치 안 막음. */}
+        {infoWidth > 0 ? (
+          <View pointerEvents="none" style={{ position: 'absolute', right: -6, top: 6 }}>
+            <WorldMapWatermark width={infoWidth + 6} height={(infoWidth + 6) * (150 / 360)} />
+          </View>
+        ) : null}
+
         <View className="gap-3">
           <View className="flex-row gap-3">
             <Field label="TYPE" value="TRAVELER" />
             <Field label="TRAVEL BASE" value="KOR" />
           </View>
           <Field label="NAME" value={profile.name} strong />
-          {/* ⚠️ 영문 이름 컬럼이 없다. '지수' 를 JISU 로 추정해 넣지 않는다. */}
+          {/*
+            ⚠️ 영문 이름 컬럼이 없다. '지수' 를 JISU 로 추정해 넣지 않는다.
+            ⚠️ 수정 버튼도 두지 않는다. (2026-09-13 audit) users 에 저장할 자리가 없어
+               버튼을 두면 눌러도 남는 게 없다. 컬럼이 생기면 이 줄 오른쪽 끝에
+               작은 pencil 을 붙이고 사진 변경과는 별도 handler 로 잇는다.
+          */}
           <Field label="ENGLISH NAME" value={EMPTY} />
           <View className="flex-row gap-3">
             <Field label="MEMBER SINCE" value={toMemberSince(profile.memberSince)} />

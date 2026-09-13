@@ -401,14 +401,14 @@ export default function ScreenMY01() {
 
       {/* ── 하단: 메뉴 · action ───────────────────────────────────────── */}
       <View className="px-4 pt-7">
-        <MenuSection title="내 커뮤니티 활동" icon="chatbubbles-outline">
+        <MenuSection title="내 커뮤니티 활동">
           <MenuRow label="작성한 게시글" onPress={handlePressMyPosts} />
           <MenuRow label="작성한 댓글" onPress={handlePressMyComments} />
           <MenuRow label="좋아요" onPress={handlePressMyLikes} isLast />
         </MenuSection>
 
         <View className="mt-7">
-          <MenuSection title="설정" icon="settings-outline">
+          <MenuSection title="설정">
             <MenuRow label="계정 관리" onPress={handlePressAccount} />
             <MenuRow label="알림 설정" onPress={handlePressNotification} />
             <MenuRow label="이용약관" onPress={handlePressTerms} />

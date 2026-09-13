@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { Image, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Image, Text, View } from 'react-native';
 
-import { MRZ_FONT, PASSPORT, WorldMapWatermark } from './passport';
+import { MRZ_FONT, PASSPORT } from './passport';
 import { ProfileSection } from './ProfileSection';
 import { TripSummaryCards } from './TripSummaryCards';
 import type { MyProfile, MyTripCounts } from './types';
@@ -36,7 +35,7 @@ type Props = {
  *   │  ── 얇은 선 ──
  *   │  TripSummaryCards    내 여행 3칸
  *   │  MRZ 장식 글줄
- *   └ 세계지도 워터마크는 바탕 오른쪽에 넓게
+ *   └ 세계지도 워터마크는 ProfileSection 의 정보 칼럼 안에만 (사진 칸을 피한다)
  *
  * ⚠️ 테두리 · 그림자 · 둥근 모서리를 주지 않는다. 전에는 카드 한 장으로 감쌌는데
  *    안쪽이 좁아 보였다. 흰 헤더 아래 바로 종이가 깔리고, 안쪽 여백은 화면의
@@ -53,34 +52,17 @@ export function TravelPassportPanel({
   onPressTraveling,
   onPressPast,
 }: Props) {
-  // 워터마크는 영역 폭에 맞춘다. 절대 좌표를 박지 않고 onLayout 으로 잰다.
-  const [width, setWidth] = useState(0);
-  const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
-
   return (
-    <View
-      onLayout={onLayout}
-      className="overflow-hidden px-4 pb-4 pt-4"
-      style={{ backgroundColor: PASSPORT.paper }}
-    >
-      {/* 워터마크. 정보 영역 오른쪽에 넓게, 글자 뒤. 터치를 막지 않는다. */}
-      {width > 0 ? (
-        <View
-          pointerEvents="none"
-          style={{ position: 'absolute', right: -width * 0.06, top: 34 }}
-        >
-          <WorldMapWatermark width={width * 0.92} height={width * 0.46} />
-        </View>
-      ) : null}
-
-      {/* 맨 윗줄. 왼쪽 끝 제목 · 오른쪽 끝 로고. 여권 페이지의 머리다. */}
+    <View className="overflow-hidden px-4 pb-4 pt-4" style={{ backgroundColor: PASSPORT.paper }}>
+      {/* 맨 윗줄. 왼쪽 끝 제목 · 오른쪽 끝 로고. 여권 페이지의 머리다.
+          ⚠️ 제목은 이 영역의 메인 타이틀이다. 라벨 크기가 아니라 제목 크기(16 / 800). */}
       <View className="flex-row items-center justify-between">
         <Text
           style={{
-            fontSize: 12.5,
-            lineHeight: 16,
-            letterSpacing: 1.4,
-            fontWeight: '700',
+            fontSize: 16,
+            lineHeight: 20,
+            letterSpacing: 1.6,
+            fontWeight: '800',
             color: PASSPORT.accent,
           }}
         >

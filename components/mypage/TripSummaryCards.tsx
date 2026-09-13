@@ -32,8 +32,9 @@ function CountColumn({
       accessibilityRole="button"
       accessibilityLabel={`${label} ${count}건`}
       onPress={onPress}
-      className="flex-1 py-1.5 active:opacity-60"
-      style={divider ? { borderLeftWidth: 1, borderLeftColor: PASSPORT.rule, paddingLeft: 16 } : undefined}
+      // 라벨 · 숫자 모두 칸 가운데. (2026-09-13) 왼쪽 정렬이면 세로선과 붙어 보였다.
+      className="flex-1 items-center py-1.5 active:opacity-60"
+      style={divider ? { borderLeftWidth: 1, borderLeftColor: PASSPORT.rule } : undefined}
     >
       <View className="flex-row items-center">
         <Text numberOfLines={1} className="shrink" style={{ fontSize: 12, lineHeight: 16, color: PASSPORT.label }}>
@@ -42,7 +43,7 @@ function CountColumn({
         <Ionicons name="chevron-forward" size={12} color={PASSPORT.hint} />
       </View>
       <Text
-        className="mt-1.5 font-black"
+        className="mt-1.5 text-center font-black"
         style={{ fontSize: 30, lineHeight: 36, letterSpacing: -0.6, color: PASSPORT.accent, ...NUM }}
       >
         {count}
