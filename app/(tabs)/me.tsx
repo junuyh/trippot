@@ -32,8 +32,7 @@ import {
   MenuRow,
   MenuSection,
   NotificationBellButton,
-  ProfileSection,
-  TripSummaryCards,
+  TravelPassportPanel,
   type MyProfile,
   type MyTripCounts,
 } from '@/components/mypage';
@@ -105,6 +104,8 @@ export default function ScreenMY01() {
       setProfile({
         name: user.name,
         profileImageUrl: user.profile_image_url,
+        // 여권 MEMBER SINCE. users.created_at = 이 계정으로 TripPot 에 처음 들어온 날.
+        memberSince: user.created_at ?? null,
       });
       setCounts({ planning, traveling, past });
       setLoadState('ready');
@@ -370,11 +371,13 @@ export default function ScreenMY01() {
   }
 
   // 화면은 두 영역으로 읽힌다.
-  //   위 (pot-visual) — 내 상태와 여행.  프로필 · 내 여행
-  //   아래 (white)    — navigation 과 action.  커뮤니티 · 설정 · 로그아웃
+  //   위   — "TripPot 여행 여권" 패널. 프로필 · 내 여행 (2026-09-13)
+  //          흰 헤더 아래 연라벤더 종이 한 장이 섬처럼 놓인다. 상단 전체를
+  //          칠하지 않는다. 헤더도 흰색 그대로다.
+  //   아래 — navigation 과 action.  커뮤니티 · 설정 · 로그아웃 (흰 바탕)
   //
   // ⚠️ ScrollView 자체는 흰색이다. 내용이 짧아 아래가 남을 때 그 빈자리가
-  //    하단 영역과 이어져야 한다. 회색이면 흰 블록이 중간에서 끊겨 보인다.
+  //    하단 영역과 이어져야 한다.
   //
   // ⚠️ pb-28 은 하단 탭바 자리다. FloatingTabBar 가 화면 위에 떠 있어(absolute)
   //    내용을 가린다. 바 높이 64 + 안전영역(최소 18)을 덮는 값이다.
@@ -386,27 +389,21 @@ export default function ScreenMY01() {
       {header}
 
       <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
-      {/* ── 상단: 개인 · 여행 ─────────────────────────────────────────── */}
-      <View className="bg-pot-visual px-4 pb-7 pt-4">
-        <ProfileSection
+      {/* ── 상단: 여권 패널 (프로필 · 내 여행) ─────────────────────────── */}
+      <View className="px-4 pt-3">
+        <TravelPassportPanel
           profile={profile}
           pickedImageUri={pickedImageUri}
           onPressChangeImage={() => void handleChangeProfileImage()}
+          counts={counts}
+          onPressPlanning={handlePressPlanningTrips}
+          onPressTraveling={handlePressTravelingTrips}
+          onPressPast={handlePressPastTrips}
         />
-
-        {/* 섹션 간격은 홈과 같은 mt-7 이다. */}
-        <View className="mt-7">
-          <TripSummaryCards
-            counts={counts}
-            onPressPlanning={handlePressPlanningTrips}
-            onPressTraveling={handlePressTravelingTrips}
-            onPressPast={handlePressPastTrips}
-          />
-        </View>
       </View>
 
       {/* ── 하단: 메뉴 · action ───────────────────────────────────────── */}
-      <View className="px-4 pt-7">
+      <View className="px-4 pt-8">
         <MenuSection title="내 커뮤니티 활동">
           <MenuRow label="작성한 게시글" onPress={handlePressMyPosts} />
           <MenuRow label="작성한 댓글" onPress={handlePressMyComments} />

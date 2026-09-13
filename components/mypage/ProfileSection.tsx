@@ -1,16 +1,64 @@
 import { Ionicons } from '@expo/vector-icons';
+import { format, isValid, parseISO } from 'date-fns';
 import { Image, Pressable, Text, View } from 'react-native';
 
+import { PASSPORT } from './passport';
 import type { MyProfile } from './types';
 
-// 원형 이미지 지름.
-// ⚠️ 배지는 같이 키우지 않는다. 배지가 커지면 사진을 덮는다.
-//    absolute bottom-0 right-0 라 지름이 바뀌어도 원 가장자리에 그대로 붙는다.
-//    (지름 d 원의 45° 지점은 0.854d, 배지 중심은 d-12 — 84 에서 거의 정확히 겹친다)
-// ⚠️ 배지는 같이 키우지 않는다. 배지가 커지면 사진을 덮는다.
-//    absolute bottom-0 right-0 라 지름이 바뀌어도 원 가장자리에 그대로 붙는다.
-const AVATAR_SIZE = 84;
+// 여권 사진 칸. 3:4 세로 직사각형이다. 원형이 아니다.
+// ⚠️ 배지는 같이 키우지 않는다. absolute bottom/right 라 칸 크기가 바뀌어도 모서리에 붙는다.
+const PHOTO_WIDTH = 92;
+const PHOTO_HEIGHT = 122;
 const EDIT_BADGE_SIZE = 24;
+
+/** 없는 값. 자동으로 추정해 채우지 않는다. */
+const EMPTY = '—';
+
+/** 여권의 "라벨 위 · 값 아래" 한 칸. 값이 강조되고 라벨은 작게 위에 붙는다. */
+function Field({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  /** 이름처럼 가장 큰 값 */
+  strong?: boolean;
+}) {
+  return (
+    <View className="flex-1">
+      <Text
+        style={{
+          fontSize: 9.5,
+          lineHeight: 13,
+          letterSpacing: 0.8,
+          fontWeight: '600',
+          color: PASSPORT.label,
+        }}
+      >
+        {label}
+      </Text>
+      <Text
+        numberOfLines={1}
+        className={strong ? 'font-black' : 'font-semibold'}
+        style={
+          strong
+            ? { fontSize: 20, lineHeight: 26, letterSpacing: -0.4, color: PASSPORT.ink, marginTop: 1 }
+            : { fontSize: 13, lineHeight: 18, color: PASSPORT.ink, marginTop: 1 }
+        }
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+/** ISO → '2026.09.08'. 못 읽으면 '—'. */
+function toMemberSince(value: string | null): string {
+  if (!value) return EMPTY;
+  const parsed = parseISO(value);
+  return isValid(parsed) ? format(parsed, 'yyyy.MM.dd') : EMPTY;
+}
 
 type Props = {
   profile: MyProfile;
@@ -21,71 +69,120 @@ type Props = {
 };
 
 /**
- * 5-1 프로필. (docs/09_IA_v1.md §5-1)
+ * 5-1 프로필 — 여권 정보 페이지의 윗칸. (docs/09_IA_v1.md §5-1 · 2026-09-13)
  *
- * 왼쪽에 이름과 연결된 로그인 계정, 오른쪽에 원형 이미지를 둔다.
- * Figma 의 좌/우 배치와 정보 위계(이름이 가장 큼)를 따른다.
+ *   왼쪽  사진 칸(3:4) + 편집 배지
+ *   오른쪽 TripPot 로고 · MY TRAVEL PASSPORT · 필드들
  *
- * ⚠️ 계정 줄은 navigation 이 아니다. Pressable 도 chevron 도 두지 않는다.
- *    계정관리(/me/account)는 아래 설정 메뉴에서 들어간다. 프로필 영역은
- *    보여주는 곳이고, 고치는 곳은 한 군데여야 한다.
+ * 필드는 실제 여권의 것을 **TripPot 서비스 정보로 바꿔** 쓴다.
+ *   TYPE = TRAVELER            (서비스 분류. 개인정보 아님)
+ *   TRAVEL BASE = KOR          (예산 추천의 기본 출발 국가. 사용자의 국적이 아니다)
+ *   NAME                       (카카오 닉네임 그대로)
+ *   ENGLISH NAME               (users 에 영문 이름 컬럼이 없다 → '—'. 자동 변환하지 않는다)
+ *   MEMBER SINCE               (users.created_at · TripPot 에 처음 들어온 날)
+ *   PASSPORT TYPE = TripPot Member (고정. 권한·요금제와 무관)
+ *
+ * ⚠️ 국적 · 생년월일 · 성별 · 여권 번호는 받지도 그리지도 않는다.
+ * ⚠️ 흰 카드로 감싸지 않는다. 바깥 TravelPassportPanel 이 내지 한 장이다.
  */
 export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: Props) {
   // 이번 세션에서 고른 이미지가 최우선. 없으면 저장된 이미지, 그것도 없으면 기본 아이콘.
   const imageUri = pickedImageUri ?? profile.profileImageUrl;
 
   return (
-    // ⚠️ 흰 카드로 감싸지 않는다. 상단(pot-visual) 전체가 하나의 영역으로
-    //    읽혀야 하는데, 프로필만 카드로 떠 있으면 영역이 둘로 갈라진다.
-    // ⚠️ 안쪽 여백은 px-1 만 둔다. (2026-09-13) 전에는 px-7 로 글자와 사진을
-    //    가운데로 모았는데, 그러면 이름의 왼쪽 선이 바로 아래 '내 여행' 제목·
-    //    메뉴 글자의 왼쪽 선(화면 px-4)과 어긋나 화면에 기준선이 둘이 됐다.
-    //    사진도 오른쪽 카드 끝에 맞춘다. 좌/우 구조(이름 ← → 사진)는 그대로다.
-    //
-    // ⚠️ py-5 는 프로필 영역 자체의 숨 쉴 자리다. 아래 '내 여행' 에 margin 을
-    //    더하는 방식은 프로필이 아니라 간격만 벌린다. 이 줄이 스스로 높이를
-    //    가져야 헤더와 '내 여행' 사이에서 하나의 영역으로 읽힌다.
-    <View className="flex-row items-center justify-between px-1 py-5">
-      <View className="flex-1 pr-4">
-        {/* 프로필의 핵심 정보다. 홈 인사말(19)보다 크게 둔다.
-            weight·색·letterSpacing 은 그대로다. */}
+    <View className="flex-row">
+      {/* ── 왼쪽: 사진 칸 ─────────────────────────────────────────────── */}
+      <View>
         <Text
-          numberOfLines={1}
-          className="font-black text-pot-ink"
-          style={{ fontSize: 24, lineHeight: 32, letterSpacing: -0.6 }}
+          style={{
+            fontSize: 9.5,
+            lineHeight: 13,
+            letterSpacing: 0.8,
+            fontWeight: '600',
+            color: PASSPORT.label,
+          }}
         >
-          {profile.name}
+          PHOTO
         </Text>
+        {/* 사진 전체가 이미지 변경 터치 영역이다. 배지는 그 안에서 한 번 더 강조한다. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="프로필 사진 변경"
+          onPress={onPressChangeImage}
+          className="mt-1.5 items-center justify-center overflow-hidden bg-white active:opacity-70"
+          style={{
+            width: PHOTO_WIDTH,
+            height: PHOTO_HEIGHT,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: PASSPORT.rule,
+          }}
+        >
+          {imageUri ? (
+            <Image
+              accessibilityIgnoresInvertColors
+              source={{ uri: imageUri }}
+              resizeMode="cover"
+              style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
+            />
+          ) : (
+            // 기본 아이콘. 새 이미지 에셋을 추가하지 않는다.
+            <Ionicons name="person" size={56} color={PASSPORT.placeholder} />
+          )}
+
+          {/* 편집 배지 — absolute 라 레이아웃에 영향이 없다. */}
+          <View
+            style={{
+              width: EDIT_BADGE_SIZE,
+              height: EDIT_BADGE_SIZE,
+              borderColor: PASSPORT.rule,
+            }}
+            className="absolute bottom-1.5 right-1.5 items-center justify-center rounded-full border bg-white"
+          >
+            <Ionicons name="pencil" size={12} color={PASSPORT.label} />
+          </View>
+        </Pressable>
       </View>
 
-      {/* 사진 전체가 이미지 변경 터치 영역이다. 배지는 그 안에서 한 번 더 강조한다. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="프로필 사진 변경"
-        onPress={onPressChangeImage}
-        style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
-        className="active:opacity-70"
-      >
-        {imageUri ? (
+      {/* ── 오른쪽: 브랜드 + 필드 ─────────────────────────────────────── */}
+      <View className="ml-4 flex-1">
+        {/* 브랜드. 로고는 홈 헤더와 같은 파일 · 조금 작게. 새 로고를 그리지 않는다. */}
+        <View className="flex-row items-center">
           <Image
-            accessibilityIgnoresInvertColors
-            source={{ uri: imageUri }}
-            resizeMode="cover"
-            style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 }}
+            source={require('@/assets/logo.png')}
+            style={{ width: 26, height: 21 }}
+            resizeMode="contain"
+            accessibilityRole="image"
+            accessibilityLabel="TripPot"
           />
-        ) : (
-          // 기본 아이콘. 새 이미지 에셋을 추가하지 않는다.
-          <Ionicons name="person-circle" size={AVATAR_SIZE} color="#CBD0D6" />
-        )}
-
-        {/* 편집 배지 — absolute 라 레이아웃에 영향이 없다. */}
-        <View
-          style={{ width: EDIT_BADGE_SIZE, height: EDIT_BADGE_SIZE }}
-          className="absolute bottom-0 right-0 items-center justify-center rounded-full border border-pot-line bg-white"
-        >
-          <Ionicons name="pencil" size={13} color="#747B88" />
+          <Text
+            className="ml-1.5"
+            style={{ fontSize: 15, lineHeight: 20, fontWeight: '700', letterSpacing: -0.3, color: PASSPORT.ink }}
+          >
+            TripPot
+          </Text>
         </View>
-      </Pressable>
+        <Text
+          className="mt-0.5"
+          style={{ fontSize: 11, lineHeight: 15, letterSpacing: 1.1, fontWeight: '700', color: PASSPORT.accent }}
+        >
+          MY TRAVEL PASSPORT
+        </Text>
+
+        <View className="mt-3 gap-2.5">
+          <View className="flex-row gap-3">
+            <Field label="TYPE" value="TRAVELER" />
+            <Field label="TRAVEL BASE" value="KOR" />
+          </View>
+          <Field label="NAME" value={profile.name} strong />
+          {/* ⚠️ 영문 이름 컬럼이 없다. '지수' 를 JISU 로 추정해 넣지 않는다. */}
+          <Field label="ENGLISH NAME" value={EMPTY} />
+          <View className="flex-row gap-3">
+            <Field label="MEMBER SINCE" value={toMemberSince(profile.memberSince)} />
+            <Field label="PASSPORT TYPE" value="TripPot Member" />
+          </View>
+        </View>
+      </View>
     </View>
   );
 }

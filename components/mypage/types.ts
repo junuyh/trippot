@@ -16,6 +16,11 @@ export type MyProfile = {
    */
   /** null 이면 기본 아이콘을 쓴다. 새 이미지 에셋을 추가하지 않는다. */
   profileImageUrl: string | null;
+  /**
+   * TripPot 사용자 행이 생긴 날(users.created_at · ISO). 여권의 MEMBER SINCE.
+   * ⚠️ 카카오 가입일 · 첫 여행일이 아니다. 없으면 null → '—'.
+   */
+  memberSince: string | null;
 };
 
 /** 5-2 내 여행 요약. 목록이 아니라 개수만 보여준다. */
