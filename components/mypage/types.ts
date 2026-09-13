@@ -38,3 +38,22 @@ export type MyTripCounts = {
   /** ENDED · SETTLED */
   past: number;
 };
+
+/**
+ * 알림 목록 한 줄. (2026-09-14)
+ *
+ * 두 출처를 한 목록으로 보여주기 위한 화면용 모양이다.
+ *   db    public.notifications 행           (created_at → createdAt · read_at → readAt)
+ *   push  기기에 도착해 보관한 알림           (receivedAt → createdAt)
+ * 사용자는 출처를 구분해서 볼 필요가 없다. 배지를 붙이지 않는다.
+ * 읽음·삭제만 출처에 따라 다른 함수로 간다. (app/me/notifications.tsx)
+ */
+export type NotificationListItem = {
+  source: 'db' | 'push';
+  id: string;
+  title: string;
+  body: string | null;
+  /** ISO. 정렬 기준. */
+  createdAt: string;
+  readAt: string | null;
+};
