@@ -76,8 +76,8 @@ export type InviteMyState = "NONE" | "ACTIVE" | "LEFT" | "PENDING" | "REJECTED";
  * /invite/[token] 라우트의 화면 상태. 서버 결과(invite_state · my_state)를 그대로
  * 담을 수 있는 모양이다. RPC 가 붙으면 resolve 결과 → 이 상태로 매핑만 한다.
  *
- * ⚠️ NOT_CONNECTED 는 **서버 함수가 아직 원격에 없을 때**의 안전한 자리다.
- *    가짜 미리보기를 보여주지 않는다. (2026-09-13 · PR #93 적용 전)
+ * ⚠️ NOT_CONNECTED 는 **개발용 미리보기인데 preview-* 토큰이 아닐 때**다. 미리보기에는
+ *    세션이 없어 RPC 를 부를 수 없고, 가짜 초대를 그리지도 않는다. (2026-09-14 · RPC 연결 후)
  */
 export type InviteRouteState =
   | { kind: "LOADING" }
@@ -88,11 +88,19 @@ export type InviteRouteState =
   | { kind: "NOT_FOUND" }
   | { kind: "VALID"; preview: InvitePreview; myState: InviteMyState; myRequestId: string | null };
 
-/** INV-04 여행장이 보는 참여 요청 한 건 */
+/**
+ * INV-04 여행장이 보는 참여 요청 한 건. get_trip_join_requests 한 행을 화면 모양으로.
+ *
+ * ⚠️ needsNewGroup 은 **안내용 hint** 다. 수락하면 새 모임이 생길지 미리 알려주는 값이고,
+ *    실제 판정(CASE A/B/C/D)은 승인 순간 서버가 락 안에서 다시 한다. 이 값으로 화면이
+ *    결정을 확정하지 않는다. (docs/12 §6 · §7)
+ */
 export type JoinRequestItem = {
   requestId: string;
   userId: string;
   name: string;
   /** ISO timestamp. 화면이 KST 로 바꿔 보여준다 */
   requestedAt: string;
+  /** 수락 시 새 모임이 만들어질 것으로 보이는가 (CASE C/D 예상). 안내용. */
+  needsNewGroup: boolean;
 };

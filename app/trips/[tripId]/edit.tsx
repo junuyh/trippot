@@ -32,7 +32,12 @@ import * as Clipboard from "expo-clipboard";
 import { Alert, ScrollView, Share, View } from "react-native";
 
 import { useAuth, useCurrentUserId } from "@/lib/auth/AuthProvider";
-import { InviteLinkSheet } from "@/components/invite";
+import {
+  InviteLinkSheet,
+  JoinRequestSheet,
+  NewGroupNameSheet,
+  type JoinRequestItem,
+} from "@/components/invite";
 import { TripEditForm } from "@/components/trip-edit";
 import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -44,6 +49,14 @@ import {
 } from "@/lib/invite/tripInviteLink";
 import { getMyGroups, type Group } from "@/lib/supabase/queries/groups";
 import { getOrCreateTripInvite } from "@/lib/supabase/queries/tripInvites";
+import {
+  TRIP_JOIN_ERROR,
+  acceptTripJoinRequest,
+  getTripJoinRequests,
+  rejectTripJoinRequest,
+  tripJoinErrorCode,
+} from "@/lib/supabase/queries/tripJoinRequests";
+import { isTripLeader } from "@/lib/trip/tripLeader";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
   getTripById,
@@ -83,6 +96,19 @@ export default function ScreenTripEdit() {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   /** 시트를 열 때 한 번 고른 첫 문장. 공유·복사가 같은 글을 쓴다 */
   const [inviteOpener, setInviteOpener] = useState<string>("");
+
+  // ── 참여 요청 (INV-04 · 여행장만) ──────────────────────────────────────────
+  // 여행장 = trips.leader_user_id. owner_user_id 는 판정에 쓰지 않는다. (docs/12 §2)
+  // 미리보기(세션 없음)에서는 RPC 가 AUTH_REQUIRED 를 내므로 부르지 않는다.
+  const [joinRequests, setJoinRequests] = useState<JoinRequestItem[]>([]);
+  /** 시트에 띄운 요청. null 이면 닫힘 */
+  const [decidingRequest, setDecidingRequest] = useState<JoinRequestItem | null>(null);
+  /** 수락·거절 RPC 진행 중. 두 버튼을 잠근다 (NFR-005) */
+  const [deciding, setDeciding] = useState(false);
+  /** 서버가 NEW_GROUP_NAME_REQUIRED 를 돌려준 요청. 이름 시트를 연다 */
+  const [namingRequest, setNamingRequest] = useState<JoinRequestItem | null>(null);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupNameError, setNewGroupNameError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
@@ -113,6 +139,40 @@ export default function ScreenTripEdit() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * 대기 중인 참여 요청. 여행장일 때만 부른다 — 아니면 서버가 NOT_LEADER 로 막고,
+   * 애초에 보여줄 자리도 없다. 실패해도 일정·인원 수정은 돼야 하므로 빈 목록으로 둔다.
+   */
+  const loadJoinRequests = useCallback(async () => {
+    if (!trip || isPreview || !isTripLeader(trip, userId)) {
+      setJoinRequests([]);
+      return;
+    }
+    try {
+      const rows = await getTripJoinRequests(trip.id);
+      setJoinRequests(
+        rows
+          .filter((row) => row.status === "PENDING")
+          .map((row) => ({
+            requestId: row.request_id,
+            userId: row.requester_user_id,
+            name: row.requester_name,
+            requestedAt: row.requested_at,
+            needsNewGroup: row.needs_new_group,
+          })),
+      );
+    } catch (error) {
+      // 화면은 빈 목록으로 두되, 개발 중에는 이유를 남긴다. 조용히 삼키면 RPC 실패와
+      // "요청 0건" 을 구분할 수 없다. 배포 빌드에서는 아무것도 찍지 않는다.
+      if (__DEV__) console.warn('[joinRequests] get_trip_join_requests failed', error);
+      setJoinRequests([]);
+    }
+  }, [trip, isPreview, userId]);
+
+  useEffect(() => {
+    void loadJoinRequests();
+  }, [loadJoinRequests]);
 
   // 모임 목록은 부가 정보다. 실패해도 일정·인원은 고칠 수 있어야 한다.
   useEffect(() => {
@@ -205,6 +265,101 @@ export default function ScreenTripEdit() {
       setInviting(false);
     }
   }, [inviting, isPreview, trip]);
+
+  /** 수락·거절이 끝난 뒤. 목록과 여행(모임 · 인원)을 다시 읽는다. */
+  const afterDecision = useCallback(async () => {
+    setDecidingRequest(null);
+    setNamingRequest(null);
+    setNewGroupName("");
+    setNewGroupNameError(null);
+    await Promise.all([load(), loadJoinRequests()]);
+  }, [load, loadJoinRequests]);
+
+  /**
+   * 수락. accept_trip_join_request 가 한 트랜잭션에서 CASE A/B/C/D 를 정한다.
+   *
+   *   NEW_GROUP_NAME_REQUIRED → 아무것도 안 쓰였다. 이름 시트를 열고 같은 요청을 다시 보낸다.
+   *   HEADCOUNT_REACHED       → 요청은 PENDING 그대로, 링크도 그대로. 안내만.
+   *   LEADER_NOT_CONFIGURED   → 사용자가 풀 수 없는 상태. 안내만, 데이터는 안 건드린다.
+   *   REQUEST_NOT_PENDING     → 그새 처리됐다. 목록만 다시 읽는다.
+   */
+  const handleAccept = useCallback(
+    async (request: JoinRequestItem, groupName?: string) => {
+      if (deciding) return;
+      setDeciding(true);
+      try {
+        await acceptTripJoinRequest(request.requestId, groupName);
+        await afterDecision();
+        Alert.alert("참여를 수락했어요", `${request.name}님이 이 여행에 함께해요.`);
+      } catch (error) {
+        const code = tripJoinErrorCode(error);
+        if (code === TRIP_JOIN_ERROR.NEW_GROUP_NAME_REQUIRED) {
+          // CASE C/D — 이 순간에만 이름을 묻는다. 시트를 바꿔 끼운다.
+          setDecidingRequest(null);
+          setNamingRequest(request);
+        } else if (code === TRIP_JOIN_ERROR.HEADCOUNT_REACHED) {
+          Alert.alert(
+            "지금은 수락할 수 없어요",
+            "예정 인원이 모두 참여 중이에요. 여행 인원을 늘리면 수락할 수 있어요. 요청은 그대로 남아 있어요.",
+          );
+        } else if (code === TRIP_JOIN_ERROR.LEADER_NOT_CONFIGURED) {
+          Alert.alert(
+            "여행장 정보가 없어요",
+            "이 여행은 여행장이 지정되지 않아 참여 요청을 처리할 수 없어요. 운영팀에 알려 주세요.",
+          );
+        } else if (code === TRIP_JOIN_ERROR.REQUEST_NOT_PENDING) {
+          await afterDecision();
+        } else {
+          Alert.alert("수락하지 못했어요", "잠시 후 다시 시도해 주세요.");
+        }
+      } finally {
+        setDeciding(false);
+      }
+    },
+    [deciding, afterDecision],
+  );
+
+  /** 거절. (invite_id, user_id) 단위로만 재요청이 막힌다. 사유는 받지 않는다. */
+  const handleReject = useCallback(
+    async (request: JoinRequestItem) => {
+      if (deciding) return;
+      setDeciding(true);
+      try {
+        await rejectTripJoinRequest(request.requestId);
+        await afterDecision();
+      } catch (error) {
+        const code = tripJoinErrorCode(error);
+        if (code === TRIP_JOIN_ERROR.REQUEST_NOT_PENDING) {
+          await afterDecision();
+        } else if (code === TRIP_JOIN_ERROR.LEADER_NOT_CONFIGURED) {
+          Alert.alert("여행장 정보가 없어요", "이 여행은 여행장이 지정되지 않아 처리할 수 없어요. 운영팀에 알려 주세요.");
+        } else {
+          Alert.alert("거절하지 못했어요", "잠시 후 다시 시도해 주세요.");
+        }
+      } finally {
+        setDeciding(false);
+      }
+    },
+    [deciding, afterDecision],
+  );
+
+  /** 새 모임 이름으로 수락. 빈 이름은 서버도 거부하므로 여기서 먼저 막는다. */
+  const handleSubmitNewGroupName = useCallback(() => {
+    if (!namingRequest) return;
+    const name = newGroupName.trim();
+    if (name.length === 0) {
+      setNewGroupNameError("모임 이름을 입력해 주세요.");
+      return;
+    }
+    setNewGroupNameError(null);
+    void handleAccept(namingRequest, name);
+  }, [namingRequest, newGroupName, handleAccept]);
+
+  /** 지금 모임 이름. 개인 여행이면 null. 시트 안내에 쓴다 */
+  const currentGroupName = useMemo(
+    () => groups.find((g) => g.id === trip?.group_id)?.name ?? null,
+    [groups, trip?.group_id],
+  );
 
   /** 초대 글 전문. 공유와 복사가 같은 글을 쓴다 */
   const inviteMessage = useMemo(
@@ -351,7 +506,53 @@ export default function ScreenTripEdit() {
         onSubmit={() => void handleSubmit()}
         onInvite={() => void handleInvite()}
         inviting={inviting}
+        joinRequests={joinRequests}
+        onPressJoinRequest={setDecidingRequest}
       />
+
+      {/* 참여 요청 수락·거절 (INV-04). 여행장에게만 목록이 오므로 여기까지 오면 여행장이다. */}
+      {decidingRequest ? (
+        <JoinRequestSheet
+          visible
+          onClose={() => (deciding ? undefined : setDecidingRequest(null))}
+          request={decidingRequest}
+          requestedAtLabel={format(parseISO(decidingRequest.requestedAt), "M월 d일 HH:mm")}
+          destination={trip.destination ?? "여행"}
+          // 이 화면은 계좌를 읽지 않는다. 일반 안내(예산·계획·사람·모은 돈)만 한다.
+          accountLabel={null}
+          needsNewGroup={decidingRequest.needsNewGroup}
+          fromGroupName={currentGroupName}
+          onAccept={() => void handleAccept(decidingRequest)}
+          onReject={() => void handleReject(decidingRequest)}
+          deciding={deciding}
+        />
+      ) : null}
+
+      {/* 새 모임 이름 (INV-05). 서버가 NEW_GROUP_NAME_REQUIRED 를 돌려줬을 때만. */}
+      {namingRequest ? (
+        <NewGroupNameSheet
+          visible
+          onClose={() => {
+            if (deciding) return;
+            setNamingRequest(null);
+            setNewGroupName("");
+            setNewGroupNameError(null);
+          }}
+          fromGroupName={currentGroupName}
+          destination={trip.destination ?? "여행"}
+          groupName={newGroupName}
+          onChangeGroupName={(value) => {
+            setNewGroupName(value);
+            if (newGroupNameError && value.trim().length > 0) setNewGroupNameError(null);
+          }}
+          groupNameError={newGroupNameError}
+          onBlurGroupName={() => {
+            if (newGroupName.trim().length === 0) setNewGroupNameError("모임 이름을 입력해 주세요.");
+          }}
+          onSubmit={handleSubmitNewGroupName}
+          submitting={deciding}
+        />
+      ) : null}
 
       {/* 초대 링크 공유. candidates · branch 는 넘기지 않는다 — 링크는 여행당
           하나이고, 모임 분기는 수락 시점에 판정한다. (InviteLinkSheet 헤더) */}
