@@ -23,7 +23,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -31,8 +31,7 @@ import {
   MenuRow,
   MenuSection,
   NotificationBellButton,
-  ProfileSection,
-  TripSummaryCards,
+  TravelPassportPanel,
   type MyProfile,
   type MyTripCounts,
 } from '@/components/mypage';
@@ -104,6 +103,8 @@ export default function ScreenMY01() {
       setProfile({
         name: user.name,
         profileImageUrl: user.profile_image_url,
+        // 여권 MEMBER SINCE. users.created_at = 이 계정으로 TripPot 에 처음 들어온 날.
+        memberSince: user.created_at ?? null,
       });
       setCounts({ planning, traveling, past });
       setLoadState('ready');
@@ -369,11 +370,13 @@ export default function ScreenMY01() {
   }
 
   // 화면은 두 영역으로 읽힌다.
-  //   위 (pot-visual) — 내 상태와 여행.  프로필 · 내 여행
-  //   아래 (white)    — navigation 과 action.  커뮤니티 · 설정 · 로그아웃
+  //   위   — "TripPot 여행 여권" 패널. 프로필 · 내 여행 (2026-09-13)
+  //          흰 헤더 아래 연라벤더 종이 한 장이 섬처럼 놓인다. 상단 전체를
+  //          칠하지 않는다. 헤더도 흰색 그대로다.
+  //   아래 — navigation 과 action.  커뮤니티 · 설정 · 로그아웃 (흰 바탕)
   //
   // ⚠️ ScrollView 자체는 흰색이다. 내용이 짧아 아래가 남을 때 그 빈자리가
-  //    하단 영역과 이어져야 한다. 회색이면 흰 블록이 중간에서 끊겨 보인다.
+  //    하단 영역과 이어져야 한다.
   //
   // ⚠️ pb-28 은 하단 탭바 자리다. FloatingTabBar 가 화면 위에 떠 있어(absolute)
   //    내용을 가린다. 바 높이 64 + 안전영역(최소 18)을 덮는 값이다.
@@ -385,24 +388,16 @@ export default function ScreenMY01() {
       {header}
 
       <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
-      {/* ── 상단: 개인 · 여행 ─────────────────────────────────────────── */}
-      <View className="bg-pot-visual px-4 pb-7 pt-4">
-        <ProfileSection
-          profile={profile}
-          pickedImageUri={pickedImageUri}
-          onPressChangeImage={() => void handleChangeProfileImage()}
-        />
-
-        {/* 섹션 간격은 홈과 같은 mt-7 이다. */}
-        <View className="mt-7">
-          <TripSummaryCards
-            counts={counts}
-            onPressPlanning={handlePressPlanningTrips}
-            onPressTraveling={handlePressTravelingTrips}
-            onPressPast={handlePressPastTrips}
-          />
-        </View>
-      </View>
+      {/* ── 상단: 여권 영역 (프로필 · 내 여행) — 화면 폭 전체에 깔린다 ──── */}
+      <TravelPassportPanel
+        profile={profile}
+        pickedImageUri={pickedImageUri}
+        onPressChangeImage={() => void handleChangeProfileImage()}
+        counts={counts}
+        onPressPlanning={handlePressPlanningTrips}
+        onPressTraveling={handlePressTravelingTrips}
+        onPressPast={handlePressPastTrips}
+      />
 
       {/* ── 하단: 메뉴 · action ───────────────────────────────────────── */}
       <View className="px-4 pt-7">
@@ -426,22 +421,24 @@ export default function ScreenMY01() {
           MenuRow 에 끼워 넣지 않고 여백을 띄워 위계를 구분한다.
         */}
         <View className="mt-7">
-          <View className="self-start">
-            <Text
-              accessibilityRole="button"
-              accessibilityLabel="로그아웃"
-              onPress={handlePressLogout}
-              suppressHighlighting
-              // py-3 + lineHeight 19 → 높이 43. 터치 영역을 지킨다.
-              // ⚠️ 색은 위 설정 메뉴(MenuRow)와 같은 text-pot-ink 다. pot-mute 는
-              //    비활성처럼 읽혀서, 실제로 눌리는 동작인데 못 누르는 것처럼 보였다.
-              //    빨강으로 강조하지는 않는다. 로그아웃은 파괴적 동작이 아니다.
-              className="py-3 text-pot-ink"
-              style={{ fontSize: 13.5, lineHeight: 19 }}
-            >
+          {/*
+            MenuRow 와 같은 높이(py-3.5 + 19 = 47)·글자 크기라 위 메뉴와 한 리듬이다.
+            다른 점은 구분선·chevron 이 없고 글자가 조금 굵은 것 — "이동" 이 아니라
+            "동작" 이라는 표시다. 아이콘은 두지 않는다. (2026-09-13)
+            ⚠️ 색은 MenuRow 와 같은 text-pot-ink 다. pot-mute 는 비활성처럼 읽혀서
+               실제로 눌리는 동작인데 못 누르는 것처럼 보였다.
+               빨강으로 강조하지는 않는다. 로그아웃은 파괴적 동작이 아니다.
+          */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="로그아웃"
+            onPress={handlePressLogout}
+            className="self-start py-3.5 active:opacity-60"
+          >
+            <Text className="font-semibold text-pot-ink" style={{ fontSize: 13.5, lineHeight: 19 }}>
               로그아웃
             </Text>
-          </View>
+          </Pressable>
         </View>
       </View>
 

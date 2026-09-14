@@ -3,47 +3,51 @@ import { Pressable, Text, View } from 'react-native';
 
 import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
 
+import { PASSPORT } from './passport';
 import type { MyTripCounts } from './types';
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
 
 /**
- * 카드 하나. Figma 는 152×70(≈2.17:1)이라 폭이 달라져도 비율을 유지한다.
- * 라벨은 작고 숫자가 크다 — 시안의 정보 위계를 그대로 따른다.
+ * 한 칸. 작은 라벨 아래 큰 숫자. 여권 내지의 통계 칸이다.
+ *
+ * ⚠️ 흰 카드가 아니다. 셋이 한 패널 안에 나란히 놓이고 사이에 얇은 세로선만 있다.
+ * 라벨 오른쪽에 chevron 을 둔다. 칸 전체가 눌리고, 누르면 그 탭의 목록으로 간다.
+ *    chevron 은 라벨보다 옅은 hint 색이라 "눌린다" 만 알리고 튀지 않는다. (2026-09-13)
  */
-function CountCard({
+function CountColumn({
   label,
   count,
   onPress,
+  divider,
 }: {
   label: string;
   count: number;
   onPress: () => void;
+  /** 왼쪽에 세로 구분선을 그릴지. 첫 칸은 없다. */
+  divider: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${label} ${count}건`}
       onPress={onPress}
-      // py-3 → py-4, 라벨-숫자 간격 6 → 12. 높이 75 → 89 다.
-      // 아래에만 빈 자리를 더하지 않고 위·사이·아래가 함께 늘어난다.
-      className="flex-1 rounded-2xl bg-white px-3 py-4 active:opacity-70"
-      style={{
-        shadowColor: '#111827',
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 2,
-      }}
+      // 라벨 · 숫자 모두 칸 가운데. (2026-09-13) 왼쪽 정렬이면 세로선과 붙어 보였다.
+      className="flex-1 items-center py-1.5 active:opacity-60"
+      style={divider ? { borderLeftWidth: 1, borderLeftColor: PASSPORT.rule } : undefined}
     >
       <View className="flex-row items-center">
-        <Text numberOfLines={1} className="shrink text-pot-mute" style={{ fontSize: 12.5, lineHeight: 17 }}>
+        <Text numberOfLines={1} className="shrink" style={{ fontSize: 12, lineHeight: 16, color: PASSPORT.label }}>
           {label}
         </Text>
-        <Ionicons name="chevron-forward" size={13} color="#8B94A2" />
+        <Ionicons name="chevron-forward" size={12} color={PASSPORT.hint} />
       </View>
-
-      <Text className="mt-3 text-center font-black text-pot-ink" style={{ fontSize: 22, lineHeight: 28, ...NUM }}>
+      {/* 숫자는 MY TRAVEL PASSPORT 와 같은 단(16 / 800). (2026-09-13 · 30 → 16)
+          제목보다 큰 숫자가 여권 머리줄을 눌렀다. 색만 강조(accent)로 남긴다. */}
+      <Text
+        className="mt-1 text-center"
+        style={{ fontSize: 16, lineHeight: 20, fontWeight: '800', color: PASSPORT.accent, ...NUM }}
+      >
         {count}
       </Text>
     </Pressable>
@@ -58,10 +62,14 @@ type Props = {
 };
 
 /**
- * 5-2 내 여행. (docs/09_IA_v1.md §5-2)
+ * 5-2 내 여행 — 여권 내지의 아랫칸. (docs/09_IA_v1.md §5-2 · 2026-09-13)
  *
- * MY-01 에서는 목록이 아니라 개수 요약만 보여준다.
- * Figma 의 2열 카드 구조를 유지한다. 폭은 px 로 고정하지 않고 flex-1 로 나눈다.
+ * MY-01 에서는 목록이 아니라 개수 요약만 보여준다. 세 칸이 같은 폭으로 나뉜다.
+ * 전에는 흰 카드 셋이었는데, 여권 한 장 안에서는 카드가 떠 있으면 안 돼서
+ * 라벨·숫자만 남겼다. 누르면 가는 곳은 그대로다. (/me/trips?filter=…)
+ *
+ * ⚠️ 라벨은 TRIP_STATUS_LABEL 을 쓴다. /me/trips 탭이 쓰는 것과 같은 상수라
+ *    칸과 탭의 이름이 갈라지지 않는다.
  */
 export function TripSummaryCards({
   counts,
@@ -71,32 +79,33 @@ export function TripSummaryCards({
 }: Props) {
   return (
     <View>
-      {/* 홈 SectionHeader 와 같은 단. (16 / 800 / -0.5) */}
       <Text
-        className="text-pot-ink"
-        style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5 }}
+        style={{ fontSize: 9.5, lineHeight: 13, letterSpacing: 0.8, fontWeight: '600', color: PASSPORT.label }}
+      >
+        TRAVEL SUMMARY
+      </Text>
+      {/* 홈 SectionHeader 와 같은 단(16 / 800 / -0.5). 색만 여권 잉크다. */}
+      <Text
+        className="mt-0.5"
+        style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5, color: PASSPORT.ink }}
       >
         내 여행
       </Text>
 
-      {/* ⚠️ 카드 폭을 px 로 정하지 않는다. flex-1 이라 셋이 같은 폭으로 나뉜다.
-          두 개일 때 gap-4 였는데 셋이 되면서 폭이 좁아져 gap-2.5 로 줄였다.
-          섹션 전체 너비와 화면 padding 은 그대로다.
-
-          ⚠️ 라벨은 TRIP_STATUS_LABEL 을 쓴다. /me/trips 탭이 쓰는 것과 같은
-             상수라 카드와 탭의 이름이 갈라지지 않는다. */}
-      <View className="mt-2.5 flex-row gap-2.5">
-        <CountCard
+      <View className="mt-3.5 flex-row">
+        <CountColumn
           label={TRIP_STATUS_LABEL.PLANNING}
           count={counts.planning}
           onPress={onPressPlanning}
+          divider={false}
         />
-        <CountCard
+        <CountColumn
           label={TRIP_STATUS_LABEL.TRAVELING}
           count={counts.traveling}
           onPress={onPressTraveling}
+          divider
         />
-        <CountCard label="지난 여행" count={counts.past} onPress={onPressPast} />
+        <CountColumn label="지난 여행" count={counts.past} onPress={onPressPast} divider />
       </View>
     </View>
   );

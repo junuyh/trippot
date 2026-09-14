@@ -30,9 +30,11 @@ export type GroupTripItem = {
 type GroupTravelCardBase = {
   name: string;
   /**
-   * 정렬용 생성 시각. ⚠️ 카드에 표시하지 않는다. '모임 생성순' 정렬에만 쓴다.
-   *   GROUP     groups.created_at
-   *   PERSONAL  trips.created_at  — 모임이 없으니 여행 것을 쓴다. 가짜 값을 만들지 않는다
+   * 생성 시각. (2026-09-13 정책)
+   *   GROUP     groups.created_at — '모임 생성순' 정렬 **그리고 카드의 CREATED 표시**에 쓴다.
+   *   PERSONAL  가장 최근 trips.created_at — **정렬에만** 쓴다. 모임이 없으니 여행 것을
+   *             빌린 값이라 카드에 "만든 날" 로 그리지 않는다. 여행을 만들 때마다 바뀐다.
+   * ⚠️ 가짜 값을 만들지 않는다.
    */
   createdAt: string;
   /**

@@ -13,6 +13,7 @@ export { NotificationList } from './NotificationList';
 export { NotificationSettingsList } from './NotificationSettingsList';
 export { ProfileSection } from './ProfileSection';
 export { SwipeToAction } from './SwipeToAction';
+export { TravelPassportPanel } from './TravelPassportPanel';
 export { TripSummaryCards } from './TripSummaryCards';
 export { WithdrawConfirmModal } from './WithdrawConfirmModal';
-export type { MyProfile, MyTripCounts } from './types';
+export type { MyProfile, MyTripCounts, NotificationListItem } from './types';
