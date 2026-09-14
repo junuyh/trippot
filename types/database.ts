@@ -1491,12 +1491,80 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_trip_join_request: {
+        Args: { p_new_group_name?: string; p_request_id: string }
+        Returns: {
+          group_id: string
+          request_id: string
+          resolved_case: string
+          trip_id: string
+        }[]
+      }
+      activate_group_member: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      activate_trip_member: {
+        Args: { p_trip_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      cancel_trip_join_request: {
+        Args: { p_request_id: string }
+        Returns: {
+          request_id: string
+          status: string
+        }[]
+      }
       get_or_create_trip_invite: {
         Args: { p_trip_id: string }
         Returns: {
           expires_at: string
           invite_id: string
           token: string
+        }[]
+      }
+      get_trip_join_requests: {
+        Args: { p_trip_id: string }
+        Returns: {
+          has_other_trips: boolean
+          is_group_member: boolean
+          needs_new_group: boolean
+          request_id: string
+          requested_at: string
+          requester_name: string
+          requester_user_id: string
+          status: string
+          trip_owner_type: string
+        }[]
+      }
+      reject_trip_join_request: {
+        Args: { p_request_id: string }
+        Returns: {
+          request_id: string
+          status: string
+        }[]
+      }
+      request_trip_join: {
+        Args: { p_token: string }
+        Returns: {
+          request_id: string
+          status: string
+          trip_id: string
+        }[]
+      }
+      resolve_trip_invite: {
+        Args: { p_token: string }
+        Returns: {
+          active_member_count: number
+          destination: string
+          end_date: string
+          headcount: number
+          invite_state: string
+          inviter_name: string
+          my_request_id: string
+          my_state: string
+          start_date: string
+          trip_id: string
         }[]
       }
     }
