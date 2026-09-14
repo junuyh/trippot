@@ -247,7 +247,18 @@ export function useLeaveTrip(options: Options = {}) {
   /** 실제로 나간다. 나간 뒤 상태를 DB 에서 다시 읽어 MEM-03 갈래를 정한다 */
   const runLeave = useCallback(
     async (delegateToUserId?: string, delegateToName?: string) => {
-      if (!ctx || busy || alsoLeaveGroup === null) return;
+      if (!ctx || busy) return;
+
+      /**
+       * ⚠️⚠️ 위임 경로는 '모임에서도 나갈지' 를 **묻지 않는다.** ⚠️⚠️
+       *    MEM-01 의 needsDelegate 갈래는 그 선택지를 그리지 않고 바로 MEM-02
+       *    로 넘어간다. 그래서 alsoLeaveGroup 이 null 로 남는데, 두 경로에
+       *    같은 가드를 걸었더니 **'넘기고 나가기' 를 눌러도 아무 일이 없었다.**
+       *    (2026-09-14 시뮬레이터에서 확인 · 훅으로 합치며 생긴 회귀)
+       *    위임은 여행만 나간다. 모임에는 남는다.
+       */
+      const alsoLeave = delegateToUserId ? false : alsoLeaveGroup;
+      if (alsoLeave === null) return;
       setBusy(true);
       setError(null);
       try {
@@ -256,14 +267,14 @@ export function useLeaveTrip(options: Options = {}) {
             tripId: ctx.trip.id,
             fromUserId: ctx.userId,
             toUserId: delegateToUserId,
-            alsoLeaveGroup,
+            alsoLeaveGroup: alsoLeave,
             groupId: ctx.trip.group_id,
           });
         } else {
           await leaveTrip({
             tripId: ctx.trip.id,
             userId: ctx.userId,
-            alsoLeaveGroup,
+            alsoLeaveGroup: alsoLeave,
             groupId: ctx.trip.group_id,
           });
         }
@@ -284,14 +295,14 @@ export function useLeaveTrip(options: Options = {}) {
         setSheetState(null);
         setDone(
           outcome === 'CANCELED'
-            ? { variant: 'canceled', alsoLeftGroup: alsoLeaveGroup }
+            ? { variant: 'canceled', alsoLeftGroup: alsoLeave }
             : delegateToUserId
               ? {
                   variant: 'delegated',
-                  alsoLeftGroup: alsoLeaveGroup,
+                  alsoLeftGroup: alsoLeave,
                   newLeaderName: delegateToName,
                 }
-              : { variant: 'left', alsoLeftGroup: alsoLeaveGroup },
+              : { variant: 'left', alsoLeftGroup: alsoLeave },
         );
         onLeft?.();
       } catch {
