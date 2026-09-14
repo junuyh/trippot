@@ -20,7 +20,7 @@ import { Text, View } from "react-native";
 import { Button } from "@/components/ui";
 
 import { PotMark } from "./PotMark";
-import type { InvitePreview } from "./types";
+import type { InviteMyState, InvitePreview } from "./types";
 
 type Props = {
   preview: InvitePreview;
@@ -28,8 +28,17 @@ type Props = {
   periodLabel: string | null;
   /** 로그인 상태인가. false 면 CTA 문구가 가입 유도로 바뀐다 */
   signedIn: boolean;
+  /**
+   * 내가 이 여행과 어떤 관계인가. (docs/12 §3 my_state · 2026-09-13)
+   *   NONE · LEFT   참여 요청 가능
+   *   ACTIVE        이미 참여 중 — 요청 버튼 대신 안내 · 여행으로 가기
+   * PENDING · REJECTED 는 이 화면이 아니라 화면 파일이 다른 뷰로 보낸다.
+   */
+  myState: Extract<InviteMyState, "NONE" | "LEFT" | "ACTIVE">;
   onRequestJoin: () => void;
   onDecline: () => void;
+  /** 이미 참여 중일 때 여행으로 가기. ACTIVE 에서만 쓴다 */
+  onGoToTrip?: () => void;
   /** 요청 전송 중 */
   requesting: boolean;
 };
@@ -38,10 +47,15 @@ export function InviteLandingView({
   preview,
   periodLabel,
   signedIn,
+  myState,
   onRequestJoin,
   onDecline,
+  onGoToTrip,
   requesting,
 }: Props) {
+  // 인원이 찼는가. ⚠️ 링크 상태가 아니다 — 요청은 보낼 수 있고 수락만 막힌다. (docs/12 §3)
+  const full = preview.activeMemberCount >= preview.headcount;
+
   return (
     <View className="flex-1 bg-white">
       <View className="flex-1 items-center justify-center px-7">
@@ -74,6 +88,7 @@ export function InviteLandingView({
               {periodLabel}
             </Text>
           ) : null}
+          {/* 예정 인원과 실제 참여 인원은 다른 수다. 둘 다 적는다. (docs/11 §1-1) */}
           <Text
             style={{
               marginTop: periodLabel ? 4 : 0,
@@ -82,11 +97,11 @@ export function InviteLandingView({
               textAlign: "center",
             }}
           >
-            {preview.headcount}명이 함께 가는 여행이에요
+            {preview.headcount}명 예정 · {preview.activeMemberCount}명 참여 중
           </Text>
         </View>
 
-        {/* 무엇이 아직 잠겨 있는지 */}
+        {/* 무엇이 아직 잠겨 있는지 · 어떻게 확정되는지 */}
         <Text
           style={{
             marginTop: 16,
@@ -96,16 +111,43 @@ export function InviteLandingView({
             textAlign: "center",
           }}
         >
-          예산과 함께하는 사람은{"\n"}참여가 확정되면 볼 수 있어요
+          {myState === "ACTIVE"
+            ? "이미 이 여행에 함께하고 있어요"
+            : "참여 요청을 보내면 여행장이 확인 후 수락할 수 있어요.\n예산과 함께하는 사람은 참여가 확정되면 볼 수 있어요"}
         </Text>
+
+        {/* 인원이 찼어도 링크를 막지 않는다. 요청은 되고, 여행장이 인원을 늘리면 수락된다. */}
+        {full && myState !== "ACTIVE" ? (
+          <Text
+            style={{
+              marginTop: 10,
+              fontSize: 12,
+              lineHeight: 19,
+              color: "#B45309",
+              textAlign: "center",
+            }}
+          >
+            지금은 예정 인원이 다 찼어요.{"\n"}요청은 보낼 수 있고, 여행장이 인원을 늘리면 수락돼요.
+          </Text>
+        ) : null}
       </View>
 
       <View className="px-5 pb-9" style={{ gap: 4 }}>
-        <Button
-          label={signedIn ? "참여 요청하기" : "가입하고 참여 요청하기"}
-          loading={requesting}
-          onPress={onRequestJoin}
-        />
+        {myState === "ACTIVE" ? (
+          <Button label="여행으로 가기" onPress={onGoToTrip ?? onDecline} />
+        ) : (
+          <Button
+            label={
+              !signedIn
+                ? "가입하고 참여 요청하기"
+                : myState === "LEFT"
+                  ? "다시 참여 요청하기"
+                  : "참여 요청하기"
+            }
+            loading={requesting}
+            onPress={onRequestJoin}
+          />
+        )}
         {!signedIn ? (
           <Text
             style={{

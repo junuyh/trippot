@@ -20,8 +20,13 @@ type Props = {
   destination: string;
   /** 여행 기간 표시용. 없으면 null */
   periodLabel: string | null;
-  onCancelRequest: () => void;
-  canceling: boolean;
+  /**
+   * 요청 취소. 넘기지 않으면 버튼을 그리지 않는다.
+   * ⚠️ 취소 서버 함수(cancel_trip_join_request)가 원격에 붙기 전까지 화면이 넘기지 않는다.
+   *    (2026-09-13 · PR #93 적용 후 연결) 취소할 길은 그때 열린다.
+   */
+  onCancelRequest?: () => void;
+  canceling?: boolean;
 };
 
 export function JoinWaitingView({
@@ -29,7 +34,7 @@ export function JoinWaitingView({
   destination,
   periodLabel,
   onCancelRequest,
-  canceling,
+  canceling = false,
 }: Props) {
   return (
     <View className="flex-1 bg-white">
@@ -46,7 +51,7 @@ export function JoinWaitingView({
             textAlign: "center",
           }}
         >
-          {ownerDisplayName}님의 확인을{"\n"}기다리고 있어요
+          여행 참여 요청을 보냈어요
         </Text>
 
         <Text
@@ -58,17 +63,20 @@ export function JoinWaitingView({
             textAlign: "center",
           }}
         >
-          수락되면 알림을 보내드릴게요.{"\n"}그때부터 여행 준비를 함께할 수 있어요.
+          여행장이 확인하고 있어요.{"\n"}수락되면 여행 준비를 함께할 수 있어요.
         </Text>
       </View>
 
       <View className="px-5 pb-9" style={{ gap: 4 }}>
-        <Button
-          label="요청 취소하기"
-          variant="secondary"
-          loading={canceling}
-          onPress={onCancelRequest}
-        />
+        {onCancelRequest ? (
+          <Button
+            label="요청 취소하기"
+            variant="secondary"
+            loading={canceling}
+            onPress={onCancelRequest}
+          />
+        ) : null}
+        {/* 초대한 사람은 여행장이 아닐 수 있다. 제목에는 '여행장' 을, 여기엔 초대자를 적는다. */}
         <Text
           style={{
             marginTop: 4,
@@ -79,6 +87,7 @@ export function JoinWaitingView({
         >
           {destination}
           {periodLabel ? ` · ${periodLabel}` : ""}
+          {` · ${ownerDisplayName}님의 초대`}
         </Text>
       </View>
     </View>

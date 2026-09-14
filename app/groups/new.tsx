@@ -175,10 +175,9 @@ export default function ScreenGroupNew() {
        *    비어 있어야 한다. 여기에 값을 넣으면 personalization 이 이 여행을
        *    개인 여행으로 잘못 집계한다. (personalization.ts:69)
        *
-       * ⚠️ 여행장은 이 칸이 아니라 **trips.leader_user_id** 다. 그 칼럼이
-       *    생기면 여기에 한 줄(leader_user_id: userId)이 추가된다.
-       *    owner_user_id 는 그대로 null 이다.
-       *    (.handoff/INV-마이그레이션-제안.sql ① · 2026-09-10 L 회신)
+       * ⚠️ leader_user_id 는 **건드리지 않는다.** 모임을 옮기는 것이지 여행을
+       *    새로 만드는 게 아니라 여행장은 그대로다. 여기서 덮어쓰면 남이 만든
+       *    여행을 옮기기만 해도 여행장이 바뀐다.
        *
        * ⚠️ fund_sources · 거래 · 예산은 건드리지 않는다. 여행에 딸려 있어
        *    group_id 만 바꾸면 함께 따라온다.

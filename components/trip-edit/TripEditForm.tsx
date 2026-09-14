@@ -28,6 +28,7 @@ import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { DateRangeCalendar, HeadcountStepper } from "@/components/trip-create";
 import { Button } from "@/components/ui";
 import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
+import type { JoinRequestItem } from "@/components/invite";
 import type { Group } from "@/lib/supabase/queries/groups";
 
 import { GroupChoiceList } from "./GroupChoiceList";
@@ -64,6 +65,14 @@ type Props = {
   onInvite: () => void;
   /** 지난 여행을 확인하는 중 */
   inviting: boolean;
+
+  /**
+   * 대기 중인 참여 요청. **여행장에게만** 온다 — 화면이 leader_user_id 로 걸러 넘긴다.
+   * 여행장이 아니면 빈 배열이고 아무것도 그리지 않는다. (docs/12 §6 · 2026-09-14)
+   */
+  joinRequests: JoinRequestItem[];
+  /** 요청 한 건을 눌렀을 때. 수락·거절 시트는 화면이 연다 */
+  onPressJoinRequest: (request: JoinRequestItem) => void;
 
   /** 저장 가능한 상태인가. 검증은 화면이 한다 */
   canSubmit: boolean;
@@ -125,6 +134,8 @@ export function TripEditForm({
   onSelectGroup,
   onInvite,
   inviting,
+  joinRequests,
+  onPressJoinRequest,
   canSubmit,
   saving,
   errorMessage,
@@ -244,7 +255,8 @@ export function TripEditForm({
 
         {/*
           초대 자리. 점선 테두리라 "여기에 사람을 더 넣는다" 로 읽힌다.
-          지난 여행이 있는 모임이면 화면이 새 모임 생성으로 보낸다.
+          모임을 안 골랐어도 링크는 나간다. 모임 정리는 여행장이 수락할 때 한다.
+          (docs/10_여행초대정책_v2.md §9-5 · 2026-09-11)
         */}
         <Pressable
           accessibilityRole="button"
@@ -283,13 +295,65 @@ export function TripEditForm({
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 13, fontWeight: "800", color: INK }}>여행 멤버 초대하기</Text>
             <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
-              {selectedGroup
-                ? "초대 링크를 보내면 상대가 참여를 요청하고, 수락하면 합류해요. 이미 다녀온 여행이 있는 모임이면 새 모임을 만들어요."
-                : "먼저 모임을 고르거나, 새 모임을 만들어 초대해요."}
+              초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요.
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={15} color={FAINT} />
         </Pressable>
+
+        {/*
+          참여 요청 (INV-04 진입점). 초대 자리 바로 아래 — 링크를 보낸 사람이 답을 기다리는 곳이다.
+          여행장에게만 데이터가 오므로 다른 멤버 화면엔 아무것도 없다. 누르면 수락·거절 시트.
+        */}
+        {joinRequests.length > 0 ? (
+          <View style={{ marginTop: 10, gap: 6 }}>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.3 }}>
+              참여 요청 {joinRequests.length}건
+            </Text>
+            {joinRequests.map((request) => (
+              <Pressable
+                key={request.requestId}
+                accessibilityRole="button"
+                accessibilityLabel={`${request.name}님의 참여 요청 보기`}
+                onPress={() => onPressJoinRequest(request)}
+                className="flex-row items-center active:opacity-70"
+                style={{
+                  gap: 12,
+                  borderWidth: 1,
+                  borderColor: "#e5e8ec",
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  backgroundColor: "#fff",
+                }}
+              >
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#eef2ff",
+                  }}
+                >
+                  <Ionicons name="hand-right-outline" size={15} color="#4941B8" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "800", color: INK }}>
+                    {request.name}님이 참여를 요청했어요
+                  </Text>
+                  <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
+                    {request.needsNewGroup
+                      ? "수락하면 새 모임이 만들어져요 · 눌러서 확인"
+                      : "눌러서 수락하거나 거절해요"}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={15} color={FAINT} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </Section>
 
       {errorMessage ? (

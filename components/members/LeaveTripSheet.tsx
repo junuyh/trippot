@@ -24,6 +24,13 @@ import type { LeaveMode } from "./types";
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /**
+   * 시트가 **완전히 내려간 뒤**(iOS). 다음 시트를 이어서 열 때 쓴다.
+   *
+   * ⚠️ 닫는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고, 보이지 않는 Modal 이
+   *    화면 전체의 터치를 삼킨다. 타이머로 어림잡지 말고 이 신호를 쓴다.
+   */
+  onDismiss?: () => void;
 
   mode: LeaveMode;
   destination: string;
@@ -53,6 +60,7 @@ type Props = {
 export function LeaveTripSheet({
   visible,
   onClose,
+  onDismiss,
   mode,
   destination,
   groupName,
@@ -65,16 +73,28 @@ export function LeaveTripSheet({
   onCancelTrip,
   leaving,
 }: Props) {
-  if (mode === "leaderAlone") {
+  /*
+    ⚠️ 막히는 두 갈래를 함께 그린다. 이유가 다르고 문구도 다르지만, 나갈 길은
+       '초대' 와 '취소' 로 같다. **안내만 하고 끝내지 않는다** — 여기서 길을
+       안 주면 사용자는 할 수 있는 게 없다. (다빈 지시 2026-09-14)
+  */
+  if (mode === "leaderAlone" || mode === "lastMember") {
+    const leader = mode === "leaderAlone";
     return (
       <BottomSheet
         visible={visible}
         onClose={onClose}
+        onDismiss={onDismiss}
         title="지금은 나갈 수 없어요"
-        description="여행장을 넘겨줄 멤버가 없어요."
+        description={
+          leader
+            ? "여행장을 넘겨줄 멤버가 없어요."
+            : `${destination} 여행에 남는 사람이 없어요.`
+        }
         footer={
           <View style={{ gap: 8 }}>
             <Button label="멤버 초대하기" onPress={onInvite} />
+            {/* ⚠️ 바로 취소하지 않는다. CXL-01(사유) → CXL-03(확인)을 거친다 */}
             <Button label="여행 취소하기" variant="ghost" onPress={onCancelTrip} />
           </View>
         }
@@ -82,28 +102,53 @@ export function LeaveTripSheet({
         <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
           <BranchNotice
             tone="warn"
-            title="이 여행에 참여한 사람이 나뿐이에요"
-            body="멤버를 초대해 여행장을 넘긴 뒤 나가거나, 여행을 취소해 주세요."
+            title={
+              leader
+                ? "이 여행에 참여한 사람이 나뿐이에요"
+                : "나가면 아무도 없는 여행이 남아요"
+            }
+            body={
+              leader
+                ? "멤버를 초대해 여행장을 넘긴 뒤 나가거나, 여행을 취소해 주세요."
+                : "남는 사람이 없으면 취소도 결산도 할 수 없어요. 멤버를 초대하거나, 여행을 취소해 주세요."
+            }
           />
         </View>
       </BottomSheet>
     );
   }
 
+  /*
+    ⚠️ **이 갈래는 지금 쓰이지 않는다.** (2026-09-14 다빈 결정)
+       여행장이 나가기를 누르면 useLeaveTrip 이 MEM-02 를 바로 연다. 이 화면이
+       주던 정보는 "여행장이 하는 일" 한 줄뿐이었고 그건 MEM-02 로 옮겼다.
+       시트→시트 전환이 사라져 iOS Modal 타이밍 문제도 함께 없어졌다.
+
+       지우지 않고 두는 것은 /dev/inv-preview 가 이 갈래를 그리고, 두 단계로
+       되돌릴 일이 생길 수 있어서다. **호출부를 새로 만들지 말 것.**
+  */
   if (mode === "needsDelegate") {
     return (
       <BottomSheet
         visible={visible}
         onClose={onClose}
+        onDismiss={onDismiss}
         title="여행장을 넘기고 나가야 해요"
         description={`${destination} 여행을 이어서 준비할 사람이 필요해요.`}
         footer={<Button label="여행장 넘기기" onPress={onOpenDelegate} />}
       >
         <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+          /*
+            ⚠️ **여행장만 할 수 있는 일은 '참여 요청 수락' 하나뿐이다.** (2026-09-14 다빈 확인)
+               초대는 ACTIVE 멤버 누구나 하고(canInviteToTrip), 여행 정보와 예산은 모든
+               멤버가 고친다. 예전 문구가 "멤버 초대와 여행 정보 수정" 이라고 적어
+               여행장을 실제보다 큰 권한으로 설명하고 있었다. 넘기는 사람도 받는 사람도
+               잘못 알게 된다. 판정은 lib/trip/tripLeader.ts 가 갖고 있다.
+          */
           <BranchNotice
             tone="info"
             title="여행장이 하는 일"
-            body="멤버 초대와 참여 요청 수락, 여행 정보와 예산 수정이요. 넘긴 뒤에는 되돌릴 수 없어요."
+            body="참여 요청을 수락하는 일이요. 초대와 예산 수정은 멤버 누구나 할 수 있어요. 넘긴 뒤에는 되돌릴 수 없어요."
           />
         </View>
       </BottomSheet>
@@ -115,6 +160,7 @@ export function LeaveTripSheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
+      onDismiss={onDismiss}
       title={`${destination} 여행에서 나가시나요?`}
       description="함께하는 사람들에게 알림이 가요."
       footer={

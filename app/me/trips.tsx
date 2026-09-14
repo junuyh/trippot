@@ -39,6 +39,7 @@ import {
   type Trip,
   type TripWithSummary,
 } from '@/lib/supabase/queries/trips';
+import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -199,7 +200,8 @@ export default function ScreenMY02() {
     });
   }
 
-  const planning = items.filter((item) => item.status === TRIP_STATUS.PLANNING);
+  // ⚠️ 취소 요청 중(CANCEL_PENDING)도 준비 중이다. (POL-CXL-006)
+  const planning = items.filter((item) => isTripBeforeDeparture(item.status));
   const traveling = items.filter((item) => item.status === TRIP_STATUS.TRAVELING);
   const past = items.filter((item) => PAST.includes(item.status));
   const left = toArchivedItems(leftTrips, true);

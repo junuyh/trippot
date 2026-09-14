@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/lib/supabase/client';
 
 import { getTrips, type Trip } from './trips';
+import { isTripOngoing } from '@/lib/trip/tripStatus';
 
 /** 지금 챙겨야 할 것 한 줄의 종류. */
 export type HomeActionKind =
@@ -104,7 +105,9 @@ function startOfThisMonth(): string {
 }
 
 function isOngoing(trip: Trip): boolean {
-  return trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING;
+  // ⚠️ 취소 요청 중도 포함된다. 빼면 요청을 받은 사람의 홈에서 그 여행이
+  //    사라져 동의하러 들어갈 길이 없어진다. (POL-CXL-006 · lib/trip/tripStatus)
+  return isTripOngoing(trip.status);
 }
 
 /** 같은 여행 안에서는 아직 정하지 않은 것부터 알린다. */

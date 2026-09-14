@@ -11,6 +11,7 @@
 import { format, isValid, parseISO } from 'date-fns';
 
 import { TRIP_STATUS, TRIP_STATUS_LABEL } from '@/lib/constants/status';
+import { isTripBeforeDeparture, isTripOngoing } from '@/lib/trip/tripStatus';
 
 const EMPTY = '—';
 
@@ -31,16 +32,43 @@ export function formatDateRange(startDate: string | null, endDate: string | null
 }
 
 /**
- * 모임 생성일. '2026.05.14'
+ * 모임 생성일 · 참여일. '2026.05.14'
  *
- * ⚠️ 현재 GROUP-01 카드는 생성일을 표시하지 않는다(IA §3-1 에 없다).
- *    정렬에는 created_at 원본을 쓰므로 이 함수는 지금 호출되는 곳이 없다.
- *    GROUP-02 '모임 기본정보' 에서 쓸 것으로 보고 남겨둔다.
+ * GROUP-02 '만든 날' 과 멤버 목록의 '참여' 가 쓴다. 형식을 바꾸면 그 둘이 같이 바뀐다.
+ * GROUP-01 카드의 CREATED 는 자리가 좁아 formatCardDate(yy.MM.dd)를 따로 쓴다.
  */
 export function formatCreatedDate(createdAt: string | null): string {
   if (!createdAt) return EMPTY;
   const parsed = parseISO(createdAt);
   return isValid(parsed) ? format(parsed, 'yyyy.MM.dd') : EMPTY;
+}
+
+/**
+ * 모임통장 카드의 CREATED 값. '26.09.04' (2026-09-13)
+ *
+ * ⚠️ formatCreatedDate 를 고치지 않는다. 그쪽은 상세 화면 두 곳이 yyyy 로 쓴다.
+ *    카드의 실물 카드 metadata 자리는 두 자리 연도가 맞다.
+ */
+export function formatCardDate(createdAt: string | null): string {
+  if (!createdAt) return EMPTY;
+  const parsed = parseISO(createdAt);
+  return isValid(parsed) ? format(parsed, 'yy.MM.dd') : EMPTY;
+}
+
+/**
+ * 카드 한 줄에 들어가는 짧은 기간. '10.31 – 11.01'
+ *
+ * 연도는 뺀다 — 카드는 목적지와 기간을 한 줄에 두어 자리가 좁고, 준비 중인 여행은
+ * 어차피 가까운 날짜다. 해가 다르면 뒤쪽에만 두 자리 연도를 붙인다. ('12.28 – 27.01.03')
+ * ⚠️ formatDateRange(홈과 같은 규칙)는 그대로 둔다. 카드만 이걸 쓴다.
+ */
+export function formatShortDateRange(startDate: string | null, endDate: string | null): string {
+  const start = toDate(startDate);
+  const end = toDate(endDate);
+  if (!start || !end) return EMPTY;
+
+  const sameYear = start.getFullYear() === end.getFullYear();
+  return `${format(start, 'MM.dd')} – ${format(end, sameYear ? 'MM.dd' : 'yy.MM.dd')}`;
 }
 
 /**
@@ -68,7 +96,9 @@ export function formatMemberCount(memberCount: number): string {
  * ⚠️ 다른 화면에 이 함수를 쓰지 않는다. GROUP 계좌 영역 전용이다.
  */
 export function toGroupTripStatusLabel(status: string): string {
-  if (status === TRIP_STATUS.PLANNING) return TRIP_STATUS_LABEL.PLANNING;
+  // ⚠️ 취소 요청 중도 '준비 중' 으로 적는다. 요청이 걸렸다고 여행이 멈추지
+  //    않는다. 요청 사실은 여행 홈의 배너(TRIP-HOME-04)가 말한다. (POL-CXL-006)
+  if (isTripBeforeDeparture(status)) return TRIP_STATUS_LABEL.PLANNING;
   if (status === TRIP_STATUS.TRAVELING) return TRIP_STATUS_LABEL.TRAVELING;
   return '지난 여행';
 }
@@ -80,5 +110,6 @@ export function toGroupTripStatusLabel(status: string): string {
  * `N개 여행에서 사용 중` 의 N 을 세는 기준이 모두 이것이다.
  */
 export function isActiveTripStatus(status: string): boolean {
-  return status === TRIP_STATUS.PLANNING || status === TRIP_STATUS.TRAVELING;
+  // ⚠️ 취소 요청 중도 쓰고 있는 여행이다. 계좌가 목록에서 사라지면 안 된다
+  return isTripOngoing(status);
 }

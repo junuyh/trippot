@@ -1121,6 +1121,15 @@ export default function ScreenTRIP03() {
           owner_type: isGroupTrip ? TRIP_OWNER_TYPE.GROUP : TRIP_OWNER_TYPE.PERSONAL,
           // trips_owner_shape CHECK — GROUP 이면 owner_user_id 를 비운다
           owner_user_id: isGroupTrip ? null : userId,
+          /**
+           * 여행장. 이 여행을 만든 사람이다.
+           *
+           * ⚠️ owner_user_id 와 **다른 칸이다.** 그쪽은 '개인 여행의 주인' 이라
+           *    모임 여행이면 비어 있어야 하고, 여행장은 여행 종류와 무관하게 있다.
+           *    이 값이 없으면 초대 수락·나가기 판정이 서지 않는다.
+           *    (마이그레이션 20260910000001 · 2026-09-10 L 회신)
+           */
+          leader_user_id: userId,
           group_id: isGroupTrip ? groupId : null,
           destination: draft.destinationName,
           start_date: draft.startDate,

@@ -12,6 +12,7 @@ import {
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
   TRIP_STATUS,
+  TRIP_OWNER_TYPE,
 } from "@/lib/constants/status";
 import { supabase } from "@/lib/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "@/types/database";
@@ -448,6 +449,46 @@ export async function getGroupTripAccounts(
     .eq("trips.group_id", groupId)
     // ⚠️ 취소된 여행의 계좌도 빼야 GROUP 목록과 기준이 같아진다.
     //    (2026-09-10 · develop 의 CANCELED 정책)
+    .not("trips.status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`)
+    .is("financial_accounts.disconnected_at", null);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    tripId: row.trip_id,
+    destination: row.trips.destination,
+    status: row.trips.status,
+    accountId: row.financial_accounts.id,
+    institutionCode: row.financial_accounts.institution_code,
+    maskedAccountNumber: row.financial_accounts.masked_account_number,
+  }));
+}
+
+/**
+ * 내 **개인 여행**들이 지금 연결해 쓰는 계좌. 개인 여행 상세(/groups/personal)의
+ * '연결 계좌' 가 쓴다. (docs/11_모임정책_v1.md §2-4 · 2026-09-13)
+ *
+ * getGroupTripAccounts 와 같은 모양의 sibling 이다. 다른 점은 여행을 고르는
+ * 조건 하나뿐 — 모임 id 대신 **내가 주인인 개인 여행**(owner_type PERSONAL ·
+ * owner_user_id = 나)이다. 나머지(fund_sources 기준 · disconnected_at null ·
+ * DELETED·CANCELED 제외 · 여행마다 한 줄)는 그대로다.
+ *
+ * ⚠️ 계좌 소유는 여전히 **여행 단위**다. 개인 여행 묶음이 계좌 하나를 갖는 게
+ *    아니라, 니스는 토스 · 후쿠오카는 신한처럼 여행마다 다를 수 있다. 화면이
+ *    accountId 로 묶어 "N개 여행에서 사용 중" 을 센다.
+ * ⚠️ 직접 입력(financial_account_id null) 여행은 !inner 조인에서 빠진다.
+ *    가짜 계좌 줄을 만들지 않는다.
+ */
+export async function getPersonalTripAccounts(
+  userId: string,
+): Promise<GroupTripAccount[]> {
+  const { data, error } = await supabase
+    .from("fund_sources")
+    .select(
+      "trip_id, trips!inner(id, destination, owner_type, owner_user_id, status), financial_accounts!inner(id, institution_code, masked_account_number, disconnected_at)",
+    )
+    .eq("trips.owner_type", TRIP_OWNER_TYPE.PERSONAL)
+    .eq("trips.owner_user_id", userId)
     .not("trips.status", "in", `(${TRIP_STATUS.DELETED},${TRIP_STATUS.CANCELED})`)
     .is("financial_accounts.disconnected_at", null);
 

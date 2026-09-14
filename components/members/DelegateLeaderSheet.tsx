@@ -19,6 +19,13 @@ import type { TripMemberItem } from "./types";
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /**
+   * 시트가 **완전히 내려간 뒤**(iOS). 다음 시트를 이어서 열 때 쓴다.
+   *
+   * ⚠️ 닫는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고, 보이지 않는 Modal 이
+   *    화면 전체의 터치를 삼킨다. 타이머로 어림잡지 말고 이 신호를 쓴다.
+   */
+  onDismiss?: () => void;
 
   /** 넘길 수 있는 사람. 나와 미가입 동행자는 화면 파일이 미리 걸러 넘긴다 */
   candidates: TripMemberItem[];
@@ -35,6 +42,7 @@ type Props = {
 export function DelegateLeaderSheet({
   visible,
   onClose,
+  onDismiss,
   candidates,
   selectedMemberId,
   onSelect,
@@ -48,8 +56,15 @@ export function DelegateLeaderSheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
+      onDismiss={onDismiss}
       title="누구에게 넘길까요?"
-      description="넘기면 바로 여행장이 바뀌고, 회원님은 여행에서 나가요."
+      /*
+        ⚠️ 여행장이 하는 일을 여기서 말한다. MEM-01 의 needsDelegate 갈래를
+           건너뛰고 이 시트가 바로 열리기 때문이다. (2026-09-14)
+        ⚠️ 여행장만 하는 일은 **참여 요청 수락** 하나뿐이다. 초대와 예산 수정은
+           멤버 누구나 한다. 크게 적으면 넘기는 사람이 겁을 먹는다.
+      */
+      description="여행장은 참여 요청을 수락해요. 넘기면 바로 바뀌고, 회원님은 여행에서 나가요."
       footer={
         <View style={{ gap: 8 }}>
           <Button
@@ -101,7 +116,8 @@ export function DelegateLeaderSheet({
           <BranchNotice
             tone="info"
             title={`${picked.name}님이 새 여행장이 돼요`}
-            body={`${picked.name}님에게 알림이 가고, 멤버 초대와 여행 정보 수정을 맡게 돼요. 되돌릴 수 없어요.`}
+            /* ⚠️ 여행장만 하는 일은 '참여 요청 수락' 하나뿐이다. (LeaveTripSheet 주석 참조) */
+            body={`${picked.name}님에게 알림이 가고, 참여 요청을 수락하는 일을 맡게 돼요. 되돌릴 수 없어요.`}
           />
         ) : null}
 

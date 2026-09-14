@@ -16,7 +16,14 @@ type Props = {
    *    이 블록 전체가 그려지지 않는다. (app/login.tsx)
    */
   showDevPreview: boolean;
-  onPressDevPreview: () => void;
+  /**
+   * 미리볼 수 있는 seed 사용자들. 화면 파일이 넘긴다.
+   *
+   * ⚠️ 계정 목록이 아니다. 취소 동의처럼 **사람이 둘 이상 있어야** 열리는
+   *    화면을 시뮬레이터 두 대에서 눌러 보려고 둔 개발용 통로다.
+   */
+  devPreviewUsers: readonly { userId: string; name: string }[];
+  onPressDevPreview: (userId: string) => void;
 };
 
 /** 카카오 브랜드 색. 카카오가 지정한 값이라 pot 토큰을 쓰지 않는다. */
@@ -38,6 +45,7 @@ export function LoginView({
   onPressTerms,
   onPressPrivacy,
   showDevPreview,
+  devPreviewUsers,
   onPressDevPreview,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -156,17 +164,29 @@ export function LoginView({
              레이아웃도 원래대로 돌아간다.
         */}
         {showDevPreview ? (
-          <View className="mt-4 items-center">
-            <Text
-              accessibilityRole="button"
-              accessibilityLabel="개발용으로 둘러보기"
-              onPress={onPressDevPreview}
-              suppressHighlighting
-              className="px-2 py-2 text-pot-faint"
-              style={{ fontSize: 11.5, lineHeight: 16, textDecorationLine: 'underline' }}
-            >
+          <View className="mt-4 items-center" style={{ gap: 6 }}>
+            <Text className="text-pot-faint" style={{ fontSize: 11.5, lineHeight: 16 }}>
               개발용으로 둘러보기
             </Text>
+            {/*
+              ⚠️ 이름을 나란히 둔다. 누구로 들어왔는지가 곧 화면이 달라지는
+                 이유라, 고르는 자리를 감춰 두면 잘못된 사람으로 눌러 보게 된다.
+            */}
+            <View className="flex-row flex-wrap justify-center" style={{ gap: 8 }}>
+              {devPreviewUsers.map((user) => (
+                <Text
+                  key={user.userId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${user.name}으로 둘러보기`}
+                  onPress={() => onPressDevPreview(user.userId)}
+                  suppressHighlighting
+                  className="rounded-full border border-pot-line px-3 py-1.5 text-pot-mute"
+                  style={{ fontSize: 12, lineHeight: 16 }}
+                >
+                  {user.name}
+                </Text>
+              ))}
+            </View>
           </View>
         ) : null}
       </View>

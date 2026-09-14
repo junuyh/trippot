@@ -5,15 +5,14 @@ import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSw
 
 import { Ionicons } from '@expo/vector-icons';
 
-import type { Notification } from '@/lib/supabase/queries/notifications';
-
 import { formatNotifiedAt } from './format';
+import type { NotificationListItem } from './types';
 
 type Props = {
-  /** 이미 created_at DESC 로 정렬돼 들어온다. 여기서 다시 정렬하지 않는다. */
-  notifications: Notification[];
-  onPressNotification: (notification: Notification) => void;
-  onDeleteNotification: (notification: Notification) => void;
+  /** 이미 최신순으로 정렬돼 들어온다. 여기서 다시 정렬하지 않는다. */
+  notifications: NotificationListItem[];
+  onPressNotification: (notification: NotificationListItem) => void;
+  onDeleteNotification: (notification: NotificationListItem) => void;
 };
 
 /**
@@ -24,6 +23,7 @@ type Props = {
  *    쓰는 것과 같다. (components/budget/PlanItemCard) 새 라이브러리를 넣지 않는다.
  *    확인 모달·되돌리기는 두지 않는다. MVP 범위가 아니다.
  * ⚠️ supabase · track() 을 직접 부르지 않는다. 화면 파일이 부른다. (CLAUDE.md 9장)
+ * ⚠️ DB 알림과 기기 보관 알림을 같은 줄 모양으로 그린다. 출처 배지는 없다. (2026-09-14)
  */
 export function NotificationList({
   notifications,
@@ -38,10 +38,10 @@ export function NotificationList({
       className="flex-1 bg-white"
       contentContainerClassName="px-5 pb-16"
       data={notifications}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => `${item.source}:${item.id}`}
       renderItem={({ item }) => {
-        const unread = item.read_at === null;
-        const at = formatNotifiedAt(item.created_at);
+        const unread = item.readAt === null;
+        const at = formatNotifiedAt(item.createdAt);
 
         return (
           <Swipeable
