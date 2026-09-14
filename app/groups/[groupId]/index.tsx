@@ -59,7 +59,7 @@ import {
   updateGroup,
 } from '@/lib/supabase/queries/groups';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
-import { LeaveTripFlow } from '@/components/members';
+import { LeaveDoneView, LeaveTripFlow } from '@/components/members';
 import { useLeaveTrip } from '@/lib/hooks/useLeaveTrip';
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'denied' | 'error';
@@ -422,6 +422,43 @@ export default function ScreenGROUP02() {
       <>
         <Stack.Screen options={{ title: '모임 상세' }} />
         <ErrorState message="모임 정보를 불러오지 못했어요." onRetry={() => void load()} />
+      </>
+    );
+  }
+
+  /**
+   * MEM-03 나가기 완료. **여행 홈과 같은 컴포넌트, 다른 CTA.**
+   *
+   * ⚠️ 이걸 빠뜨려서 모임 상세에서는 나간 뒤 화면이 그냥 목록으로 돌아갔다.
+   *    되돌릴 수 없는 행동인데 무엇이 일어났는지 알려주지 못했다.
+   *    (POL-MEM-010 · 2026-09-14 다빈 확인)
+   *
+   * ⚠️ 돌아갈 곳이 앱 홈이 아니라 **이 모임**이다. 여행 하나에서만 나갔고
+   *    모임에는 그대로 남아 있다. 그래서 CTA 문구도 다르다.
+   *
+   * ⚠️ 다른 early return 보다 **아래**에 둔다. 위 훅들보다 뒤라서 렌더마다
+   *    훅 개수가 달라지지 않는다.
+   */
+  if (leave.done) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: group.name,
+            /* 나온 여행이다. 아래 CTA 하나로만 나간다 */
+            headerLeft: () => null,
+            headerRight: undefined,
+          }}
+        />
+        <LeaveDoneView
+          variant={leave.done.variant}
+          destination={leave.destination}
+          groupName={group.name}
+          alsoLeftGroup={leave.done.alsoLeftGroup}
+          newLeaderName={leave.done.newLeaderName}
+          homeLabel="모임으로 돌아가기"
+          onGoHome={leave.clearDone}
+        />
       </>
     );
   }
