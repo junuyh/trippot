@@ -81,6 +81,12 @@ export default function ScreenMY02() {
    */
   const [canceledTrips, setCanceledTrips] = useState<Trip[]>([]);
   const [leftTrips, setLeftTrips] = useState<Trip[]>([]);
+  /**
+   * 나간 여행 카드를 눌렀을 때 안내. (2026-09-14 확정 정책 · docs/11 v2 §6-2)
+   * ⚠️ 다른 hook 과 같이 맨 위에 둔다. 아래 loading/error 의 early return 뒤에 두면
+   *    렌더마다 hook 수가 달라져 React 가 막는다. (Rules of Hooks)
+   */
+  const [leftNoticeOpen, setLeftNoticeOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoadState('loading');
@@ -236,9 +242,6 @@ export default function ScreenMY02() {
     left,
   };
   const visible = BY_FILTER[filter];
-
-  /** 나간 여행 카드를 눌렀을 때 안내. (2026-09-14 확정 정책 · docs/11 v2 §6-2) */
-  const [leftNoticeOpen, setLeftNoticeOpen] = useState(false);
 
   return (
     <>
