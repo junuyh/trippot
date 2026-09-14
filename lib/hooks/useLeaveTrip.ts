@@ -20,6 +20,7 @@
 //    서로 다른 시점의 값을 들고 판정하게 된다. (다빈 결정)
 // ============================================================================
 import { useCallback, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import type { LeaveMode, TripMemberItem } from '@/components/members';
 import { FUND_SOURCE_TYPE } from '@/lib/constants/status';
@@ -121,8 +122,15 @@ export function useLeaveTrip(options: Options = {}) {
       setSheetState((current) => {
         if (current === null) return next;
         pendingRef.current = next;
-        // onDismiss 가 없는 Android 몫이다. iOS 는 onDismiss 가 먼저 부른다
-        setTimeout(flushPendingSheet, SHEET_SWAP_MS);
+        /**
+         * ⚠️⚠️ iOS 에서는 **타이머를 걸지 않는다.** ⚠️⚠️
+         *    240ms 는 어림값이라 네이티브 Modal 이 다 내려가기 전에 터질 수
+         *    있고, 그러면 새 Modal 을 띄우려다 iOS 가 조용히 무시한다.
+         *    실제로 '여행장 넘기기' 를 눌러도 MEM-02 가 안 떴다.
+         *    (2026-09-14 · 모임 상세에서 확인) iOS 는 Modal 의 onDismiss 가
+         *    정확한 신호를 준다. 타이머는 onDismiss 가 없는 Android 몫이다.
+         */
+        if (Platform.OS !== 'ios') setTimeout(flushPendingSheet, SHEET_SWAP_MS);
         return null;
       });
     },
@@ -223,7 +231,29 @@ export function useLeaveTrip(options: Options = {}) {
         });
         setAlsoLeaveGroup(null);
         setDelegateId(null);
-        setSheetState('leave');
+
+        /**
+         * ⚠️ 여행장이면 **MEM-02 를 바로 연다.** MEM-01 의 needsDelegate 갈래를
+         *    거치지 않는다. (2026-09-14 다빈 결정)
+         *
+         *    그 화면이 주던 정보는 "여행장이 하는 일" 한 줄뿐이었고, MEM-02 가
+         *    이미 '되돌릴 수 없다' 경고를 갖고 있다. 무엇보다 시트→시트 전환이
+         *    사라져서 iOS Modal 타이밍 문제를 탈 일이 없어진다 — 실제로 그
+         *    전환에서 '여행장 넘기기' 를 눌러도 MEM-02 가 안 뜨는 일이 있었다.
+         *
+         * ⚠️ 판정을 여기서 한 번 더 하는 게 아니다. 아래 decision 과 같은
+         *    함수를 쓴다. ctx 를 막 만든 참이라 그 값을 아직 못 읽어서 직접 부른다.
+         */
+        const openMode = leaveModeOf(
+          canLeaveTrip({
+            trip,
+            userId,
+            isActiveMember: items.some((m) => m.userId === userId),
+            otherActiveCount: others.length,
+            delegatableCount: others.length,
+          }),
+        );
+        setSheetState(openMode === 'needsDelegate' ? 'delegate' : 'leave');
       } catch {
         setError('여행 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
       } finally {

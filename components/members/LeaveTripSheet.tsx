@@ -118,6 +118,15 @@ export function LeaveTripSheet({
     );
   }
 
+  /*
+    ⚠️ **이 갈래는 지금 쓰이지 않는다.** (2026-09-14 다빈 결정)
+       여행장이 나가기를 누르면 useLeaveTrip 이 MEM-02 를 바로 연다. 이 화면이
+       주던 정보는 "여행장이 하는 일" 한 줄뿐이었고 그건 MEM-02 로 옮겼다.
+       시트→시트 전환이 사라져 iOS Modal 타이밍 문제도 함께 없어졌다.
+
+       지우지 않고 두는 것은 /dev/inv-preview 가 이 갈래를 그리고, 두 단계로
+       되돌릴 일이 생길 수 있어서다. **호출부를 새로 만들지 말 것.**
+  */
   if (mode === "needsDelegate") {
     return (
       <BottomSheet
@@ -129,10 +138,17 @@ export function LeaveTripSheet({
         footer={<Button label="여행장 넘기기" onPress={onOpenDelegate} />}
       >
         <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+          /*
+            ⚠️ **여행장만 할 수 있는 일은 '참여 요청 수락' 하나뿐이다.** (2026-09-14 다빈 확인)
+               초대는 ACTIVE 멤버 누구나 하고(canInviteToTrip), 여행 정보와 예산은 모든
+               멤버가 고친다. 예전 문구가 "멤버 초대와 여행 정보 수정" 이라고 적어
+               여행장을 실제보다 큰 권한으로 설명하고 있었다. 넘기는 사람도 받는 사람도
+               잘못 알게 된다. 판정은 lib/trip/tripLeader.ts 가 갖고 있다.
+          */
           <BranchNotice
             tone="info"
             title="여행장이 하는 일"
-            body="멤버 초대와 참여 요청 수락, 여행 정보와 예산 수정이요. 넘긴 뒤에는 되돌릴 수 없어요."
+            body="참여 요청을 수락하는 일이요. 초대와 예산 수정은 멤버 누구나 할 수 있어요. 넘긴 뒤에는 되돌릴 수 없어요."
           />
         </View>
       </BottomSheet>
