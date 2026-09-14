@@ -46,8 +46,13 @@ const DATE_COL_WIDTH = 112;
 
 /** 실물 카드 모서리. 바깥 컬러 프레임. */
 const CARD_RADIUS = 18;
-/** 바깥 프레임 두께. 테마 색은 여기서만 보인다. (2026-09-15 · 9 → 15: 실물 카드 프레임처럼) */
+/** 바깥 프레임 두께(좌·우·아래). 테마 색은 여기서만 보인다. (2026-09-15 · 9 → 15: 실물 카드 프레임처럼) */
 const FRAME = 15;
+/**
+ * 위쪽 프레임은 더 넓다 — 브랜드(로고 + TripPot 모임)가 **프레임에 인쇄된 것처럼** 여기 들어간다.
+ * 흰 패널은 이 아래에서 시작한다. (2026-09-15)
+ */
+const FRAME_TOP = 32;
 /** 안쪽 흰 패널(인쇄면) 모서리. 프레임 radius − 프레임 두께에 가깝게 해 동심으로 보이게 한다. */
 const PANEL_RADIUS = 10;
 /**
@@ -299,10 +304,10 @@ function MetaLabel({ children, theme }: { children: string; theme: GroupCardThem
  *
  * 모임명 · 멤버(인원 수) · 진행 중인 여행 · 지난 여행 수 · 만든 날(GROUP=모임 · PERSONAL=첫 개인 여행)을 담는다.
  *
- *   ┏━ 테마색 프레임(FRAME) ━━━━━━━━━━━━━━━━━━━━━━┓
+ *   ┏━ 테마색 프레임 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+ *   ┃ [logo] TripPot 모임                          ┃   ← 브랜드 = 위쪽 프레임에 인쇄 (FRAME_TOP)
  *   ┃ ┌ 흰 패널(인쇄면) ─────────────────────────┐ ┃
- *   ┃ │ [logo] TripPot 모임              👥 4명 │ ┃   ← 브랜드 라벨 · 인원(PERSONAL 은 종류)
- *   ┃ │ [칩] 여행계                             │ ┃   ← 모임명 = 카드의 주인공 · 칩은 이름 옆
+ *   ┃ │ [칩] 여행계                      👥 4명 │ ┃   ← 모임명 = 카드의 주인공 · 오른쪽 인원(PERSONAL 은 종류)
  *   ┃ │ 준비 중인 여행                           │ ┃
  *   ┃◀│ 오사카        10.31 – 11.01             │ ┃   ← 여행지 칸 + 기간 칸, 왼쪽에 묶음
  *   ┃ │ 후쿠오카 · 외 1건  12.04 – 12.07         │ ┃      (◀ = 패널 왼쪽 변 가운데 돌출부)
@@ -328,7 +333,7 @@ function MetaLabel({ children, theme }: { children: string; theme: GroupCardThem
  *   - 모든 텍스트가 1줄 고정 + 명시적 leading
  *   - 진행 중 여행 영역은 건수와 무관하게 TRIP_SLOT_HEIGHT 고정
  *   - 아랫줄 오른쪽(CREATED)은 GROUP · PERSONAL 모두 한 줄이다
- *   - 편집 UI 는 윗줄 오른쪽 자리와 absolute 테두리라 세로에 영향이 없다
+ *   - 편집 UI 는 모임명 줄 오른쪽 자리와 absolute 테두리라 세로에 영향이 없다
  * 따라서 GROUP · PERSONAL · 편집 모드 모두 카드 크기가 같다.
  */
 export function GroupTravelCard({
@@ -387,7 +392,9 @@ export function GroupTravelCard({
         // Svg 가 그려지기 전 첫 프레임의 바탕색. 그라데이션 시작색과 같다.
         backgroundColor: theme.paperStart,
         borderRadius: CARD_RADIUS,
-        padding: FRAME,
+        paddingTop: FRAME_TOP,
+        paddingHorizontal: FRAME,
+        paddingBottom: FRAME,
         // 한 장씩 떠 보일 만큼만. 테두리는 없다 — 그림자가 분리를 맡는다.
         shadowColor: theme.ink,
         shadowOpacity: 0.1,
@@ -403,6 +410,30 @@ export function GroupTravelCard({
       ) : null}
 
       {/*
+        브랜드 — 위쪽 프레임에 인쇄된 듯. 패널 밖, 카드 왼쪽 위. (2026-09-15)
+        GROUP 'TripPot 모임' · PERSONAL 'TripPot'(종류는 패널 안 PERSONAL 이 말한다).
+      */}
+      <View
+        pointerEvents="none"
+        className="flex-row items-center"
+        style={{ position: 'absolute', left: FRAME + 2, top: 0, height: FRAME_TOP }}
+      >
+        <Image
+          source={require('@/assets/logo.png')}
+          style={{ width: 18, height: 15 }}
+          resizeMode="contain"
+          accessibilityRole="image"
+          accessibilityLabel="TripPot"
+        />
+        <Text
+          className="ml-1"
+          style={{ fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: -0.1, color: theme.accent }}
+        >
+          {group.kind === 'GROUP' ? 'TripPot 모임' : 'TripPot'}
+        </Text>
+      </View>
+
+      {/*
         흰 패널 — 실물 카드의 인쇄면. 프레임 안에 inset.
         배경·테두리는 View 가 아니라 PanelShape(Path)가 그린다 — 왼쪽 변 가운데 돌출부 때문이다.
         View 자체는 투명하고 크기만 잰다.
@@ -411,7 +442,7 @@ export function GroupTravelCard({
         onLayout={onPanelLayout}
         style={{
           paddingHorizontal: 14,
-          paddingTop: 12,
+          paddingTop: 14,
           paddingBottom: 11,
         }}
       >
@@ -419,30 +450,20 @@ export function GroupTravelCard({
           <PanelShape width={panel.width} height={panel.height} theme={theme} />
         ) : null}
         {/*
-          윗줄 — 왼쪽 칩 + 브랜드 라벨, 오른쪽 인원(GROUP) 또는 종류(PERSONAL).
-          편집 모드면 오른쪽 자리에 선택 원이 대신 들어간다. 왼쪽·높이는 그대로다.
-          ⚠️ 브랜드는 작다. 카드의 주인공은 아래 모임명이다.
+          모임명 줄 — [칩] [이름 …] [인원 / PERSONAL / 편집 모드 선택 원]. (2026-09-15)
+          브랜드가 위쪽 프레임으로 올라가면서 패널 첫 줄은 이 줄이다. 오른쪽 메타는 여기
+          붙어 카드 높이가 늘지 않는다. 칩은 identity(이름) 옆의 시각 요소.
+          이름은 flex-1 이라 칩·메타 폭을 뺀 만큼 쓰고 넘치면 말줄임한다.
         */}
-        <View className="flex-row items-center justify-between" style={{ height: 20 }}>
-          {/* [로고 + TripPot 모임] … [인원]. 칩은 여기가 아니라 아래 모임명 줄에 있다. */}
-          <View className="flex-row items-center">
-            <View className="flex-row items-center">
-              <Image
-                source={require('@/assets/logo.png')}
-                style={{ width: 18, height: 15 }}
-                resizeMode="contain"
-                accessibilityRole="image"
-                accessibilityLabel="TripPot"
-              />
-              <Text
-                className="ml-1"
-                style={{ fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: -0.1, color: theme.accent }}
-              >
-                {/* 개인 여행 카드는 모임이 아니라 '모임' 을 붙이지 않는다. 종류는 오른쪽 PERSONAL 이 말한다. */}
-                {group.kind === 'GROUP' ? 'TripPot 모임' : 'TripPot'}
-              </Text>
-            </View>
-          </View>
+        <View className="flex-row items-center" style={{ gap: 10, height: 28 }}>
+          <CardChip />
+          <Text
+            numberOfLines={1}
+            className="flex-1"
+            style={{ fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.5, color: theme.ink }}
+          >
+            {group.name}
+          </Text>
 
           {editMode && selectable ? (
             <Ionicons
@@ -466,23 +487,8 @@ export function GroupTravelCard({
           )}
         </View>
 
-        {/*
-          모임명 줄 — [칩] [이름]. 칩은 카드의 identity(이름) 옆에 붙는 시각 요소다. (2026-09-15)
-          칩 폭 + 간격만큼 이름 폭이 줄지만 28+10 이라 한글 8자 안팎은 그대로 들어간다. 넘치면 말줄임.
-        */}
-        <View className="mt-2.5 flex-row items-center" style={{ gap: 10 }}>
-          <CardChip />
-          <Text
-            numberOfLines={1}
-            className="flex-1"
-            style={{ fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.5, color: theme.ink }}
-          >
-            {group.name}
-          </Text>
-        </View>
-
-        {/* 준비 중인 여행. 라벨 + 고정 2줄. */}
-        <View className="mt-2.5">
+        {/* 준비 중인 여행. 라벨 + 고정 2줄. 모임명(identity)과는 16 띄운다(10 → 16 · 2026-09-15). */}
+        <View className="mt-4">
           <Text
             style={{ fontSize: 10.5, lineHeight: 14, fontWeight: '600', letterSpacing: 0.3, color: theme.secondary }}
           >
