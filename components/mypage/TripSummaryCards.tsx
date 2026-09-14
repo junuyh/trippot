@@ -42,11 +42,11 @@ function CountColumn({
         </Text>
         <Ionicons name="chevron-forward" size={12} color={PASSPORT.hint} />
       </View>
-      {/* 숫자는 MY TRAVEL PASSPORT 와 같은 단(16 / 800). (2026-09-13 · 30 → 16)
-          제목보다 큰 숫자가 여권 머리줄을 눌렀다. 색만 강조(accent)로 남긴다. */}
+      {/* 숫자 20 / 800. (2026-09-14 · 16 → 20) 제목(16)보다 한 단 크되 30 처럼 머리줄을
+          누르진 않는다. 색은 강조(accent) · 가운데 정렬 그대로. */}
       <Text
         className="mt-1 text-center"
-        style={{ fontSize: 16, lineHeight: 20, fontWeight: '800', color: PASSPORT.accent, ...NUM }}
+        style={{ fontSize: 20, lineHeight: 26, fontWeight: '800', color: PASSPORT.accent, ...NUM }}
       >
         {count}
       </Text>
@@ -82,7 +82,7 @@ export function TripSummaryCards({
       <Text
         style={{ fontSize: 9.5, lineHeight: 13, letterSpacing: 0.8, fontWeight: '600', color: PASSPORT.label }}
       >
-        TRAVEL SUMMARY
+        MY TRAVEL SUMMARY
       </Text>
       {/* 홈 SectionHeader 와 같은 단(16 / 800 / -0.5). 색만 여권 잉크다. */}
       <Text

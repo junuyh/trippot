@@ -34,7 +34,7 @@ export function formatDateRange(startDate: string | null, endDate: string | null
  * 모임 생성일 · 참여일. '2026.05.14'
  *
  * GROUP-02 '만든 날' 과 멤버 목록의 '참여' 가 쓴다. 형식을 바꾸면 그 둘이 같이 바뀐다.
- * GROUP-01 카드의 CREATED 는 자리가 좁아 formatCardDate(yy.MM.dd)를 따로 쓴다.
+ * GROUP-01 카드의 CREATED 는 자리가 좁아 formatCardDate(yy/MM/dd)를 따로 쓴다.
  */
 export function formatCreatedDate(createdAt: string | null): string {
   if (!createdAt) return EMPTY;
@@ -43,15 +43,16 @@ export function formatCreatedDate(createdAt: string | null): string {
 }
 
 /**
- * 모임통장 카드의 CREATED 값. '26.09.04' (2026-09-13)
+ * 모임통장 카드의 CREATED 값. '26/08/27' (2026-09-14 · yy.MM.dd → yy/MM/dd)
  *
- * ⚠️ formatCreatedDate 를 고치지 않는다. 그쪽은 상세 화면 두 곳이 yyyy 로 쓴다.
- *    카드의 실물 카드 metadata 자리는 두 자리 연도가 맞다.
+ * 실물 카드의 유효기간 표기(MM/YY)를 닮은 슬래시 꼴이다. 뜻은 그대로 "만든 날" 이고
+ * 라벨도 CREATED 다. 준비 중 여행의 기간(09.18 – 09.21)은 점 꼴 그대로 둔다.
+ * ⚠️ formatCreatedDate 를 고치지 않는다. 그쪽은 상세 화면 두 곳이 yyyy.MM.dd 로 쓴다.
  */
 export function formatCardDate(createdAt: string | null): string {
   if (!createdAt) return EMPTY;
   const parsed = parseISO(createdAt);
-  return isValid(parsed) ? format(parsed, 'yy.MM.dd') : EMPTY;
+  return isValid(parsed) ? format(parsed, 'yy/MM/dd') : EMPTY;
 }
 
 /**
