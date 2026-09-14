@@ -50,9 +50,17 @@ const CARD_RADIUS = 18;
 const FRAME = 9;
 /** 안쪽 흰 패널(인쇄면) 모서리. 프레임 radius − 프레임 두께에 가깝게 해 동심으로 보이게 한다. */
 const PANEL_RADIUS = CARD_RADIUS - FRAME + 2;
+/**
+ * 흰 패널 왼쪽 변 가운데의 돌출부(탭). 시안의 카드 인쇄면 실루엣이다. (2026-09-14)
+ *   NOTCH_DEPTH  프레임 쪽으로 튀어나오는 깊이. FRAME(9)보다 작아 프레임 띠가 남는다
+ *   NOTCH_HALF   돌출부 세로 반높이. 패널 중앙 ± 이만큼
+ */
+const NOTCH_DEPTH = 7;
+const NOTCH_HALF = 18;
+
 /** 장식용 칩. 실물 카드의 IC 칩 자리. 누르지 못하고 읽히지도 않는다. */
-const CHIP_WIDTH = 26;
-const CHIP_HEIGHT = 18;
+const CHIP_WIDTH = 28;
+const CHIP_HEIGHT = 20;
 
 /** 장식 변형 수. 항로 곡선의 시작점이 조금씩 다르다. */
 const PATTERN_VARIANTS = 3;
@@ -121,6 +129,55 @@ function FrameBackdrop({
         fill="none"
         opacity={0.35}
       />
+    </Svg>
+  );
+}
+
+/**
+ * 흰 패널의 실루엣. 둥근 사각형인데 **왼쪽 변 가운데가 바깥(프레임 쪽)으로 뾰족하게 나온다.**
+ * 시안의 인쇄면 모양이다. 테두리·그림자로 흉내 내지 않고 Path 로 실제 윤곽을 그린다.
+ *
+ * 패널 콘텐츠 뒤에 absolute 로 깔리며, Svg 폭은 패널 폭 + NOTCH_DEPTH 라 돌출부가
+ * 패널 왼쪽 밖(프레임 띠 위)까지 그려진다. 바깥 카드는 overflow hidden 이지만
+ * 돌출부는 FRAME 안에 머물러 잘리지 않는다.
+ */
+function PanelShape({
+  width,
+  height,
+  theme,
+}: {
+  width: number;
+  height: number;
+  theme: GroupCardTheme;
+}) {
+  const r = PANEL_RADIUS;
+  const d = NOTCH_DEPTH;
+  const mid = height / 2;
+  // 좌표는 Svg 기준 — 패널의 x=0 이 Svg 의 x=d 다.
+  const path = [
+    `M ${d + r} 0`,
+    `H ${d + width - r}`,
+    `A ${r} ${r} 0 0 1 ${d + width} ${r}`,
+    `V ${height - r}`,
+    `A ${r} ${r} 0 0 1 ${d + width - r} ${height}`,
+    `H ${d + r}`,
+    `A ${r} ${r} 0 0 1 ${d} ${height - r}`,
+    `V ${mid + NOTCH_HALF}`,
+    `L 0 ${mid}`,
+    `L ${d} ${mid - NOTCH_HALF}`,
+    `V ${r}`,
+    `A ${r} ${r} 0 0 1 ${d + r} 0`,
+    'Z',
+  ].join(' ');
+
+  return (
+    <Svg
+      width={width + d}
+      height={height}
+      style={{ position: 'absolute', left: -d, top: 0 }}
+      pointerEvents="none"
+    >
+      <Path d={path} fill="#FFFFFF" stroke={theme.rule} strokeWidth={1} />
     </Svg>
   );
 }
@@ -246,17 +303,18 @@ function MetaLabel({ children, theme }: { children: string; theme: GroupCardThem
  *   ┃ ┌ 흰 패널(인쇄면) ─────────────────────────┐ ┃
  *   ┃ │ [칩] [logo] TripPot 모임         👥 4명 │ ┃   ← 브랜드 라벨 · 인원(PERSONAL 은 종류)
  *   ┃ │ 여행계                                  │ ┃   ← 모임명 = 카드의 주인공
- *   │ 준비 중인 여행                           │
- *   │ 오사카        10.31 – 11.01             │   ← 여행지 칸 + 기간 칸, 왼쪽에 묶음
- *   │ 후쿠오카 · 외 1건  12.04 – 12.07         │
- *   │ ──────────────────────────────────────  │
- *   │ 지난 여행 2회                   CREATED │   ← PERSONAL 은 오른쪽이 빈다
- *   │                                26.09.04 │
- *   └─────────────────────────────────────────┘
+ *   ┃ │ 준비 중인 여행                           │ ┃
+ *   ┃◀│ 오사카        10.31 – 11.01             │ ┃   ← 여행지 칸 + 기간 칸, 왼쪽에 묶음
+ *   ┃ │ 후쿠오카 · 외 1건  12.04 – 12.07         │ ┃      (◀ = 패널 왼쪽 변 가운데 돌출부)
+ *   ┃ │ ──────────────────────────────────────  │ ┃
+ *   ┃ │ 지난 여행 2회          CREATED 26/09/04 │ ┃   ← 한 줄 · PERSONAL 은 오른쪽이 빈다
+ *   ┃ └─────────────────────────────────────────┘ ┃
+ *   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  *
  * 색은 카드마다 다르다 — 목록이 cardTheme.assignGroupCardThemes 로 겹치지 않게 배정해 준다.
  * (2026-09-14) 색은 **바깥 프레임에만** 있다. 안쪽은 흰 패널 — 실물 카드의 인쇄면이다.
  * 장식은 프레임의 항로 한 줄과 패널 왼쪽 위의 칩뿐. 읽는 면은 깨끗하다.
+ * 패널은 왼쪽 변 가운데가 프레임 쪽으로 뾰족하게 나온 실루엣(PanelShape)이다.
  *
  * ⚠️ 실물 카드의 **모양**만 빌린다. 가짜 카드번호 · VALID THRU · 칩 · NFC 는 없다.
  *    CREATED 는 유효기간 자리에 놓인 실제 groups.created_at 이다.
@@ -296,6 +354,10 @@ export function GroupTravelCard({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const onLayout = (e: LayoutChangeEvent) =>
     setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
+  // 흰 패널 크기. 돌출부가 있는 실루엣(PanelShape)을 이 크기로 그린다.
+  const [panel, setPanel] = useState({ width: 0, height: 0 });
+  const onPanelLayout = (e: LayoutChangeEvent) =>
+    setPanel({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
 
   function handlePress() {
     if (editMode) {
@@ -340,25 +402,30 @@ export function GroupTravelCard({
         </View>
       ) : null}
 
-      {/* 흰 패널 — 실물 카드의 인쇄면. 프레임 안에 inset. 테두리는 테마 rule 색의 가는 선. */}
+      {/*
+        흰 패널 — 실물 카드의 인쇄면. 프레임 안에 inset.
+        배경·테두리는 View 가 아니라 PanelShape(Path)가 그린다 — 왼쪽 변 가운데 돌출부 때문이다.
+        View 자체는 투명하고 크기만 잰다.
+      */}
       <View
+        onLayout={onPanelLayout}
         style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: PANEL_RADIUS,
-          borderWidth: 1,
-          borderColor: theme.rule,
           paddingHorizontal: 14,
           paddingTop: 12,
           paddingBottom: 11,
         }}
       >
+        {panel.width > 0 ? (
+          <PanelShape width={panel.width} height={panel.height} theme={theme} />
+        ) : null}
         {/*
           윗줄 — 왼쪽 칩 + 브랜드 라벨, 오른쪽 인원(GROUP) 또는 종류(PERSONAL).
           편집 모드면 오른쪽 자리에 선택 원이 대신 들어간다. 왼쪽·높이는 그대로다.
           ⚠️ 브랜드는 작다. 카드의 주인공은 아래 모임명이다.
         */}
-        <View className="flex-row items-center justify-between" style={{ height: 20 }}>
-          <View className="flex-row items-center" style={{ gap: 8 }}>
+        <View className="flex-row items-center justify-between" style={{ height: 22 }}>
+          {/* [칩] [로고 + TripPot 모임] — 칩은 모임명 줄과 같은 왼쪽 선에서 시작한다. */}
+          <View className="flex-row items-center" style={{ gap: 10 }}>
             <CardChip />
             <View className="flex-row items-center">
               <Image
@@ -435,17 +502,20 @@ export function GroupTravelCard({
           </View>
         </View>
 
-        {/* 아랫줄 — 왼쪽 지난 여행, 오른쪽 CREATED(GROUP 만). 실물 카드의 유효기간 자리다. */}
+        {/*
+          아랫줄 — 왼쪽 지난 여행, 오른쪽 `CREATED 26/09/14` 한 줄(GROUP 만).
+          실물 카드의 유효기간 줄이다. 구분선은 여행 슬롯에서 조금 더 떨어뜨렸다(mt-3.5).
+        */}
         <View
-          className="mt-2.5 flex-row items-end justify-between pt-2.5"
-          style={{ borderTopWidth: 1, borderTopColor: theme.rule, height: 40 }}
+          className="mt-3.5 flex-row items-center justify-between pt-2.5"
+          style={{ borderTopWidth: 1, borderTopColor: theme.rule, height: 34 }}
         >
           <Text style={{ fontSize: 11.5, lineHeight: 16, color: theme.secondary, ...NUM }}>
             {`지난 여행 ${pastTripCount}회`}
           </Text>
 
           {group.kind === 'GROUP' ? (
-            <View className="items-end">
+            <View className="flex-row items-baseline" style={{ gap: 6 }}>
               <MetaLabel theme={theme}>CREATED</MetaLabel>
               <Text
                 style={{ fontSize: 12.5, lineHeight: 16, fontWeight: '700', color: theme.ink, ...NUM }}
@@ -456,7 +526,7 @@ export function GroupTravelCard({
           ) : (
             // ⚠️ PERSONAL 은 모임이 없어 만든 날이 없다. 빈 자리를 가짜 값으로 채우지 않는다.
             //    같은 높이의 빈 View 로 카드 높이만 지킨다.
-            <View style={{ height: 28 }} />
+            <View style={{ height: 16 }} />
           )}
         </View>
       </View>
