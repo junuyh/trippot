@@ -69,6 +69,13 @@ export type GroupTravelCardData =
     })
   | (GroupTravelCardBase & {
       kind: 'PERSONAL';
+      /**
+       * 카드 CREATED 에 쓰는 값 — 개인 여행 카드에 묶인 여행들 중 **가장 먼저 만든**
+       * trips.created_at (ISO). "처음 개인 여행을 만든 날" 이라는 뜻이다. (2026-09-15)
+       * ⚠️ createdAt(정렬용 · 가장 최근 것)과 다르다. 정렬 규칙은 건드리지 않으려고 따로 둔다.
+       * ⚠️ groups.created_at 이 아니다. 개인 여행에는 모임이 없다. 저장하지 않고 화면에서 센다.
+       */
+      firstCreatedAt: string;
     });
 
 /** 카드 key · 선택 판별에 쓰는 안정된 id. 개인 여행 카드는 하나뿐이라 고정 key 다. */

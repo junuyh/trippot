@@ -46,17 +46,17 @@ const DATE_COL_WIDTH = 112;
 
 /** 실물 카드 모서리. 바깥 컬러 프레임. */
 const CARD_RADIUS = 18;
-/** 바깥 프레임 두께. 테마 색은 여기서만 보인다. */
-const FRAME = 9;
+/** 바깥 프레임 두께. 테마 색은 여기서만 보인다. (2026-09-15 · 9 → 15: 실물 카드 프레임처럼) */
+const FRAME = 15;
 /** 안쪽 흰 패널(인쇄면) 모서리. 프레임 radius − 프레임 두께에 가깝게 해 동심으로 보이게 한다. */
-const PANEL_RADIUS = CARD_RADIUS - FRAME + 2;
+const PANEL_RADIUS = 10;
 /**
  * 흰 패널 왼쪽 변 가운데의 돌출부(탭). 시안의 카드 인쇄면 실루엣이다. (2026-09-14)
- *   NOTCH_DEPTH  프레임 쪽으로 튀어나오는 깊이. FRAME(9)보다 작아 프레임 띠가 남는다
+ *   NOTCH_DEPTH  프레임 쪽으로 튀어나오는 깊이. FRAME(15)보다 작아 프레임 띠가 남는다
  *   NOTCH_HALF   돌출부 세로 반높이. 패널 중앙 ± 이만큼
  */
-const NOTCH_DEPTH = 7;
-const NOTCH_HALF = 18;
+const NOTCH_DEPTH = 12;
+const NOTCH_HALF = 26;
 
 /** 장식용 칩. 실물 카드의 IC 칩 자리. 누르지 못하고 읽히지도 않는다. */
 const CHIP_WIDTH = 28;
@@ -297,17 +297,17 @@ function MetaLabel({ children, theme }: { children: string; theme: GroupCardThem
 /**
  * 모임 카드 — "TripPot 모임통장 카드". (docs/09_IA_v1.md §3-1 · 2026-09-13 실물 카드로)
  *
- * 모임명 · 멤버(인원 수) · 진행 중인 여행 · 지난 여행 수 · (GROUP 만) 만든 날 을 담는다.
+ * 모임명 · 멤버(인원 수) · 진행 중인 여행 · 지난 여행 수 · 만든 날(GROUP=모임 · PERSONAL=첫 개인 여행)을 담는다.
  *
  *   ┏━ 테마색 프레임(FRAME) ━━━━━━━━━━━━━━━━━━━━━━┓
  *   ┃ ┌ 흰 패널(인쇄면) ─────────────────────────┐ ┃
- *   ┃ │ [칩] [logo] TripPot 모임         👥 4명 │ ┃   ← 브랜드 라벨 · 인원(PERSONAL 은 종류)
- *   ┃ │ 여행계                                  │ ┃   ← 모임명 = 카드의 주인공
+ *   ┃ │ [logo] TripPot 모임              👥 4명 │ ┃   ← 브랜드 라벨 · 인원(PERSONAL 은 종류)
+ *   ┃ │ [칩] 여행계                             │ ┃   ← 모임명 = 카드의 주인공 · 칩은 이름 옆
  *   ┃ │ 준비 중인 여행                           │ ┃
  *   ┃◀│ 오사카        10.31 – 11.01             │ ┃   ← 여행지 칸 + 기간 칸, 왼쪽에 묶음
  *   ┃ │ 후쿠오카 · 외 1건  12.04 – 12.07         │ ┃      (◀ = 패널 왼쪽 변 가운데 돌출부)
  *   ┃ │ ──────────────────────────────────────  │ ┃
- *   ┃ │ 지난 여행 2회          CREATED 26/09/04 │ ┃   ← 한 줄 · PERSONAL 은 오른쪽이 빈다
+ *   ┃ │ 지난 여행 2회          CREATED 26/09/04 │ ┃   ← 한 줄 · PERSONAL 은 첫 개인 여행 생성일
  *   ┃ └─────────────────────────────────────────┘ ┃
  *   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  *
@@ -327,7 +327,7 @@ function MetaLabel({ children, theme }: { children: string; theme: GroupCardThem
  * 폭은 부모가 정하고, 높이는 콘텐츠와 무관하게 정해진다.
  *   - 모든 텍스트가 1줄 고정 + 명시적 leading
  *   - 진행 중 여행 영역은 건수와 무관하게 TRIP_SLOT_HEIGHT 고정
- *   - 아랫줄 오른쪽(CREATED)은 PERSONAL 에서 비어도 같은 높이를 차지한다
+ *   - 아랫줄 오른쪽(CREATED)은 GROUP · PERSONAL 모두 한 줄이다
  *   - 편집 UI 는 윗줄 오른쪽 자리와 absolute 테두리라 세로에 영향이 없다
  * 따라서 GROUP · PERSONAL · 편집 모드 모두 카드 크기가 같다.
  */
@@ -423,10 +423,9 @@ export function GroupTravelCard({
           편집 모드면 오른쪽 자리에 선택 원이 대신 들어간다. 왼쪽·높이는 그대로다.
           ⚠️ 브랜드는 작다. 카드의 주인공은 아래 모임명이다.
         */}
-        <View className="flex-row items-center justify-between" style={{ height: 22 }}>
-          {/* [칩] [로고 + TripPot 모임] — 칩은 모임명 줄과 같은 왼쪽 선에서 시작한다. */}
-          <View className="flex-row items-center" style={{ gap: 10 }}>
-            <CardChip />
+        <View className="flex-row items-center justify-between" style={{ height: 20 }}>
+          {/* [로고 + TripPot 모임] … [인원]. 칩은 여기가 아니라 아래 모임명 줄에 있다. */}
+          <View className="flex-row items-center">
             <View className="flex-row items-center">
               <Image
                 source={require('@/assets/logo.png')}
@@ -467,14 +466,20 @@ export function GroupTravelCard({
           )}
         </View>
 
-        {/* 모임명 — 카드의 이름. 실물 카드의 상품명 자리다. 가장 강하다. */}
-        <Text
-          numberOfLines={1}
-          className="mt-2.5"
-          style={{ fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.5, color: theme.ink }}
-        >
-          {group.name}
-        </Text>
+        {/*
+          모임명 줄 — [칩] [이름]. 칩은 카드의 identity(이름) 옆에 붙는 시각 요소다. (2026-09-15)
+          칩 폭 + 간격만큼 이름 폭이 줄지만 28+10 이라 한글 8자 안팎은 그대로 들어간다. 넘치면 말줄임.
+        */}
+        <View className="mt-2.5 flex-row items-center" style={{ gap: 10 }}>
+          <CardChip />
+          <Text
+            numberOfLines={1}
+            className="flex-1"
+            style={{ fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.5, color: theme.ink }}
+          >
+            {group.name}
+          </Text>
+        </View>
 
         {/* 준비 중인 여행. 라벨 + 고정 2줄. */}
         <View className="mt-2.5">
@@ -514,20 +519,19 @@ export function GroupTravelCard({
             {`지난 여행 ${pastTripCount}회`}
           </Text>
 
-          {group.kind === 'GROUP' ? (
-            <View className="flex-row items-baseline" style={{ gap: 6 }}>
-              <MetaLabel theme={theme}>CREATED</MetaLabel>
-              <Text
-                style={{ fontSize: 12.5, lineHeight: 16, fontWeight: '700', color: theme.ink, ...NUM }}
-              >
-                {formatCardDate(group.createdAt)}
-              </Text>
-            </View>
-          ) : (
-            // ⚠️ PERSONAL 은 모임이 없어 만든 날이 없다. 빈 자리를 가짜 값으로 채우지 않는다.
-            //    같은 높이의 빈 View 로 카드 높이만 지킨다.
-            <View style={{ height: 16 }} />
-          )}
+          {/*
+            CREATED — GROUP 은 groups.created_at, PERSONAL 은 가장 먼저 만든 개인 여행의
+            trips.created_at(firstCreatedAt · "처음 개인 여행을 준비한 날"). (2026-09-15)
+            ⚠️ PERSONAL 에 모임 생성일은 없다. 정렬용 createdAt(최근)도 쓰지 않는다.
+          */}
+          <View className="flex-row items-baseline" style={{ gap: 6 }}>
+            <MetaLabel theme={theme}>CREATED</MetaLabel>
+            <Text
+              style={{ fontSize: 12.5, lineHeight: 16, fontWeight: '700', color: theme.ink, ...NUM }}
+            >
+              {formatCardDate(group.kind === 'GROUP' ? group.createdAt : group.firstCreatedAt)}
+            </Text>
+          </View>
         </View>
       </View>
 
