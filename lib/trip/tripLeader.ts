@@ -56,7 +56,7 @@ export function canDecideJoinRequest(
 
 // ── 나가기 ──────────────────────────────────────────────────────────────────
 
-export type LeaveBlockReason = "LEADER_ALONE" | "NOT_MEMBER";
+export type LeaveBlockReason = "LEADER_ALONE" | "LAST_MEMBER" | "NOT_MEMBER";
 
 export type LeaveDecision = {
   allowed: boolean;
@@ -66,30 +66,51 @@ export type LeaveDecision = {
 };
 
 /**
- * 나갈 수 있는가. (POL-MEM-003 · 004)
+ * 나갈 수 있는가. (POL-MEM-003 · 004 + 마지막 1명 가드)
  *
- *   일반 멤버               바로 나간다
+ *   마지막 1명              나갈 수 없다 (LAST_MEMBER) → 초대 또는 취소로 안내
+ *   여행장 + 넘길 사람 0     나갈 수 없다 (LEADER_ALONE) → 위와 같은 안내
  *   여행장 + 넘길 사람 ≥ 1   위임 후에만 (requiresDelegation)
- *   여행장 + 넘길 사람 0     나갈 수 없다 (LEADER_ALONE) → 초대 또는 취소로 안내
+ *   일반 멤버               바로 나간다
+ *
+ * ⚠️⚠️ **마지막 1명 가드가 가장 먼저다.** (2026-09-10 확정 · 09-14 여행 홈에도 적용)
+ *    여행장 여부와 **무관하다.** 멤버가 0명인 여행이 남으면 취소도 결산도 할
+ *    사람이 없는 유령 데이터가 된다. POL-MEM-003·004 와 충돌이 아니라 그
+ *    아래에 깔리는 다른 층의 가드다. (다빈 판단)
  *
  * ⚠️ 여행장이 그냥 나가면 **여행장 없는 여행**이 남는다. 그러면 참여 요청을
- *    수락할 사람이 없어져 초대가 영영 막힌다.
+ *    수락할 사람이 없어져 초대가 영영 막힌다. 실제로 오사카가 그렇게 됐다.
  *
- * ⚠️⚠️ 기준은 '남은 멤버 수' 가 아니라 **'여행장이 될 수 있는 사람 수'** 다.
- *    미가입 동행자(user_id 가 null)는 인원 수에는 들어가지만 계정이 없어
- *    여행장이 될 수 없다. 멤버 수로 세면 '여행장 + 미가입 동행자 1명' 여행이
- *    위임하라는 안내를 받는데, 정작 MEM-02 를 열면 고를 사람이 아무도 없다.
- *    (2026-09-13 확인)
+ * ⚠️⚠️ 두 숫자를 구분한다.
+ *      otherActiveCount   나 말고 남는 **가입 멤버** 수 → 여행이 비는가
+ *      delegatableCount   그중 여행장이 될 수 있는 사람 수
+ *    지금은 둘이 같다(가입 멤버면 여행장이 될 수 있다). 그래도 따로 받는 것은
+ *    묻는 질문이 다르기 때문이다. 나중에 '여행장 될 수 없는 가입 멤버' 가
+ *    생기면 여기만 고치면 된다.
+ *
+ * ⚠️ 미가입 동행자(user_id 가 null)는 **둘 다에서 뺀다.** 계정이 없어 여행장도
+ *    될 수 없고, 그 사람만 남은 여행은 아무도 손댈 수 없다. (2026-09-14)
  */
 export function canLeaveTrip(input: {
   trip: TripLeaderLike;
   userId: string | null;
   isActiveMember: boolean;
-  /** 나를 뺀, **여행장이 될 수 있는** 멤버 수. 미가입 동행자는 세지 않는다 */
+  /** 나를 뺀 ACTIVE **가입** 멤버 수. 미가입 동행자는 세지 않는다 */
+  otherActiveCount: number;
+  /** 그중 여행장이 될 수 있는 사람 수. 미가입 동행자는 세지 않는다 */
   delegatableCount: number;
 }): LeaveDecision {
   if (!input.isActiveMember) {
     return { allowed: false, requiresDelegation: false, reason: "NOT_MEMBER" };
+  }
+
+  // 여행을 비우고 나갈 수는 없다. 여행장이든 아니든 마찬가지다
+  if (input.otherActiveCount <= 0) {
+    return {
+      allowed: false,
+      requiresDelegation: false,
+      reason: isTripLeader(input.trip, input.userId) ? "LEADER_ALONE" : "LAST_MEMBER",
+    };
   }
 
   if (!isTripLeader(input.trip, input.userId)) {
@@ -102,9 +123,18 @@ export function canLeaveTrip(input: {
   return { allowed: false, requiresDelegation: true };
 }
 
-/** MEM-01 이 쓰는 화면 분기값으로 바꾼다 */
-export function leaveModeOf(decision: LeaveDecision): "member" | "needsDelegate" | "leaderAlone" {
+/**
+ * MEM-01 이 쓰는 화면 분기값으로 바꾼다.
+ *
+ * ⚠️ leaderAlone 과 lastMember 는 **막히는 이유가 다르다.** 앞은 넘겨줄 사람이
+ *    없는 것이고 뒤는 남는 사람이 없는 것이다. 문구가 달라야 해서 나눈다.
+ *    나갈 길(초대 또는 취소)은 같다.
+ */
+export function leaveModeOf(
+  decision: LeaveDecision,
+): "member" | "needsDelegate" | "leaderAlone" | "lastMember" {
   if (decision.requiresDelegation) return "needsDelegate";
   if (decision.reason === "LEADER_ALONE") return "leaderAlone";
+  if (decision.reason === "LAST_MEMBER") return "lastMember";
   return "member";
 }

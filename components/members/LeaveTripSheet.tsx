@@ -73,17 +73,28 @@ export function LeaveTripSheet({
   onCancelTrip,
   leaving,
 }: Props) {
-  if (mode === "leaderAlone") {
+  /*
+    ⚠️ 막히는 두 갈래를 함께 그린다. 이유가 다르고 문구도 다르지만, 나갈 길은
+       '초대' 와 '취소' 로 같다. **안내만 하고 끝내지 않는다** — 여기서 길을
+       안 주면 사용자는 할 수 있는 게 없다. (다빈 지시 2026-09-14)
+  */
+  if (mode === "leaderAlone" || mode === "lastMember") {
+    const leader = mode === "leaderAlone";
     return (
       <BottomSheet
         visible={visible}
         onClose={onClose}
         onDismiss={onDismiss}
         title="지금은 나갈 수 없어요"
-        description="여행장을 넘겨줄 멤버가 없어요."
+        description={
+          leader
+            ? "여행장을 넘겨줄 멤버가 없어요."
+            : `${destination} 여행에 남는 사람이 없어요.`
+        }
         footer={
           <View style={{ gap: 8 }}>
             <Button label="멤버 초대하기" onPress={onInvite} />
+            {/* ⚠️ 바로 취소하지 않는다. CXL-01(사유) → CXL-03(확인)을 거친다 */}
             <Button label="여행 취소하기" variant="ghost" onPress={onCancelTrip} />
           </View>
         }
@@ -91,8 +102,16 @@ export function LeaveTripSheet({
         <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
           <BranchNotice
             tone="warn"
-            title="이 여행에 참여한 사람이 나뿐이에요"
-            body="멤버를 초대해 여행장을 넘긴 뒤 나가거나, 여행을 취소해 주세요."
+            title={
+              leader
+                ? "이 여행에 참여한 사람이 나뿐이에요"
+                : "나가면 아무도 없는 여행이 남아요"
+            }
+            body={
+              leader
+                ? "멤버를 초대해 여행장을 넘긴 뒤 나가거나, 여행을 취소해 주세요."
+                : "남는 사람이 없으면 취소도 결산도 할 수 없어요. 멤버를 초대하거나, 여행을 취소해 주세요."
+            }
           />
         </View>
       </BottomSheet>

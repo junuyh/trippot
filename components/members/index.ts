@@ -8,6 +8,7 @@
 export { DelegateLeaderSheet } from './DelegateLeaderSheet';
 export { LeaveCancelsTripSheet } from './LeaveCancelsTripSheet';
 export { LeaveDoneView } from './LeaveDoneView';
+export { LeaveTripFlow } from './LeaveTripFlow';
 export { LeaveTripSheet } from './LeaveTripSheet';
 export { TripMemberListView } from './TripMemberListView';
 export type { LeaveMode, TripMemberItem } from './types';

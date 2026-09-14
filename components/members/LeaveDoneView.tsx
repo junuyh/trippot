@@ -34,6 +34,14 @@ type Props = {
   /** 새 여행장 이름. **variant='delegated' 에서만 쓴다** */
   newLeaderName?: string;
 
+  /**
+   * 나가기 뒤 돌아갈 곳의 이름. 진입점마다 다르다.
+   *
+   * ⚠️ 문구를 여기서 고정하지 않는다. 여행 홈에서 나가면 갈 곳이 앱 홈이지만,
+   *    모임 상세에서 나가면 그 모임으로 돌아가는 게 맞다 — 여행 하나에서만
+   *    나갔고 모임에는 그대로 남아 있기 때문이다. (다빈 결정 2026-09-14)
+   */
+  homeLabel?: string;
   onGoHome: () => void;
 };
 
@@ -43,6 +51,7 @@ export function LeaveDoneView({
   groupName,
   alsoLeftGroup,
   newLeaderName,
+  homeLabel = "홈으로",
   onGoHome,
 }: Props) {
   const copy = resolveCopy({
@@ -106,7 +115,7 @@ export function LeaveDoneView({
       </View>
 
       <View className="px-5 pb-9">
-        <Button label="홈으로" onPress={onGoHome} />
+        <Button label={homeLabel} onPress={onGoHome} />
       </View>
     </View>
   );
@@ -130,7 +139,7 @@ function resolveCopy({
   groupName,
   alsoLeftGroup,
   newLeaderName,
-}: Omit<Props, "onGoHome">): Copy {
+}: Omit<Props, "onGoHome" | "homeLabel">): Copy {
   /** 모임에 남아 있을 때의 안내. left · delegated 가 같은 문장을 쓴다 */
   const staysInGroup = `${groupName} 모임 목록에서 ${destination} 여행이 계속 보이지만, 눌러서 들어갈 수는 없어요.`;
 

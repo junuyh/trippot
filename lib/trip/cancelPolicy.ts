@@ -92,6 +92,76 @@ export function cancelPerPersonAmount(remaining: number, headcount: number): num
   return Math.floor(remaining / headcount / 10) * 10;
 }
 
+/**
+ * 취소 확정 시 저장할 금액 스냅샷을 만든다. (POL-CXL-011 · 015)
+ *
+ * ⚠️ **두 화면이 같은 식을 쓴다.** 여행 홈과 모임 상세가 각자 계산하면
+ *    "ACCOUNT 는 잔액 그대로" 같은 규칙이 두 곳에 생기고, 한쪽만 고쳐진다.
+ *    leaveTrip 이 두 개가 됐던 것과 같은 일이다. (2026-09-14)
+ *
+ * ⚠️ 순수 함수다. 숫자를 받아 숫자를 돌려준다. 조회는 부르는 쪽이 한다.
+ *
+ * ⚠️ maskedAccount 는 받지 않는다. 마스킹 계좌번호는 financial_accounts 에
+ *    있는데 두 화면 다 그걸 읽지 않는다. 스냅샷에는 null 로 남기고 화면이
+ *    "연결한 계좌" 로 대신 부른다.
+ */
+export function buildCancelFundSnapshot(input: {
+  /** fund_sources.source_type 이 ACCOUNT 인가 */
+  isAccountFund: boolean;
+  /** fund_sources.current_amount */
+  currentAmount: number;
+  /** 입금 거래 합계 */
+  depositTotal: number;
+  /** 카테고리 actual_amount 합계 */
+  actualSpent: number;
+  /** 목표 여행비 (trip_budgets.target_amount) */
+  goalAmount: number;
+  /** trips.headcount */
+  headcount: number;
+}): {
+  fund_type: FundKind;
+  masked_account: null;
+  total_saved: number;
+  actual_spent: number;
+  remaining: number;
+  goal_amount: number;
+  headcount: number;
+  captured_at: string;
+} {
+  const fundKind: FundKind = input.isAccountFund
+    ? "ACCOUNT"
+    : input.currentAmount > 0 || input.depositTotal > 0
+      ? "MANUAL"
+      : "ZERO";
+
+  /**
+   * 누적 모금액.
+   *
+   * ⚠️ depositTotal 만 쓰지 않는다. 직접 입력한 여행자금은 거래로 남지 않고
+   *    fund_sources.current_amount 에만 있다. depositTotal 만 보면 수기 입력
+   *    여행의 스냅샷이 **0원으로 굳는다.** 실제로 취소 화면이 "직접 입력한
+   *    여행자금 0원" 이라고 말했다. (2026-09-13 시뮬레이터에서 확인)
+   */
+  const totalSaved =
+    input.depositTotal > 0 ? input.depositTotal : input.currentAmount;
+
+  return {
+    fund_type: fundKind,
+    masked_account: null,
+    total_saved: totalSaved,
+    actual_spent: input.actualSpent,
+    remaining: cancelRemainingAmount({
+      fundKind,
+      currentBalance: input.currentAmount,
+      totalSaved,
+      actualSpent: input.actualSpent,
+    }),
+    goal_amount: input.goalAmount,
+    headcount: input.headcount,
+    captured_at: new Date().toISOString(),
+  };
+}
+
 /** 자금 박스 라벨. 방식과 지출 유무로 갈린다 */
 export function cancelFundLabel(input: {
   fundKind: FundKind;
