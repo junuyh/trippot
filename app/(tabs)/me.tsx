@@ -48,6 +48,7 @@ import {
   deleteProfileImage,
   uploadProfileImage,
 } from '@/lib/supabase/storage/profileImage';
+import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -94,7 +95,8 @@ export default function ScreenMY01() {
       // ⚠️ trips.status 로만 가른다. 날짜로 다시 판정하지 않는다.
       //    /me/trips 목록이 쓰는 기준과 같아야 카드 숫자와 목록 건수가 맞는다.
       //    (app/me/trips.tsx:144-146)
-      const planning = trips.filter((trip) => trip.status === TRIP_STATUS.PLANNING).length;
+      // ⚠️ 취소 요청 중도 '준비 중' 으로 센다. (MY-02 목록과 같은 기준)
+      const planning = trips.filter((trip) => isTripBeforeDeparture(trip.status)).length;
       const traveling = trips.filter((trip) => trip.status === TRIP_STATUS.TRAVELING).length;
       const past = trips.filter(
         (trip) => trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED,

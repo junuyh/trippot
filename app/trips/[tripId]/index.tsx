@@ -14,7 +14,7 @@
 // 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/trip-home/.
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import {
   Stack,
   router,
@@ -114,6 +114,7 @@ import {
 } from "@/lib/supabase/queries/travelTypes";
 import {
   castCancelVote,
+  EXPIRE_DAYS,
   getActiveCancelRequest,
   getChangesSinceCancel,
   getVoteProgress,
@@ -1328,9 +1329,20 @@ export default function ScreenTripHome() {
 
   const cancelPerPerson = cancelPerPersonAmount(cancelSnapshot.remaining, trip.headcount);
 
-  const cancelExpiresLabel = data.cancelRequest
-    ? format(parseISO(data.cancelRequest.expires_at), "M월 d일")
-    : "";
+  /**
+   * 요청 만료일.
+   *
+   * ⚠️ 요청 **전**에도 값이 있어야 한다. CXL-03 은 요청하기 전에 뜨는 화면인데
+   *    거기서 빈 문자열을 쓰면 "까지 동의가 모이지 않으면 요청이 사라져요" 라는
+   *    머리 없는 문장이 된다. (2026-09-14 확인) 아직 요청이 없으면 실제로
+   *    만들어질 값과 같은 규칙(오늘 + EXPIRE_DAYS)으로 미리 보여준다.
+   */
+  const cancelExpiresLabel = format(
+    data.cancelRequest
+      ? parseISO(data.cancelRequest.expires_at)
+      : addDays(new Date(), EXPIRE_DAYS),
+    "M월 d일",
+  );
 
   const cancelRequesterName =
     data.members.find((m) => m.user_id === data.cancelRequest?.requested_by)?.name ??

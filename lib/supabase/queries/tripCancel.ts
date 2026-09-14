@@ -52,8 +52,14 @@ export const CANCEL_REQUEST_STATUS = {
   WITHDRAWN: 'WITHDRAWN',
 } as const;
 
-/** 요청 + 7일 (POL-CXL-063) */
-const EXPIRE_DAYS = 7;
+/**
+ * 요청 + 7일 (POL-CXL-063)
+ *
+ * ⚠️ 화면도 쓴다. CXL-03 은 **요청하기 전**에 "언제까지 동의가 모여야 하는지"
+ *    를 미리 알려야 하는데, 그때는 아직 expires_at 이 없다. 숫자를 화면에
+ *    또 적으면 둘이 어긋난다.
+ */
+export const EXPIRE_DAYS = 7;
 
 // ── 조회 ────────────────────────────────────────────────────────────────────
 

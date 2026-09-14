@@ -59,6 +59,7 @@ import {
   getMyPersonalTrips,
   type Trip,
 } from '@/lib/supabase/queries/trips';
+import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -158,7 +159,8 @@ export default function ScreenPersonalTrips() {
 
       setData({
         accounts: [...byAccount.values()],
-        planningTrips: items.filter((item) => item.status === TRIP_STATUS.PLANNING),
+        // ⚠️ 취소 요청 중도 준비 중 탭이다. (app/groups/[groupId] 와 같은 규칙)
+        planningTrips: items.filter((item) => isTripBeforeDeparture(item.status)),
         travelingTrips: items.filter((item) => item.status === TRIP_STATUS.TRAVELING),
         pastTrips: items.filter(
           (item) => item.status === TRIP_STATUS.ENDED || item.status === TRIP_STATUS.SETTLED,

@@ -60,6 +60,7 @@ import {
   getTripAmountSummaries,
   updateGroup,
 } from '@/lib/supabase/queries/groups';
+import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'denied' | 'error';
 
@@ -288,7 +289,8 @@ export default function ScreenGROUP02() {
         // ⚠️ trips.status 로 가른다. /me/trips 목록이 쓰는 기준과 같다.
         //    (app/me/trips.tsx) 날짜로 다시 판정하면 같은 여행이 두 화면에서
         //    다른 칸에 들어갈 수 있다.
-        planningTrips: items.filter((item) => item.status === TRIP_STATUS.PLANNING),
+        // ⚠️ 취소 요청 중도 준비 중 탭이다. 빼면 어느 탭에도 안 들어가 사라진다
+        planningTrips: items.filter((item) => isTripBeforeDeparture(item.status)),
         travelingTrips: items.filter((item) => item.status === TRIP_STATUS.TRAVELING),
         pastTrips: items.filter(
           (item) => item.status === TRIP_STATUS.ENDED || item.status === TRIP_STATUS.SETTLED,

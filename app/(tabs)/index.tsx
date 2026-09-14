@@ -69,6 +69,7 @@ import {
 import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
 import { getTripsWithSummary, type TripWithSummary } from '@/lib/supabase/queries/trips';
 import { getUserProfile, type UserProfile } from '@/lib/supabase/queries/users';
+import { isTripOngoing } from '@/lib/trip/tripStatus';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -188,7 +189,8 @@ export default function ScreenHOME01() {
       // 준비 중이거나 여행 중인 여행이 하나라도 있는가.
       const hasOngoing = nextTrips.some(
         (trip) =>
-          trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING,
+          // ⚠️ 취소 요청 중도 진행 중이다. 빼면 요청받은 사람 홈에서 사라진다
+          isTripOngoing(trip.status),
       );
 
       /*
@@ -317,13 +319,14 @@ export default function ScreenHOME01() {
     .flatMap((trip) => {
       const status = toTripStatus(trip.status);
       /*
-        ⚠️ CANCEL_PENDING 이 여기서 빠진다. (2026-09-10)
-           취소 동의 절차가 도는 여행은 홈 목록에서 사라지는데, 동의할 사람이
-           그 여행에 들어갈 길이 이 목록뿐이다. 취소 기능(CXL)을 붙일 때
-           이 조건에 CANCEL_PENDING 을 넣고 카드에 표시를 더한다.
-           지금은 이 값을 쓰는 코드가 없어 실제로 빠지는 여행이 없다.
+        ⚠️ CANCEL_PENDING 을 **반드시 포함한다.** (2026-09-10 예고 → 09-14 반영)
+           취소 동의 절차가 도는 여행이 이 목록에서 빠지면, 동의할 사람이 그
+           여행에 들어갈 길이 없어진다. 실제로 그렇게 됐다 — 서연이 요청하자
+           민지의 홈에서 오사카가 사라졌고, 동의 시트에 도달할 방법이 아무
+           데도 없었다. 취소 동의 기능 전체가 막혔다.
+           판정은 lib/trip/tripStatus.ts 한 곳에 모아 뒀다.
       */
-      if (status !== TRIP_STATUS.PLANNING && status !== TRIP_STATUS.TRAVELING) return [];
+      if (!status || !isTripOngoing(status)) return [];
       return [
         {
           ...toBase(trip, status),
