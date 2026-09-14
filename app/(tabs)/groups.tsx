@@ -49,6 +49,7 @@ import {
   type GroupSortMode,
 } from '@/lib/supabase/queries/groups';
 import { getMyPersonalTrips } from '@/lib/supabase/queries/trips';
+import { isTripOngoing } from '@/lib/trip/tripStatus';
 
 /**
  * "이미 시작한 여행" 중 가장 늦은 start_date. 없으면 null.
@@ -183,7 +184,8 @@ export default function ScreenGROUP01() {
       const personalOngoing = personalTrips
         .filter(
           (trip) =>
-            trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING,
+            // ⚠️ 취소 요청 중도 진행 중이다. 모임 카드에서 사라지면 안 된다
+            isTripOngoing(trip.status),
         )
         .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''));
       const personalPastCount = personalTrips.filter(

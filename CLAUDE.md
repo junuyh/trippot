@@ -414,3 +414,65 @@ npx supabase db push           스키마 반영
 npx supabase gen types typescript --linked > types/database.ts
 eas build -p android --profile preview    (사람이 직접 실행 — Claude Code 권한 차단됨)
 ```
+
+---
+
+## 18. Supabase 작업 규칙
+
+이 프로젝트(TripPot)에서 Supabase 작업할 때 아래 규칙을 지켜줘.
+
+1. 대상 프로젝트
+- trippot-dev (project ref: pzwabphxitubsioyhgkk) 만 사용한다
+- trippot-prod (hsrjktepdyvxjffgussr) 에는 link · push · SQL 실행을 절대 하지 않는다
+- 명령 실행 전 supabase/.temp/project-ref 가 pzwabphxitubsioyhgkk 인지 확인한다
+- Supabase CLI 는 항상 npx supabase 로 실행한다 (프로젝트 버전 2.x)
+
+2. 실행 전에 반드시 나에게 먼저 묻는 것
+- npx supabase db push
+- npx supabase migration repair
+- INSERT · UPDATE · DELETE · CREATE · ALTER · DROP · GRANT · REVOKE 가 들어간 SQL
+- 요청받은 SQL 과 한 줄이라도 다르게 적용해야 할 때 (버그 수정 포함)
+  → 다른 이유 · 영향 · 되돌리는 SQL 을 정리해 보여주고 멈춘다
+
+3. 절대 하지 않는 것
+- npx supabase db reset, npx supabase db pull
+- DB 비밀번호 변경 · 재설정 (대시보드 · CLI · Management API 어떤 경로로도)
+  → 연결 중 비밀번호를 요구받으면 빈칸으로 넘기고, 비밀번호를 새로 만들거나 바꾸자고 제안하지 않는다
+- 기존 supabase/migrations/* 파일 수정 · 삭제 (바꿀 게 있으면 새 파일)
+- types/database.ts 손으로 수정 (CLI 재생성만)
+- RLS disable, 앱 코드 · .env 에 service_role 키 사용
+- 토큰 · 비밀번호 · 키 값을 화면에 출력하거나 파일에 쓰기
+
+4. 연결이 안 될 때
+- DB 비밀번호 · DB 접속 URL 없이 연결되는 구조다
+  (npx supabase login 토큰으로 CLI 가 임시 접속 계정을 만들어 붙는다)
+- 확인 순서: 초대 수락 여부 → 로그인 계정 → 프로젝트 폴더 위치 → npx supabase --version
+- 로그인 문제면 npx supabase logout → npx supabase login 으로 다시 로그인한다
+- 해결책으로 비밀번호 재설정 · 전역 CLI 설치 · 다른 프로젝트 link 를 제안하지 않는다
+
+5. 마이그레이션 적용 순서
+- migration list 로 Remote 가 빈 파일이 내 파일뿐인지 확인. 아니면 멈추고 보고
+- db push --dry-run 으로 대상 확인 → 나에게 확인 → db push
+- 마이그레이션 SQL 을 SQL Editor 나 API 로 직접 실행하지 않는다 (이력이 안 남음)
+- 적용 후 gen types → npx tsc --noEmit
+
+6. 새 마이그레이션을 작성할 때
+- 파일명 타임스탬프는 기존 최신 파일보다 뒤
+- 두 번 실행해도 안전하게: if not exists / drop ... if exists
+- 기존 칼럼 · 제약 · 정책을 바꾸기 전에 원격의 현재 상태를 먼저 조회해 확인한다
+
+7. 이 DB 에서 이미 확인된 함정
+- pgcrypto 는 extensions 스키마에 있다
+  → search_path 를 잠근 security definer 함수에서는 extensions.gen_random_bytes() 로 부른다
+- service_role 은 RLS 는 우회하지만 테이블 GRANT 는 우회하지 않는다
+  → Edge Function 이 쓰는 표에 service_role GRANT 가 있는지 확인한다
+- RLS 정책 서브쿼리에서 바깥 표 칼럼은 public.<표>.<칼럼> 으로 명시한다
+  (tm.trip_id = trip_id 로 쓰면 항상 참이 되어 표가 전부 열린다)
+- 새 표에는 개발용 dev_open_all 정책이 걸려 있다. 실서비스 정책 교체는 요청이 있을 때만 한다
+
+8. 조회(SELECT)는 직접 확인한다
+- SELECT 결과를 DB 담당자에게 요청하는 문구를 만들지 않는다
+- SUPABASE_ACCESS_TOKEN 이 있으면 Management API 로 직접 조회한다
+  POST https://api.supabase.com/v1/projects/pzwabphxitubsioyhgkk/database/query
+  User-Agent 헤더 필수 (없으면 Cloudflare 403 · error code 1010)
+- 토큰이 없으면 SQL Editor 에서 돌릴 SELECT 문을 나에게 준다

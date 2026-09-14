@@ -36,10 +36,14 @@ export type TripMemberItem = {
 };
 
 /**
- * 나가기가 가능한지. lib/trip/tripOwner.ts 의 canLeaveTrip() 결과와 같은 모양.
+ * 나가기가 가능한지. lib/trip/tripLeader.ts 의 canLeaveTrip() 결과와 같은 모양.
  *
  * `member`        일반 멤버. 바로 나갈 수 있다
- * `needsDelegate` 여행장인데 남은 멤버가 있다. 위임 후에만 나갈 수 있다
- * `leaderAlone`    여행장인데 혼자다. 나갈 수 없다. 초대 또는 취소로 안내
+ * `needsDelegate` 여행장인데 넘겨줄 사람이 있다. 위임 후에만 나갈 수 있다
+ * `leaderAlone`   여행장인데 넘겨줄 사람이 없다. 나갈 수 없다
+ * `lastMember`    여행장은 아닌데 남는 사람이 없다. 나갈 수 없다
+ *
+ * ⚠️ 뒤의 둘은 **막다른 길이 아니다.** 초대하거나 여행을 취소하는 두 갈래를
+ *    시트가 함께 준다. 안내만 하고 끝내면 사용자가 할 수 있는 게 없다.
  */
-export type LeaveMode = "member" | "needsDelegate" | "leaderAlone";
+export type LeaveMode = "member" | "needsDelegate" | "leaderAlone" | "lastMember";
