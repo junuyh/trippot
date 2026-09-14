@@ -24,9 +24,15 @@ type Props = {
 export function MenuSection({ title, children }: Props) {
   return (
     <View>
+      {/* 제목 색 = 여권의 MY TRAVEL PASSPORT 와 같은 진보라. (2026-09-14) 아래 선과 한 벌이다. */}
       <Text
-        className="text-pot-ink"
-        style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5 }}
+        style={{
+          fontSize: 16,
+          lineHeight: 21,
+          fontWeight: '800',
+          letterSpacing: -0.5,
+          color: PASSPORT.accent,
+        }}
       >
         {title}
       </Text>

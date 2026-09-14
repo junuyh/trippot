@@ -205,6 +205,13 @@ export default function ScreenGROUP01() {
                     .map((trip) => trip.created_at)
                     .sort()
                     .at(-1) as string,
+                  // 카드 CREATED = 가장 먼저 만든 개인 여행의 created_at. (2026-09-15)
+                  // 여행은 PLANNING 으로 생성되므로(trips.status default) 이 값이 곧
+                  // "처음 개인 여행을 준비하기 시작한 날" 이다. 정렬 키(createdAt · 최근)와 별개.
+                  firstCreatedAt: personalTrips
+                    .map((trip) => trip.created_at)
+                    .sort()
+                    .at(0) as string,
                   ongoingTrips: personalOngoing.map((trip) => ({
                     tripId: trip.id,
                     destination: trip.destination,
