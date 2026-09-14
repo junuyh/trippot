@@ -5,8 +5,13 @@
 // POL-INV-021(수락 전에는 금액·멤버를 숨긴다)의 짝이다. 숨겨 두기만 하고
 // 언제 풀리는지 알리지 않으면, 여행장은 자기가 무엇을 여는지 모른 채 누른다.
 //
-// ⚠️ 모임 이동 안내는 **예정형**으로 쓴다. 이 시점에는 아직 안 옮겨졌다.
+// ⚠️ 모임 안내는 **예정형**으로 쓴다. 이 시점에는 아직 아무것도 안 바뀌었다.
 //    "옮겨졌어요"(완료형)로 쓰면 거절했을 때 말이 어긋난다. (POL-INV-035)
+//
+// ⚠️ 새 모임 이름은 **여기서 받지 않는다.** (2026-09-14 · docs/12 §7)
+//    수락을 눌렀을 때 서버가 NEW_GROUP_NAME_REQUIRED 를 돌려주면 그때 NewGroupNameSheet 가
+//    묻는다. 초대를 보낼 때도, 요청을 볼 때도 이름을 정하지 않는다.
+//    trips.pending_group_name 은 읽지 않는다.
 //
 // ⚠️ 거절 사유를 묻지도 전달하지도 않는다. (POL-INV-051)
 // ============================================================================
@@ -33,11 +38,12 @@ type Props = {
   accountLabel: string | null;
 
   /**
-   * trips.pending_group_name. 있으면 수락 시 모임이 옮겨진다.
-   * null 이면 기존 모임에 그대로 합류한다.
+   * 수락하면 새 모임이 만들어질 것으로 보이는가. 서버 hint(needs_new_group) 그대로.
+   * true 면 예정형으로 안내만 한다 — 이름은 수락 때 서버가 요구하면 그때 묻는다.
    */
-  pendingGroupName: string | null;
-  fromGroupName: string;
+  needsNewGroup: boolean;
+  /** 지금 모임 이름. 개인 여행이면 null. */
+  fromGroupName: string | null;
 
   onAccept: () => void;
   onReject: () => void;
@@ -52,7 +58,7 @@ export function JoinRequestSheet({
   requestedAtLabel,
   destination,
   accountLabel,
-  pendingGroupName,
+  needsNewGroup,
   fromGroupName,
   onAccept,
   onReject,
@@ -112,12 +118,16 @@ export function JoinRequestSheet({
           }
         />
 
-        {/* 안내 B — 모임 이동. 예정형이다 */}
-        {pendingGroupName ? (
+        {/* 안내 B — 새 모임. 예정형이다. 이름은 수락을 누른 뒤 묻는다 */}
+        {needsNewGroup ? (
           <BranchNotice
             tone="info"
-            title={`수락하면 이 여행은 '${pendingGroupName}' 으로 옮겨져요`}
-            body={`${request.name}님은 ${fromGroupName} 멤버가 아니라서 새 모임이 만들어져요. 지난 여행 기록은 ${fromGroupName}에 남아요.`}
+            title="수락하면 이 여행을 위한 새 모임이 만들어져요"
+            body={
+              fromGroupName
+                ? `${request.name}님은 ${fromGroupName} 멤버가 아니라서, 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. ${fromGroupName}의 다른 여행과 멤버는 그대로예요. 모임 이름은 수락할 때 정해요.`
+                : `개인 여행에 다른 사람이 들어오면 모임 여행이 돼요. 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. 모임 이름은 수락할 때 정해요.`
+            }
           />
         ) : null}
       </View>
