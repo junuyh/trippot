@@ -514,7 +514,18 @@ export async function getOtherActiveTripMemberCount(
     .select("id", { count: "exact", head: true })
     .eq("trip_id", tripId)
     .eq("status", TRIP_MEMBER_STATUS.ACTIVE)
-    .or(`user_id.is.null,user_id.neq.${userId}`);
+    /**
+     * ⚠️⚠️ 미가입 동행자(user_id 가 null)를 **세지 않는다.** ⚠️⚠️
+     *    예전에는 `user_id.is.null` 로 함께 셌다. 그래서 '여행장 + 미가입
+     *    동행자 1명' 여행이 others = 1 이 되어 나가기가 허용됐고, **여행장이
+     *    나가고 계정 없는 사람만 남는 여행**이 만들어졌다. 그 여행은 취소할
+     *    사람도 결산할 사람도 없다. (2026-09-14)
+     *
+     * ⚠️ 이 값은 "나 말고 이 여행을 이어받을 수 있는 사람이 있는가" 를 묻는다.
+     *    인원 수가 아니다. 인원은 trips.headcount 가 따로 센다.
+     */
+    .not("user_id", "is", null)
+    .neq("user_id", userId);
 
   if (error) throw error;
   return count ?? 0;
@@ -533,6 +544,18 @@ export async function getOtherActiveTripMemberCount(
  *
  * ⚠️ ACTIVE 행이 여러 개일 수 있어 `.eq('status', ACTIVE)` 로 **전부** 바꾼다.
  *    하나만 바꾸면 참가자로 남는 행이 생긴다.
+ */
+/**
+ * @deprecated 2026-09-14 · `lib/supabase/queries/tripMembers.ts` 의 leaveTrip 을 쓴다.
+ *
+ * ⚠️ **새로 쓰지 말 것.** 이 함수는 left_at 을 안 찍고, 모임 이탈을 못 하고,
+ *    무엇보다 **여행장 판정과 취소 동의 재판정을 하지 않는다.** 실제로 그래서
+ *    오사카 여행의 여행장이 그냥 빠져나갔고, 그 여행은 초대를 수락할 사람도
+ *    위임받을 사람도 없는 상태가 됐다.
+ *
+ * ⚠️ 호출부는 lib/hooks/useLeaveTrip.ts 로 옮겼다. 지금 이 함수를 부르는 곳은
+ *    없다. 지우지 않고 두는 것은 L 복귀 후 판단할 재료로 남기기 위해서다.
+ *    (다빈 결정)
  */
 export async function leaveTrip(tripId: string, userId: string): Promise<void> {
   const { error } = await supabase

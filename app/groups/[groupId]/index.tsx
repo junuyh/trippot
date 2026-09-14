@@ -48,8 +48,6 @@ import { getGroupTripAccounts } from '@/lib/supabase/queries/funds';
 import {
   getLeftTrips,
   getMyParticipatingTripIds,
-  getOtherActiveTripMemberCount,
-  leaveTrip,
 } from '@/lib/supabase/queries/trips';
 import {
   getGroupById,
@@ -60,6 +58,9 @@ import {
   getTripAmountSummaries,
   updateGroup,
 } from '@/lib/supabase/queries/groups';
+import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
+import { LeaveDoneView, LeaveTripFlow } from '@/components/members';
+import { useLeaveTrip } from '@/lib/hooks/useLeaveTrip';
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'denied' | 'error';
 
@@ -77,7 +78,25 @@ export default function ScreenGROUP02() {
   /** '전체 계좌' 시트. 이 모임의 모든 계좌를 담는다. */
   const [allAccountsOpen, setAllAccountsOpen] = useState(false);
   /** 나가기 확인창에 올라온 여행. null 이면 닫혀 있다. */
-  const [leavingTrip, setLeavingTrip] = useState<MyTripItem | null>(null);
+  /**
+   * 여행에서 나가기. **여행 홈과 같은 훅·같은 시트를 쓴다.**
+   *
+   * ⚠️ 여기에 따로 짜지 않는다. 예전에는 이 화면이 자기만의 확인창과
+   *    queries/trips.ts 의 다른 leaveTrip 을 썼고, 그쪽은 여행장 판정도
+   *    취소 동의 재판정도 하지 않았다. 그래서 오사카 여행의 여행장이 그냥
+   *    빠져나갔고, 그 여행은 초대를 수락할 사람도 위임받을 사람도 없는
+   *    상태가 됐다. (2026-09-14 · 다빈 지시)
+   */
+  const leave = useLeaveTrip({
+    // 나간 뒤 목록을 다시 읽는다. '나간 여행' 배지로 바뀐다
+    onLeft: () => void load(),
+    /*
+      ⚠️ 이 화면에는 CXL 흐름이 없다. 여행 홈으로 보내고 거기서 취소 시트를
+         연다. **바로 취소하지 않는다** — CXL-01(사유) → CXL-03(확인)을 거친다.
+    */
+    onCancelTrip: (tripId) => router.push(`/trips/${tripId}?cancel=1`),
+    onInvite: (tripId) => router.push(`/trips/${tripId}/edit`),
+  });
 
   /** 나간 여행 카드를 눌렀을 때 띄우는 안내. 이동하지 않는다. */
   const [leftNoticeOpen, setLeftNoticeOpen] = useState(false);
@@ -95,8 +114,7 @@ export default function ScreenGROUP02() {
    *    묻는 창이고, 이건 아무것도 하지 않는 안내다. (2026-09-10)
    */
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState(false);
-  const [leaveError, setLeaveError] = useState<string | null>(null);
+
 
   const load = useCallback(async () => {
     if (!groupId) {
@@ -288,7 +306,8 @@ export default function ScreenGROUP02() {
         // ⚠️ trips.status 로 가른다. /me/trips 목록이 쓰는 기준과 같다.
         //    (app/me/trips.tsx) 날짜로 다시 판정하면 같은 여행이 두 화면에서
         //    다른 칸에 들어갈 수 있다.
-        planningTrips: items.filter((item) => item.status === TRIP_STATUS.PLANNING),
+        // ⚠️ 취소 요청 중도 준비 중 탭이다. 빼면 어느 탭에도 안 들어가 사라진다
+        planningTrips: items.filter((item) => isTripBeforeDeparture(item.status)),
         travelingTrips: items.filter((item) => item.status === TRIP_STATUS.TRAVELING),
         pastTrips: items.filter(
           (item) => item.status === TRIP_STATUS.ENDED || item.status === TRIP_STATUS.SETTLED,
@@ -331,64 +350,10 @@ export default function ScreenGROUP02() {
     }
   }
 
-  /**
-   * '여행에서 나가기' 를 눌렀을 때.
-   *
-   * ⚠️ 확인창을 열기 전에 **나 말고 남은 참가자가 있는지 먼저 본다.**
-   *    마지막 한 명은 나갈 수 없다. (2026-09-10 확정) 여행을 그만두려면
-   *    '여행 취소' 를 써야 하는데 그건 다른 담당 기능이라 여기서 연결하지 않는다.
-   *
-   * ⚠️ 예전에는 마지막 참가자가 나가면 여행을 자동으로 지웠다. 그 정책은
-   *    폐기했다. 여행에서 나가는 것과 여행을 취소하는 것은 다른 일이다.
-   *
-   * ⚠️ 개수를 못 읽으면 아무것도 하지 않고 안내만 한다. 확실하지 않은 채로
-   *    나가기를 진행하면 마지막 참가자가 빠져나갈 수 있다.
-   */
-  async function handlePressLeaveTrip(trip: MyTripItem) {
-    if (!userId) return;
-
-    setLeaveError(null);
-
-    let others: number;
-    try {
-      others = await getOtherActiveTripMemberCount(trip.tripId, userId);
-    } catch {
-      setBlockedMessage('참가자를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
-      return;
-    }
-
-    if (others === 0) {
-      setBlockedMessage('이 여행을 더 이상 진행하지 않으려면\n여행 취소를 이용해주세요.');
-      return;
-    }
-
-    setLeavingTrip(trip);
-  }
-
-  /**
-   * 나가기 확정.
-   *
-   * ⚠️ trip_members 의 내 ACTIVE 행을 LEFT 로 바꾸는 것이 전부다.
-   *    trips.status 를 건드리지 않는다 — DELETED 도 CANCELED 도 만들지 않는다.
-   *
-   * ⚠️ group_members 도, 금융 데이터도 건드리지 않는다. 이미 낸 돈이 있어도
-   *    그대로 둔다.
-   */
-  async function handleConfirmLeaveTrip() {
-    if (!leavingTrip || !userId || leaving) return;
-
-    setLeaving(true);
-    setLeaveError(null);
-    try {
-      await leaveTrip(leavingTrip.tripId, userId);
-      setLeavingTrip(null);
-      await load();
-    } catch {
-      setLeaveError('여행에서 나가지 못했어요. 잠시 후 다시 시도해 주세요.');
-    } finally {
-      setLeaving(false);
-    }
-  }
+  /*
+    ⚠️ 나가기 판정(여행장 · 마지막 1명 · 취소 동의)은 여기 없다.
+       useLeaveTrip 이 누른 시점에 직접 읽고 판정한다. 여행 홈과 같은 규칙이다.
+  */
 
   // 진행 중이든 지난 여행이든 같은 곳으로 간다.  // 진행 중이든 지난 여행이든 같은 곳으로 간다.
   // 도착 화면이 trip.status 로 TRIP-HOME-01 / TRIP-HOME-02 를 가른다. (docs/04_v3 §5)
@@ -461,6 +426,43 @@ export default function ScreenGROUP02() {
     );
   }
 
+  /**
+   * MEM-03 나가기 완료. **여행 홈과 같은 컴포넌트, 다른 CTA.**
+   *
+   * ⚠️ 이걸 빠뜨려서 모임 상세에서는 나간 뒤 화면이 그냥 목록으로 돌아갔다.
+   *    되돌릴 수 없는 행동인데 무엇이 일어났는지 알려주지 못했다.
+   *    (POL-MEM-010 · 2026-09-14 다빈 확인)
+   *
+   * ⚠️ 돌아갈 곳이 앱 홈이 아니라 **이 모임**이다. 여행 하나에서만 나갔고
+   *    모임에는 그대로 남아 있다. 그래서 CTA 문구도 다르다.
+   *
+   * ⚠️ 다른 early return 보다 **아래**에 둔다. 위 훅들보다 뒤라서 렌더마다
+   *    훅 개수가 달라지지 않는다.
+   */
+  if (leave.done) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: group.name,
+            /* 나온 여행이다. 아래 CTA 하나로만 나간다 */
+            headerLeft: () => null,
+            headerRight: undefined,
+          }}
+        />
+        <LeaveDoneView
+          variant={leave.done.variant}
+          destination={leave.destination}
+          groupName={group.name}
+          alsoLeftGroup={leave.done.alsoLeftGroup}
+          newLeaderName={leave.done.newLeaderName}
+          homeLabel="모임으로 돌아가기"
+          onGoHome={leave.clearDone}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen
@@ -498,7 +500,7 @@ export default function ScreenGROUP02() {
          */
         onPressAccount={(account) => setPickingAccount(account)}
         onPressAllAccounts={() => setAllAccountsOpen(true)}
-        onPressLeaveTrip={(trip) => void handlePressLeaveTrip(trip)}
+        onPressLeaveTrip={(trip) => void leave.open(trip.tripId, userId)}
         // 나간 여행은 열 수 없다. "눌렀는데 아무 일도 없음" 대신 이유를 알린다.
         onPressLeftTrip={() => setLeftNoticeOpen(true)}
       />
@@ -540,33 +542,14 @@ export default function ScreenGROUP02() {
         onSubmit={(name) => void handleSubmitRename(name)}
       />
 
-      {/* 여행에서 나가기 확인창. 남은 참가자가 있을 때만 열린다. */}
-      <ConfirmModal
-        visible={leavingTrip !== null}
-        title="이 여행에서 나가시겠어요?"
-        description={'이 여행의 참가자에서 제외돼요.\n모임에서는 여행을 계속 확인할 수 있어요.'}
-        confirmLabel="여행에서 나가기"
-        destructive
-        busy={leaving}
-        error={leaveError}
-        onCancel={() => setLeavingTrip(null)}
-        onConfirm={() => void handleConfirmLeaveTrip()}
-      />
-
       {/*
-        마지막 참가자 안내. 아무것도 바꾸지 않고 알리기만 한다.
-        여행 취소 화면으로 자동으로 보내지 않는다 — 다른 담당 기능이다.
+        ── 나가기 시트 (MEM-01 · 02 · 04) ──
+        ⚠️ 여행 홈과 **같은 컴포넌트·같은 훅**이다. 확인창을 따로 두지 않는다.
+           예전 확인창은 여행장 판정을 하지 않아 여행장이 그냥 빠져나갔다.
+        ⚠️ '마지막 1명' 도 여기서 막는다. 막다른 길을 만들지 않으려고 시트가
+           '멤버 초대하기' 와 '여행 취소하기' 두 길을 함께 준다.
       */}
-      <ConfirmModal
-        visible={blockedMessage !== null}
-        title="마지막 참가자는 나갈 수 없어요"
-        description={blockedMessage}
-        confirmLabel="확인"
-        hideCancel
-        busy={false}
-        onCancel={() => setBlockedMessage(null)}
-        onConfirm={() => setBlockedMessage(null)}
-      />
+      <LeaveTripFlow leave={leave} groupName={group?.name ?? "모임"} />
 
       {/* 지난 여행에만 남은 계좌까지 전부 본다. */}
       <AllAccountsSheet

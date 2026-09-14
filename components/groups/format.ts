@@ -11,6 +11,7 @@
 import { format, isValid, parseISO } from 'date-fns';
 
 import { TRIP_STATUS, TRIP_STATUS_LABEL } from '@/lib/constants/status';
+import { isTripBeforeDeparture, isTripOngoing } from '@/lib/trip/tripStatus';
 
 const EMPTY = '—';
 
@@ -95,7 +96,9 @@ export function formatMemberCount(memberCount: number): string {
  * ⚠️ 다른 화면에 이 함수를 쓰지 않는다. GROUP 계좌 영역 전용이다.
  */
 export function toGroupTripStatusLabel(status: string): string {
-  if (status === TRIP_STATUS.PLANNING) return TRIP_STATUS_LABEL.PLANNING;
+  // ⚠️ 취소 요청 중도 '준비 중' 으로 적는다. 요청이 걸렸다고 여행이 멈추지
+  //    않는다. 요청 사실은 여행 홈의 배너(TRIP-HOME-04)가 말한다. (POL-CXL-006)
+  if (isTripBeforeDeparture(status)) return TRIP_STATUS_LABEL.PLANNING;
   if (status === TRIP_STATUS.TRAVELING) return TRIP_STATUS_LABEL.TRAVELING;
   return '지난 여행';
 }
@@ -107,5 +110,6 @@ export function toGroupTripStatusLabel(status: string): string {
  * `N개 여행에서 사용 중` 의 N 을 세는 기준이 모두 이것이다.
  */
 export function isActiveTripStatus(status: string): boolean {
-  return status === TRIP_STATUS.PLANNING || status === TRIP_STATUS.TRAVELING;
+  // ⚠️ 취소 요청 중도 쓰고 있는 여행이다. 계좌가 목록에서 사라지면 안 된다
+  return isTripOngoing(status);
 }

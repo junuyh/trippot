@@ -14,7 +14,7 @@
 // 데이터 조회·상태 관리·로그 기록만 한다. UI 는 components/trip-home/.
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import {
   Stack,
   router,
@@ -114,6 +114,7 @@ import {
 } from "@/lib/supabase/queries/travelTypes";
 import {
   castCancelVote,
+  EXPIRE_DAYS,
   getActiveCancelRequest,
   getChangesSinceCancel,
   getVoteProgress,
@@ -131,12 +132,13 @@ import {
   listActiveTripMembers,
   type TripMemberWithName,
 } from "@/lib/supabase/queries/tripMembers";
-import { canLeaveTrip, isTripLeader, leaveModeOf } from "@/lib/trip/tripLeader";
+import { isTripLeader } from "@/lib/trip/tripLeader";
 import {
   cancelFundLabel,
   cancelPerPersonAmount,
   cancelRemainingAmount,
   canRestoreTrip,
+  resolveVoteOutcome,
   restoredRemainingAmount,
   restoreRemainingLabel,
   type FundKind,
@@ -155,7 +157,8 @@ import {
   type CancelReasonCode,
   type VoteItem,
 } from "@/components/cancel";
-import { DelegateLeaderSheet, LeaveTripSheet } from "@/components/members";
+import { LeaveDoneView, LeaveTripFlow } from "@/components/members";
+import { useLeaveTrip } from "@/lib/hooks/useLeaveTrip";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
@@ -164,8 +167,10 @@ const PAGE_COLOR = "#ffffff";
 /** 취소·나가기 시트. 한 번에 하나만 열린다 */
 type CancelSheet =
   | null
-  | "leave"
-  | "delegate"
+  /*
+    ⚠️ 나가기(MEM-01 · 02 · 04)는 여기 없다. lib/hooks/useLeaveTrip 이 자기
+       시트를 따로 들고 있다. 한 상태에 섞으면 모임 상세와 흐름이 갈린다.
+  */
   | "cancelReason"
   | "cancelConfirm"
   | "vote"
@@ -232,7 +237,12 @@ type TripHomeData = {
 };
 
 export default function ScreenTripHome() {
-  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  /**
+   * ⚠️ cancel=1 은 **모임 상세에서 넘어온 신호**다. 거기에는 CXL 흐름이 없어서
+   *    '마지막 1명이라 못 나감 → 여행 취소하기' 를 여기로 보낸다.
+   *    바로 취소하지 않는다. CXL-01(사유)부터 연다. (POL-CXL-060)
+   */
+  const { tripId, cancel } = useLocalSearchParams<{ tripId: string; cancel?: string }>();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -255,10 +265,6 @@ export default function ScreenTripHome() {
    *    그래서 openSheetAfterClose() 로 **닫고 → 기다렸다 → 연다.**
    */
   const [sheet, setSheet] = useState<CancelSheet>(null);
-  /** 나가기 시트의 '모임에서도 나갈지' 선택. null 이면 아직 안 골랐다 */
-  const [alsoLeaveGroup, setAlsoLeaveGroup] = useState<boolean | null>(null);
-  /** 위임 대상 memberId */
-  const [delegateId, setDelegateId] = useState<string | null>(null);
   /** 취소 사유. 선택 입력이라 null 로 시작한다 */
   const [cancelReason, setCancelReason] = useState<CancelReasonCode | null>(null);
   /**
@@ -275,6 +281,20 @@ export default function ScreenTripHome() {
   const [doneKind, setDoneKind] = useState<"requested" | "canceled" | null>(null);
   /** CXL-07 동의 현황. 이것도 라우트가 아니라 이 화면의 분기다 */
   const [progressOpen, setProgressOpen] = useState(false);
+  /**
+   * 나가기 흐름. **모임 상세와 같은 훅을 쓴다.** (lib/hooks/useLeaveTrip)
+   *
+   * ⚠️ 여기에 따로 짜지 않는다. 예전에 두 곳에 따로 있었고, 모임 상세 쪽은
+   *    여행장 판정도 취소 재판정도 하지 않아 오사카의 여행장이 그냥 나갔다.
+   */
+  const leave = useLeaveTrip({
+    onLeft: () => {
+      // 나간 여행은 더 이상 내 것이 아니다. 다시 조회하지 않는다
+    },
+    /* 막혔을 때 '여행 취소하기' → 이 화면의 CXL 흐름으로 잇는다 (CXL-01 부터) */
+    onCancelTrip: () => setTimeout(() => setSheet("cancelReason"), SHEET_SWAP_MS),
+    onInvite: (id) => router.push(`/trips/${id}/edit`),
+  });
   /** 저장·요청 중. 중복 제출을 막는다 (NFR-005) */
   const [busy, setBusy] = useState(false);
 
@@ -460,6 +480,18 @@ export default function ScreenTripHome() {
    * 진행 중일 때만 권한을 묻고, 같은 여행 것은 지우고 다시 잡아 중복되지 않는다.
    * 실패해도 화면은 멀쩡해야 한다 (Android Expo Go 는 알림 모듈이 없다).
    */
+  /**
+   * 모임 상세에서 '여행 취소하기' 를 누르고 넘어왔으면 취소 사유 시트를 연다.
+   *
+   * ⚠️ 한 번만 연다. 사용자가 닫은 뒤 화면을 다시 그릴 때마다 열리면 못 빠져나간다.
+   */
+  const cancelParamRef = useRef(false);
+  useEffect(() => {
+    if (cancel !== "1" || cancelParamRef.current || !data) return;
+    cancelParamRef.current = true;
+    setSheet("cancelReason");
+  }, [cancel, data]);
+
   const remindedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!data || remindedRef.current === data.trip.id) return;
@@ -968,26 +1000,26 @@ export default function ScreenTripHome() {
   /** 나를 포함한 참여 인원. 나가기 판정의 분모다 */
   const activeMemberCount = data.members.length;
   const isActiveMember = data.members.some((m) => m.user_id === userId);
-  const leaveDecision = canLeaveTrip({
-    trip,
-    userId,
-    isActiveMember,
-    activeMemberCount,
-  });
-  const leaveMode = leaveModeOf(leaveDecision);
-
-  /** 위임 대상 — 나를 뺀 가입 멤버. 미가입 동행자는 여행장이 될 수 없다 */
-  const delegateCandidates = data.members
-    .filter((m) => m.user_id !== null && m.user_id !== userId)
-    .map((m) => ({
-      memberId: m.id,
-      userId: m.user_id,
-      name: m.name,
-      isTripLeader: false,
-    }));
-
-  /** 동의 대상 수 = 참여 인원 − 요청자. 개인 여행이면 0이라 즉시 확정된다 */
-  const voteTargetCount = Math.max(0, activeMemberCount - 1);
+  /*
+    ⚠️ 나가기 판정(여행장 · 위임 대상 · 마지막 1명)은 여기 없다.
+       useLeaveTrip 이 나가기를 누른 시점에 직접 읽고 판정한다. 두 곳에서
+       판정하면 모임 상세와 규칙이 갈린다. (2026-09-14)
+  */
+  /**
+   * 동의 대상 수 = **가입 멤버** − 요청자. 0이면 즉시 확정된다. (POL-CXL-066)
+   *
+   * ⚠️⚠️ 인원 수로 세지 않는다. 미가입 동행자(user_id 가 null)는 인원에는
+   *    들어가지만 계정이 없어 **동의를 누를 수 없다.** 인원으로 세면 나와
+   *    동행자 둘뿐인 여행에서 동의 대상이 1명으로 잡혀 요청이 대기 상태로
+   *    들어가는데, 정작 누를 사람이 없어 **영영 확정되지 않는다.**
+   *    (2026-09-13 상하이 테스트 여행에서 확인)
+   *
+   * ⚠️ getVoteProgress().targetCount 와 **같은 기준**이어야 한다. 그쪽도
+   *    user_id 가 없는 행을 빼고 센다. 두 값이 갈리면 화면이 보여주는 분모와
+   *    서버가 판정하는 분모가 달라진다.
+   */
+  const registeredMemberCount = data.members.filter((m) => m.user_id !== null).length;
+  const voteTargetCount = Math.max(0, registeredMemberCount - 1);
   const isCancelRequester = data.cancelRequest?.requested_by === userId;
   const hasVoted = Boolean(
     data.voteProgress?.votes.some((v) => v.user_id === userId),
@@ -1158,62 +1190,6 @@ export default function ScreenTripHome() {
   };
 
   /**
-   * 여행에서 나간다.
-   *
-   * ⚠️ 나간 뒤 **취소 동의를 다시 판정한다.** (POL-CXL-068) 남은 인원이 이미
-   *    전원 동의 상태였다면 그 순간 취소가 확정돼야 한다. 이걸 빼면 요청이
-   *    영영 대기로 남는다.
-   */
-  const handleLeave = async () => {
-    if (busy || !userId || alsoLeaveGroup === null) return;
-    setBusy(true);
-    try {
-      await leaveTrip({
-        tripId: trip.id,
-        userId,
-        alsoLeaveGroup,
-        groupId: trip.group_id,
-      });
-      await recheckAfterMemberLeft({
-        tripId: trip.id,
-        tripStartDate: trip.start_date,
-        fundSnapshot: buildFundSnapshot(),
-      }).catch(() => undefined);
-      setSheet(null);
-      router.replace("/");
-    } catch {
-      Alert.alert("나가지 못했어요", "잠시 후 다시 시도해 주세요.");
-      setBusy(false);
-    }
-  };
-
-  /** 여행장을 넘기고 나간다. 위임 먼저, 나가기 나중 */
-  const handleDelegateAndLeave = async () => {
-    if (busy || !userId || !delegateId) return;
-    const target = delegateCandidates.find((c) => c.memberId === delegateId);
-    if (!target?.userId) return;
-    setBusy(true);
-    try {
-      await delegateAndLeave({
-        tripId: trip.id,
-        fromUserId: userId,
-        toUserId: target.userId,
-        alsoLeaveGroup: false,
-        groupId: trip.group_id,
-      });
-      await recheckAfterMemberLeft({
-        tripId: trip.id,
-        tripStartDate: trip.start_date,
-        fundSnapshot: buildFundSnapshot(),
-      }).catch(() => undefined);
-      setSheet(null);
-      router.replace("/");
-    } catch {
-      Alert.alert("넘기지 못했어요", "잠시 후 다시 시도해 주세요.");
-      setBusy(false);
-    }
-  };
-
   // ── 취소 화면 표시값 ────────────────────────────────────────────────────
   /**
    * 화면에 쓸 금액. 확정 시 저장하는 스냅샷과 같은 식으로 만든다.
@@ -1228,9 +1204,20 @@ export default function ScreenTripHome() {
 
   const cancelPerPerson = cancelPerPersonAmount(cancelSnapshot.remaining, trip.headcount);
 
-  const cancelExpiresLabel = data.cancelRequest
-    ? format(parseISO(data.cancelRequest.expires_at), "M월 d일")
-    : "";
+  /**
+   * 요청 만료일.
+   *
+   * ⚠️ 요청 **전**에도 값이 있어야 한다. CXL-03 은 요청하기 전에 뜨는 화면인데
+   *    거기서 빈 문자열을 쓰면 "까지 동의가 모이지 않으면 요청이 사라져요" 라는
+   *    머리 없는 문장이 된다. (2026-09-14 확인) 아직 요청이 없으면 실제로
+   *    만들어질 값과 같은 규칙(오늘 + EXPIRE_DAYS)으로 미리 보여준다.
+   */
+  const cancelExpiresLabel = format(
+    data.cancelRequest
+      ? parseISO(data.cancelRequest.expires_at)
+      : addDays(new Date(), EXPIRE_DAYS),
+    "M월 d일",
+  );
 
   const cancelRequesterName =
     data.members.find((m) => m.user_id === data.cancelRequest?.requested_by)?.name ??
@@ -1459,6 +1446,40 @@ export default function ScreenTripHome() {
       : `${dateLabel}에 이 여행을 취소했어요`;
   })();
 
+  /**
+   * MEM-03 나가기 완료.
+   *
+   * ⚠️ 반드시 **다른 분기보다 먼저** 본다. 나간 순간 이 여행은 더 이상 내
+   *    여행이 아니라서, 취소 알림이나 동의 현황을 그릴 자리가 아니다.
+   *
+   * ⚠️ 여기서도 훅을 쓰지 않는다. 위 분기들과 같은 이유다.
+   */
+  if (leave.done) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen
+          options={{
+            title: trip.destination ?? "여행",
+            /* 나온 여행이다. 홈 버튼도 뒤로가기도 두지 않는다 — 아래 CTA 하나로 나간다 */
+            headerLeft: () => null,
+            headerRight: undefined,
+          }}
+        />
+        <LeaveDoneView
+          variant={leave.done.variant}
+          destination={trip.destination ?? "여행"}
+          /* 개인 여행은 나가기 자체가 막혀 있어(leaderAlone) 이 경로로 오지 않는다 */
+          groupName={data.groupName ?? "모임"}
+          alsoLeftGroup={leave.done.alsoLeftGroup}
+          newLeaderName={leave.done.newLeaderName}
+          /* 여행 홈에서 나갔으면 갈 곳은 앱 홈이다 */
+          homeLabel="홈으로"
+          onGoHome={() => router.replace("/")}
+        />
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       className="flex-1"
@@ -1503,7 +1524,11 @@ export default function ScreenTripHome() {
         destination={trip.destination ?? "여행"}
         groupName={data.groupName}
         onEdit={() => router.push(`/trips/${trip.id}/edit`)}
-        onLeave={() => openSheetAfterClose("leave")}
+        /* 나가기는 훅이 맡는다. 누른 시점에 멤버·취소 요청을 직접 읽는다 */
+        onLeave={() => {
+          setSettingsOpen(false);
+          void leave.open(trip.id, userId);
+        }}
         /*
           ⚠️ 이미 요청이 떠 있으면 새 요청을 시작하지 않는다. requestCancel()
              은 멱등이라 같은 요청을 돌려주지만(REQ-CXL-017), 사유를 다시 고르게
@@ -1520,43 +1545,17 @@ export default function ScreenTripHome() {
       />
 
       {/*
-        ── 취소 · 나가기 시트 ──
+        ── 나가기 시트 (MEM-01 · 02 · 04) ──
+        ⚠️ 모임 상세와 **같은 컴포넌트·같은 훅**을 쓴다. 여기에 따로 배선하지
+           않는다. 두 곳에 흩어 두면 한쪽만 고쳐진다. (2026-09-14)
+      */}
+      <LeaveTripFlow leave={leave} groupName={data.groupName ?? "모임"} />
+
+      {/*
+        ── 취소 시트 (CXL) ──
         ⚠️ 시트끼리 이어질 때는 반드시 openSheetAfterClose() 를 쓴다.
            setSheet 로 바로 갈아끼우면 iOS 에서 화면이 먹통이 된다.
       */}
-      <LeaveTripSheet
-        visible={sheet === "leave"}
-        onClose={() => setSheet(null)}
-        onDismiss={flushPendingSheet}
-        mode={leaveMode}
-        destination={trip.destination ?? "여행"}
-        groupName={data.groupName ?? "모임"}
-        alsoLeaveGroup={alsoLeaveGroup}
-        onChangeAlsoLeaveGroup={setAlsoLeaveGroup}
-        fundBalanceLabel={
-          fund && fund.current_amount > 0 ? `${fund.current_amount.toLocaleString("ko-KR")}원` : null
-        }
-        onLeave={() => void handleLeave()}
-        onOpenDelegate={() => openSheetAfterClose("delegate")}
-        onInvite={() => router.push(`/trips/${trip.id}/edit`)}
-        onCancelTrip={() => openSheetAfterClose("cancelReason")}
-        leaving={busy}
-      />
-
-      <DelegateLeaderSheet
-        visible={sheet === "delegate"}
-        onClose={() => setSheet(null)}
-        onDismiss={flushPendingSheet}
-        candidates={delegateCandidates}
-        selectedMemberId={delegateId}
-        onSelect={setDelegateId}
-        fundBalanceLabel={
-          fund && fund.current_amount > 0 ? `${fund.current_amount.toLocaleString("ko-KR")}원` : null
-        }
-        onSubmit={() => void handleDelegateAndLeave()}
-        submitting={busy}
-      />
-
       <CancelReasonSheet
         visible={sheet === "cancelReason"}
         onClose={() => setSheet(null)}

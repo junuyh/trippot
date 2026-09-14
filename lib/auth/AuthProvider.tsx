@@ -47,7 +47,14 @@ type AuthValue = {
    */
   isPreview: boolean;
   /** 개발용 미리보기 시작. __DEV__ 가 아니면 아무 일도 하지 않는다. */
-  enterPreview: () => void;
+  /**
+   * 개발용 미리보기 시작.
+   *
+   * @param userId 미리볼 seed 사용자. 안 주면 지수(DEV_USER_ID)로 들어간다.
+   *               고를 수 있는 사람은 lib/constants/devUser.ts 의
+   *               DEV_PREVIEW_USERS 다.
+   */
+  enterPreview: (userId?: string) => void;
   /** 개발용 미리보기 종료. */
   exitPreview: () => void;
   /**
@@ -71,7 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    *    화면으로 돌아온다. 버튼 한 번이면 다시 들어올 수 있어서, 저장해 두는
    *    쪽이 오히려 '개발용 상태로 켜져 있는 줄 모르는' 위험을 만든다.
    */
-  const [isPreview, setIsPreview] = useState(false);
+  /**
+   * 미리보기로 보고 있는 seed 사용자 id. null 이면 미리보기가 꺼진 것이다.
+   *
+   * ⚠️ boolean 이 아니라 id 를 담는다. 취소 동의처럼 **사람이 둘 이상 있어야**
+   *    열리는 화면을 시뮬레이터 두 대에서 서로 다른 사람으로 눌러 보려면
+   *    누구로 들어왔는지가 필요하다. (2026-09-14)
+   */
+  const [previewUserId, setPreviewUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -136,23 +150,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * ⚠️ 가짜 Supabase 세션을 만들지 않는다. setSession 을 부르지 않고
    *    public.users 도 만들지 않는다. 세션은 실제 로그인만 만든다.
    */
-  const enterPreview = useCallback(() => {
+  const enterPreview = useCallback((userId?: string) => {
     if (!__DEV__) return;
-    setIsPreview(true);
+    // 인자를 안 주면 지금까지와 같이 지수로 들어간다. 기존 호출부를 깨지 않는다.
+    setPreviewUserId(userId ?? DEV_USER_ID);
   }, []);
 
   const exitPreview = useCallback(() => {
-    setIsPreview(false);
+    setPreviewUserId(null);
   }, []);
 
   const signOut = useCallback(async () => {
     // 미리보기는 세션이 없다. supabase.auth.signOut() 을 부를 이유가 없다.
-    if (isPreview) {
-      setIsPreview(false);
+    if (previewUserId) {
+      setPreviewUserId(null);
       return;
     }
     await supabaseSignOut();
-  }, [isPreview]);
+  }, [previewUserId]);
 
   const value = useMemo<AuthValue>(
     () => ({
@@ -161,13 +176,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ⚠️ 세션이 없다고 자동으로 DEV_USER_ID 를 주지 않는다. 사용자가 직접
       //    미리보기를 켠 경우에만 준다. 자동 fallback 은 미로그인 상태에서
       //    seed 사용자의 여행·모임이 자기 것처럼 보이게 만든다.
-      userId: session?.user.id ?? (isPreview ? DEV_USER_ID : null),
-      isPreview,
+      userId: session?.user.id ?? previewUserId,
+      isPreview: previewUserId !== null,
       enterPreview,
       exitPreview,
       signOut,
     }),
-    [ready, session, isPreview, enterPreview, exitPreview, signOut],
+    [ready, session, previewUserId, enterPreview, exitPreview, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

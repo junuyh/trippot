@@ -74,7 +74,14 @@ export async function leaveTrip(input: {
     .from('trip_members')
     .update({ status: TRIP_MEMBER_STATUS.LEFT, left_at: now })
     .eq('trip_id', input.tripId)
-    .eq('user_id', input.userId);
+    .eq('user_id', input.userId)
+    /**
+     * ⚠️ ACTIVE 행만 바꾼다. trip_members 에는 unique (trip_id, user_id) 가
+     *    없어서 같은 사람 행이 여러 개일 수 있다. 조건을 빼면 예전에 나갔던
+     *    행의 left_at 까지 지금 시각으로 덮어써 "언제 나갔는지" 가 어긋난다.
+     * ⚠️ 멱등성도 여기서 나온다 — 이미 나간 사람이 다시 불러도 아무 일이 없다.
+     */
+    .eq('status', TRIP_MEMBER_STATUS.ACTIVE);
   if (error) throw error;
 
   if (input.alsoLeaveGroup && input.groupId) {
