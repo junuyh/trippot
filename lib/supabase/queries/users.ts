@@ -29,7 +29,7 @@ export type User = Tables<'users'>;
  */
 export type UserProfile = Pick<
   User,
-  'id' | 'name' | 'profile_image_url' | 'auth_provider'
+  'id' | 'name' | 'profile_image_url' | 'auth_provider' | 'created_at'
 >;
 
 /**
@@ -41,7 +41,9 @@ export type UserProfile = Pick<
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('users')
-    .select('id, name, profile_image_url, auth_provider')
+    // created_at = 이 카카오 계정으로 TripPot 에 처음 들어와 사용자 행이 생긴 날.
+    // MY-01 여권의 MEMBER SINCE 가 쓴다. (2026-09-13) 카카오 가입일이 아니다.
+    .select('id, name, profile_image_url, auth_provider, created_at')
     .eq('id', userId)
     .is('deleted_at', null)
     .maybeSingle();

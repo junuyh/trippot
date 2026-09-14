@@ -31,7 +31,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Alert, ScrollView, Share, View } from "react-native";
 
-import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { useAuth, useCurrentUserId } from "@/lib/auth/AuthProvider";
 import { InviteLinkSheet } from "@/components/invite";
 import { TripEditForm } from "@/components/trip-edit";
 import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
@@ -55,6 +55,8 @@ export default function ScreenTripEdit() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   // 로그인한 사용자. 개인 여행으로 바꿀 때 소유자가 된다.
   const userId = useCurrentUserId();
+  // 개발용 미리보기인가. 미리보기에는 Supabase 세션이 없어 초대 RPC 를 부를 수 없다.
+  const { isPreview } = useAuth();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -175,6 +177,18 @@ export default function ScreenTripEdit() {
    */
   const handleInvite = useCallback(async () => {
     if (inviting || !trip) return;
+
+    // 개발용 미리보기 — 실제 세션이 없어 서버가 auth.uid() 를 못 본다. RPC 를 부르지
+    // 않고 바로 알린다. "참여 중인 멤버만" 안내는 여기서는 틀린 설명이다.
+    // ⚠️ 미리보기를 위해 RPC·RLS 를 풀거나 가짜 링크를 만들지 않는다.
+    if (isPreview) {
+      Alert.alert(
+        "개발용 둘러보기에서는 초대 링크를 만들 수 없어요",
+        "실제 초대 기능은 카카오 로그인 후 확인할 수 있어요.",
+      );
+      return;
+    }
+
     setInviting(true);
     try {
       const invite = await getOrCreateTripInvite(trip.id);
@@ -190,7 +204,7 @@ export default function ScreenTripEdit() {
     } finally {
       setInviting(false);
     }
-  }, [inviting, trip]);
+  }, [inviting, isPreview, trip]);
 
   /** 초대 글 전문. 공유와 복사가 같은 글을 쓴다 */
   const inviteMessage = useMemo(

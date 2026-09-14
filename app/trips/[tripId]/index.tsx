@@ -26,6 +26,7 @@ import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -111,9 +112,75 @@ import {
   ensureTripTypeResult,
   type TripTypeResult,
 } from "@/lib/supabase/queries/travelTypes";
+import {
+  castCancelVote,
+  getActiveCancelRequest,
+  getChangesSinceCancel,
+  getVoteProgress,
+  recheckAfterMemberLeft,
+  requestCancel,
+  restoreCanceledTrip,
+  withdrawCancelRequest,
+  type CanceledFundSnapshot,
+  type CancelRequest,
+  type VoteProgress,
+} from "@/lib/supabase/queries/tripCancel";
+import {
+  delegateAndLeave,
+  leaveTrip,
+  listActiveTripMembers,
+  type TripMemberWithName,
+} from "@/lib/supabase/queries/tripMembers";
+import { canLeaveTrip, isTripLeader, leaveModeOf } from "@/lib/trip/tripLeader";
+import {
+  cancelFundLabel,
+  cancelPerPersonAmount,
+  cancelRemainingAmount,
+  canRestoreTrip,
+  restoredRemainingAmount,
+  restoreRemainingLabel,
+  type FundKind,
+} from "@/lib/trip/cancelPolicy";
+import {
+  CanceledTripNotice,
+  CancelConfirmSheet,
+  CancelDoneView,
+  CancelPendingBanner,
+  CancelReasonSheet,
+  CancelVoteSheet,
+  CANCEL_REASON_LABEL,
+  RestoreConfirmSheet,
+  VoteProgressView,
+  type CancelChangeItem,
+  type CancelReasonCode,
+  type VoteItem,
+} from "@/components/cancel";
+import { DelegateLeaderSheet, LeaveTripSheet } from "@/components/members";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
 const PAGE_COLOR = "#ffffff";
+
+/** 취소·나가기 시트. 한 번에 하나만 열린다 */
+type CancelSheet =
+  | null
+  | "leave"
+  | "delegate"
+  | "cancelReason"
+  | "cancelConfirm"
+  | "vote"
+  | "restore";
+
+/**
+ * 시트가 완전히 닫히기를 기다리는 시간. **Android 전용 대비책이다.**
+ *
+ * ⚠️ iOS 는 이 값을 쓰지 않는다. Modal 의 onDismiss 를 쓴다. 시간으로 어림잡으면
+ *    틀린다 — BottomSheet 의 CLOSE_MS(180) 는 JS 애니메이션이 끝나는 시점일
+ *    뿐이고, 그 뒤에 iOS 가 네이티브 Modal 을 내리는 시간이 또 있다. 240ms 로
+ *    잡았더니 그 안에 안 끝나서 CXL-01 → CXL-03 이 아예 안 열렸다.
+ *    (2026-09-13 시뮬레이터에서 확인)
+ */
+const SHEET_SWAP_MS = 240;
 
 /**
  * 입금이 목표액(계획 합계)에 닿은 날부터 출발일까지 며칠인지.
@@ -141,6 +208,27 @@ type TripHomeData = {
   groupName: string | null;
   /** 함께 간 사람 이름. 개인 여행이면 빈 배열. 스토리 이미지에 쓴다 */
   memberNames: string[];
+
+  /**
+   * 살아 있는 취소 요청. 없으면 null.
+   *
+   * ⚠️ getActiveCancelRequest() 가 **조회 시점에 만료를 판정한다.** 여행 홈은
+   *    반드시 이 함수를 통과하므로 크론 없이도 만료가 즉시 반영된다.
+   *    (POL-CXL-063 · 064)
+   */
+  cancelRequest: CancelRequest | null;
+  /** 동의 현황. 요청이 없으면 null */
+  voteProgress: VoteProgress | null;
+  /** 참여 중인 여행 멤버. 나가기 판정에 쓴다 */
+  members: TripMemberWithName[];
+
+  /**
+   * 취소가 확정된 뒤에 들어온 거래 **전부**. 취소된 여행에서만 채운다.
+   *
+   * ⚠️ CXL-05 는 5건만 보여주지만 여기에는 전부 담는다. 보이는 것만 더하면
+   *    "반영 후 남은 돈" 이 실제와 어긋난다. 자르는 건 컴포넌트가 한다.
+   */
+  cancelChanges: Transaction[];
 };
 
 export default function ScreenTripHome() {
@@ -154,6 +242,89 @@ export default function ScreenTripHome() {
    * 나가기·취소의 실제 동작은 다른 팀원이 만든다. 아래 두 핸들러가 그 자리다.
    */
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const userId = useCurrentUserId();
+
+  /**
+   * 지금 열린 취소·나가기 시트. 한 번에 하나만 연다.
+   *
+   * ⚠️⚠️ **시트를 바로 갈아끼우지 않는다.** ⚠️⚠️
+   *    BottomSheet 는 닫는 애니메이션(180ms) 동안 Modal 을 살려 둔다. 그 사이에
+   *    새 Modal 을 띄우면 iOS 가 조용히 실패시키고, 보이지 않는 Modal 이 화면
+   *    전체의 터치를 삼킨다. 스크롤도 탭도 안 먹는 상태가 된다.
+   *    (2026-09-10 CXL 미리보기에서 확인)
+   *    그래서 openSheetAfterClose() 로 **닫고 → 기다렸다 → 연다.**
+   */
+  const [sheet, setSheet] = useState<CancelSheet>(null);
+  /** 나가기 시트의 '모임에서도 나갈지' 선택. null 이면 아직 안 골랐다 */
+  const [alsoLeaveGroup, setAlsoLeaveGroup] = useState<boolean | null>(null);
+  /** 위임 대상 memberId */
+  const [delegateId, setDelegateId] = useState<string | null>(null);
+  /** 취소 사유. 선택 입력이라 null 로 시작한다 */
+  const [cancelReason, setCancelReason] = useState<CancelReasonCode | null>(null);
+  /**
+   * CXL-04 요청·취소 완료 화면. null 이면 안 뜬다.
+   *
+   * ⚠️ **새 라우트를 만들지 않는다.** 완료 화면의 다음 행동이 전부 이 화면
+   *    안(되돌리기 시트 · 동의 현황 · 취소된 여행 홈)에 있어서, 라우트로
+   *    빼면 열자마자 파라미터로 도로 돌아와야 한다. (스펙 §7 "같은 라우트를
+   *    결과로 분기한다")
+   *
+   * ⚠️ Alert 로 대신하지 않는다. requested 와 canceled 의 다음 행동이 서로
+   *    달라서 CTA 두 개가 필요하다.
+   */
+  const [doneKind, setDoneKind] = useState<"requested" | "canceled" | null>(null);
+  /** CXL-07 동의 현황. 이것도 라우트가 아니라 이 화면의 분기다 */
+  const [progressOpen, setProgressOpen] = useState(false);
+  /** 저장·요청 중. 중복 제출을 막는다 (NFR-005) */
+  const [busy, setBusy] = useState(false);
+
+  /**
+   * 닫히는 시트가 다 내려가면 열어야 할 다음 시트.
+   *
+   * ⚠️ state 가 아니라 ref 다. 이 값이 바뀐다고 다시 그릴 이유가 없고,
+   *    onDismiss 는 렌더 밖에서 불린다.
+   */
+  const pendingSheetRef = useRef<CancelSheet>(null);
+
+  /**
+   * 시트가 완전히 내려간 뒤 다음 시트를 연다. 각 시트의 onDismiss 가 부른다.
+   *
+   * ⚠️ 멱등이어야 한다. onDismiss 와 Android 대비 타이머가 둘 다 부를 수 있다.
+   *    ref 를 먼저 비워서 두 번째 호출은 아무것도 하지 않는다.
+   */
+  const flushPendingSheet = useCallback(() => {
+    const next = pendingSheetRef.current;
+    if (!next) return;
+    pendingSheetRef.current = null;
+    setSheet(next);
+  }, []);
+
+  /**
+   * 열려 있는 시트를 닫고, **완전히 내려간 뒤** 다음 시트를 연다.
+   *
+   * ⚠️⚠️ setSheet(next) 로 바로 갈아끼우면 iOS 에서 화면이 먹통이 된다.
+   *    앞 Modal 이 닫히는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고,
+   *    보이지 않는 Modal 이 화면 전체의 터치를 삼킨다.
+   *
+   * ⚠️ 그렇다고 타이머로 어림잡지도 않는다. 얼마나 걸리는지는 기기와 상황이
+   *    정한다. 실제로 240ms 는 모자랐다. iOS 는 Modal 의 onDismiss 가 정확한
+   *    신호를 주므로 그걸 쓰고, 타이머는 onDismiss 가 없는 Android 몫이다.
+   *
+   * ⚠️ 열린 시트가 없으면 기다리지 않는다. 기다리면 onDismiss 가 영영 안 와서
+   *    아무 시트도 열리지 않는다. (설정 시트는 별도 Modal 이라 여기 안 센다)
+   */
+  const openSheetAfterClose = useCallback(
+    (next: CancelSheet) => {
+      setSettingsOpen(false);
+      setSheet((current) => {
+        if (current === null) return next;
+        pendingSheetRef.current = next;
+        if (Platform.OS !== "ios") setTimeout(flushPendingSheet, SHEET_SWAP_MS);
+        return null;
+      });
+    },
+    [flushPendingSheet],
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -229,6 +400,35 @@ export default function ScreenTripHome() {
             : Promise.resolve([]),
         ]);
 
+      /**
+       * 취소 요청과 여행 멤버.
+       *
+       * ⚠️ getActiveCancelRequest() 안에서 **만료를 판정하고 상태를 되돌린다.**
+       *    여행 홈이 이 함수를 통과하는 것이 만료 처리의 전부다. 크론이 없다.
+       *
+       * ⚠️ 실패해도 화면은 떠야 한다. 취소 배너가 없을 뿐이지 여행 준비는
+       *    그대로 할 수 있다. (POL-CXL-006)
+       */
+      const cancelRequest = await getActiveCancelRequest(trip.id, trip.start_date).catch(
+        () => null,
+      );
+      const [voteProgress, tripMembers, cancelChanges] = await Promise.all([
+        cancelRequest ? getVoteProgress(cancelRequest).catch(() => null) : Promise.resolve(null),
+        listActiveTripMembers(trip.id).catch(() => []),
+        /**
+         * 취소 뒤에 들어온 거래. **취소된 여행에서만** 읽는다.
+         *
+         * ⚠️ 이걸 빈 배열로 두면 CXL-05 가 "달라진 게 없어요" 라고 말한다.
+         *    취소해도 계좌 거래는 계속 수신되므로(POL-CXL-012) 되돌린 뒤
+         *    실제 잔액과 화면이 어긋난다.
+         */
+        trip.status === TRIP_STATUS.CANCELED && trip.canceled_at
+          ? getChangesSinceCancel(trip.id, trip.canceled_at).catch(
+              () => [] as Transaction[],
+            )
+          : Promise.resolve([] as Transaction[]),
+      ]);
+
       setData({
         trip,
         budget,
@@ -238,7 +438,15 @@ export default function ScreenTripHome() {
         depositTotal: totals.depositTotal,
         groupName: group?.name ?? null,
         memberNames: members.map((member) => member.user.name),
+        cancelRequest,
+        voteProgress,
+        members: tripMembers,
+        cancelChanges,
       });
+
+      // 요청이 사라졌으면(철회·반대·만료) 동의 현황 화면을 닫는다.
+      // 열어 둔 채로 두면 다음 요청이 올라올 때 곧장 그 화면이 뜬다.
+      if (!cancelRequest) setProgressOpen(false);
     } catch {
       setError(true);
     } finally {
@@ -255,6 +463,13 @@ export default function ScreenTripHome() {
   const remindedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!data || remindedRef.current === data.trip.id) return;
+    /**
+     * ⚠️ 취소된 여행에는 잡지 않는다. scheduleSpendReminders 는 **날짜만 보고
+     *    상태를 안 본다.** 그래서 취소한 여행도 출발 11일 전이면 조건에 걸려
+     *    매일 21시에 "지출을 입력하세요" 알림이 갔다. 취소하고 나서 매일
+     *    알림을 받는 건 고장으로 읽힌다. (2026-09-13 확인)
+     */
+    if (data.trip.status === TRIP_STATUS.CANCELED) return;
     remindedRef.current = data.trip.id;
     scheduleSpendReminders(data.trip).catch(() => undefined);
   }, [data]);
@@ -278,6 +493,16 @@ export default function ScreenTripHome() {
   // 금고 카드의 퍼센트가 서로 다른 말을 하게 된다.
   useEffect(() => {
     if (!data || syncedRef.current) return;
+    /**
+     * ⚠️ 취소된 여행은 배분을 다시 저장하지 않는다. 취소 뒤에도 계좌 거래는
+     *    계속 들어오는데(POL-CXL-012) 그때마다 prepared_amount 가 갱신되면
+     *    "취소 시점 기록" 이 조용히 달라진다. 읽기 전용이라는 말에는 화면이
+     *    스스로 쓰지 않는다는 뜻도 들어 있다. (POL-CXL-005 · 011)
+     */
+    if (data.trip.status === TRIP_STATUS.CANCELED) {
+      syncedRef.current = true;
+      return;
+    }
 
     // 금고 채움도 누적 모금액 기준이다. 항공권을 사면 항공 금고가 0% 로
     // 되돌아가는 일이 없어야 한다. (스펙 12장)
@@ -703,8 +928,359 @@ export default function ScreenTripHome() {
   const hasExpense = data.transactions.some(
     (t) => t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL,
   );
-  const stage = tripStage({ status, hasPlan, hasExpense });
+  /**
+   * 레이아웃을 정하는 status.
+   *
+   * ⚠️ 취소된 여행은 **취소 직전에 보던 화면**을 그대로 그린다. (POL-CXL-005)
+   *    티켓도 예산도 자금도 그 자리에 있어야 하고, 못 고치기만 하면 된다.
+   *    tripStage 에 CANCELED 를 그대로 넘기면 stage 가 CANCELED 로 굳어
+   *    출발 전에 취소한 여행이 결산 영수증 화면을 그린다.
+   *
+   * ⚠️ 그때의 status 는 남아 있지 않다. **날짜로 되짚는다.** 규칙은
+   *    closeTripIfEnded() 와 같다 — 종료일 **다음 날**부터 끝난 것으로 본다.
+   *    종료일 당일을 끝으로 치면 아직 여행 중인 사람에게 정산을 들이민다.
+   */
+  const layoutStatus: TripStatus = (() => {
+    if (status !== TRIP_STATUS.CANCELED) return status;
+    const today = new Date();
+    if (
+      trip.end_date &&
+      differenceInCalendarDays(today, parseISO(trip.end_date)) > 0
+    ) {
+      return TRIP_STATUS.ENDED;
+    }
+    if (
+      trip.start_date &&
+      differenceInCalendarDays(today, parseISO(trip.start_date)) >= 0
+    ) {
+      return TRIP_STATUS.TRAVELING;
+    }
+    return TRIP_STATUS.PLANNING;
+  })();
+
+  const stage = tripStage({ status: layoutStatus, hasPlan, hasExpense });
   const ended = isAfterTrip(stage);
+
+  // ── 취소 · 나가기 판정 ──────────────────────────────────────────────────
+  const isCancelPending = status === TRIP_STATUS.CANCEL_PENDING;
+  const isCanceled = status === TRIP_STATUS.CANCELED;
+
+  /** 나를 포함한 참여 인원. 나가기 판정의 분모다 */
+  const activeMemberCount = data.members.length;
+  const isActiveMember = data.members.some((m) => m.user_id === userId);
+  const leaveDecision = canLeaveTrip({
+    trip,
+    userId,
+    isActiveMember,
+    activeMemberCount,
+  });
+  const leaveMode = leaveModeOf(leaveDecision);
+
+  /** 위임 대상 — 나를 뺀 가입 멤버. 미가입 동행자는 여행장이 될 수 없다 */
+  const delegateCandidates = data.members
+    .filter((m) => m.user_id !== null && m.user_id !== userId)
+    .map((m) => ({
+      memberId: m.id,
+      userId: m.user_id,
+      name: m.name,
+      isTripLeader: false,
+    }));
+
+  /** 동의 대상 수 = 참여 인원 − 요청자. 개인 여행이면 0이라 즉시 확정된다 */
+  const voteTargetCount = Math.max(0, activeMemberCount - 1);
+  const isCancelRequester = data.cancelRequest?.requested_by === userId;
+  const hasVoted = Boolean(
+    data.voteProgress?.votes.some((v) => v.user_id === userId),
+  );
+
+  const canRestore = canRestoreTrip({
+    status,
+    canceledAt: trip.canceled_at,
+    now: new Date(),
+  });
+
+  // ── 취소 · 나가기 동작 ──────────────────────────────────────────────────
+  //
+  // ⚠️ **useCallback 을 쓰지 않는다.** 이 자리는 loading / notFound / error
+  //    early return 보다 아래다. 여기에 훅을 두면 렌더마다 훅 개수가 달라져
+  //    "Rendered more hooks than during the previous render" 로 화면이 죽는다.
+  //    (2026-09-10 확인) 매 렌더 새로 만들어지지만 이 화면은 이미 그 아래에서
+  //    파생값을 매번 계산하고 있어 비용 차이가 없다.
+
+  /**
+   * 취소 확정 시 저장할 금액 스냅샷. (POL-CXL-011 · 015)
+   *
+   * ⚠️ ACCOUNT 는 **현재 잔액을 그대로** 쓴다. 이미 지출이 빠진 값이라
+   *    또 빼면 이중 차감이다.
+   */
+  const buildFundSnapshot = (): CanceledFundSnapshot => {
+    // 실제 지출 합계. 아래 actualTotal 과 같은 값이지만 그건 이 아래에서
+    // 만들어져 여기서 못 쓴다. 같은 식을 쓴다.
+    const spentTotal = data.categories.reduce((sum, c) => sum + c.actual_amount, 0);
+    const fundKind: FundKind =
+      fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT
+        ? "ACCOUNT"
+        : (fund?.current_amount ?? 0) > 0 || data.depositTotal > 0
+          ? "MANUAL"
+          : "ZERO";
+    /**
+     * 누적 모금액. 아래 raisedAmount 와 **같은 규칙**이다.
+     *
+     * ⚠️ depositTotal 만 쓰지 않는다. 직접 입력한 여행자금은 거래로 남지 않고
+     *    fund_sources.current_amount 에만 있다. depositTotal 만 보면 수기 입력
+     *    여행의 스냅샷이 **0원으로 굳는다.** 취소 화면이 "직접 입력한 여행자금
+     *    0원" 이라고 말했다. (2026-09-13 시뮬레이터에서 확인)
+     *
+     * ⚠️ raisedAmount 를 그대로 쓰지 못한다. 그건 이 함수보다 아래에서
+     *    만들어지는데 cancelSnapshot 이 렌더 도중 이 함수를 부른다.
+     */
+    const savedTotal =
+      data.depositTotal > 0 ? data.depositTotal : (fund?.current_amount ?? 0);
+    const remaining = cancelRemainingAmount({
+      fundKind,
+      currentBalance: fund?.current_amount ?? 0,
+      totalSaved: savedTotal,
+      actualSpent: spentTotal,
+    });
+    return {
+      fund_type: fundKind,
+      // ⚠️ fund_sources 에는 마스킹 계좌번호가 없다. financial_accounts 에 있고
+      //    이 화면은 그걸 읽지 않는다. 스냅샷에는 null 로 남기고, 화면은
+      //    "연결한 계좌" 로 대신 부른다. 필요해지면 조회를 추가한다.
+      masked_account: null,
+      total_saved: savedTotal,
+      actual_spent: spentTotal,
+      remaining,
+      goal_amount: targetAmount,
+      headcount: trip.headcount,
+      captured_at: new Date().toISOString(),
+    };
+  };
+
+  /** 취소 요청. 개인 여행이면 requestCancel 안에서 바로 확정된다 */
+  const handleRequestCancel = async () => {
+    if (busy || !userId) return;
+    setBusy(true);
+    try {
+      const result = await requestCancel({
+        tripId: trip.id,
+        requestedBy: userId,
+        reason: cancelReason,
+        voteTargetCount,
+        fundSnapshot: buildFundSnapshot(),
+      });
+      setSheet(null);
+      await load();
+      // CXL-04. 요청과 확정은 다음 행동이 달라서 Alert 로 뭉뚱그릴 수 없다.
+      setDoneKind(result.outcome === "CANCELED" ? "canceled" : "requested");
+    } catch {
+      Alert.alert("요청하지 못했어요", "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * 동의 · 반대. 반대는 그 자리에서 요청을 폐기한다 (POL-CXL-062)
+   *
+   * ⚠️ **요청자는 투표하지 않는다.** 동의 대상 수는 요청자를 빼고 세는데
+   *    표는 빼지 않고 세므로, 요청자가 동의하면 분자만 늘어 남은 사람이
+   *    동의하지 않았는데도 만장일치로 판정된다. 요청자에게는 애초에 동의
+   *    시트를 열지 않지만(아래 배너 분기) 여기서도 막는다.
+   */
+  const handleVote = async (vote: "AGREE" | "DISAGREE") => {
+      if (busy || !userId || !data.cancelRequest) return;
+      if (isCancelRequester) return;
+      setBusy(true);
+      try {
+        const result = await castCancelVote({
+          request: data.cancelRequest,
+          userId,
+          vote,
+          fundSnapshot: buildFundSnapshot(),
+        });
+        setSheet(null);
+        await load();
+        if (result.outcome === "APPROVED") {
+          // 내 동의로 확정됐다. 되돌리기 안내가 필요하니 CXL-04 로 보낸다
+          setDoneKind("canceled");
+          return;
+        }
+        Alert.alert(
+          vote === "DISAGREE" ? "취소에 반대했어요" : "취소에 동의했어요",
+          vote === "DISAGREE"
+            ? "요청이 폐기되고 여행은 그대로 유지돼요."
+            : "다른 멤버의 동의를 기다리고 있어요.",
+        );
+      } catch {
+        Alert.alert("전달하지 못했어요", "이미 투표했거나 요청이 끝났을 수 있어요.");
+      } finally {
+        setBusy(false);
+      }
+  };
+
+  /**
+   * 요청자가 취소 요청을 철회한다. (POL-CXL-065)
+   *
+   * ⚠️ 여행 상태도 CANCEL_PENDING 에서 되돌아간다. withdrawCancelRequest()
+   *    안의 closeRequest() 가 함께 처리한다.
+   */
+  const handleWithdraw = async () => {
+    if (busy || !data.cancelRequest) return;
+    setBusy(true);
+    try {
+      await withdrawCancelRequest(data.cancelRequest.id, trip.id);
+      setProgressOpen(false);
+      await load();
+      Alert.alert("요청을 철회했어요", "여행은 그대로 준비할 수 있어요.");
+    } catch {
+      Alert.alert("철회하지 못했어요", "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 되돌리기. 동의를 받지 않는다 (POL-CXL-038) */
+  const handleRestore = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await restoreCanceledTrip(trip.id);
+      setSheet(null);
+      setDoneKind(null);
+      await load();
+      Alert.alert("다시 준비해요", "취소하기 전 상태로 돌아왔어요.");
+    } catch {
+      Alert.alert("되돌리지 못했어요", "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * 여행에서 나간다.
+   *
+   * ⚠️ 나간 뒤 **취소 동의를 다시 판정한다.** (POL-CXL-068) 남은 인원이 이미
+   *    전원 동의 상태였다면 그 순간 취소가 확정돼야 한다. 이걸 빼면 요청이
+   *    영영 대기로 남는다.
+   */
+  const handleLeave = async () => {
+    if (busy || !userId || alsoLeaveGroup === null) return;
+    setBusy(true);
+    try {
+      await leaveTrip({
+        tripId: trip.id,
+        userId,
+        alsoLeaveGroup,
+        groupId: trip.group_id,
+      });
+      await recheckAfterMemberLeft({
+        tripId: trip.id,
+        tripStartDate: trip.start_date,
+        fundSnapshot: buildFundSnapshot(),
+      }).catch(() => undefined);
+      setSheet(null);
+      router.replace("/");
+    } catch {
+      Alert.alert("나가지 못했어요", "잠시 후 다시 시도해 주세요.");
+      setBusy(false);
+    }
+  };
+
+  /** 여행장을 넘기고 나간다. 위임 먼저, 나가기 나중 */
+  const handleDelegateAndLeave = async () => {
+    if (busy || !userId || !delegateId) return;
+    const target = delegateCandidates.find((c) => c.memberId === delegateId);
+    if (!target?.userId) return;
+    setBusy(true);
+    try {
+      await delegateAndLeave({
+        tripId: trip.id,
+        fromUserId: userId,
+        toUserId: target.userId,
+        alsoLeaveGroup: false,
+        groupId: trip.group_id,
+      });
+      await recheckAfterMemberLeft({
+        tripId: trip.id,
+        tripStartDate: trip.start_date,
+        fundSnapshot: buildFundSnapshot(),
+      }).catch(() => undefined);
+      setSheet(null);
+      router.replace("/");
+    } catch {
+      Alert.alert("넘기지 못했어요", "잠시 후 다시 시도해 주세요.");
+      setBusy(false);
+    }
+  };
+
+  // ── 취소 화면 표시값 ────────────────────────────────────────────────────
+  /**
+   * 화면에 쓸 금액. 확정 시 저장하는 스냅샷과 같은 식으로 만든다.
+   *
+   * ⚠️ 이미 취소된 여행은 **저장된 스냅샷을 그대로 읽는다.** 다시 계산하지
+   *    않는다. 취소 후에도 계좌 거래는 들어오는데, 그때 값이 바뀌면
+   *    "취소 시점 기록" 이 아니게 된다. (POL-CXL-011 · 012)
+   */
+  const cancelSnapshot: CanceledFundSnapshot =
+    (isCanceled && (trip.canceled_fund_snapshot_json as CanceledFundSnapshot | null)) ||
+    buildFundSnapshot();
+
+  const cancelPerPerson = cancelPerPersonAmount(cancelSnapshot.remaining, trip.headcount);
+
+  const cancelExpiresLabel = data.cancelRequest
+    ? format(parseISO(data.cancelRequest.expires_at), "M월 d일")
+    : "";
+
+  const cancelRequesterName =
+    data.members.find((m) => m.user_id === data.cancelRequest?.requested_by)?.name ??
+    "요청자";
+
+  /**
+   * CXL-07 이 그리는 동의 대상 목록.
+   *
+   * ⚠️ **아직 안 고른 사람까지 넣는다.** getVoteProgress().votes 에는 표를 던진
+   *    사람만 들어 있어서, 그대로 넘기면 분모가 투표한 인원 수로 줄어든다.
+   *    "2명 중 2명 동의" 처럼 보이지만 실제로는 4명 중 2명일 수 있다.
+   *
+   * ⚠️ 요청자는 뺀다. 동의 대상이 아니다. (POL-CXL-068)
+   * ⚠️ 미가입 동행자(user_id 가 null)도 뺀다. 투표할 계정이 없다.
+   */
+  const voteItems: VoteItem[] = data.members
+    .filter(
+      (m) => m.user_id !== null && m.user_id !== data.cancelRequest?.requested_by,
+    )
+    .map((member) => {
+      const vote = data.voteProgress?.votes.find((v) => v.user_id === member.user_id);
+      return {
+        userId: member.user_id as string,
+        name: member.name,
+        vote: (vote?.vote as "AGREE" | "DISAGREE" | undefined) ?? null,
+        votedAtLabel: vote ? format(parseISO(vote.voted_at), "M월 d일") : null,
+      };
+    });
+
+  /**
+   * 취소 뒤에 들어온 거래. CXL-05 가 그린다.
+   *
+   * ⚠️ amount 는 **부호 있는 값**으로 바꿔 넘긴다. DB 는 금액을 양수로 두고
+   *    transaction_type 으로 방향을 구분하는데, 컴포넌트는 부호로 읽는다.
+   *    그대로 넘기면 출금이 잔액을 늘린다.
+   */
+  const cancelChangeItems: CancelChangeItem[] = data.cancelChanges.map((t) => ({
+    id: t.id,
+    dateLabel: format(parseISO(t.occurred_at), "M월 d일"),
+    name: t.name ?? "내역 없음",
+    amount:
+      t.transaction_type === TRANSACTION_TYPE.WITHDRAWAL ? -t.amount : t.amount,
+  }));
+
+  /** 되돌린 뒤 남을 돈. 표시된 5건이 아니라 **전체 변동**으로 계산한다 */
+  const restoredRemaining = restoredRemainingAmount(
+    cancelSnapshot.remaining,
+    cancelChangeItems,
+  );
+
 
   /**
    * 누적 모금액 — 지금까지 확보한 총 여행자금. (스펙 12장)
@@ -722,12 +1298,17 @@ export default function ScreenTripHome() {
    *       그때는 누적 모금액을 따로 보관하거나 입금 합계로 계산해야 한다.
    *       (docs/README.md §5 에 기록)
    */
-  const raisedAmount =
-    data.depositTotal > 0 ? data.depositTotal : (fund?.current_amount ?? 0);
-  const actualTotal = data.categories.reduce(
-    (sum, c) => sum + c.actual_amount,
-    0,
-  );
+  const raisedAmount = isCanceled
+    ? // ⚠️ 취소된 여행은 **취소 시점 값**을 쓴다. 취소 뒤에도 계좌 거래는 계속
+      //    들어와서(POL-CXL-012) 그대로 두면 취소된 여행의 숫자가 혼자 움직인다.
+      //    위 취소 시점 기록과 아래 티켓이 다른 말을 하면 안 된다. (POL-CXL-011)
+      cancelSnapshot.total_saved
+    : data.depositTotal > 0
+      ? data.depositTotal
+      : (fund?.current_amount ?? 0);
+  const actualTotal = isCanceled
+    ? cancelSnapshot.actual_spent
+    : data.categories.reduce((sum, c) => sum + c.actual_amount, 0);
   // 100 을 넘겨 넘기지 않는다. 비행기가 도착지를 지나치면 안 된다. (스펙 3장)
   const progress =
     targetAmount > 0 ? Math.min(100, (raisedAmount / targetAmount) * 100) : 0;
@@ -770,6 +1351,114 @@ export default function ScreenTripHome() {
       ? differenceInCalendarDays(parseISO(trip.end_date), parseISO(trip.start_date)) + 1
       : 0;
 
+  // ── 취소 전용 화면 세 개 ────────────────────────────────────────────────
+  //
+  // ⚠️ **새 라우트를 만들지 않는다.** 세 화면 모두 이 화면의 분기다.
+  //    (스펙 §7 · §11) TRIP-HOME-04 배너도 같은 원칙이다.
+  //
+  // ⚠️ 반드시 **아래 return 바로 앞**에 둔다. 위쪽 훅들보다 아래라서 렌더마다
+  //    훅 개수가 달라지지 않는다. 위로 올리면 "Rendered more hooks than during
+  //    the previous render" 로 화면이 죽는다. (2026-09-10 확인)
+  //
+  // ⚠️ 이 화면들에는 useScreenView 가 없다. events.ts 의 SCREENS 에 값이 없고
+  //    그 파일은 공유 파일이라 임의로 못 늘린다. (CLAUDE.md §8) [검토 필요]
+
+  /**
+   * CXL-04 요청 완료 / 취소 완료.
+   *
+   * ⚠️ requested 와 canceled 의 **다음 행동이 다르다.** 동의 현황이냐 되돌리기냐.
+   *    Alert 로 뭉뚱그리면 되돌릴 수 있다는 사실을 놓친다.
+   */
+  if (doneKind) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen
+          options={{
+            title: trip.destination ?? "여행",
+            headerLeft: () => <AppHomeButton />,
+            headerRight: undefined,
+          }}
+        />
+        <CancelDoneView
+          kind={doneKind}
+          destination={trip.destination ?? "여행"}
+          voteTargetCount={voteTargetCount}
+          expiresAtLabel={cancelExpiresLabel}
+          onOpenProgress={() => {
+            setDoneKind(null);
+            setProgressOpen(true);
+          }}
+          onGoTripHome={() => setDoneKind(null)}
+          /* ⚠️ 여기서 바로 되돌리지 않는다. CXL-05 를 반드시 거친다 (POL-CXL-036) */
+          onOpenRestore={() => {
+            setDoneKind(null);
+            setSheet("restore");
+          }}
+          onGoCanceledTrip={() => setDoneKind(null)}
+        />
+      </View>
+    );
+  }
+
+  /**
+   * CXL-07 동의 현황.
+   *
+   * ⚠️ 요청이 없으면 그리지 않는다. 철회·반대·만료로 사라진 요청의 현황은
+   *    보여 줄 것이 없다. (load() 가 이때 progressOpen 도 내린다)
+   */
+  if (progressOpen && data.cancelRequest) {
+    return (
+      <View className="flex-1 bg-gray-50">
+        <Stack.Screen
+          options={{
+            title: "취소 동의 현황",
+            headerLeft: () => <AppHomeButton />,
+            headerRight: undefined,
+          }}
+        />
+        <VoteProgressView
+          requesterName={cancelRequesterName}
+          requestedAtLabel={format(parseISO(data.cancelRequest.requested_at), "M월 d일")}
+          votes={voteItems}
+          reasonLabel={
+            data.cancelRequest.reason
+              ? CANCEL_REASON_LABEL[data.cancelRequest.reason as CancelReasonCode] ?? null
+              : null
+          }
+          expiresAtLabel={cancelExpiresLabel}
+          departureLabel={
+            trip.start_date ? format(parseISO(trip.start_date), "M월 d일") : "미정"
+          }
+          isRequester={isCancelRequester}
+          onWithdraw={() => void handleWithdraw()}
+          onGoTripHome={() => setProgressOpen(false)}
+          withdrawing={busy}
+        />
+      </View>
+    );
+  }
+
+  /**
+   * TRIP-HOME-03 취소된 여행 — **여행 홈을 대체하지 않는다.**
+   *
+   * ⚠️ 처음에는 요약 카드 한 장짜리 전용 화면으로 만들었는데, 되돌릴 수 있는
+   *    여행인데도 여행이 통째로 사라진 것처럼 보였다. (2026-09-13 다빈 확인)
+   *    스펙 문구도 "전 항목 읽기 전용" 이라 감추는 게 아니라 못 고치게 하는
+   *    것이 맞다. (POL-CXL-005) 티켓·예산·자금은 그대로 두고 회색으로 죽인다.
+   */
+  const canceledHistoryLabel = (() => {
+    const dateLabel = trip.canceled_at
+      ? format(parseISO(trip.canceled_at), "M월 d일")
+      : "";
+    const byName =
+      data.members.find((m) => m.user_id === trip.canceled_by)?.name ?? "멤버";
+    // 혼자인 여행은 동의 절차 없이 취소된다. 경위 문장도 달라야 한다
+    const byAgreement = Boolean(trip.group_id) && data.members.length > 1;
+    return byAgreement
+      ? `${byName}님이 요청하고 멤버 모두가 동의해서 ${dateLabel}에 취소됐어요`
+      : `${dateLabel}에 이 여행을 취소했어요`;
+  })();
+
   return (
     <ScrollView
       className="flex-1"
@@ -789,39 +1478,163 @@ export default function ScreenTripHome() {
           title: trip.destination ?? "여행 홈",
           /* 왼쪽은 앱 홈(집), 오른쪽은 여행 설정(톱니). '<' 는 어디로 가는지 알 수 없었다 */
           headerLeft: () => <AppHomeButton />,
-          /* 끝난 여행은 고칠 것도 나갈 것도 취소할 것도 없다. 톱니를 아예 안 그린다 */
-          headerRight: ended
-            ? undefined
-            : () => <TripSettingsButton onPress={() => setSettingsOpen(true)} />,
+          /*
+            끝난 여행은 고칠 것도 나갈 것도 취소할 것도 없다. 톱니를 아예 안 그린다.
+            ⚠️ 취소된 여행도 마찬가지다. ended 로는 안 걸린다 — 출발 전에 취소한
+               여행은 layoutStatus 가 PLANNING 이라 ended 가 false 다.
+          */
+          headerRight:
+            ended || isCanceled
+              ? undefined
+              : () => <TripSettingsButton onPress={() => setSettingsOpen(true)} />,
         }}
       />
 
       {/*
         ── 여행 설정 사이드 시트 ──
-        ⚠️ 여행 나가기 / 여행 취소하기의 실제 동작은 다른 팀원이 만든다.
-           지금은 자리만 있고, 누르면 준비 중이라고 알린다.
-           · 나가기   이 여행·멤버 목록에서 빠진다 (trip_members / group_members)
-           · 취소     모임원 전원 동의 → 취소. 동의 완료 시점부터 72시간 되돌리기
+        ⚠️ 시트를 먼저 닫고 다음 시트를 연다. 바로 갈아끼우면 iOS 가 앞 Modal
+           이 닫히는 중에 새 Modal 을 띄우지 못하고, **보이지 않는 Modal 이
+           터치를 삼켜** 화면이 통째로 먹통이 된다. (2026-09-10 확인)
+           BottomSheet 는 닫는 애니메이션 동안 Modal 을 살려 둔다.
       */}
       <TripSettingsSheet
-        visible={settingsOpen && !ended}
+        visible={settingsOpen && !ended && !isCanceled}
         onClose={() => setSettingsOpen(false)}
         destination={trip.destination ?? "여행"}
         groupName={data.groupName}
         onEdit={() => router.push(`/trips/${trip.id}/edit`)}
-        onLeave={() =>
-          Alert.alert(
-            "여행 나가기",
-            "이 여행과 멤버 목록에서 빠지는 기능은 준비 중이에요.",
-          )
-        }
-        onCancel={() =>
-          Alert.alert(
-            "여행 취소하기",
-            "함께 가는 사람 모두가 동의하면 취소돼요. 동의가 끝난 뒤 72시간 안에는 되돌릴 수 있어요. 이 기능은 준비 중이에요.",
-          )
-        }
+        onLeave={() => openSheetAfterClose("leave")}
+        /*
+          ⚠️ 이미 요청이 떠 있으면 새 요청을 시작하지 않는다. requestCancel()
+             은 멱등이라 같은 요청을 돌려주지만(REQ-CXL-017), 사유를 다시 고르게
+             해 놓고 그 사유를 버리는 꼴이 된다. 현황으로 보낸다. (POL-CXL-060)
+        */
+        onCancel={() => {
+          if (isCancelPending) {
+            setSettingsOpen(false);
+            setProgressOpen(true);
+            return;
+          }
+          openSheetAfterClose("cancelReason");
+        }}
       />
+
+      {/*
+        ── 취소 · 나가기 시트 ──
+        ⚠️ 시트끼리 이어질 때는 반드시 openSheetAfterClose() 를 쓴다.
+           setSheet 로 바로 갈아끼우면 iOS 에서 화면이 먹통이 된다.
+      */}
+      <LeaveTripSheet
+        visible={sheet === "leave"}
+        onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
+        mode={leaveMode}
+        destination={trip.destination ?? "여행"}
+        groupName={data.groupName ?? "모임"}
+        alsoLeaveGroup={alsoLeaveGroup}
+        onChangeAlsoLeaveGroup={setAlsoLeaveGroup}
+        fundBalanceLabel={
+          fund && fund.current_amount > 0 ? `${fund.current_amount.toLocaleString("ko-KR")}원` : null
+        }
+        onLeave={() => void handleLeave()}
+        onOpenDelegate={() => openSheetAfterClose("delegate")}
+        onInvite={() => router.push(`/trips/${trip.id}/edit`)}
+        onCancelTrip={() => openSheetAfterClose("cancelReason")}
+        leaving={busy}
+      />
+
+      <DelegateLeaderSheet
+        visible={sheet === "delegate"}
+        onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
+        candidates={delegateCandidates}
+        selectedMemberId={delegateId}
+        onSelect={setDelegateId}
+        fundBalanceLabel={
+          fund && fund.current_amount > 0 ? `${fund.current_amount.toLocaleString("ko-KR")}원` : null
+        }
+        onSubmit={() => void handleDelegateAndLeave()}
+        submitting={busy}
+      />
+
+      <CancelReasonSheet
+        visible={sheet === "cancelReason"}
+        onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
+        destination={trip.destination ?? "여행"}
+        isEnded={status === TRIP_STATUS.ENDED}
+        needsAgreement={voteTargetCount > 0}
+        voteTargetCount={voteTargetCount}
+        reason={cancelReason}
+        onToggleReason={(code) => setCancelReason((prev) => (prev === code ? null : code))}
+        onEditDates={() => router.push(`/trips/${trip.id}/edit`)}
+        onEditHeadcount={() => router.push(`/trips/${trip.id}/edit`)}
+        onSubmit={() => openSheetAfterClose("cancelConfirm")}
+        submitting={busy}
+      />
+
+      <CancelConfirmSheet
+        visible={sheet === "cancelConfirm"}
+        onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
+        isEnded={status === TRIP_STATUS.ENDED}
+        needsAgreement={voteTargetCount > 0}
+        voteTargetCount={voteTargetCount}
+        hasLinkedAccount={fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT}
+        spentLabel={cancelSnapshot.actual_spent > 0 ? `${cancelSnapshot.actual_spent.toLocaleString("ko-KR")}원` : null}
+        expiresAtLabel={cancelExpiresLabel}
+        fund={{
+          fundType: cancelSnapshot.fund_type,
+          remainingLabel: `${cancelSnapshot.remaining.toLocaleString("ko-KR")}원`,
+          label: cancelFundLabel({
+            fundKind: cancelSnapshot.fund_type,
+            maskedAccount: null,
+            actualSpent: cancelSnapshot.actual_spent,
+          }),
+          perPersonLabel:
+            cancelPerPerson === null ? null : `${cancelPerPerson.toLocaleString("ko-KR")}원`,
+          headcount: trip.headcount,
+        }}
+        onBack={() => openSheetAfterClose("cancelReason")}
+        onConfirm={() => void handleRequestCancel()}
+        submitting={busy}
+      />
+
+      <CancelVoteSheet
+        visible={sheet === "vote"}
+        onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
+        requesterName={cancelRequesterName}
+        destination={trip.destination ?? "여행"}
+        expiresAtLabel={cancelExpiresLabel}
+        reasonLabel={
+          data.cancelRequest?.reason
+            ? CANCEL_REASON_LABEL[data.cancelRequest.reason as CancelReasonCode] ?? null
+            : null
+        }
+        fundBalanceLabel={
+          fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT && fund.current_amount > 0
+            ? `${fund.current_amount.toLocaleString("ko-KR")}원`
+            : null
+        }
+        onAgree={() => void handleVote("AGREE")}
+        onDisagree={() => void handleVote("DISAGREE")}
+        deciding={busy}
+      />
+
+      <RestoreConfirmSheet
+        visible={sheet === "restore"}
+        onClose={() => setSheet(null)}
+        onDismiss={flushPendingSheet}
+        destination={trip.destination ?? "여행"}
+        isGroupTrip={Boolean(trip.group_id)}
+        changes={cancelChangeItems}
+        afterLabel={`${restoredRemaining.toLocaleString("ko-KR")}원`}
+        fundType={cancelSnapshot.fund_type}
+        onRestore={() => void handleRestore()}
+        restoring={busy}
+      />
+
 
       {/*
         ── 여행 정보 ──
@@ -836,6 +1649,78 @@ export default function ScreenTripHome() {
            끝난 여행 화면에서 `JP` 는 이미 아는 정보고,
            '정산 전' 인지 '정산 완료' 인지가 다음 행동을 정한다.
       */}
+      {/*
+        ── TRIP-HOME-04 취소 요청 중 배너 ──
+        ⚠️ **여행 홈 전체 기능은 그대로 돈다.** CANCEL_PENDING 은 읽기 전용이
+           아니다. 예산·계획·지출을 계속 고칠 수 있다. (POL-CXL-006)
+           잠그면 한 명이 요청만 걸어두고 여행을 마비시킬 수 있다.
+        ⚠️ 새 라우트를 만들지 않는다. 배너만 얹는다. (스펙 §7)
+      */}
+      {isCancelPending ? (
+        <View className="px-1 pb-3 pt-1">
+          <CancelPendingBanner
+            agreedCount={data.voteProgress?.agreedCount ?? 0}
+            voteTargetCount={data.voteProgress?.targetCount ?? voteTargetCount}
+            isRequester={isCancelRequester}
+            hasVoted={hasVoted}
+            requesterName={cancelRequesterName}
+            /*
+              ⚠️ 현황은 **동의 시트가 아니다.** 여기서 동의 시트를 열면 요청자가
+                 자기 요청에 동의할 수 있게 되고, 동의 대상 수는 요청자를 빼고
+                 세므로 분자만 부풀어 남은 사람이 동의하지 않았는데 취소가
+                 확정된다.
+            */
+            onOpenProgress={() => {
+              setSettingsOpen(false);
+              setProgressOpen(true);
+            }}
+            onOpenVote={() => openSheetAfterClose("vote")}
+          />
+        </View>
+      ) : null}
+
+      {/*
+        ── TRIP-HOME-03 취소된 여행 ──
+        ⚠️ 아래 여행 홈은 회색으로 죽어 있을 뿐 스스로 취소됐다고 말하지 않는다.
+           이 알림을 빼면 사용자가 회색인 이유를 알 수 없다.
+      */}
+      {isCanceled ? (
+        <CanceledTripNotice
+          historyLabel={canceledHistoryLabel}
+          canRestore={canRestore}
+          remainingLabel={
+            (trip.canceled_at && restoreRemainingLabel(trip.canceled_at, new Date())) || "곧"
+          }
+          onOpenRestore={() => setSheet("restore")}
+          fundType={cancelSnapshot.fund_type}
+          goalLabel={`${cancelSnapshot.goal_amount.toLocaleString("ko-KR")}원`}
+          spentLabel={
+            cancelSnapshot.actual_spent > 0
+              ? `${cancelSnapshot.actual_spent.toLocaleString("ko-KR")}원`
+              : null
+          }
+          remainingFundLabel={
+            cancelSnapshot.fund_type === "ZERO"
+              ? null
+              : `${cancelSnapshot.remaining.toLocaleString("ko-KR")}원`
+          }
+        />
+      ) : null}
+
+      {/*
+        ── 여기부터 아래는 취소되면 회색으로 죽는다 ──
+        ⚠️⚠️ 핸들러를 하나씩 막지 않는다. 여행 홈에는 다른 화면으로 가는 곳이
+           열다섯 군데가 넘고, 앞으로도 늘어난다. 하나만 빠뜨려도 취소된 여행의
+           예산이 조용히 바뀐다. 통째로 pointerEvents 를 끊어 **빠질 수 없게** 한다.
+           (2026-09-13)
+        ⚠️ 시트들은 이 밖에 있다. 안에 넣으면 '되돌리기' 를 눌러도 안 열린다.
+        ⚠️ gap 24 를 여기로 옮겨 적는다. ScrollView 의 gap 은 이제 이 래퍼와
+           위 알림 사이에만 걸려서, 안 적으면 카드들이 서로 붙는다.
+      */}
+      <View
+        style={{ gap: 24, opacity: isCanceled ? 0.45 : 1 }}
+        pointerEvents={isCanceled ? "none" : "auto"}
+      >
       {ended ? (
         <View className="px-1 pt-1">
           <View className="flex-row items-start justify-between">
@@ -1376,6 +2261,13 @@ export default function ScreenTripHome() {
             </View>
           ) : null}
 
+          {/*
+            ⚠️ 취소된 여행에는 그리지 않는다. 여기만 '숨김' 이고 나머지는 회색인
+               이유는, 이 둘이 **여행 데이터가 아니라 제휴·유입 카드**이기 때문이다.
+               취소한 여행에 보험 견적과 여행 팁을 권하는 건 말이 안 된다.
+               (2026-09-13 다빈 결정)
+          */}
+          {isCanceled ? null : (
           <View className="gap-2.5">
             <View
               className="flex-row items-end justify-between"
@@ -1405,8 +2297,10 @@ export default function ScreenTripHome() {
               }
             />
           </View>
+          )}
         </>
       )}
+      </View>
     </ScrollView>
   );
 }

@@ -24,6 +24,13 @@ import type { LeaveMode } from "./types";
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /**
+   * 시트가 **완전히 내려간 뒤**(iOS). 다음 시트를 이어서 열 때 쓴다.
+   *
+   * ⚠️ 닫는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고, 보이지 않는 Modal 이
+   *    화면 전체의 터치를 삼킨다. 타이머로 어림잡지 말고 이 신호를 쓴다.
+   */
+  onDismiss?: () => void;
 
   mode: LeaveMode;
   destination: string;
@@ -53,6 +60,7 @@ type Props = {
 export function LeaveTripSheet({
   visible,
   onClose,
+  onDismiss,
   mode,
   destination,
   groupName,
@@ -70,6 +78,7 @@ export function LeaveTripSheet({
       <BottomSheet
         visible={visible}
         onClose={onClose}
+        onDismiss={onDismiss}
         title="지금은 나갈 수 없어요"
         description="여행장을 넘겨줄 멤버가 없어요."
         footer={
@@ -95,6 +104,7 @@ export function LeaveTripSheet({
       <BottomSheet
         visible={visible}
         onClose={onClose}
+        onDismiss={onDismiss}
         title="여행장을 넘기고 나가야 해요"
         description={`${destination} 여행을 이어서 준비할 사람이 필요해요.`}
         footer={<Button label="여행장 넘기기" onPress={onOpenDelegate} />}
@@ -115,6 +125,7 @@ export function LeaveTripSheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
+      onDismiss={onDismiss}
       title={`${destination} 여행에서 나가시나요?`}
       description="함께하는 사람들에게 알림이 가요."
       footer={
