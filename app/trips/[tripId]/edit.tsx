@@ -162,7 +162,10 @@ export default function ScreenTripEdit() {
             needsNewGroup: row.needs_new_group,
           })),
       );
-    } catch {
+    } catch (error) {
+      // 화면은 빈 목록으로 두되, 개발 중에는 이유를 남긴다. 조용히 삼키면 RPC 실패와
+      // "요청 0건" 을 구분할 수 없다. 배포 빌드에서는 아무것도 찍지 않는다.
+      if (__DEV__) console.warn('[joinRequests] get_trip_join_requests failed', error);
       setJoinRequests([]);
     }
   }, [trip, isPreview, userId]);
