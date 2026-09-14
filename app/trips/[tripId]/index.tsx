@@ -129,6 +129,7 @@ import {
 import {
   delegateAndLeave,
   leaveTrip,
+  hasLeftTrip,
   listActiveTripMembers,
   type TripMemberWithName,
 } from "@/lib/supabase/queries/tripMembers";
@@ -377,6 +378,15 @@ export default function ScreenTripHome() {
    */
   const [typeOpen, setTypeOpen] = useState(false);
 
+  /**
+   * 내가 나간(LEFT) 여행인가. (2026-09-14 확정 정책 · docs/11 v2 §6-2)
+   * 나간 여행은 목록 이력으로만 보이고 여행 홈·상세에는 **들어갈 수 없다.**
+   * 카드 탭은 모임 상세·MY 가 막지만, 딥링크·뒤로가기·히스토리로 여기 올 수 있어
+   * 화면이 직접 확인하고 콘텐츠를 그리지 않는다.
+   * ⚠️ 앱 레벨 가드다. RLS 는 아직 이 사용자에게 SELECT 를 막지 않는다. (dev_open_all)
+   */
+  const [leftTrip, setLeftTrip] = useState(false);
+
   const load = useCallback(async () => {
     if (!tripId) {
       setNotFound(true);
@@ -385,11 +395,18 @@ export default function ScreenTripHome() {
     }
     setError(false);
     setNotFound(false);
+    setLeftTrip(false);
 
     try {
       const found = await getTripById(tripId);
       if (!found) {
         setNotFound(true);
+        return;
+      }
+
+      // 나간 여행이면 여기서 끝. 나머지 데이터(예산·자금·거래)를 읽지도 않는다.
+      if (userId && (await hasLeftTrip(found.id, userId))) {
+        setLeftTrip(true);
         return;
       }
 
@@ -473,7 +490,7 @@ export default function ScreenTripHome() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tripId]);
+  }, [tripId, userId]);
 
   /**
    * 지출 입력 리마인드(매일 21:00 로컬 알림)를 잡는다. 여행이 임박했거나
@@ -881,6 +898,21 @@ export default function ScreenTripHome() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
         <Loading message="여행 정보를 불러오는 중…" />
+      </View>
+    );
+  }
+  // 나간 여행 — 콘텐츠를 그리지 않는다. 모임 상세의 안내와 같은 말을 쓴다.
+  if (leftTrip) {
+    return (
+      <View className="flex-1 bg-white">
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
+        <EmptyState
+          icon="exit-outline"
+          title="나간 여행이에요"
+          description="이 여행은 더 이상 볼 수 없어요."
+          actionLabel="확인"
+          onAction={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+        />
       </View>
     );
   }
