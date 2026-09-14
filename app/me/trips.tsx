@@ -18,6 +18,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
 import { MyTripListView, type MyTripFilter, type MyTripItem } from '@/components/my';
+import { ConfirmModal } from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
 import { SCREENS } from '@/lib/analytics/events';
 import { countryTheme } from '@/lib/constants/countryTheme';
@@ -80,6 +81,12 @@ export default function ScreenMY02() {
    */
   const [canceledTrips, setCanceledTrips] = useState<Trip[]>([]);
   const [leftTrips, setLeftTrips] = useState<Trip[]>([]);
+  /**
+   * 나간 여행 카드를 눌렀을 때 안내. (2026-09-14 확정 정책 · docs/11 v2 §6-2)
+   * ⚠️ 다른 hook 과 같이 맨 위에 둔다. 아래 loading/error 의 early return 뒤에 두면
+   *    렌더마다 hook 수가 달라져 React 가 막는다. (Rules of Hooks)
+   */
+  const [leftNoticeOpen, setLeftNoticeOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoadState('loading');
@@ -244,9 +251,23 @@ export default function ScreenMY02() {
         filter={filter}
         onChangeFilter={setFilter}
         // 준비 중·여행 중·종료 모두 같은 라우트다. 도착 화면이 trip.status 로 분기한다. (docs/04_v3 §5)
-        onPressTrip={(tripId) => router.push(`/trips/${tripId}`)}
+        // ⚠️ 나간 여행은 열지 않는다 — 목록 이력으로만 보인다. 모임 상세와 같은 안내만 띄운다.
+        onPressTrip={(tripId) =>
+          leftIds.has(tripId) ? setLeftNoticeOpen(true) : router.push(`/trips/${tripId}`)
+        }
         // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint param 을 읽어 기록한다.
         onPressCreateTrip={() => router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)}
+      />
+
+      <ConfirmModal
+        visible={leftNoticeOpen}
+        title="나간 여행이에요"
+        description="이 여행은 더 이상 볼 수 없어요."
+        confirmLabel="확인"
+        hideCancel
+        busy={false}
+        onCancel={() => setLeftNoticeOpen(false)}
+        onConfirm={() => setLeftNoticeOpen(false)}
       />
     </>
   );

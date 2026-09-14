@@ -501,20 +501,20 @@ export default function ScreenGROUP02() {
         onPressAccount={(account) => setPickingAccount(account)}
         onPressAllAccounts={() => setAllAccountsOpen(true)}
         onPressLeaveTrip={(trip) => void leave.open(trip.tripId, userId)}
-        // 나간 여행은 열 수 없다. "눌렀는데 아무 일도 없음" 대신 이유를 알린다.
+        // 나간 여행은 열 수 없다(확정 정책). "눌렀는데 아무 일도 없음" 대신 이유를 알린다.
         onPressLeftTrip={() => setLeftNoticeOpen(true)}
       />
 
       {/*
-        ⚠️ LEFT read-only 여행 홈 연결 전 **임시 보호 UX**다. (2026-09-13 · docs/11 §6-2)
-           최종 정책은 "볼 수 있지만 수정할 수 없다" 인데, 지금은 membership 기준
-           수정 차단이 없어 여행 홈으로 보내면 수정까지 된다. 그래서 이동을 막고
-           수정 불가만 알린다. "볼 수 없다" 고 말하지 않는다.
+        나간 여행 안내. (2026-09-14 확정 · docs/11 v2 §6-2)
+        최종 정책 = "나간 여행은 목록 이력으로만 보인다. 여행 홈·상세에 들어갈 수 없고
+        수정도 할 수 없다." 그래서 이동하지 않고 이 안내만 띄운다. 여행 홈도 같은 말로 막는다.
+        (재참여는 별개다 — 유효한 초대 링크로 다시 요청할 수 있다. docs/12)
       */}
       <ConfirmModal
         visible={leftNoticeOpen}
         title="나간 여행이에요"
-        description="이 여행은 더 이상 수정할 수 없어요."
+        description="이 여행은 더 이상 볼 수 없어요."
         confirmLabel="확인"
         hideCancel
         busy={false}

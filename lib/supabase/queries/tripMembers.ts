@@ -23,6 +23,31 @@ export type TripMemberWithName = TripMemberRow & {
 };
 
 /**
+ * 이 여행에서 내가 나간 사람(LEFT)인가. (POL-MEM · 2026-09-14 확정)
+ *
+ * 여행 홈의 접근 가드가 쓴다. "나간 여행은 목록 이력으로만 보이고 여행 홈·상세에는
+ * 들어갈 수 없다" — 카드 탭뿐 아니라 딥링크·뒤로가기로 와도 막아야 해서 화면이 직접 묻는다.
+ *
+ * ⚠️ ACTIVE 행이 하나라도 있으면 false 다. LEFT 행만 있을 때만 true.
+ *    (trip_members 는 unique 가 없어 같은 사람의 행이 여럿일 수 있다)
+ * ⚠️ 행이 없으면(참여한 적 없음) false — "나간 사람" 이 아니다. 미참여 접근 범위는 별도 정책.
+ * ⚠️ 읽기만 한다. 실패하면 던진다 — 화면이 false 로 두면 나간 여행이 열리므로 삼키지 않는다.
+ */
+export async function hasLeftTrip(tripId: string, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('trip_members')
+    .select('status')
+    .eq('trip_id', tripId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  const rows = data ?? [];
+  if (rows.length === 0) return false;
+  if (rows.some((row) => row.status === TRIP_MEMBER_STATUS.ACTIVE)) return false;
+  return rows.some((row) => row.status === TRIP_MEMBER_STATUS.LEFT);
+}
+
+/**
  * 참여 중인 멤버. 나간 사람(LEFT)과 아직 안 온 사람(INVITED)은 뺀다.
  *
  * ⚠️ user_id 가 null 인 미가입 동행자도 **포함한다.** 인원 수에 들어가고
