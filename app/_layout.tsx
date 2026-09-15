@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HeaderBackButton, Loading } from '@/components/ui';
 import { initAnalytics } from '@/lib/analytics/track';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthProvider';
+import { NotificationBannerObserver } from '@/lib/notifications/NotificationBannerObserver';
 import { PushInboxObserver } from '@/lib/notifications/PushInboxObserver';
 
 import '../global.css';
@@ -127,6 +128,8 @@ export default function RootLayout() {
         <AuthGate>
           <RootStack />
         </AuthGate>
+        {/* 새 DB 알림의 In-app Banner. 화면 위에 겹쳐 그린다. 마운트 1회. (lib/notifications) */}
+        <NotificationBannerObserver />
       </AuthProvider>
     </GestureHandlerRootView>
   );
