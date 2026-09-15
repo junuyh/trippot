@@ -44,17 +44,18 @@ export default function ScreenTRIP02() {
   const { draft, patchDraft } = useTripDraft();
 
   // ── 인원 기본값 ───────────────────────────────────────────────────────
-  // 모임 여행이면 동행자 수 + 본인. 개인은 1명이다.
+  // 기존 모임이면 그 모임의 멤버 수, 그 밖에는 본인 1명에서 시작한다.
   // 사용자가 직접 만진 뒤에는 덮어쓰지 않는다.
+  //
+  // ⚠️ 2026-09-15 · 신규 모임도 1명에서 시작한다. TRIP-01 에서 동행자 이름을
+  //    미리 받지 않게 되어(NewGroupForm 주석) 셀 근거가 없다. 몇 명이 갈지는
+  //    아래 스테퍼로 직접 정한다. 멤버는 초대 수락으로 늘어난다.
   const [headcountTouched, setHeadcountTouched] = useState(false);
   const suggestedHeadcount =
-    draft.companionType === COMPANION_TYPE.PERSONAL
-      ? 1
-      : draft.companionType === COMPANION_TYPE.EXISTING_GROUP
-        ? // 기존 모임은 참여 멤버 수. 아직 못 불러왔으면(0) 1 로 둔다.
-          Math.max(1, draft.groupMemberCount)
-        : // 신규 모임은 입력한 동행자 + 본인
-          Math.max(1, draft.companionNames.length + 1);
+    draft.companionType === COMPANION_TYPE.EXISTING_GROUP
+      ? // 기존 모임은 참여 멤버 수. 아직 못 불러왔으면(0) 1 로 둔다.
+        Math.max(1, draft.groupMemberCount)
+      : 1;
 
   useEffect(() => {
     if (headcountTouched) return;
