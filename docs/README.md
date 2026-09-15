@@ -34,7 +34,7 @@
 | **`11_모임정책_v2.md`** ← 기준 | **모임(GROUP) 정책 Source of Truth.** v1 내용 그대로 + **§6-2 나간(LEFT) 여행 접근 확정(2026-09-14 · 2계정 E2E)**: 이력으로만 표시, 여행 홈·상세 진입 불가·수정 불가, 안내 `이 여행은 더 이상 볼 수 없어요.`, 여행 홈 앱 가드(`hasLeftTrip`), 재참여는 초대 링크로 가능. v1 의 read-only 여행 홈 정책 폐기 | 267 |
 | `11_모임정책_v1.md` | v2 이전 버전(2026-09-12~13). §6-2 "볼 수 있다·수정 불가(read-only 여행 홈 예정)" 는 **폐기됨** — 비교용 보존 | 267 |
 | **`12_여행초대_승인_RPC계약_v1.md`** ← 기준 | **DB 담당 구현 계약 · 팀 확정(2026-09-13).** 수신자 초대 확인 · 참가 요청 · 취소 · 대기 목록 · 승인(CASE A/B/C/D · **새 모임 = target 여행 ACTIVE 참여자 + 요청자** · PERSONAL→GROUP · headcount 재검사 · 원자적) · 거절 — 6개 서버 함수의 auth · 검사 · 쓰기 · 반환 · 멱등 · race. REJECTED 는 (invite, user) 단위 · `pending_group_name` 미사용 · `leader_user_id` 선행 조건. §13 에 10_v2·11_v1 과의 차이(이 문서 우선) | 346 |
-| **`13_알림센터_v1.md`** ← 기준 | **알림센터(Notification Center) 정책 · 팀 확정(2026-09-16).** 알림 SoT = `public.notifications` · 생성은 SECURITY DEFINER RPC 안(10_v2 §14 · 12 §9 의 Edge Function 안을 대체) · Push 는 전달 채널일 뿐 · 카테고리 필터(초대·참여 / 멤버·권한 / 여행 취소) · 1차 4종(`INVITE_RECEIVED` 신설 · `JOIN_*`) · 상세 화면 + 현재 상태 기반 CTA · Banner ≠ 읽음 · 90일 조회 + 30건 cursor · 365일 retention cron · raw token 미저장 · RLS 목표 | 170 |
+| **`13_알림센터_v1.md`** ← 기준 | **알림센터(Notification Center) 정책 · 팀 확정(2026-09-16).** 알림 SoT = `public.notifications` · 생성은 SECURITY DEFINER RPC 안(10_v2 §14 · 12 §9 의 Edge Function 안을 대체) · Push 는 전달 채널일 뿐 · 카테고리 필터(초대·참여 / 멤버·권한 / 여행 취소) · 1차 4종(`INVITE_RECEIVED` 신설 · `JOIN_*`) · 상세 화면 + 현재 상태 기반 CTA · Banner ≠ 읽음 · 365일(1년) 조회 + 30건 cursor · 730일 retention cron · raw token 미저장 · RLS 목표 | 170 |
 
 `05_v6`, `06_v3`, `09` 는 크다. 통째로 읽지 말고 해당 절만 읽는다.
 특히 `06_v3` 는 로깅 작업이 아니면 열지 않는다.

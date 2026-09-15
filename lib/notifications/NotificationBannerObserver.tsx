@@ -24,6 +24,7 @@
 // ⚠️ Remote Push 를 여기서 다루지 않는다. PR #97 PushInboxObserver 와 독립이다.
 //    나중에 Push 를 눌러 앱을 열면 그 경로가 상세로 보내며 markBannerShown() 을 불러 이 배너를
 //    막을 수 있도록 Set 을 밖으로 열어 둔다.
+// ⚠️ 개발용 미리보기(isPreview)에서는 아무것도 하지 않는다. 세션이 없어 RLS 가 잠기면 막힌다.
 // ⚠️ 실패는 전부 삼킨다. 알림 때문에 앱이 죽지 않는다.
 // ============================================================================
 import { router, usePathname } from 'expo-router';
@@ -31,7 +32,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { NotificationBanner } from '@/components/ui';
-import { useCurrentUserId } from '@/lib/auth/AuthProvider';
+import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { NOTIFICATION_TYPE } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import { getUnreadNotifications, type Notification } from '@/lib/supabase/queries/notifications';
@@ -61,7 +62,11 @@ function isNotificationRow(value: unknown): value is Notification {
 }
 
 export function NotificationBannerObserver() {
-  const userId = useCurrentUserId();
+  const currentUserId = useCurrentUserId();
+  const { isPreview } = useAuth();
+  // 개발용 미리보기는 실제 세션이 없다. Realtime 도 unread 조회도 하지 않는다(RLS 대비).
+  // 실제 카카오 로그인 사용자만 구독한다.
+  const userId = __DEV__ && isPreview ? null : currentUserId;
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;

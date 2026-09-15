@@ -6,12 +6,15 @@
 // /me/settings/notifications 다.
 //
 // 데이터 (docs/13 §2 · §9 · §11)
-//   db    public.notifications — Source of Truth. 최근 90일 · 최신순 · 30건 커서 페이지.
+//   db    public.notifications — Source of Truth. 최근 1년 · 최신순 · 30건 커서 페이지.
 //         필터 칩은 **서버 쪽** type 필터다. 30건 받아 놓고 앱에서 거르지 않는다.
 //   push  기기에 도착해 보관한 알림(lib/notifications/pushInbox) — notificationId 가 없는
 //         generic/test Push 의 **fallback**. type 이 없어 [전체] 에서만 보인다.
 //   두 출처를 합쳐 최신순. 사용자에게 출처를 보여주지 않는다.
 //   이전의 "전체 select → 화면에서 30개" 는 폐기했다. (2026-09-16)
+//
+// ⚠️ 개발용 미리보기(isPreview)는 실제 세션이 없다. RLS 가 잠기면 notifications 조회가
+//    permission 오류가 되므로 DB 를 묻지 않고 기기 보관함(push)만 보여준다. 가짜 DB 알림을 만들지 않는다.
 //
 // 누르면 상세(/me/notifications/:id)로 간다. 읽음 처리는 상세 진입에서 한다. (docs/13 §7)
 // 왼쪽으로 밀면 삭제. DB 는 hard delete, push 는 기기 보관함 + OS 알림 센터에서 제거.
@@ -31,7 +34,7 @@ import {
   type NotificationListItem,
 } from '@/components/mypage';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
-import { useCurrentUserId } from '@/lib/auth/AuthProvider';
+import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { fromDbNotification, fromPushNotification } from '@/lib/notifications/listItem';
 import {
   NOTIFICATION_CATEGORY,
@@ -58,6 +61,7 @@ function byCreatedAtDesc(a: NotificationListItem, b: NotificationListItem): numb
 
 export default function ScreenNotifications() {
   const userId = useCurrentUserId();
+  const { isPreview } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [category, setCategory] = useState<NotificationCategory>(NOTIFICATION_CATEGORY.ALL);
   /** DB 페이지들을 이어 붙인 것. 필터가 바뀌면 처음부터. */
@@ -76,7 +80,10 @@ export default function ScreenNotifications() {
       setLoadState('loading');
       try {
         const [page, pushRows] = await Promise.all([
-          getNotifications(userId, { types: typesForCategory(nextCategory) }),
+          // 미리보기는 DB 를 묻지 않는다 (위 머리 주석). 빈 페이지로 본다.
+          __DEV__ && isPreview
+            ? Promise.resolve({ rows: [], nextCursor: null })
+            : getNotifications(userId, { types: typesForCategory(nextCategory) }),
           nextCategory === NOTIFICATION_CATEGORY.ALL ? getPushInbox(userId) : Promise.resolve([]),
         ]);
         if (seq !== requestSeq.current) return;
@@ -90,7 +97,7 @@ export default function ScreenNotifications() {
         setLoadState('error');
       }
     },
-    [userId],
+    [userId, isPreview],
   );
 
   // 돌아올 때마다 첫 페이지를 다시 본다. 상세에서 읽음 처리한 결과 · 새 알림이 반영된다.
@@ -184,7 +191,7 @@ export default function ScreenNotifications() {
               ? '아직 받은 알림이 없어요.'
               : '이 종류의 알림이 없어요.'
           }
-          description="최근 90일 동안 온 알림을 보여드려요."
+          description="최근 1년 동안 온 알림을 보여드려요."
         />
       ) : null}
       {loadState === 'ready' && items.length > 0 ? (

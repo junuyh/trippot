@@ -18,7 +18,7 @@ import { View } from 'react-native';
 
 import { NotificationDetailView, type NotificationDetailItem } from '@/components/mypage';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
-import { useCurrentUserId } from '@/lib/auth/AuthProvider';
+import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { fromDbNotification, fromPushNotification } from '@/lib/notifications/listItem';
 import { toTripLabel } from '@/lib/notifications/messages';
 import { getPushInbox, markPushNotificationAsRead } from '@/lib/notifications/pushInbox';
@@ -44,6 +44,7 @@ export default function ScreenNotificationDetail() {
     source?: string;
   }>();
   const userId = useCurrentUserId();
+  const { isPreview } = useAuth();
   const isPush = source === 'push';
 
   const [loadState, setLoadState] = useState<LoadState>('loading');
@@ -77,7 +78,8 @@ export default function ScreenNotificationDetail() {
         return;
       }
 
-      const row = await getNotification(notificationId, userId);
+      // 미리보기는 실제 세션이 없어 DB 알림을 열 수 없다(RLS). 기기 보관 알림만 연다.
+      const row = __DEV__ && isPreview ? null : await getNotification(notificationId, userId);
       if (!row) {
         setLoadState('missing');
         return;
@@ -114,7 +116,7 @@ export default function ScreenNotificationDetail() {
       setResolving(false);
       setLoadState('error');
     }
-  }, [userId, notificationId, isPush]);
+  }, [userId, notificationId, isPush, isPreview]);
 
   useEffect(() => {
     void load();

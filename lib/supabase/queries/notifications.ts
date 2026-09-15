@@ -27,7 +27,7 @@ export type GetNotificationsOptions = {
   limit?: number;
   /** 이전 페이지가 돌려준 nextCursor. 첫 페이지는 없음. */
   cursor?: NotificationCursor | null;
-  /** 조회 window. 기본 90일. (docs/13 §9 — UI 는 90일, DB 보관은 365일. 서로 다르다) */
+  /** 조회 window. 기본 365일. (docs/13 §9 — UI 는 1년, DB 보관은 730일. 서로 다르다) */
   sinceDays?: number;
 };
 
@@ -37,11 +37,17 @@ export type NotificationPage = {
   nextCursor: NotificationCursor | null;
 };
 
+/** 알림센터 한 페이지. (docs/13 §9) */
 export const NOTIFICATION_PAGE_SIZE = 30;
-export const NOTIFICATION_WINDOW_DAYS = 90;
+/**
+ * 알림센터 조회 window — 최근 1년. (docs/13 §9 · 2026-09-16 확정)
+ * 해외여행은 수개월~1년 전부터 준비하므로 90일은 짧았다. "진행 중 여행은 기간 무관" 같은
+ * 예외 정책은 두지 않고 단순한 window 하나로 간다. DB 보관(730일 · cron)과는 별개다.
+ */
+export const NOTIFICATION_CENTER_WINDOW_DAYS = 365;
 
 /**
- * 내 알림 한 페이지 — 최근 90일 · 최신순 · 30건 · 커서 기반. (docs/13 §9)
+ * 내 알림 한 페이지 — 최근 1년 · 최신순 · 30건 · 커서 기반. (docs/13 §9)
  *
  * 정렬은 `created_at desc, id desc` 두 키다. 같은 시각의 알림이 있어도 페이지 경계에서
  * 빠지거나 두 번 나오지 않는다. 커서 조건은 `(created_at, id) < (cursor)` 를
@@ -58,7 +64,7 @@ export async function getNotifications(
   options: GetNotificationsOptions = {},
 ): Promise<NotificationPage> {
   const limit = options.limit ?? NOTIFICATION_PAGE_SIZE;
-  const sinceDays = options.sinceDays ?? NOTIFICATION_WINDOW_DAYS;
+  const sinceDays = options.sinceDays ?? NOTIFICATION_CENTER_WINDOW_DAYS;
   const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
 
   let query = supabase
