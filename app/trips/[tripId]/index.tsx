@@ -1611,7 +1611,17 @@ export default function ScreenTripHome() {
         onClose={() => setSettingsOpen(false)}
         destination={trip.destination ?? "여행"}
         groupName={data.groupName}
-        onEdit={() => router.push(`/trips/${trip.id}/edit`)}
+        /*
+          ⚠️ 설정 시트를 **먼저 닫고** 이동한다. 띄워 둔 채로 밀면 돌아왔을 때
+             시트가 그대로 남아 있고, iOS 에서는 이동 자체가 씹히기도 한다.
+             CXL-01 의 구제 카드가 같은 이유로 안 눌렸다. (2026-09-15)
+          ⚠️ 이 시트는 BottomSheet 가 아니라 자체 Modal(animationType="fade")
+             이라 visible=false 면 바로 내려간다. closeSheetThen 이 필요 없다.
+        */
+        onEdit={() => {
+          setSettingsOpen(false);
+          router.push(`/trips/${trip.id}/edit`);
+        }}
         /* 나가기는 훅이 맡는다. 누른 시점에 멤버·취소 요청을 직접 읽는다 */
         onLeave={() => {
           setSettingsOpen(false);
