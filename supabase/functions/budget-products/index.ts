@@ -51,6 +51,18 @@
 // ============================================================================
 
 /** OpenAI 호환 엔드포인트. 끝의 / 는 붙이지 않는다 */
+import { identifyCaller, unauthorized } from "../_shared/auth.ts";
+import {
+  CATEGORY_LABEL,
+  DESTINATION_NAME,
+  PRODUCT,
+  formulaFor,
+  toCount,
+  toPromptText,
+  toTier,
+  toWon,
+} from "./reference.ts";
+
 const BASE_URL = (Deno.env.get("LLM_BASE_URL") ?? "https://api.openai.com/v1").replace(
   /\/+$/,
   "",
@@ -210,6 +222,10 @@ async function writeCache(
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
+  // ⚠️ 로그인한 사용자만 부른다. anon 키만으로는 통과하지 못한다. (_shared/auth.ts)
+  const caller = await identifyCaller(request);
+  if (!caller) return unauthorized(CORS);
+
   /**
    * ⚠️ 실패 원인을 반드시 남긴다.
    *    이 함수는 무슨 일이 있어도 200 + 빈 배열을 돌려주고 앱은 조용히
@@ -266,7 +282,8 @@ Deno.serve(async (request) => {
        엔드포인트가 404 를 주지 않고 매달리기 때문에, 모델을 바꿀 때마다
        이걸로 먼저 확인한다. 키는 절대 싣지 않는다.
   */
-  if (debugMode && (body as { listModels?: boolean }).listModels === true) {
+  // ⚠️ 관리 호출(service_role)만. 로그인 사용자도 부를 때마다 상위 서비스 호출이 한 번 더 나간다.
+  if (caller.kind === "service" && debugMode && (body as { listModels?: boolean }).listModels === true) {
     try {
       const response = await fetch(`${BASE_URL}/models`, {
         headers: { Authorization: `Bearer ${key}` },
@@ -279,24 +296,67 @@ Deno.serve(async (request) => {
     return ok([]);
   }
 
-  const destination = (body.destination ?? "").trim();
+  // ── 목적지 ─────────────────────────────────────────────────────────────
+  //
+  // ⚠️ **목록에 있는 목적지만 캐시를 쓴다.** 그리고 그때는 앱이 보낸 이름이 아니라
+  //    서버가 가진 이름으로 묻는다. (reference.ts)
+  //
+  // ⚠️ 목록에 없는 목적지('region:europe' 열쇠)는 캐시를 읽지도 쓰지도 않는다.
+  //    지역 열쇠 하나에 여러 도시가 섞이기 때문이다. '프라하' 로 만든 결과가
+  //    region:europe 에 들어가면 다음에 '리스본' 을 입력한 사람이 프라하 상품을 본다.
+  //    직접 입력 목적지는 매번 새로 묻고, 시간 안에 못 오면 카탈로그 이름이 보인다.
+  const requestedKey = typeof body.destinationKey === "string" ? body.destinationKey.trim() : "";
+  const knownName = Object.hasOwn(DESTINATION_NAME, requestedKey)
+    ? DESTINATION_NAME[requestedKey]
+    : null;
+  /** 캐시 열쇠. 목록에 없는 목적지면 빈 문자열이고, 그러면 캐시를 건너뛴다 */
+  const destinationKey = knownName ? requestedKey : "";
+  const destination = knownName ?? toPromptText(body.destination, 30);
   if (!destination) {
     fail("여행지가 없다. 여행지 없이는 다시 쓸 이유가 없다");
     return ok([]);
   }
 
+  const headcount = toCount(body.headcount, 1, 20);
+  const nights = toCount(body.nights, 0, 60);
+  const days = toCount(body.days, 1, 61);
+
   // ── 요청 정리 ──────────────────────────────────────────────────────────
-  // 앱이 보낸 것 중 id 가 있는 칸만 남긴다. id 는 앱이 응답을 제자리에
-  // 끼워 넣는 유일한 열쇠라, 없으면 그 칸은 쓸 수 없다.
+  //
+  // ⚠️ 카테고리 이름·상품 이름·계산식은 앱이 보낸 글자를 버리고 서버 값으로 채운다.
+  //    앱이 보내는 것 중 믿는 것은 **어느 칸인가(id)** 와 **숫자** 뿐이다.
+  //    카탈로그에 없는 id, 다른 카테고리의 id, 중복 id 는 버린다.
   let slotCount = 0;
-  const categories = (body.categories ?? [])
+  const categories = (Array.isArray(body.categories) ? body.categories : [])
     .map((category) => {
-      const slots = (category.slots ?? []).filter(
-        (slot) => typeof slot.id === "string" && slot.id.length > 0,
-      );
-      return { ...category, slots };
+      const code = typeof category.code === "string" ? category.code : "";
+      if (!Object.hasOwn(CATEGORY_LABEL, code)) return null;
+      const seen = new Set<string>();
+      const slots = (Array.isArray(category.slots) ? category.slots : [])
+        .filter((slot) => {
+          const id = slot.id;
+          if (typeof id !== "string" || seen.has(id)) return false;
+          if (!Object.hasOwn(PRODUCT, id) || PRODUCT[id].category !== code) return false;
+          seen.add(id);
+          return true;
+        })
+        .map((slot) => ({
+          id: slot.id as string,
+          generic: PRODUCT[slot.id as string].name,
+          tier: toTier(slot.tier),
+          currentAmount: toWon(slot.currentAmount),
+        }));
+      return {
+        code,
+        label: CATEGORY_LABEL[code],
+        baseAmount: toWon(category.baseAmount),
+        formula: formulaFor(code, headcount, nights, days),
+        slots,
+      };
     })
-    .filter((category) => category.slots.length > 0)
+    .filter((category): category is NonNullable<typeof category> =>
+      category !== null && category.slots.length > 0
+    )
     .map((category) => {
       const room = Math.max(0, MAX_SLOTS - slotCount);
       const slots = category.slots.slice(0, room);
@@ -314,8 +374,6 @@ Deno.serve(async (request) => {
   //
   // 같은 목적지면 답이 같다. 한 번 만들어 둔 것이 있으면 모델을 부르지 않는다.
   // 무료 등급이 카테고리 1건에 13~15초 걸리므로, 캐시가 이 기능의 전제다.
-
-  const destinationKey = (body.destinationKey ?? "").trim();
 
   let cached = new Map<string, CachedProduct>();
   try {
@@ -366,7 +424,10 @@ Deno.serve(async (request) => {
    *    둘을 같은 예산으로 다루면, 캐시를 채우려고 45초를 주는 순간 여행
    *    생성 화면도 45초를 기다리게 된다.
    */
-  const warming = (body as { warm?: boolean }).warm === true;
+  //
+  // ⚠️ 관리 호출(service_role)만 워밍업으로 인정한다. 로그인 사용자가 warm:true 를
+  //    보내면 요청 하나로 45초 동안 무료 한도를 태울 수 있다.
+  const warming = caller.kind === "service" && (body as { warm?: boolean }).warm === true;
   const deadline = Date.now() + (warming ? WARM_TIMEOUT_MS : TIMEOUT_MS);
 
   /** 다시 걸어 볼 만한 실패인가. 429·5xx 는 Gemini 무료 등급에서 흔하다 */
@@ -386,8 +447,8 @@ Deno.serve(async (request) => {
       "다시 쓰고, 이 일정·인원에 맞는 **총액**을 함께 매겨라.",
       "",
       `여행지: ${destination}`,
-      `일정: ${body.nights ?? 0}박 ${body.days ?? 0}일`,
-      `인원: ${body.headcount ?? 1}명`,
+      `일정: ${nights}박 ${days}일`,
+      `인원: ${headcount}명`,
       `이 카테고리의 기준 금액: ${category.baseAmount ?? 0}원 (${category.formula ?? ""})`,
       "",
       "칸 목록",
@@ -485,14 +546,19 @@ Deno.serve(async (request) => {
       // ⚠️ 여기서 비율로 되돌린다. 저장은 비율로만 한다.
       //    가드레일(카탈로그 비율 ±40%)은 앱이 건다. 캐시에 들어가는 값은
       //    아직 검증 전이라, 앱은 캐시에서 온 값에도 똑같이 가드레일을 건다.
+      //
+      // ⚠️ 이번에 물어본 칸만 저장한다. 모델이 다른 id 를 섞어 돌려줘도 공용 캐시에
+      //    들어가지 않는다. 비율이 터무니없는 줄(0 이하 · 20배 초과)도 버린다.
       const baseAmount = category.baseAmount ?? 0;
+      const askedIds = new Set(category.slots.map((slot) => slot.id));
       if (baseAmount > 0) {
         const rows = products
           .map((row: Record<string, unknown>) => {
             const id = typeof row?.id === "string" ? row.id : "";
             const name = typeof row?.name === "string" ? row.name.trim() : "";
             const amount = typeof row?.amount === "number" ? row.amount : 0;
-            if (!id || !name || !(amount > 0)) return null;
+            if (!id || !askedIds.has(id) || !name || !(amount > 0)) return null;
+            if (amount / baseAmount > 20) return null;
             return {
               product_id: id,
               name: name.slice(0, 20),

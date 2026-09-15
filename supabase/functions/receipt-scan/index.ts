@@ -28,6 +28,8 @@
 // 진단
 //   요청 본문에 { "debug": true } 를 넣으면 실패 사유가 응답에 함께 온다.
 // ============================================================================
+import { identifyCaller, unauthorized } from "../_shared/auth.ts";
+
 const BASE_URL = (Deno.env.get("LLM_BASE_URL") ?? "https://api.openai.com/v1").replace(
   /\/+$/,
   "",
@@ -69,6 +71,10 @@ const CORS = {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  // ⚠️ 로그인한 사용자만 부른다. anon 키만으로는 통과하지 못한다. (_shared/auth.ts)
+  const caller = await identifyCaller(request);
+  if (!caller) return unauthorized(CORS);
 
   const failures: string[] = [];
   let debugMode = false;
