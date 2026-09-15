@@ -194,6 +194,10 @@ Expo Router Param도 동일한 이름을 쓴다.
 - 새 Query를 만들기 전에 기존 함수를 확인한다.
 - Naming: `getX` / `createX` / `updateX` / `deleteX`
 - 다른 사용자·모임·여행 데이터에 접근할 수 있는 Query를 만들지 않는다.
+- **상태값으로 목록을 거르는 곳은 화면과 Query 두 층에 있다.** 새 상태를 추가하면
+  두 층을 모두 확인한다. 판정은 `lib/trip/tripStatus.ts` 같은 순수 함수 한 곳에
+  두고 양쪽이 그것만 부른다. (`CANCEL_PENDING` 을 화면 8곳에서 고치고 Query 를
+  놓쳐 같은 버그가 두 번 났다 · 2026-09-15)
 
 ---
 
