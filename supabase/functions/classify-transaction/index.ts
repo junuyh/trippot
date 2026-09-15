@@ -27,6 +27,8 @@
 // ============================================================================
 
 /** OpenAI 호환 엔드포인트. 끝의 / 는 붙이지 않는다 */
+import { identifyCaller, unauthorized } from "../_shared/auth.ts";
+
 const BASE_URL = (Deno.env.get("LLM_BASE_URL") ?? "https://api.openai.com/v1").replace(
   /\/+$/,
   "",
@@ -70,6 +72,10 @@ const CORS = {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  // ⚠️ 로그인한 사용자만 부른다. anon 키만으로는 통과하지 못한다. (_shared/auth.ts)
+  const caller = await identifyCaller(request);
+  if (!caller) return unauthorized(CORS);
 
   // ⚠️ 요청마다 새로 만든다. 모듈 전역에 두면 다음 요청에 남은 사유가 섞인다.
   const failures: string[] = [];
