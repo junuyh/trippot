@@ -9,7 +9,7 @@ export { InviteUnavailableView } from './InviteUnavailableView';
 export { JoinRequestSheet } from './JoinRequestSheet';
 export { JoinWaitingView } from './JoinWaitingView';
 export { NewGroupNameSheet } from './NewGroupNameSheet';
-export { PotMark } from './PotMark';
+export { INVITE_THEME } from './inviteTheme';
 export type {
   GroupBranch,
   InviteCandidate,

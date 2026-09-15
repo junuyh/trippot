@@ -8,12 +8,14 @@
 //
 // ⚠️ '요청 취소하기' 를 반드시 둔다. 취소할 길이 없으면 잘못 누른 사람이
 //    영원히 대기 상태로 남고, 여행장의 요청 목록에도 계속 뜬다.
+//
+// 2026-09-16 · visual 만 바꿨다 (InviteShell · 저금통 그림 제거). 문구 · 버튼 · 정보는 그대로다.
 // ============================================================================
+import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
-import { Button } from "@/components/ui";
-
-import { PotMark } from "./PotMark";
+import { InviteShell } from "./InviteShell";
+import { INVITE_THEME } from "./inviteTheme";
 
 type Props = {
   ownerDisplayName: string;
@@ -37,17 +39,22 @@ export function JoinWaitingView({
   canceling = false,
 }: Props) {
   return (
-    <View className="flex-1 bg-white">
-      <View className="flex-1 items-center justify-center px-7">
-        <PotMark variant="waiting" size={90} />
+    <InviteShell>
+      <View className="items-center">
+        <View
+          className="mt-6 h-14 w-14 items-center justify-center rounded-full"
+          style={{ backgroundColor: INVITE_THEME.well }}
+        >
+          <Ionicons name="time-outline" size={26} color={INVITE_THEME.primary} />
+        </View>
 
         <Text
           style={{
-            marginTop: 20,
+            marginTop: 18,
             fontSize: 20.5,
             fontWeight: "800",
             lineHeight: 29,
-            color: "#111827",
+            color: INVITE_THEME.ink,
             textAlign: "center",
           }}
         >
@@ -59,7 +66,7 @@ export function JoinWaitingView({
             marginTop: 9,
             fontSize: 13.5,
             lineHeight: 22,
-            color: "#4B5563",
+            color: INVITE_THEME.body,
             textAlign: "center",
           }}
         >
@@ -67,21 +74,25 @@ export function JoinWaitingView({
         </Text>
       </View>
 
-      <View className="px-5 pb-9" style={{ gap: 4 }}>
+      <View className="mt-7" style={{ gap: 4 }}>
         {onCancelRequest ? (
-          <Button
-            label="요청 취소하기"
-            variant="secondary"
-            loading={canceling}
-            onPress={onCancelRequest}
-          />
+          <View
+            className="w-full flex-row items-center justify-center rounded-xl px-5 py-3.5"
+            style={{ backgroundColor: INVITE_THEME.well, opacity: canceling ? 0.4 : 1 }}
+            onTouchEnd={canceling ? undefined : onCancelRequest}
+            accessibilityRole="button"
+          >
+            <Text className="text-base font-semibold" style={{ color: INVITE_THEME.ink }}>
+              요청 취소하기
+            </Text>
+          </View>
         ) : null}
         {/* 초대한 사람은 여행장이 아닐 수 있다. 제목에는 '여행장' 을, 여기엔 초대자를 적는다. */}
         <Text
           style={{
             marginTop: 4,
             fontSize: 11.5,
-            color: "#8B94A2",
+            color: INVITE_THEME.muted,
             textAlign: "center",
           }}
         >
@@ -90,6 +101,6 @@ export function JoinWaitingView({
           {` · ${ownerDisplayName}님의 초대`}
         </Text>
       </View>
-    </View>
+    </InviteShell>
   );
 }

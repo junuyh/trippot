@@ -1,5 +1,5 @@
 // ============================================================================
-// INV-02 초대 확인 — 전체 화면 (/invite/[token])
+// INV-02 초대 확인 — 전체 화면 (/invite/[token] · /invite/by/[inviteId])
 //
 // ⚠️⚠️ 링크만 있으면 **누구나 여는 화면이다.** ⚠️⚠️
 //       여행지 · 일정 · 인원 · 초대한 사람 이름까지만 보여준다.
@@ -14,12 +14,15 @@
 //
 // ⚠️ 미가입자 분기는 **문구만** 바꾼다. 실제 가입 화면으로 보내는 건 화면 파일이
 //    한다. (전제 ② — 호출부만 남긴다)
+//
+// 2026-09-16 · visual 만 바꿨다 (InviteShell: 보라 배경 + 흰 카드 + 로고 · 저금통 그림 제거).
+//    문구 · 버튼 · 상태 분기 · 정보 구조는 그대로다.
 // ============================================================================
 import { Text, View } from "react-native";
 
-import { Button } from "@/components/ui";
-
-import { PotMark } from "./PotMark";
+import { InviteGhostButton, InvitePrimaryButton } from "./InviteButtons";
+import { InviteShell } from "./InviteShell";
+import { INVITE_THEME } from "./inviteTheme";
 import type { InviteMyState, InvitePreview } from "./types";
 
 type Props = {
@@ -57,11 +60,9 @@ export function InviteLandingView({
   const full = preview.activeMemberCount >= preview.headcount;
 
   return (
-    <View className="flex-1 bg-white">
-      <View className="flex-1 items-center justify-center px-7">
-        <PotMark variant="live" />
-
-        <Text style={{ marginTop: 20, fontSize: 13, fontWeight: "700", color: "#0043D1" }}>
+    <InviteShell>
+      <View className="items-center">
+        <Text style={{ marginTop: 22, fontSize: 13, fontWeight: "700", color: INVITE_THEME.primary }}>
           {preview.ownerDisplayName}님의 초대
         </Text>
 
@@ -72,7 +73,7 @@ export function InviteLandingView({
             fontWeight: "800",
             lineHeight: 34,
             letterSpacing: -0.8,
-            color: "#111827",
+            color: INVITE_THEME.ink,
             textAlign: "center",
           }}
         >
@@ -80,11 +81,11 @@ export function InviteLandingView({
         </Text>
 
         <View
-          className="mt-3.5 rounded-xl bg-gray-50 px-4 py-3"
-          style={{ minWidth: 220 }}
+          className="mt-3.5 rounded-xl px-4 py-3"
+          style={{ minWidth: 220, backgroundColor: INVITE_THEME.well }}
         >
           {periodLabel ? (
-            <Text style={{ fontSize: 13, color: "#4B5563", textAlign: "center" }}>
+            <Text style={{ fontSize: 13, color: INVITE_THEME.body, textAlign: "center" }}>
               {periodLabel}
             </Text>
           ) : null}
@@ -93,7 +94,7 @@ export function InviteLandingView({
             style={{
               marginTop: periodLabel ? 4 : 0,
               fontSize: 13,
-              color: "#4B5563",
+              color: INVITE_THEME.body,
               textAlign: "center",
             }}
           >
@@ -107,7 +108,7 @@ export function InviteLandingView({
             marginTop: 16,
             fontSize: 12,
             lineHeight: 19,
-            color: "#8B94A2",
+            color: INVITE_THEME.muted,
             textAlign: "center",
           }}
         >
@@ -132,11 +133,11 @@ export function InviteLandingView({
         ) : null}
       </View>
 
-      <View className="px-5 pb-9" style={{ gap: 4 }}>
+      <View className="mt-7" style={{ gap: 4 }}>
         {myState === "ACTIVE" ? (
-          <Button label="여행으로 가기" onPress={onGoToTrip ?? onDecline} />
+          <InvitePrimaryButton label="여행으로 가기" onPress={onGoToTrip ?? onDecline} />
         ) : (
-          <Button
+          <InvitePrimaryButton
             label={
               !signedIn
                 ? "가입하고 참여 요청하기"
@@ -154,20 +155,15 @@ export function InviteLandingView({
               marginTop: 4,
               fontSize: 11.5,
               lineHeight: 18,
-              color: "#8B94A2",
+              color: INVITE_THEME.muted,
               textAlign: "center",
             }}
           >
             TripPot이 처음이시죠? 간단한 가입 후 요청이 전달돼요.
           </Text>
         ) : null}
-        <Button
-          label="괜찮아요"
-          variant="ghost"
-          disabled={requesting}
-          onPress={onDecline}
-        />
+        <InviteGhostButton label="괜찮아요" disabled={requesting} onPress={onDecline} />
       </View>
-    </View>
+    </InviteShell>
   );
 }
