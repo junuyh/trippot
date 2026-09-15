@@ -104,6 +104,8 @@ export default function ScreenMY01() {
 
       setProfile({
         name: user.name,
+        // 여권 ENGLISH NAME. 계정관리(/me/account)에서만 바꾼다. 없으면 '—'.
+        englishName: user.english_name,
         profileImageUrl: user.profile_image_url,
         // 여권 MEMBER SINCE. users.created_at = 이 계정으로 TripPot 에 처음 들어온 날.
         memberSince: user.created_at ?? null,

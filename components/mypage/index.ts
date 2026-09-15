@@ -1,5 +1,5 @@
 // MY-01 화면 전용 컴포넌트 단일 진입점.
-export { AccountView, NAME_MAX_LENGTH } from './AccountView';
+export { AccountView, ENGLISH_NAME_MAX_LENGTH, NAME_MAX_LENGTH } from './AccountView';
 export { ConfirmModal } from './ConfirmModal';
 export { LegalDocument } from './LegalDocument';
 export type { LegalSection } from './LegalDocument';

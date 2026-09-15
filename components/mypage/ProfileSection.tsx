@@ -83,7 +83,7 @@ type Props = {
  *   TYPE = TRAVELER            (서비스 분류. 개인정보 아님)
  *   TRAVEL BASE = KOR          (예산 추천의 기본 출발 국가. 사용자의 국적이 아니다)
  *   NAME                       (카카오 닉네임 그대로)
- *   ENGLISH NAME               (users 에 영문 이름 컬럼이 없다 → '—'. 자동 변환하지 않는다)
+ *   ENGLISH NAME               (users.english_name · 계정관리에서 입력. 없으면 '—'. 자동 변환하지 않는다)
  *   MEMBER SINCE               (users.created_at · TripPot 에 처음 들어온 날)
  *   PASSPORT TYPE = TripPot Member (고정. 권한·요금제와 무관)
  *
@@ -187,12 +187,11 @@ export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: 
           </View>
           <Field label="NAME" value={profile.name} strong />
           {/*
-            ⚠️ 영문 이름 컬럼이 없다. '지수' 를 JISU 로 추정해 넣지 않는다.
-            ⚠️ 수정 버튼도 두지 않는다. (2026-09-13 audit) users 에 저장할 자리가 없어
-               버튼을 두면 눌러도 남는 게 없다. 컬럼이 생기면 이 줄 오른쪽 끝에
-               작은 pencil 을 붙이고 사진 변경과는 별도 handler 로 잇는다.
+            ⚠️ 저장된 값 그대로다. '지수' 를 JISU 로 추정해 넣지 않는다.
+            ⚠️ 여권 안에서는 읽기 전용이다. 수정은 설정 → 계정 관리(/me/account)에서 한다.
+               (2026-09-15) 여권에 pencil 을 두지 않는다 — 사진 변경과 섞이고 내지가 복잡해진다.
           */}
-          <Field label="ENGLISH NAME" value={EMPTY} />
+          <Field label="ENGLISH NAME" value={profile.englishName || EMPTY} />
           <View className="flex-row gap-3">
             <Field label="MEMBER SINCE" value={toMemberSince(profile.memberSince)} />
             <Field label="PASSPORT TYPE" value="TripPot Member" />

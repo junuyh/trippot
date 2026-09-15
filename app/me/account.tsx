@@ -1,7 +1,7 @@
 // ============================================================================
 // 계정관리 (MY-01 설정 → 계정 관리)
 //
-// 담는 것: 프로필 이름 변경 · 연결된 계정 표시 · 회원탈퇴
+// 담는 것: 프로필 이름 변경 · 여권 영문 이름 변경 · 연결된 계정 표시 · 회원탈퇴
 //
 // ⚠️ 04_화면목록_v3.md 에 대응하는 화면 ID 가 없다. [검토 필요]
 //    IA 5-1 '프로필' 과 5-5 '설정' 사이에 있는 기능인데 문서에는 계정관리가
@@ -15,7 +15,12 @@ import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView } from 'react-native';
 
-import { AccountView, NAME_MAX_LENGTH, WithdrawConfirmModal } from '@/components/mypage';
+import {
+  AccountView,
+  ENGLISH_NAME_MAX_LENGTH,
+  NAME_MAX_LENGTH,
+  WithdrawConfirmModal,
+} from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { AUTH_PROVIDER } from '@/lib/constants/status';
@@ -23,6 +28,7 @@ import {
   getUserProfile,
   readOAuthProfile,
   toProductAuthProvider,
+  updateUserEnglishName,
   updateUserName,
   withdrawUser,
 } from '@/lib/supabase/queries/users';
@@ -41,6 +47,16 @@ export default function ScreenMyAccount() {
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
+
+  /**
+   * 여권 영문 이름. 이름과 같은 구조(저장값 · 입력값 · 오류 · 저장 중)를 따로 둔다.
+   * ⚠️ 저장값은 DB 의 null 을 '' 로 들고 있다. 입력창은 null 을 받을 수 없다.
+   *    저장할 때 다시 ''→null 로 바꾸는 건 updateUserEnglishName 이 한다.
+   */
+  const [savedEnglishName, setSavedEnglishName] = useState('');
+  const [englishName, setEnglishName] = useState('');
+  const [englishNameError, setEnglishNameError] = useState<string | null>(null);
+  const [savingEnglishName, setSavingEnglishName] = useState(false);
 
   const [withdrawAsking, setWithdrawAsking] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -88,6 +104,8 @@ export default function ScreenMyAccount() {
 
       setSavedName(user.name);
       setName(user.name);
+      setSavedEnglishName(user.english_name ?? '');
+      setEnglishName(user.english_name ?? '');
       setAccountLabel(toAccountLabel(user.auth_provider));
       setLoadState('ready');
     } catch {
@@ -132,6 +150,39 @@ export default function ScreenMyAccount() {
       setNameError('이름을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
       setSavingName(false);
+    }
+  }
+
+  // 영문 이름은 비워서 저장할 수 있다(= 지우기). 그래서 '' 도 저장 가능한 값이다.
+  // 바뀐 게 있는지만 본다.
+  const trimmedEnglishName = englishName.trim();
+  const canSaveEnglishName = trimmedEnglishName !== savedEnglishName && !savingEnglishName;
+
+  function handleChangeEnglishName(next: string) {
+    setEnglishName(next);
+    if (englishNameError) setEnglishNameError(null);
+  }
+
+  async function handlePressSaveEnglishName() {
+    if (!canSaveEnglishName || !userId) return;
+
+    if (trimmedEnglishName.length > ENGLISH_NAME_MAX_LENGTH) {
+      setEnglishNameError(`영문 이름은 ${ENGLISH_NAME_MAX_LENGTH}자까지 쓸 수 있어요.`);
+      return;
+    }
+
+    setSavingEnglishName(true);
+    setEnglishNameError(null);
+    try {
+      // 입력한 그대로 저장한다. 비어 있으면 null 이 들어간다. (updateUserEnglishName)
+      await updateUserEnglishName(userId, trimmedEnglishName);
+      setSavedEnglishName(trimmedEnglishName);
+      setEnglishName(trimmedEnglishName);
+      Alert.alert(trimmedEnglishName === '' ? '영문 이름을 지웠어요' : '영문 이름을 저장했어요');
+    } catch {
+      setEnglishNameError('영문 이름을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setSavingEnglishName(false);
     }
   }
 
@@ -199,9 +250,15 @@ export default function ScreenMyAccount() {
             nameError={nameError}
             canSaveName={canSaveName}
             savingName={savingName}
+            englishName={englishName}
+            englishNameError={englishNameError}
+            canSaveEnglishName={canSaveEnglishName}
+            savingEnglishName={savingEnglishName}
             accountLabel={accountLabel}
             onChangeName={handleChangeName}
             onPressSaveName={() => void handlePressSaveName()}
+            onChangeEnglishName={handleChangeEnglishName}
+            onPressSaveEnglishName={() => void handlePressSaveEnglishName()}
             onPressWithdraw={() => setWithdrawAsking(true)}
           />
         </ScrollView>
