@@ -56,6 +56,8 @@ export function buildDemoNotifications(): Notification[] {
       title,
       body,
       trip_id: null,
+      // notifications.data (jsonb · 2026-09-16). 목업은 이동 문맥이 없다.
+      data: null,
       read_at: row.read ? daysAgo(row.days) : null,
       created_at: daysAgo(row.days),
     };
