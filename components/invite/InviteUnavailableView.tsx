@@ -63,10 +63,10 @@ type Props = {
 export function InviteUnavailableView({ reason, onGoHome }: Props) {
   const copy = COPY[reason];
   return (
-    <InviteShell>
+    <InviteShell footer={<InvitePrimaryButton label="홈으로" onPress={onGoHome} />}>
       <View className="items-center">
         <View
-          className="mt-6 h-14 w-14 items-center justify-center rounded-full"
+          className="mt-8 h-14 w-14 items-center justify-center rounded-full"
           style={{ backgroundColor: INVITE_THEME.well }}
         >
           <Ionicons name={copy.icon} size={26} color={INVITE_THEME.primary} />
@@ -83,9 +83,6 @@ export function InviteUnavailableView({ reason, onGoHome }: Props) {
         >
           {copy.description}
         </Text>
-      </View>
-      <View className="mt-7">
-        <InvitePrimaryButton label="홈으로" onPress={onGoHome} />
       </View>
     </InviteShell>
   );

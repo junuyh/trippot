@@ -39,10 +39,40 @@ export function JoinWaitingView({
   canceling = false,
 }: Props) {
   return (
-    <InviteShell>
+    <InviteShell
+      footer={
+        <View style={{ gap: 4 }}>
+          {onCancelRequest ? (
+            <View
+              className="w-full flex-row items-center justify-center rounded-xl px-5 py-3.5"
+              style={{ backgroundColor: INVITE_THEME.well, opacity: canceling ? 0.4 : 1 }}
+              onTouchEnd={canceling ? undefined : onCancelRequest}
+              accessibilityRole="button"
+            >
+              <Text className="text-base font-semibold" style={{ color: INVITE_THEME.ink }}>
+                요청 취소하기
+              </Text>
+            </View>
+          ) : null}
+          {/* 초대한 사람은 여행장이 아닐 수 있다. 제목에는 '여행장' 을, 여기엔 초대자를 적는다. */}
+          <Text
+            style={{
+              marginTop: 4,
+              fontSize: 11.5,
+              color: INVITE_THEME.muted,
+              textAlign: "center",
+            }}
+          >
+            {destination}
+            {periodLabel ? ` · ${periodLabel}` : ""}
+            {` · ${ownerDisplayName}님의 초대`}
+          </Text>
+        </View>
+      }
+    >
       <View className="items-center">
         <View
-          className="mt-6 h-14 w-14 items-center justify-center rounded-full"
+          className="mt-8 h-14 w-14 items-center justify-center rounded-full"
           style={{ backgroundColor: INVITE_THEME.well }}
         >
           <Ionicons name="time-outline" size={26} color={INVITE_THEME.primary} />
@@ -71,34 +101,6 @@ export function JoinWaitingView({
           }}
         >
           여행장이 확인하고 있어요.{"\n"}수락되면 여행 준비를 함께할 수 있어요.
-        </Text>
-      </View>
-
-      <View className="mt-7" style={{ gap: 4 }}>
-        {onCancelRequest ? (
-          <View
-            className="w-full flex-row items-center justify-center rounded-xl px-5 py-3.5"
-            style={{ backgroundColor: INVITE_THEME.well, opacity: canceling ? 0.4 : 1 }}
-            onTouchEnd={canceling ? undefined : onCancelRequest}
-            accessibilityRole="button"
-          >
-            <Text className="text-base font-semibold" style={{ color: INVITE_THEME.ink }}>
-              요청 취소하기
-            </Text>
-          </View>
-        ) : null}
-        {/* 초대한 사람은 여행장이 아닐 수 있다. 제목에는 '여행장' 을, 여기엔 초대자를 적는다. */}
-        <Text
-          style={{
-            marginTop: 4,
-            fontSize: 11.5,
-            color: INVITE_THEME.muted,
-            textAlign: "center",
-          }}
-        >
-          {destination}
-          {periodLabel ? ` · ${periodLabel}` : ""}
-          {` · ${ownerDisplayName}님의 초대`}
         </Text>
       </View>
     </InviteShell>

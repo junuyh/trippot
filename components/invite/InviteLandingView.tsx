@@ -15,9 +15,10 @@
 // ⚠️ 미가입자 분기는 **문구만** 바꾼다. 실제 가입 화면으로 보내는 건 화면 파일이
 //    한다. (전제 ② — 호출부만 남긴다)
 //
-// 2026-09-16 · visual 만 바꿨다 (InviteShell: 보라 배경 + 흰 카드 + 로고 · 저금통 그림 제거).
-//    문구 · 버튼 · 상태 분기 · 정보 구조는 그대로다.
+// 2026-09-16 · visual 만 시안에 맞췄다 (InviteShell 초대장 · 로고+TripPot · divider · 달력 아이콘
+//    info box · 넉넉한 세로 리듬 · CTA 하단 고정). 문구 · 버튼 · 상태 분기 · 정보 구조는 그대로다.
 // ============================================================================
+import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import { InviteGhostButton, InvitePrimaryButton } from "./InviteButtons";
@@ -60,19 +61,62 @@ export function InviteLandingView({
   const full = preview.activeMemberCount >= preview.headcount;
 
   return (
-    <InviteShell>
-      <View className="items-center">
-        <Text style={{ marginTop: 22, fontSize: 13, fontWeight: "700", color: INVITE_THEME.primary }}>
+    <InviteShell
+      footer={
+        <View style={{ gap: 6 }}>
+          {myState === "ACTIVE" ? (
+            <InvitePrimaryButton label="여행으로 가기" onPress={onGoToTrip ?? onDecline} />
+          ) : (
+            <InvitePrimaryButton
+              label={
+                !signedIn
+                  ? "가입하고 참여 요청하기"
+                  : myState === "LEFT"
+                    ? "다시 참여 요청하기"
+                    : "참여 요청하기"
+              }
+              loading={requesting}
+              onPress={onRequestJoin}
+            />
+          )}
+          {!signedIn ? (
+            <Text
+              style={{
+                marginTop: 2,
+                fontSize: 11.5,
+                lineHeight: 18,
+                color: INVITE_THEME.muted,
+                textAlign: "center",
+              }}
+            >
+              TripPot이 처음이시죠? 간단한 가입 후 요청이 전달돼요.
+            </Text>
+          ) : null}
+          <InviteGhostButton label="괜찮아요" disabled={requesting} onPress={onDecline} />
+        </View>
+      }
+    >
+      <View style={{ alignItems: "center" }}>
+        <Text
+          style={{
+            marginTop: 26,
+            fontSize: 13.5,
+            fontWeight: "700",
+            letterSpacing: 0.2,
+            color: INVITE_THEME.primary,
+          }}
+        >
           {preview.ownerDisplayName}님의 초대
         </Text>
 
+        {/* 화면에서 가장 강한 계층. 두 줄이 한 덩어리로 읽히게 행간을 좁게 둔다. */}
         <Text
           style={{
-            marginTop: 8,
-            fontSize: 25,
+            marginTop: 12,
+            fontSize: 30,
             fontWeight: "800",
-            lineHeight: 34,
-            letterSpacing: -0.8,
+            lineHeight: 40,
+            letterSpacing: -1,
             color: INVITE_THEME.ink,
             textAlign: "center",
           }}
@@ -80,42 +124,54 @@ export function InviteLandingView({
           {preview.destination} 여행{"\n"}같이 갈까요?
         </Text>
 
+        {/* 날짜 · 인원 — 왼쪽 달력 아이콘, 오른쪽 두 줄. 예정 인원과 참여 인원은 다른 수다. (docs/11 §1-1) */}
         <View
-          className="mt-3.5 rounded-xl px-4 py-3"
-          style={{ minWidth: 220, backgroundColor: INVITE_THEME.well }}
+          style={{
+            marginTop: 26,
+            flexDirection: "row",
+            alignItems: "center",
+            alignSelf: "stretch",
+            borderRadius: 14,
+            backgroundColor: INVITE_THEME.well,
+            paddingVertical: 14,
+            paddingHorizontal: 18,
+          }}
         >
-          {periodLabel ? (
-            <Text style={{ fontSize: 13, color: INVITE_THEME.body, textAlign: "center" }}>
-              {periodLabel}
+          <Ionicons name="calendar-outline" size={22} color={INVITE_THEME.primary} />
+          <View style={{ marginLeft: 14, flex: 1 }}>
+            {periodLabel ? (
+              <Text style={{ fontSize: 14.5, fontWeight: "700", color: INVITE_THEME.ink }}>
+                {periodLabel}
+              </Text>
+            ) : null}
+            <Text
+              style={{
+                marginTop: periodLabel ? 3 : 0,
+                fontSize: 13,
+                lineHeight: 18,
+                color: INVITE_THEME.body,
+              }}
+            >
+              {preview.headcount}명 예정 · {preview.activeMemberCount}명 참여 중
             </Text>
-          ) : null}
-          {/* 예정 인원과 실제 참여 인원은 다른 수다. 둘 다 적는다. (docs/11 §1-1) */}
+          </View>
+        </View>
+
+        {/* 안내문 자리. 상태별 문구 길이가 달라도 두 줄 높이는 잡아 둬 아래가 흔들리지 않는다. */}
+        <View style={{ marginTop: 22, minHeight: 40, justifyContent: "center" }}>
           <Text
             style={{
-              marginTop: periodLabel ? 4 : 0,
-              fontSize: 13,
-              color: INVITE_THEME.body,
+              fontSize: 12.5,
+              lineHeight: 20,
+              color: INVITE_THEME.muted,
               textAlign: "center",
             }}
           >
-            {preview.headcount}명 예정 · {preview.activeMemberCount}명 참여 중
+            {myState === "ACTIVE"
+              ? "이미 이 여행에 함께하고 있어요"
+              : "참여 요청을 보내면 여행장이 확인 후 수락할 수 있어요.\n예산과 함께하는 사람은 참여가 확정되면 볼 수 있어요"}
           </Text>
         </View>
-
-        {/* 무엇이 아직 잠겨 있는지 · 어떻게 확정되는지 */}
-        <Text
-          style={{
-            marginTop: 16,
-            fontSize: 12,
-            lineHeight: 19,
-            color: INVITE_THEME.muted,
-            textAlign: "center",
-          }}
-        >
-          {myState === "ACTIVE"
-            ? "이미 이 여행에 함께하고 있어요"
-            : "참여 요청을 보내면 여행장이 확인 후 수락할 수 있어요.\n예산과 함께하는 사람은 참여가 확정되면 볼 수 있어요"}
-        </Text>
 
         {/* 인원이 찼어도 링크를 막지 않는다. 요청은 되고, 여행장이 인원을 늘리면 수락된다. */}
         {full && myState !== "ACTIVE" ? (
@@ -131,38 +187,6 @@ export function InviteLandingView({
             지금은 예정 인원이 다 찼어요.{"\n"}요청은 보낼 수 있고, 여행장이 인원을 늘리면 수락돼요.
           </Text>
         ) : null}
-      </View>
-
-      <View className="mt-7" style={{ gap: 4 }}>
-        {myState === "ACTIVE" ? (
-          <InvitePrimaryButton label="여행으로 가기" onPress={onGoToTrip ?? onDecline} />
-        ) : (
-          <InvitePrimaryButton
-            label={
-              !signedIn
-                ? "가입하고 참여 요청하기"
-                : myState === "LEFT"
-                  ? "다시 참여 요청하기"
-                  : "참여 요청하기"
-            }
-            loading={requesting}
-            onPress={onRequestJoin}
-          />
-        )}
-        {!signedIn ? (
-          <Text
-            style={{
-              marginTop: 4,
-              fontSize: 11.5,
-              lineHeight: 18,
-              color: INVITE_THEME.muted,
-              textAlign: "center",
-            }}
-          >
-            TripPot이 처음이시죠? 간단한 가입 후 요청이 전달돼요.
-          </Text>
-        ) : null}
-        <InviteGhostButton label="괜찮아요" disabled={requesting} onPress={onDecline} />
       </View>
     </InviteShell>
   );
