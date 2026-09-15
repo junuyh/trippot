@@ -97,7 +97,7 @@ export function CancelVoteSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 16 }}>
+      <View style={{ paddingBottom: 8, gap: 16 }}>
         {/* 사유 — 없으면 없다고 명시한다 */}
         {reasonLabel ? (
           <BranchNotice

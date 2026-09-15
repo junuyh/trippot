@@ -217,6 +217,13 @@ export function BottomSheet({
               </Pressable>
             </View>
 
+            {/*
+              ⚠️⚠️ **본문의 좌우 여백은 여기서 준다.** ⚠️⚠️
+                 시트 안에서 또 paddingHorizontal 을 주면 18 위에 얹혀 두 배가
+                 된다. 제목·버튼은 18 인데 내용만 38 로 들어가 화면이 틀어져
+                 보인다. 실제로 취소·나가기·초대 시트 열 개가 그랬다.
+                 (2026-09-15) 세로 간격(gap)만 시트가 정한다.
+            */}
             <ScrollView
               contentContainerStyle={{
                 paddingHorizontal: 18,

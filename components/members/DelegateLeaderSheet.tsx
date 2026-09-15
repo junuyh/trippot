@@ -100,7 +100,7 @@ export function DelegateLeaderSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         <View style={{ gap: 8 }}>
           {candidates.map((member) => {
             const on = member.memberId === selectedMemberId;

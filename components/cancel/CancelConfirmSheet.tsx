@@ -98,7 +98,7 @@ export function CancelConfirmSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 16 }}>
+      <View style={{ paddingBottom: 8, gap: 16 }}>
         {/* 영향 안내 — 조건부 조합 (스펙 §7) */}
         <View>
           {needsAgreement ? (

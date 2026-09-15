@@ -110,7 +110,7 @@ export function CancelReasonSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 18 }}>
+      <View style={{ paddingBottom: 8, gap: 18 }}>
         {/*
           구제 카드 — 취소하지 않아도 되는 길을 먼저 보여준다.
           ⚠️ 누르면 시트를 닫고 이동한다. 돌아올 때 다시 열지 않는다. (스펙 §7)

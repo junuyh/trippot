@@ -116,7 +116,7 @@ export function InviteLinkSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         {branch === "newGroup" ? (
           <BranchNotice
             tone="info"
