@@ -323,12 +323,39 @@ export default function ScreenTripHome() {
    * ⚠️ 멱등이어야 한다. onDismiss 와 Android 대비 타이머가 둘 다 부를 수 있다.
    *    ref 를 먼저 비워서 두 번째 호출은 아무것도 하지 않는다.
    */
+  /**
+   * 시트가 다 내려간 뒤 실행할 일. **화면 이동이 여기 들어온다.**
+   *
+   * ⚠️ Modal 이 떠 있는 채로 router.push 를 하면 iOS 가 이동을 삼킨다.
+   *    CXL-01 의 '일정이 안 맞나요? / 인원이 바뀌었나요?' 가 그래서 안 눌렸다.
+   *    (2026-09-15 다빈 확인)
+   */
+  const pendingActionRef = useRef<(() => void) | null>(null);
+
   const flushPendingSheet = useCallback(() => {
     const next = pendingSheetRef.current;
-    if (!next) return;
+    const action = pendingActionRef.current;
+    if (!next && !action) return;
     pendingSheetRef.current = null;
-    setSheet(next);
+    pendingActionRef.current = null;
+    if (next) setSheet(next);
+    action?.();
   }, []);
+
+  /**
+   * 시트를 닫고, **완전히 내려간 뒤** 무언가를 한다. 주로 화면 이동이다.
+   *
+   * ⚠️ 시트를 그대로 두고 router.push 하면 iOS 가 막는다. 돌아왔을 때 시트가
+   *    그대로 남아 있기도 한다. 위 openSheetAfterClose 와 같은 원리다.
+   */
+  const closeSheetThen = useCallback(
+    (action: () => void) => {
+      pendingActionRef.current = action;
+      setSheet(null);
+      if (Platform.OS !== "ios") setTimeout(flushPendingSheet, SHEET_SWAP_MS);
+    },
+    [flushPendingSheet],
+  );
 
   /**
    * 열려 있는 시트를 닫고, **완전히 내려간 뒤** 다음 시트를 연다.
@@ -1627,8 +1654,13 @@ export default function ScreenTripHome() {
         voteTargetCount={voteTargetCount}
         reason={cancelReason}
         onToggleReason={(code) => setCancelReason((prev) => (prev === code ? null : code))}
-        onEditDates={() => router.push(`/trips/${trip.id}/edit`)}
-        onEditHeadcount={() => router.push(`/trips/${trip.id}/edit`)}
+        /*
+          ⚠️ 시트를 닫고 이동한다. 그대로 두고 밀면 iOS 가 이동을 삼킨다.
+             취소하지 않아도 되는 길을 보여주는 카드라, 안 눌리면 취소로
+             떠밀리는 셈이 된다. (2026-09-15)
+        */
+        onEditDates={() => closeSheetThen(() => router.push(`/trips/${trip.id}/edit`))}
+        onEditHeadcount={() => closeSheetThen(() => router.push(`/trips/${trip.id}/edit`))}
         onSubmit={() => openSheetAfterClose("cancelConfirm")}
         submitting={busy}
       />

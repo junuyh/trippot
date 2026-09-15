@@ -385,7 +385,16 @@ export function useLeaveTrip(options: Options = {}) {
     setAlsoLeaveGroup,
     handleLeave,
     openDelegate: () => openSheetAfterClose('delegate'),
-    onInvite: () => ctx && onInvite?.(ctx.trip.id),
+    /**
+     * ⚠️ 시트를 **먼저 닫고** 이동한다. Modal 이 떠 있는 채로 router.push 를
+     *    하면 iOS 가 이동을 삼킨다. 아래 onCancelTrip 과 같은 이유다.
+     *    (2026-09-15 · CXL-01 의 구제 카드가 같은 이유로 안 눌렸다)
+     */
+    onInvite: () => {
+      const tripId = ctx?.trip.id;
+      setSheetState(null);
+      if (tripId) onInvite?.(tripId);
+    },
     onCancelTrip: () => {
       const tripId = ctx?.trip.id;
       setSheetState(null);
