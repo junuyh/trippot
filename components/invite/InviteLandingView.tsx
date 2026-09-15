@@ -63,7 +63,7 @@ export function InviteLandingView({
   return (
     <InviteShell
       footer={
-        <View style={{ gap: 6 }}>
+        <View style={{ gap: 4 }}>
           {myState === "ACTIVE" ? (
             <InvitePrimaryButton label="여행으로 가기" onPress={onGoToTrip ?? onDecline} />
           ) : (
@@ -99,7 +99,7 @@ export function InviteLandingView({
       <View style={{ alignItems: "center" }}>
         <Text
           style={{
-            marginTop: 26,
+            marginTop: 24,
             fontSize: 13.5,
             fontWeight: "700",
             letterSpacing: 0.2,
@@ -112,7 +112,7 @@ export function InviteLandingView({
         {/* 화면에서 가장 강한 계층. 두 줄이 한 덩어리로 읽히게 행간을 좁게 둔다. */}
         <Text
           style={{
-            marginTop: 12,
+            marginTop: 10,
             fontSize: 30,
             fontWeight: "800",
             lineHeight: 40,
@@ -127,27 +127,28 @@ export function InviteLandingView({
         {/* 날짜 · 인원 — 왼쪽 달력 아이콘, 오른쪽 두 줄. 예정 인원과 참여 인원은 다른 수다. (docs/11 §1-1) */}
         <View
           style={{
-            marginTop: 26,
+            marginTop: 24,
+            width: "66%",
             flexDirection: "row",
             alignItems: "center",
-            alignSelf: "stretch",
-            borderRadius: 14,
+            justifyContent: "center",
+            borderRadius: 12,
             backgroundColor: INVITE_THEME.well,
-            paddingVertical: 14,
-            paddingHorizontal: 18,
+            paddingVertical: 12,
+            paddingHorizontal: 14,
           }}
         >
-          <Ionicons name="calendar-outline" size={22} color={INVITE_THEME.primary} />
-          <View style={{ marginLeft: 14, flex: 1 }}>
+          <Ionicons name="calendar-outline" size={20} color={INVITE_THEME.primary} />
+          <View style={{ marginLeft: 12 }}>
             {periodLabel ? (
-              <Text style={{ fontSize: 14.5, fontWeight: "700", color: INVITE_THEME.ink }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: INVITE_THEME.ink }}>
                 {periodLabel}
               </Text>
             ) : null}
             <Text
               style={{
                 marginTop: periodLabel ? 3 : 0,
-                fontSize: 13,
+                fontSize: 12.5,
                 lineHeight: 18,
                 color: INVITE_THEME.body,
               }}
@@ -157,8 +158,8 @@ export function InviteLandingView({
           </View>
         </View>
 
-        {/* 안내문 자리. 상태별 문구 길이가 달라도 두 줄 높이는 잡아 둬 아래가 흔들리지 않는다. */}
-        <View style={{ marginTop: 22, minHeight: 40, justifyContent: "center" }}>
+        {/* 안내문. 높이는 문구가 정한다 — 상태마다 카드 길이가 자연스럽게 달라진다. */}
+        <View style={{ marginTop: 22 }}>
           <Text
             style={{
               fontSize: 12.5,
