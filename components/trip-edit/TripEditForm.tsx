@@ -1,7 +1,14 @@
 // ============================================================================
 // 여행 기본 정보 수정 폼 (TRIP-HOME-01 → /trips/:tripId/edit)
 //
-// 일정 · 인원 · 모임을 고친다. 모임 아래에 '여행 멤버 초대하기' 가 있다.
+// 일정 · 인원을 고친다. 모임은 보여주기만 한다. 모임 아래에 '여행 멤버 초대하기' 가 있다.
+//
+// ⚠️ 모임은 고르는 목록이 아니라 **읽기 전용 한 줄**이다. (2026-09-15)
+//    바꾸지 못하는데 라디오를 그리면 눌러 보고 헷갈린다. 왜 못 바꾸는지는
+//    app/trips/[tripId]/edit.tsx 머리 주석.
+//
+// ⚠️ 초대 버튼은 빈자리가 없으면 꺼진다. 꺼진 이유와 켜는 법(인원 늘리기)을
+//    버튼 안에 적는다. 말없이 꺼져 있으면 고장으로 읽힌다.
 //
 // 2026-09-09 · 흰 바탕에 라디오만 늘어서 있어 심심하다는 피드백. 다른 화면과
 // 같은 언어로 바꿨다: 회색 바탕 위 흰 카드, 카드마다 영문 눈썹(SCHEDULE ·
@@ -29,9 +36,6 @@ import { DateRangeCalendar, HeadcountStepper } from "@/components/trip-create";
 import { Button } from "@/components/ui";
 import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
 import type { JoinRequestItem } from "@/components/invite";
-import type { Group } from "@/lib/supabase/queries/groups";
-
-import { GroupChoiceList } from "./GroupChoiceList";
 
 const INK = "#111827";
 const MUTED = "#7f8998";
@@ -55,11 +59,13 @@ type Props = {
   headcount: number;
   onChangeHeadcount: (value: number) => void;
 
-  groups: Group[];
-  groupsLoading: boolean;
-  /** null 이면 개인 여행 */
-  selectedGroupId: string | null;
-  onSelectGroup: (groupId: string | null) => void;
+  /** 모임 이름. 개인 여행이면 '개인 여행' */
+  groupLabel: string;
+  isGroupTrip: boolean;
+  /** 참여 중인 가입자 수. 못 읽었으면 null */
+  joinedCount: number | null;
+  /** 초대할 빈자리가 있는가. 없으면 버튼을 끈다 */
+  canInvite: boolean;
 
   /** 여행 멤버 초대하기. 지난 여행 유무 판단과 그 뒤 일은 화면이 한다 */
   onInvite: () => void;
@@ -128,10 +134,10 @@ export function TripEditForm({
   onChangeDates,
   headcount,
   onChangeHeadcount,
-  groups,
-  groupsLoading,
-  selectedGroupId,
-  onSelectGroup,
+  groupLabel,
+  isGroupTrip,
+  joinedCount,
+  canInvite,
   onInvite,
   inviting,
   joinRequests,
@@ -142,7 +148,7 @@ export function TripEditForm({
   onSubmit,
 }: Props) {
   const { fontFamily } = useDisplayFont();
-  const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
+  const inviteDisabled = inviting || !canInvite;
 
   return (
     <View style={{ gap: 14 }}>
@@ -214,7 +220,7 @@ export function TripEditForm({
           }}
         >
           <Text style={{ fontSize: 12, lineHeight: 18, color: MUTED }}>
-            일정과 인원, 함께 가는 모임을 고칠 수 있어요. 여행지를 바꾸려면 새 여행을
+            일정과 인원을 고칠 수 있어요. 여행지와 모임을 바꾸려면 새 여행을
             만들어 주세요.
           </Text>
         </View>
@@ -241,17 +247,34 @@ export function TripEditForm({
       </Section>
 
       {/* ── 모임 + 초대 ────────────────────────────────────────────── */}
-      <Section
-        eyebrow="GROUP"
-        title="모임"
-        hint={selectedGroup ? selectedGroup.name : "개인 여행"}
-      >
-        <GroupChoiceList
-          groups={groups}
-          loading={groupsLoading}
-          selectedGroupId={selectedGroupId}
-          onSelect={onSelectGroup}
-        />
+      <Section eyebrow="GROUP" title="모임">
+        <View
+          accessible
+          accessibilityLabel={`모임 ${groupLabel}. 이 화면에서는 바꿀 수 없어요`}
+          className="flex-row items-center"
+          style={{
+            gap: 12,
+            borderRadius: 14,
+            backgroundColor: "#f7f8fa",
+            paddingHorizontal: 14,
+            paddingVertical: 13,
+          }}
+        >
+          <Ionicons
+            name={isGroupTrip ? "people-outline" : "person-outline"}
+            size={16}
+            color={INK}
+          />
+          <View style={{ flex: 1 }}>
+            <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "700", color: INK }}>
+              {groupLabel}
+            </Text>
+            <Text style={{ marginTop: 3, fontSize: 11, color: MUTED }}>
+              여행을 만든 뒤에는 모임을 바꿀 수 없어요
+            </Text>
+          </View>
+          <Ionicons name="lock-closed-outline" size={14} color={FAINT} />
+        </View>
 
         {/*
           초대 자리. 점선 테두리라 "여기에 사람을 더 넣는다" 로 읽힌다.
@@ -261,9 +284,10 @@ export function TripEditForm({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="여행 멤버 초대하기"
-          disabled={inviting}
+          accessibilityState={{ disabled: inviteDisabled }}
+          disabled={inviteDisabled}
           onPress={onInvite}
-          className="flex-row items-center active:opacity-70"
+          className={`flex-row items-center ${inviteDisabled ? "" : "active:opacity-70"}`}
           style={{
             gap: 12,
             marginTop: 2,
@@ -273,7 +297,7 @@ export function TripEditForm({
             borderRadius: 14,
             paddingHorizontal: 14,
             paddingVertical: 13,
-            opacity: inviting ? 0.6 : 1,
+            opacity: inviting ? 0.6 : canInvite ? 1 : 0.45,
           }}
         >
           <View
@@ -295,7 +319,9 @@ export function TripEditForm({
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 13, fontWeight: "800", color: INK }}>여행 멤버 초대하기</Text>
             <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
-              초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요.
+              {canInvite
+                ? "초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요."
+                : `${joinedCount ?? 0}명이 모두 참여 중이에요. 위에서 인원을 늘리면 초대할 수 있어요.`}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={15} color={FAINT} />

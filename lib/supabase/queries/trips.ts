@@ -461,6 +461,29 @@ export async function getMyParticipatingTripIds(
 }
 
 /**
+ * 이 여행에 참여 중인 **가입자** 수. 초대할 빈자리가 있는지 가리는 값이다.
+ *
+ * ⚠️ 서버의 참가 수락(accept_trip_join_request)과 **같은 기준**이다.
+ *    ACTIVE · user_id 있음 · 같은 사람은 한 번. 이 값이 headcount 이상이면
+ *    수락이 HEADCOUNT_REACHED 로 막힌다. (20260913000001_trip_join_request_rpcs.sql)
+ *    미가입 동행자(user_id null)는 초대로 들어올 사람이라 세지 않는다.
+ *
+ * ⚠️ trip_members 는 unique (trip_id, user_id) 가 없어 행을 그대로 세면 부풀려진다.
+ *    user_id 를 받아 겹침을 지운다.
+ */
+export async function getJoinedTripMemberCount(tripId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("trip_members")
+    .select("user_id")
+    .eq("trip_id", tripId)
+    .eq("status", TRIP_MEMBER_STATUS.ACTIVE)
+    .not("user_id", "is", null);
+
+  if (error) throw error;
+  return new Set((data ?? []).map((row) => row.user_id)).size;
+}
+
+/**
  * MY 전용 — 내가 실제로 참가 중인 여행만.
  *
  * ⚠️ getTrips 의 의미를 바꾸지 않는다. 그 함수는 HOME · 커뮤니티 글쓰기도
