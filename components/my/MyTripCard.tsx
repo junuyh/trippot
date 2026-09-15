@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from '@/components/home/format';
 import { HOME_TRACK } from '@/components/home/palette';
 import { TRIP_STATUS, TRIP_STATUS_LABEL } from '@/lib/constants/status';
+import { TRIP_STAGE, TRIP_STAGE_LABEL } from '@/lib/trip/stage';
 
 import type { MyTripItem } from './types';
 
@@ -43,6 +44,9 @@ const STRIPE = 4;
  *    여행이 아니다' 라서 색을 빼는 것이 뜻과 맞는다.
  */
 const MUTED = '#B6BCC6';
+/** 여행 종료(DONE) 배지. 여행 홈 배지와 같은 값이다. */
+const DONE_SOFT = '#eef8f2';
+const DONE_INK = '#1c6f4f';
 
 /**
  * MY-02 목록의 여행 한 장.
@@ -103,6 +107,23 @@ export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
             <View className="rounded-full bg-pot-visual px-2 py-0.5">
               <Text className="font-bold text-pot-mute" style={{ fontSize: 10 }}>
                 {trip.left ? '나간 여행' : TRIP_STATUS_LABEL.CANCELED}
+              </Text>
+            </View>
+          ) : past && trip.stage ? (
+            /*
+              ⚠️ 여행 홈(TRIP-HOME-02) 배지와 같은 말·같은 색이다. (2026-09-15)
+                 '결산 전' 하나로 뭉치면 지출이 없는 여행에도 결산을 하라는 말이 된다.
+                 끝난 여행(DONE)만 초록, 나머지는 국가색이다.
+            */
+            <View
+              className="rounded-full px-2 py-0.5"
+              style={{ backgroundColor: trip.stage === TRIP_STAGE.DONE ? DONE_SOFT : trip.colorSoft }}
+            >
+              <Text
+                className="font-black"
+                style={{ fontSize: 10, color: trip.stage === TRIP_STAGE.DONE ? DONE_INK : trip.color }}
+              >
+                {TRIP_STAGE_LABEL[trip.stage]}
               </Text>
             </View>
           ) : past ? (
