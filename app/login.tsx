@@ -8,7 +8,7 @@
 // ⚠️ useScreenView 를 부르지 않는다. SCREENS 에 이 화면 상수가 없고,
 //    events.ts 는 공유 파일이라 임의로 상수를 추가하지 않는다. (CLAUDE.md 8장)
 // ============================================================================
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 
 import { LoginView } from '@/components/auth/LoginView';
@@ -18,6 +18,10 @@ import { signInWithKakao } from '@/lib/auth/kakao';
 
 export default function ScreenLogin() {
   const router = useRouter();
+  // 초대 링크에서 왔는가. 가드가 /login?next=/invite/:token 으로 보낸다. (app/_layout.tsx)
+  // next 를 여기서 소비하지 않는다 — 복귀는 가드가 한다. 문구만 바꾼다. (docs/13 · 2026-09-16)
+  const { next } = useLocalSearchParams<{ next?: string }>();
+  const inviteContext = typeof next === 'string' && next.startsWith('/invite/');
   const { enterPreview } = useAuth();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -51,6 +55,7 @@ export default function ScreenLogin() {
         loading={loading}
         errorMessage={errorMessage}
         onPressKakao={() => void handlePressKakao()}
+        inviteContext={inviteContext}
         onPressTerms={() => router.push('/me/settings/terms')}
         onPressPrivacy={() => router.push('/me/settings/privacy')}
         // ⚠️ __DEV__ 는 production 번들에서 false 로 굳는다. 그래서 개발용

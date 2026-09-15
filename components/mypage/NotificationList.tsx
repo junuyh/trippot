@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
@@ -13,12 +13,16 @@ type Props = {
   notifications: NotificationListItem[];
   onPressNotification: (notification: NotificationListItem) => void;
   onDeleteNotification: (notification: NotificationListItem) => void;
+  /** 다음 페이지가 있는가. 있으면 맨 아래 [더 보기]. (docs/13 §9 · 30건 커서) */
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 };
 
 /**
  * 받은 알림 목록.
  *
- * ⚠️ 누르면 읽음 처리만 한다. 여행 상세로 보내지 않는다. (이번 범위 밖)
+ * ⚠️ 누르면 상세(/me/notifications/:id)로 간다. 읽음 처리는 상세가 한다. (2026-09-16)
  * ⚠️ 왼쪽으로 밀면 삭제가 나온다. Swipeable 패턴은 계획 카드·거래 목록이
  *    쓰는 것과 같다. (components/budget/PlanItemCard) 새 라이브러리를 넣지 않는다.
  *    확인 모달·되돌리기는 두지 않는다. MVP 범위가 아니다.
@@ -29,6 +33,9 @@ export function NotificationList({
   notifications,
   onPressNotification,
   onDeleteNotification,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: Props) {
   // 삭제를 누른 뒤 열린 스와이프를 닫는다. 열린 채로 두면 다음 줄이 밀려 보인다.
   const swipeRefs = useRef(new Map<string, SwipeableMethods | null>());
@@ -39,6 +46,25 @@ export function NotificationList({
       contentContainerClassName="px-5 pb-16"
       data={notifications}
       keyExtractor={(item) => `${item.source}:${item.id}`}
+      ListFooterComponent={
+        hasMore ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="알림 더 보기"
+            disabled={loadingMore}
+            onPress={onLoadMore}
+            className="items-center py-5 active:opacity-60"
+          >
+            {loadingMore ? (
+              <ActivityIndicator />
+            ) : (
+              <Text className="text-pot-mute" style={{ fontSize: 14, fontWeight: '600' }}>
+                더 보기
+              </Text>
+            )}
+          </Pressable>
+        ) : null
+      }
       renderItem={({ item }) => {
         const unread = item.readAt === null;
         const at = formatNotifiedAt(item.createdAt);

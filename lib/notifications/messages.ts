@@ -15,9 +15,13 @@
 //    (이슈 #73 확정본) 이 Record 가 컴파일로 요구해서 함께 넣은 것이고,
 //    **발송하는 코드는 아직 없다.**
 //
-// ⚠️ 빌더가 tripName 하나만 받는다. 초대·취소 알림은 원래 "누가" 를 함께
-//    말해야 자연스럽다("민지님이 참여를 요청했어요"). 지금은 이름을 받을 자리가
-//    없어 여행명만으로 읽히게 썼다. 발송을 붙일 때 인자를 늘리는 편이 낫다.
+// ⚠️ 2026-09-16 · docs/13_알림센터_v1.md §4 — 1차 4종(INVITE_RECEIVED · JOIN_*)은
+//    DB producer(migration 20260916000001)가 **같은 문자열**로 title/body 를 스냅샷한다.
+//    여기 문구를 바꾸면 DB 함수도 같이 바꿔야 한다. 앱은 이 빌더로 새 알림을 만들지 않고,
+//    DB 가 준 title/body 를 그대로 보여준다. 이 파일은 문구의 앱 쪽 기준일 뿐이다.
+//    - tripLabel  = "{destination} 여행" · 없으면 "이 여행"   (toTripLabel)
+//    - personName = users.name · 없으면 "사용자"               (toPersonLabel)
+//    나머지 type 은 tripLabel 하나만 받는 이전 문구 그대로다. producer 가 생길 때 맞춘다.
 // ============================================================================
 import { NOTIFICATION_TYPE, type NotificationType } from '@/lib/constants/status';
 
@@ -27,11 +31,29 @@ export type NotificationMessage = {
   body: string;
 };
 
-/** 여행명을 받아 문구를 만든다. */
-type NotificationMessageBuilder = (tripName: string) => NotificationMessage;
+/**
+ * "{destination} 여행" · destination 이 없거나 공백이면 "이 여행".
+ * DB `notification_trip_label()` 과 같은 규칙. 문구 쪽에서 '여행' 을 다시 붙이지 않는다.
+ */
+export function toTripLabel(destination: string | null | undefined): string {
+  const trimmed = destination?.trim() ?? '';
+  return trimmed === '' ? '이 여행' : `${trimmed} 여행`;
+}
+
+/** users.name 그대로 · 없거나 공백이면 "사용자". DB `notification_person_label()` 과 같은 규칙. */
+export function toPersonLabel(name: string | null | undefined): string {
+  const trimmed = name?.trim() ?? '';
+  return trimmed === '' ? '사용자' : trimmed;
+}
 
 /**
- * 알림 17종의 문구.
+ * 문구 빌더. tripLabel 은 toTripLabel 결과, personName 은 toPersonLabel 결과를 넘긴다.
+ * personName 은 "누가" 가 필요한 type 만 쓴다. 안 넘기면 "사용자" 로 읽힌다.
+ */
+type NotificationMessageBuilder = (tripLabel: string, personName?: string) => NotificationMessage;
+
+/**
+ * 알림 18종의 문구.
  *
  * ⚠️ title 은 여행명 없이 그 자체로 읽힌다. 목록에서 굵게 보이는 한 줄이라
  *    여행명은 body 에 둔다. (docs/05_ERD_v5.md §3 notifications)
@@ -51,22 +73,28 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
   }),
 
   // ── 초대 · 멤버 (INV/MEM) ─────────────────────────────────────────────
-  [NOTIFICATION_TYPE.INVITE_SENT]: (tripName) => ({
+  /** ⚠️ 미사용. 발송 시점에 수신자를 알 수 없다. (docs/13 §3) 값만 지킨다. */
+  [NOTIFICATION_TYPE.INVITE_SENT]: (tripLabel) => ({
     title: '여행에 초대받았어요',
-    body: `${tripName}에 함께 가자는 초대가 왔어요.`,
+    body: `${tripLabel}에 함께 가자는 초대가 왔어요.`,
   }),
-  [NOTIFICATION_TYPE.JOIN_REQUESTED]: (tripName) => ({
-    title: '참여 요청이 왔어요',
-    body: `${tripName}에 함께 가고 싶어 하는 사람이 있어요.`,
+  // ── 1차 4종 · docs/13 §4 확정 문구 · DB producer 와 글자까지 같다 ─────────
+  [NOTIFICATION_TYPE.INVITE_RECEIVED]: (tripLabel, personName = '사용자') => ({
+    title: '여행 초대를 받았어요',
+    body: `${personName}님이 ${tripLabel}에 초대했어요.`,
   }),
-  [NOTIFICATION_TYPE.JOIN_ACCEPTED]: (tripName) => ({
-    title: '여행에 합류했어요',
-    body: `${tripName} 준비를 함께 시작해요.`,
+  [NOTIFICATION_TYPE.JOIN_REQUESTED]: (tripLabel, personName = '사용자') => ({
+    title: '여행 참여 요청이 도착했어요',
+    body: `${personName}님이 ${tripLabel} 참여를 요청했어요.`,
+  }),
+  [NOTIFICATION_TYPE.JOIN_ACCEPTED]: (tripLabel) => ({
+    title: '여행 참여가 승인됐어요',
+    body: `${tripLabel} 참여가 승인됐어요.`,
   }),
   /** ⚠️ 거절 사유를 묻지도 전달하지도 않는다. (POL-INV-051) */
-  [NOTIFICATION_TYPE.JOIN_REJECTED]: (tripName) => ({
-    title: '참여 요청이 받아들여지지 않았어요',
-    body: `${tripName}에는 합류하지 못했어요.`,
+  [NOTIFICATION_TYPE.JOIN_REJECTED]: (tripLabel) => ({
+    title: '여행 참여 요청이 거절됐어요',
+    body: `${tripLabel} 참여 요청이 거절됐어요.`,
   }),
   [NOTIFICATION_TYPE.MEMBER_JOINED]: (tripName) => ({
     title: '새 멤버가 합류했어요',
@@ -117,12 +145,15 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
  * 알림 하나의 문구를 만든다.
  *
  * ```ts
- * const { title, body } = buildNotificationMessage(NOTIFICATION_TYPE.TRIP_D7, '오사카');
+ * const { title, body } = buildNotificationMessage(
+ *   NOTIFICATION_TYPE.JOIN_REQUESTED, toTripLabel('오사카'), toPersonLabel('민지'),
+ * );
  * ```
  */
 export function buildNotificationMessage(
   type: NotificationType,
-  tripName: string,
+  tripLabel: string,
+  personName?: string,
 ): NotificationMessage {
-  return NOTIFICATION_MESSAGES[type](tripName);
+  return NOTIFICATION_MESSAGES[type](tripLabel, personName);
 }

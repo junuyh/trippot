@@ -30,6 +30,8 @@ export type CancelTripJoinRequestRow = Fn['cancel_trip_join_request']['Returns']
 export type TripJoinRequestRow = Fn['get_trip_join_requests']['Returns'][number];
 export type AcceptTripJoinRequestRow = Fn['accept_trip_join_request']['Returns'][number];
 export type RejectTripJoinRequestRow = Fn['reject_trip_join_request']['Returns'][number];
+export type ResolveTripInviteByIdRow = Fn['resolve_trip_invite_by_id']['Returns'][number];
+export type RequestTripJoinByInviteRow = Fn['request_trip_join_by_invite']['Returns'][number];
 
 /** 서버가 message 로 돌려주는 도메인 오류 코드. migration 머리 주석의 표 그대로. */
 export const TRIP_JOIN_ERROR = {
@@ -137,4 +139,24 @@ export async function rejectTripJoinRequest(requestId: string): Promise<RejectTr
   });
   if (error) throw error;
   return single(data, 'reject_trip_join_request');
+}
+
+// ── inviteId 재진입 (docs/13 §5 · migration 20260916000001 ⑨) ────────────────
+// 알림 상세 "여행 초대 확인하기" 에서 온다. 앱은 raw token 을 모른다 — 서버가 inviteId 로
+// token 을 찾아 위 함수를 그대로 부르고, token 은 응답에 없다. 응답 형태는 token 판과 같다.
+// 서버 게이트: 그 invite 의 INVITE_RECEIVED 알림 소유자 · 그 invite 로 요청한 적 있는 사람 ·
+// 그 여행 ACTIVE 멤버만. 아니면 resolve 는 NOT_FOUND 행, request 는 NOT_FOUND 예외.
+
+/** resolve_trip_invite 와 같은 한 행. 게이트를 못 넘으면 invite_state = 'NOT_FOUND'. */
+export async function resolveTripInviteById(inviteId: string): Promise<ResolveTripInviteByIdRow> {
+  const { data, error } = await supabase.rpc('resolve_trip_invite_by_id', { p_invite_id: inviteId });
+  if (error) throw error;
+  return single(data, 'resolve_trip_invite_by_id');
+}
+
+/** request_trip_join 과 같은 한 행 · 같은 오류 코드. */
+export async function requestTripJoinByInvite(inviteId: string): Promise<RequestTripJoinByInviteRow> {
+  const { data, error } = await supabase.rpc('request_trip_join_by_invite', { p_invite_id: inviteId });
+  if (error) throw error;
+  return single(data, 'request_trip_join_by_invite');
 }

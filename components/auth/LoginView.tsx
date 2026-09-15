@@ -7,6 +7,11 @@ type Props = {
   /** 실패했을 때 보여줄 한 줄. 없으면 그리지 않는다. */
   errorMessage: string | null;
   onPressKakao: () => void;
+  /**
+   * 초대 링크로 들어와 로그인이 필요한 경우. 설명문과 버튼 글자만 바뀐다.
+   * 회원가입 화면은 없다 — 카카오 로그인 = 로그인 + 필요하면 계정 생성. (2026-09-16)
+   */
+  inviteContext?: boolean;
   onPressTerms: () => void;
   onPressPrivacy: () => void;
   /**
@@ -42,6 +47,7 @@ export function LoginView({
   loading,
   errorMessage,
   onPressKakao,
+  inviteContext = false,
   onPressTerms,
   onPressPrivacy,
   showDevPreview,
@@ -49,6 +55,8 @@ export function LoginView({
   onPressDevPreview,
 }: Props) {
   const insets = useSafeAreaInsets();
+  // 초대로 왔으면 "계속하기" — 이미 하던 일(초대 확인)을 이어간다는 뜻이다.
+  const kakaoLabel = inviteContext ? '카카오로 계속하기' : '카카오로 시작하기';
 
   return (
     // ⚠️ 위쪽 padding 으로 브랜드 영역을 밀어 내리지 않는다. 기기마다 화면
@@ -79,11 +87,21 @@ export function LoginView({
 
         {/* 로고와 설명문 사이. mt-5(20) 은 둘이 붙어 보였다. mt-9(36) 이면
             떨어져 보이지 않으면서 한 그룹으로 읽힌다. */}
+        {inviteContext ? (
+          <Text
+            className="mt-9 text-center text-pot-ink"
+            style={{ fontSize: 18, lineHeight: 26, fontWeight: '800', letterSpacing: -0.4 }}
+          >
+            여행 초대를 받았어요
+          </Text>
+        ) : null}
         <Text
-          className="mt-9 text-center text-pot-mute"
+          className={`${inviteContext ? 'mt-2' : 'mt-9'} text-center text-pot-mute`}
           style={{ fontSize: 14, lineHeight: 21 }}
         >
-          여행 준비부터 자금 관리까지{'\n'}TripPot과 함께하세요.
+          {inviteContext
+            ? '여행 정보를 확인하고 참여하려면\nTripPot 로그인이 필요해요.'
+            : '여행 준비부터 자금 관리까지\nTripPot과 함께하세요.'}
         </Text>
       </View>
 
@@ -104,7 +122,7 @@ export function LoginView({
         */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="카카오로 시작하기"
+          accessibilityLabel={kakaoLabel}
           accessibilityState={{ disabled: loading, busy: loading }}
           disabled={loading}
           onPress={onPressKakao}
@@ -120,7 +138,7 @@ export function LoginView({
                 className="ml-2 font-semibold"
                 style={{ fontSize: 15.5, color: KAKAO_LABEL }}
               >
-                카카오로 시작하기
+                {kakaoLabel}
               </Text>
             </>
           )}
