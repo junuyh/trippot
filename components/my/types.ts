@@ -6,6 +6,7 @@
 // UI 컴포넌트는 supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
 import type { TripStatus } from '@/lib/constants/status';
+import type { TripStage } from '@/lib/trip/stage';
 
 /**
  * 목록에서 어떤 여행을 보여줄지.
@@ -57,4 +58,12 @@ export type MyTripItem = {
    *    것이라, 멤버 행을 봐야 한다. 카드가 색을 뺄지 정하는 데 쓴다.
    */
   left?: boolean;
+  /**
+   * 여행 단계. 지난 여행 배지에 '정산 대기 중' · '지출 입력 전' 처럼 쓴다.
+   *
+   * ⚠️ 여행 홈(TRIP-HOME-02) 배지와 같은 값이다. status 만으로는 ENDED 가
+   *    '결산 전' 하나로 뭉쳐서, 지출이 없는 여행에도 결산을 하라는 말이 된다.
+   *    (lib/trip/stage.ts) 값이 없으면 카드가 예전처럼 status 로 쓴다.
+   */
+  stage?: TripStage;
 };

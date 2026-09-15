@@ -101,6 +101,16 @@ export type TripWithSummary = Trip & {
   currentAmount: number | null;
   /** settlements.actual_amount. 결산 전(ENDED)이면 null. */
   finalAmount: number | null;
+  /**
+   * 여행 단계(lib/trip/stage.ts)를 가르는 두 값.
+   *
+   * ⚠️ 여행 홈(app/trips/[tripId]/index.tsx)과 **같은 기준**이다. 어긋나면 목록은
+   *    '정산 대기 중' 인데 들어가면 '지출 입력 전' 인 여행이 생긴다.
+   *      hasPlan    목표 예산 > 0 이거나, 켜진 카테고리 중 계획 금액 > 0 이 있다
+   *      hasExpense 지우지 않은 지출(WITHDRAWAL)이 하나라도 있다
+   */
+  hasPlan: boolean;
+  hasExpense: boolean;
 };
 
 /**
@@ -122,10 +132,10 @@ export async function getTripsWithSummary(
 
   const tripIds = trips.map((trip) => trip.id);
 
-  const [budgets, funds, deposits, settlements] = await Promise.all([
+  const [budgets, funds, deposits, settlements, withdrawals] = await Promise.all([
     supabase
       .from("trip_budgets")
-      .select("trip_id, target_amount")
+      .select("id, trip_id, target_amount")
       .in("trip_id", tripIds),
     supabase
       .from("fund_sources")
@@ -141,12 +151,39 @@ export async function getTripsWithSummary(
       .from("settlements")
       .select("trip_id, actual_amount")
       .in("trip_id", tripIds),
+    supabase
+      .from("transactions")
+      .select("trip_id")
+      .in("trip_id", tripIds)
+      .eq("transaction_type", TRANSACTION_TYPE.WITHDRAWAL)
+      .is("deleted_at", null),
   ]);
 
   if (budgets.error) throw budgets.error;
   if (funds.error) throw funds.error;
   if (deposits.error) throw deposits.error;
   if (settlements.error) throw settlements.error;
+  if (withdrawals.error) throw withdrawals.error;
+
+  // 계획 금액은 예산 id 로만 걸린다. 예산이 있는 여행만 한 번 더 읽는다
+  const tripIdByBudget = new Map(
+    (budgets.data ?? []).map((r) => [r.id, r.trip_id]),
+  );
+  const plannedTrips = new Set<string>();
+  if (tripIdByBudget.size > 0) {
+    const categories = await supabase
+      .from("budget_categories")
+      .select("trip_budget_id")
+      .in("trip_budget_id", [...tripIdByBudget.keys()])
+      .eq("enabled", true)
+      .gt("planned_amount", 0);
+    if (categories.error) throw categories.error;
+    for (const row of categories.data ?? []) {
+      const tripId = tripIdByBudget.get(row.trip_budget_id);
+      if (tripId) plannedTrips.add(tripId);
+    }
+  }
+  const expenseTrips = new Set((withdrawals.data ?? []).map((r) => r.trip_id));
 
   // trip_id 가 셋 다 UNIQUE 라 여행당 최대 한 행이다.
   const targetByTrip = new Map(
@@ -176,6 +213,8 @@ export async function getTripsWithSummary(
     targetAmount: targetByTrip.get(trip.id) ?? null,
     currentAmount: currentByTrip.get(trip.id) ?? null,
     finalAmount: finalByTrip.get(trip.id) ?? null,
+    hasPlan: (targetByTrip.get(trip.id) ?? 0) > 0 || plannedTrips.has(trip.id),
+    hasExpense: expenseTrips.has(trip.id),
   }));
 }
 
