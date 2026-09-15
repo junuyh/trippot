@@ -29,7 +29,7 @@ export type User = Tables<'users'>;
  */
 export type UserProfile = Pick<
   User,
-  'id' | 'name' | 'profile_image_url' | 'auth_provider' | 'created_at'
+  'id' | 'name' | 'english_name' | 'profile_image_url' | 'auth_provider' | 'created_at'
 >;
 
 /**
@@ -43,7 +43,9 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     .from('users')
     // created_at = 이 카카오 계정으로 TripPot 에 처음 들어와 사용자 행이 생긴 날.
     // MY-01 여권의 MEMBER SINCE 가 쓴다. (2026-09-13) 카카오 가입일이 아니다.
-    .select('id, name, profile_image_url, auth_provider, created_at')
+    // english_name = 여권 영문 이름. 사용자가 계정관리에서 직접 넣은 값 그대로.
+    // (2026-09-15 · migration 20260915000001) 없으면 null → 여권에 '—'.
+    .select('id, name, english_name, profile_image_url, auth_provider, created_at')
     .eq('id', userId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -340,6 +342,29 @@ export async function updateUserName(userId: string, name: string): Promise<void
   const { error } = await supabase
     .from('users')
     .update({ name: trimmed })
+    .eq('id', userId)
+    .is('deleted_at', null);
+
+  if (error) throw error;
+}
+
+/**
+ * 여권 영문 이름을 갱신한다. (계정관리 → MY-01 여권 ENGLISH NAME)
+ *
+ * ⚠️ name 과 달리 **선택값**이다. 앞뒤 공백을 지운 뒤 비어 있으면 빈 문자열이
+ *    아니라 **null 로 저장**한다. 여권은 null 을 '—' 로 그린다. 빈 문자열이
+ *    남으면 '있는데 비어 보이는' 값이 된다.
+ * ⚠️ 자동 변환하지 않는다. 대문자화 · 로마자 변환 · 형식 검증 없이 입력한
+ *    그대로 둔다. 여권에 적힌 표기가 기준이고 그건 사용자만 안다.
+ *
+ * ⚠️ 다른 사용자의 행을 건드리지 않도록 userId 로만 좁힌다. (CLAUDE.md 7장)
+ */
+export async function updateUserEnglishName(userId: string, englishName: string): Promise<void> {
+  const trimmed = englishName.trim();
+
+  const { error } = await supabase
+    .from('users')
+    .update({ english_name: trimmed === '' ? null : trimmed })
     .eq('id', userId)
     .is('deleted_at', null);
 

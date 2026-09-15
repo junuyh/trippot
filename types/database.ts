@@ -1456,6 +1456,7 @@ export type Database = {
           auth_provider_user_id: string | null
           created_at: string
           deleted_at: string | null
+          english_name: string | null
           id: string
           name: string
           notification_settings_json: Json
@@ -1467,6 +1468,7 @@ export type Database = {
           auth_provider_user_id?: string | null
           created_at?: string
           deleted_at?: string | null
+          english_name?: string | null
           id: string
           name: string
           notification_settings_json?: Json
@@ -1478,6 +1480,7 @@ export type Database = {
           auth_provider_user_id?: string | null
           created_at?: string
           deleted_at?: string | null
+          english_name?: string | null
           id?: string
           name?: string
           notification_settings_json?: Json

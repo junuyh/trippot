@@ -4,6 +4,11 @@ import { Button, Input } from '@/components/ui';
 
 /** 이름 최대 길이. DB 제약이 아니라 화면 규칙이다. */
 export const NAME_MAX_LENGTH = 20;
+/**
+ * 여권 영문 이름 최대 길이. DB 제약이 아니라 화면 규칙이다.
+ * 실제 여권의 성명란(성 + 이름)은 대략 30자 안팎이라 그보다 조금 넉넉하게 둔다.
+ */
+export const ENGLISH_NAME_MAX_LENGTH = 40;
 
 type Props = {
   /** 입력창에 들어 있는 값. 상태는 화면 파일이 들고 있다. */
@@ -15,6 +20,15 @@ type Props = {
   /** 저장 중. 중복 제출을 막는다. */
   savingName: boolean;
   /**
+   * 여권 영문 이름 입력값. 저장된 값이 없으면 ''. (null 은 화면 파일이 '' 로 바꾼다)
+   * ⚠️ 자동으로 대문자화 · 변환하지 않는다. 키보드만 대문자로 열어 준다(autoCapitalize).
+   */
+  englishName: string;
+  englishNameError: string | null;
+  /** 비워서 저장(지우기)도 가능하다. 값이 바뀌었는지만 본다. */
+  canSaveEnglishName: boolean;
+  savingEnglishName: boolean;
+  /**
    * 연결된 계정 한 줄. 예: `카카오 로그인 · 홍길동`
    *
    * ⚠️ 앱에서 바꿀 수 없는 값이다. 카카오 쪽 정보라 입력창으로 만들지 않는다.
@@ -22,6 +36,8 @@ type Props = {
   accountLabel: string | null;
   onChangeName: (next: string) => void;
   onPressSaveName: () => void;
+  onChangeEnglishName: (next: string) => void;
+  onPressSaveEnglishName: () => void;
   onPressWithdraw: () => void;
 };
 
@@ -31,7 +47,7 @@ type Props = {
  * ⚠️ supabase · track() 을 직접 부르지 않는다. 화면 파일이 부른다. (CLAUDE.md 9장)
  *
  * 구성은 두 덩어리다.
- *   위 — 프로필 이름(바꿀 수 있음) · 연결된 계정(읽기 전용)
+ *   위 — 프로필 이름(바꿀 수 있음) · 여권 영문 이름(바꿀 수 있음 · 선택) · 연결된 계정(읽기 전용)
  *   아래 — 회원탈퇴
  *
  * ⚠️ 탈퇴를 위쪽 항목들과 같은 카드에 넣지 않는다. 이름 저장과 탈퇴가 한
@@ -42,9 +58,15 @@ export function AccountView({
   nameError,
   canSaveName,
   savingName,
+  englishName,
+  englishNameError,
+  canSaveEnglishName,
+  savingEnglishName,
   accountLabel,
   onChangeName,
   onPressSaveName,
+  onChangeEnglishName,
+  onPressSaveEnglishName,
   onPressWithdraw,
 }: Props) {
   return (
@@ -87,6 +109,50 @@ export function AccountView({
               disabled={!canSaveName}
               loading={savingName}
               onPress={onPressSaveName}
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* 여권 영문 이름. MY-01 여권의 ENGLISH NAME 에 그대로 보인다. 이름 카드와 같은 구조. */}
+      <View className="mt-7">
+        <Text
+          className="text-pot-ink"
+          style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.5 }}
+        >
+          여권 정보
+        </Text>
+
+        <View
+          className="mt-3 rounded-2xl bg-white p-4"
+          style={{
+            shadowColor: '#000',
+            shadowOpacity: 0.05,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 2,
+          }}
+        >
+          <Input
+            label="여권 영문 이름"
+            value={englishName}
+            onChangeText={onChangeEnglishName}
+            placeholder="HONG GILDONG"
+            error={englishNameError}
+            hint="여권에 기재된 영문 이름과 동일하게 입력해 주세요."
+            maxLength={ENGLISH_NAME_MAX_LENGTH}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={canSaveEnglishName ? onPressSaveEnglishName : undefined}
+          />
+
+          <View className="mt-3">
+            <Button
+              label="저장"
+              disabled={!canSaveEnglishName}
+              loading={savingEnglishName}
+              onPress={onPressSaveEnglishName}
             />
           </View>
         </View>
