@@ -34,6 +34,7 @@
 | **`11_모임정책_v2.md`** ← 기준 | **모임(GROUP) 정책 Source of Truth.** v1 내용 그대로 + **§6-2 나간(LEFT) 여행 접근 확정(2026-09-14 · 2계정 E2E)**: 이력으로만 표시, 여행 홈·상세 진입 불가·수정 불가, 안내 `이 여행은 더 이상 볼 수 없어요.`, 여행 홈 앱 가드(`hasLeftTrip`), 재참여는 초대 링크로 가능. v1 의 read-only 여행 홈 정책 폐기 | 267 |
 | `11_모임정책_v1.md` | v2 이전 버전(2026-09-12~13). §6-2 "볼 수 있다·수정 불가(read-only 여행 홈 예정)" 는 **폐기됨** — 비교용 보존 | 267 |
 | **`12_여행초대_승인_RPC계약_v1.md`** ← 기준 | **DB 담당 구현 계약 · 팀 확정(2026-09-13).** 수신자 초대 확인 · 참가 요청 · 취소 · 대기 목록 · 승인(CASE A/B/C/D · **새 모임 = target 여행 ACTIVE 참여자 + 요청자** · PERSONAL→GROUP · headcount 재검사 · 원자적) · 거절 — 6개 서버 함수의 auth · 검사 · 쓰기 · 반환 · 멱등 · race. REJECTED 는 (invite, user) 단위 · `pending_group_name` 미사용 · `leader_user_id` 선행 조건. §13 에 10_v2·11_v1 과의 차이(이 문서 우선) | 346 |
+| **`13_알림센터_v1.md`** ← 기준 | **알림센터(Notification Center) 정책 · 팀 확정(2026-09-16).** 알림 SoT = `public.notifications` · 생성은 SECURITY DEFINER RPC 안(10_v2 §14 · 12 §9 의 Edge Function 안을 대체) · Push 는 전달 채널일 뿐 · 카테고리 필터(초대·참여 / 멤버·권한 / 여행 취소) · 1차 4종(`INVITE_RECEIVED` 신설 · `JOIN_*`) · 상세 화면 + 현재 상태 기반 CTA · Banner ≠ 읽음 · 90일 조회 + 30건 cursor · 365일 retention cron · raw token 미저장 · RLS 목표 | 170 |
 
 `05_v6`, `06_v3`, `09` 는 크다. 통째로 읽지 말고 해당 절만 읽는다.
 특히 `06_v3` 는 로깅 작업이 아니면 열지 않는다.
@@ -55,6 +56,7 @@
 | 모임원 납부 | `02` §3, `04_v3` CONTRIB-01, `05_v6` §3 contributions |
 | **여행 초대 · 참가 신청 · 여행장 · 모임 분기 · headcount** | **`10_여행초대정책_v2.md`** — 권한·링크 생명주기·모임 분기·RPC 계약이 전부 여기 있다. **§15 폐기 정책표와 §16 STALE 목록을 먼저 본다.** ⚠️ `20260910000001` 마이그레이션 하단의 배포용 RLS 초안(`invites_owner` 여행장 전용)과 `POL-INV-010/014` 주석은 **historical implementation draft** — PR #86 으로 대체됨 |
 | **모임 목록(GROUP-01) · 모임 상세(GROUP-02) · 개인 여행** | **`11_모임정책_v2.md`** — 개인 여행이 모임 탭에 어떻게 보이는지, 카드를 누르면 어디로 가는지, 모임 이름은 누가 고치는지. 첫 외부인 승인 시 PERSONAL → GROUP 전환은 §4 |
+| **알림 · 알림센터 · In-app Banner · 알림 상세 · 알림 producer** | **`13_알림센터_v1.md`** — 어떤 type 을 언제 누구에게 만드는지, `data` 키, CTA 계산, Banner/읽음/보관 정책. 알림 관련 RPC·RLS·cron 을 만들기 전에 반드시 읽는다 |
 | **로깅·Analytics** | `06_v3` (§0-1 v2→v3 변경, §4 네이밍, §5 공통 파라미터, §7 해당 Flow, §11 구현 규칙) |
 | **스키마·Migration** | `05_v6` (§1 원칙, §3 테이블, §4 FK 정책, §7 migrations 순서) |
 | **RLS·권한 / `permission denied` 에러** | `05_v6` §6 — **§6-0 먼저 읽는다.** RLS 정책과 GRANT 는 별개고 둘 다 있어야 접근된다 |
