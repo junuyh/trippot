@@ -19,7 +19,7 @@ import {
 } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 
-import { getTrips, type Trip } from './trips';
+import { getMyParticipatingTrips, type Trip } from './trips';
 import { isTripOngoing } from '@/lib/trip/tripStatus';
 
 /** 지금 챙겨야 할 것 한 줄의 종류. */
@@ -125,7 +125,12 @@ const KIND_WEIGHT: Record<HomeActionKind, number> = {
  * (여행이 10개면 질의도 10배가 된다)
  */
 export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
-  const trips = await getTrips(userId);
+  /**
+   * ⚠️ **참여 중인 여행만 본다.** getTrips 는 모임 소속만 보고 여행 참여
+   *    여부를 안 본다. 그대로 쓰면 내가 나간 여행의 '예산을 정해주세요' 가
+   *    홈 할 일에 뜬다. 내 여행이 아닌데 내 할 일이 된다. (2026-09-15)
+   */
+  const trips = await getMyParticipatingTrips(userId);
   const ongoing = trips.filter(isOngoing);
   const ongoingIds = ongoing.map((trip) => trip.id);
   const settledIds = trips

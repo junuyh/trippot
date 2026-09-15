@@ -50,6 +50,10 @@ export function LeaveTripFlow({ leave, groupName }: Props) {
         selectedMemberId={leave.delegateId}
         onSelect={leave.setDelegateId}
         fundBalanceLabel={leave.fundBalanceLabel}
+        /* ⚠️ 위임 경로에도 모임 이탈을 묻는다. 여기가 유일한 통로다 */
+        groupName={leave.isGroupTrip ? groupName : null}
+        alsoLeaveGroup={leave.alsoLeaveGroup}
+        onChangeAlsoLeaveGroup={leave.setAlsoLeaveGroup}
         onSubmit={leave.handleDelegateAndLeave}
         submitting={leave.busy}
       />

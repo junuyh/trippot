@@ -210,7 +210,13 @@ export function LeaveTripSheet({
   );
 }
 
-function LeaveChoice({
+/**
+ * '이 여행에서만 / 모임에서도' 선택지 한 줄.
+ *
+ * ⚠️ DelegateLeaderSheet 도 이걸 쓴다. 위임 경로에도 같은 선택을 물어야 해서다.
+ *    두 시트가 각자 그리면 문구와 생김새가 갈린다. (2026-09-15)
+ */
+export function LeaveChoice({
   selected,
   disabled,
   title,
