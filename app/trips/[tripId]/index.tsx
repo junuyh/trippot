@@ -160,6 +160,8 @@ import {
 } from "@/components/cancel";
 import { LeaveDoneView, LeaveTripFlow } from "@/components/members";
 import { useLeaveTrip } from "@/lib/hooks/useLeaveTrip";
+import { JoinRequestBanner } from "@/components/invite";
+import { getTripJoinRequests } from "@/lib/supabase/queries/tripJoinRequests";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
@@ -227,6 +229,14 @@ type TripHomeData = {
   voteProgress: VoteProgress | null;
   /** 참여 중인 여행 멤버. 나가기 판정에 쓴다 */
   members: TripMemberWithName[];
+
+  /**
+   * 수락을 기다리는 참여 요청. **여행장일 때만** 채운다.
+   *
+   * ⚠️ 수락·거절은 여기서 하지 않는다. 배너를 눌러 여행 정보 수정으로 간다.
+   *    그 화면에 목록과 수락·거절이 이미 다 있다. (2026-09-15)
+   */
+  joinRequests: { requestId: string; name: string }[];
 
   /**
    * 취소가 확정된 뒤에 들어온 거래 **전부**. 취소된 여행에서만 채운다.
@@ -466,6 +476,24 @@ export default function ScreenTripHome() {
           : Promise.resolve([] as Transaction[]),
       ]);
 
+      /**
+       * 참여 요청. **여행장만** 읽는다. 수락·거절이 여행장 전용이라
+       * 다른 멤버에게는 보여 줄 이유가 없다. (canDecideJoinRequest)
+       *
+       * ⚠️ 실패해도 화면은 떠야 한다. 배너가 없을 뿐이지 여행 준비는 그대로다.
+       *    RPC 가 아직 안 붙은 환경도 있어서 조용히 빈 배열로 둔다.
+       */
+      const joinRequests =
+        trip.leader_user_id && trip.leader_user_id === userId
+          ? await getTripJoinRequests(trip.id)
+              .then((rows) =>
+                rows
+                  .filter((row) => row.status === "PENDING")
+                  .map((row) => ({ requestId: row.request_id, name: row.requester_name })),
+              )
+              .catch(() => [])
+          : [];
+
       setData({
         trip,
         budget,
@@ -478,6 +506,7 @@ export default function ScreenTripHome() {
         cancelRequest,
         voteProgress,
         members: tripMembers,
+        joinRequests,
         cancelChanges,
       });
 
@@ -1680,6 +1709,25 @@ export default function ScreenTripHome() {
            끝난 여행 화면에서 `JP` 는 이미 아는 정보고,
            '정산 전' 인지 '정산 완료' 인지가 다음 행동을 정한다.
       */}
+      {/*
+        ── 참여 요청 대기 배너 ──
+        ⚠️ 여행장에게만 그린다. load() 가 여행장일 때만 채우므로 여기서는
+           비었는지만 본다.
+        ⚠️ 취소 배너보다 **위**에 둔다. 취소는 여행 전체가 걸린 일이라 더
+           무겁지만, 참여 요청은 상대가 기다리고 있어 시간이 걸린다.
+           둘 다 뜨는 경우는 드물다.
+      */}
+      {data.joinRequests.length > 0 ? (
+        <View className="px-1 pb-3 pt-1">
+          <JoinRequestBanner
+            count={data.joinRequests.length}
+            firstName={data.joinRequests[0].name}
+            /* 수락·거절은 저기에 있다. 여기에 또 만들지 않는다 */
+            onOpen={() => router.push(`/trips/${trip.id}/edit`)}
+          />
+        </View>
+      ) : null}
+
       {/*
         ── TRIP-HOME-04 취소 요청 중 배너 ──
         ⚠️ **여행 홈 전체 기능은 그대로 돈다.** CANCEL_PENDING 은 읽기 전용이
