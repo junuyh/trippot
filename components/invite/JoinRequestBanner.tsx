@@ -38,14 +38,14 @@ export function JoinRequestBanner({ count, firstName, onOpen }: Props) {
       >
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 13.5, fontWeight: "700", color: BRAND.primary }}>
-            참여 요청 {count}건
+            승인 대기 {count}건
           </Text>
           {/*
             ⚠️ 이름을 부른다. "요청 3건" 만으로는 누가 기다리는지 모른다.
                여러 명이면 첫 사람만 부르고 나머지는 수로 말한다 — 이름을 다
                늘어놓으면 배너가 두 줄을 넘는다.
           */}
-          <Text style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: "#3C6FD8" }}>
+          <Text style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: "#747B88" }}>
             {count === 1
               ? `${firstName}님이 함께 가고 싶어 해요`
               : `${firstName}님 외 ${count - 1}명이 기다리고 있어요`}

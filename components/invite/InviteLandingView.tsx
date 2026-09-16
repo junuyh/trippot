@@ -70,10 +70,10 @@ export function InviteLandingView({
             <InvitePrimaryButton
               label={
                 !signedIn
-                  ? "가입하고 참여 요청하기"
+                  ? "가입하고 초대 수락하기"
                   : myState === "LEFT"
-                    ? "다시 참여 요청하기"
-                    : "참여 요청하기"
+                    ? "다시 초대 수락하기"
+                    : "초대 수락하기"
               }
               loading={requesting}
               onPress={onRequestJoin}
@@ -89,7 +89,7 @@ export function InviteLandingView({
                 textAlign: "center",
               }}
             >
-              TripPot이 처음이시죠? 간단한 가입 후 요청이 전달돼요.
+              TripPot이 처음이시죠? 간단한 가입 후 수락이 전달돼요.
             </Text>
           ) : null}
           <InviteGhostButton label="괜찮아요" disabled={requesting} onPress={onDecline} />
@@ -170,7 +170,7 @@ export function InviteLandingView({
           >
             {myState === "ACTIVE"
               ? "이미 이 여행에 함께하고 있어요"
-              : "참여 요청을 보내면 여행장이 확인 후 수락할 수 있어요.\n예산과 함께하는 사람은 참여가 확정되면 볼 수 있어요"}
+              : "초대를 수락하면 여행장이 확인해요.\n승인되면 여행 예산과 함께하는 사람을 볼 수 있어요"}
           </Text>
         </View>
 
@@ -185,7 +185,7 @@ export function InviteLandingView({
               textAlign: "center",
             }}
           >
-            지금은 예정 인원이 다 찼어요.{"\n"}요청은 보낼 수 있고, 여행장이 인원을 늘리면 수락돼요.
+            지금은 예정 인원이 다 찼어요.{"\n"}수락은 할 수 있고, 여행장이 인원을 늘리면 승인돼요.
           </Text>
         ) : null}
       </View>

@@ -68,7 +68,7 @@ export function InviteBanner({ invite, requesting, onRequestJoin, onDecline }: P
           {requesting ? (
             <ActivityIndicator size="small" color="#ffffff" />
           ) : (
-            <Text className="text-[13px] font-semibold text-white">참여 요청하기</Text>
+            <Text className="text-[13px] font-semibold text-white">초대 수락하기</Text>
           )}
         </Pressable>
       </View>

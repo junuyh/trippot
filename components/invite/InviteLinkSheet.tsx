@@ -93,7 +93,7 @@ export function InviteLinkSheet({
       description={
         hasCandidates
           ? "초대할 사람을 고르면 링크를 보내드려요."
-          : "링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요."
+          : "링크를 받은 사람이 수락하면, 여행장이 확인 후 승인할 수 있어요."
       }
       footer={
         <View style={{ gap: 8 }}>
@@ -207,7 +207,7 @@ export function BranchNotice({
           marginTop: 4,
           fontSize: 12,
           lineHeight: 19,
-          color: info ? "#3C6FD8" : "#C4494D",
+          color: info ? "#747B88" : "#C4494D", // 설명 본문은 brand 가 아니라 보조 글자색(pot.mute)
         }}
       >
         {body}

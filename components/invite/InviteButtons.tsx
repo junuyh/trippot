@@ -20,8 +20,10 @@ export function InvitePrimaryButton({ label, onPress, loading = false, disabled 
       accessibilityState={{ disabled: off, busy: loading }}
       disabled={off}
       onPress={onPress}
-      className="w-full flex-row items-center justify-center rounded-xl px-5 py-3.5 active:opacity-85"
-      style={{ backgroundColor: INVITE_THEME.primary, opacity: off ? 0.4 : 1 }}
+      // 배경은 tailwind brand 토큰(= INVITE_THEME.primary) — 눌린 동안만 brand-pressed(#521080).
+      // style 함수로 backgroundColor 를 주면 NativeWind className 과 섞여 배경이 사라진다.
+      className="w-full flex-row items-center justify-center rounded-xl bg-brand px-5 py-3.5 active:bg-brand-pressed"
+      style={{ opacity: off ? 0.4 : 1 }}
     >
       {loading ? (
         <ActivityIndicator size="small" color={INVITE_THEME.onPrimary} />

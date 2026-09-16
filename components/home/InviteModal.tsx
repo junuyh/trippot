@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, Text, View } from 'react-native';
 
-import { HomeButton } from './HomeButton';
+import { Button } from '@/components/ui';
 import type { HomeInvite } from './types';
 
 type Props = {
@@ -53,7 +53,7 @@ export function InviteModal({ invite, requesting, onRequestJoin, onDecline, onCl
                 여행 초대가 도착했어요
               </Text>
               <Text className="mt-1.5 text-center text-sm leading-5 text-pot-mute">
-                참여 요청을 보내면 여행장이 확인 후 수락할 수 있어요.
+                초대를 수락하면 여행장이 확인 후 승인할 수 있어요.
               </Text>
 
               <View className="mt-5 rounded-2xl bg-pot-visual px-4 py-3.5">
@@ -63,7 +63,7 @@ export function InviteModal({ invite, requesting, onRequestJoin, onDecline, onCl
               </View>
 
               <View className="mt-5">
-                <HomeButton label="참여 요청하기" loading={requesting} onPress={onRequestJoin} />
+                <Button label="초대 수락하기" loading={requesting} onPress={onRequestJoin} />
               </View>
               <Pressable
                 accessibilityRole="button"
