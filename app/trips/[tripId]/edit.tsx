@@ -39,7 +39,7 @@ import { format, isAfter, parseISO } from "date-fns";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Alert, ScrollView, Share, View } from "react-native";
+import { Alert, Share, View } from "react-native";
 
 import { useAuth, useCurrentUserId } from "@/lib/auth/AuthProvider";
 import {
@@ -502,16 +502,9 @@ export default function ScreenTripEdit() {
     : TRIP_OWNER_TYPE_LABEL.PERSONAL;
 
   return (
-    <ScrollView
-      className="flex-1"
-      style={{ backgroundColor: "#f5f6f8" }}
-      contentContainerStyle={{
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 48,
-      }}
-      keyboardShouldPersistTaps="handled"
-    >
+    /* ⚠️ 스크롤은 TripEditForm 안에 있다. '저장하기' 를 하단에 고정하려면
+          스크롤 영역 바깥에 버튼이 있어야 해서 함께 그리도록 옮겼다. (2026-09-16) */
+    <View className="flex-1" style={{ backgroundColor: "#f5f6f8" }}>
       <Stack.Screen options={{
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
@@ -598,6 +591,6 @@ export default function ScreenTripEdit() {
           sending={false}
         />
       ) : null}
-    </ScrollView>
+    </View>
   );
 }

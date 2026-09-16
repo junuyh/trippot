@@ -30,7 +30,7 @@
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 
 import { DateRangeCalendar, HeadcountStepper } from "@/components/trip-create";
 import { Button } from "@/components/ui";
@@ -151,247 +151,277 @@ export function TripEditForm({
   const inviteDisabled = inviting || !canInvite;
 
   return (
-    <View style={{ gap: 14 }}>
-      {/* ── 머리: 수하물 태그의 축소판. 도시명이 주인공 ─────────────── */}
-      <View
-        style={{
-          borderWidth: 1,
-          borderColor: LINE,
-          borderRadius: 18,
-          backgroundColor: "#fff",
-          paddingHorizontal: 18,
+    /*
+      ⚠️ 스크롤과 '저장하기' 를 여기서 함께 그린다. (2026-09-16)
+         저장 버튼이 내용 맨 아래 흐르면 내용이 길 때 스크롤해야 보인다.
+         고정하려면 스크롤 영역 **바깥**에 있어야 해서 화면 파일에서 이리 옮겼다.
+    */
+    <View className="flex-1">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingHorizontal: 16,
           paddingTop: 16,
-          paddingBottom: 18,
-          overflow: "hidden",
+          paddingBottom: 24,
+          gap: 14,
         }}
+        keyboardShouldPersistTaps="handled"
       >
-        <View className="flex-row items-start justify-between">
-          <Text style={{ fontSize: 9, fontWeight: "900", letterSpacing: 1.5, color: FAINT }}>
-            TRIP INFO
-          </Text>
-          {flag ? (
-            <Text
-              style={{
-                borderRadius: 5,
-                backgroundColor: INK,
-                color: "#fff",
-                paddingHorizontal: 8,
-                paddingVertical: 5,
-                fontSize: 11,
-                fontWeight: "900",
-              }}
-            >
-              {flag} {destinationEn ?? ""}
-            </Text>
-          ) : null}
-        </View>
-        {destinationEn ? (
-          <Text
-            numberOfLines={1}
-            style={{
-              marginTop: 10,
-              fontFamily,
-              fontSize: 44,
-              lineHeight: 46,
-              letterSpacing: 0.5,
-              color: INK,
-            }}
-          >
-            {destinationEn}
-          </Text>
-        ) : null}
-        <Text
-          style={{
-            marginTop: destinationEn ? 2 : 10,
-            fontSize: destinationEn ? 14 : 22,
-            fontWeight: "800",
-            color: destinationEn ? MUTED : INK,
-          }}
-        >
-          {destination}
-        </Text>
+        {/* ── 머리: 수하물 태그의 축소판. 도시명이 주인공 ─────────────── */}
         <View
           style={{
-            marginTop: 12,
-            paddingTop: 12,
-            borderTopWidth: 1,
-            borderStyle: "dashed",
-            borderColor: "#cfd5dc",
+            borderWidth: 1,
+            borderColor: LINE,
+            borderRadius: 18,
+            backgroundColor: "#fff",
+            paddingHorizontal: 18,
+            paddingTop: 16,
+            paddingBottom: 18,
+            overflow: "hidden",
           }}
         >
-          <Text style={{ fontSize: 12, lineHeight: 18, color: MUTED }}>
-            일정과 인원을 고칠 수 있어요. 여행지와 모임을 바꾸려면 새 여행을
-            만들어 주세요.
-          </Text>
-        </View>
-      </View>
-
-      {/* ── 일정 ───────────────────────────────────────────────────── */}
-      <Section eyebrow="SCHEDULE" title="여행 일정">
-        <DateRangeCalendar
-          startDate={startDate}
-          endDate={endDate}
-          onChange={onChangeDates}
-          // 이미 시작한 여행의 시작일을 고치는 일이 있다. 과거를 막지 않는다.
-          disablePast={false}
-        />
-        <Text style={{ fontSize: 11, lineHeight: 17, color: FAINT }}>
-          일정을 바꿔도 이미 정한 예산 금액은 그대로예요. 필요하면 전체 예산에서
-          직접 고쳐 주세요.
-        </Text>
-      </Section>
-
-      {/* ── 인원 ───────────────────────────────────────────────────── */}
-      <Section eyebrow="TRAVELERS" title="인원">
-        <HeadcountStepper value={headcount} onChange={onChangeHeadcount} />
-      </Section>
-
-      {/* ── 모임 + 초대 ────────────────────────────────────────────── */}
-      <Section eyebrow="GROUP" title="모임">
-        <View
-          accessible
-          accessibilityLabel={`모임 ${groupLabel}. 이 화면에서는 바꿀 수 없어요`}
-          className="flex-row items-center"
-          style={{
-            gap: 12,
-            borderRadius: 14,
-            backgroundColor: "#f7f8fa",
-            paddingHorizontal: 14,
-            paddingVertical: 13,
-          }}
-        >
-          <Ionicons
-            name={isGroupTrip ? "people-outline" : "person-outline"}
-            size={16}
-            color={INK}
-          />
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "700", color: INK }}>
-              {groupLabel}
+          <View className="flex-row items-start justify-between">
+            <Text style={{ fontSize: 9, fontWeight: "900", letterSpacing: 1.5, color: FAINT }}>
+              TRIP INFO
             </Text>
-            <Text style={{ marginTop: 3, fontSize: 11, color: MUTED }}>
-              여행을 만든 뒤에는 모임을 바꿀 수 없어요
-            </Text>
-          </View>
-          <Ionicons name="lock-closed-outline" size={14} color={FAINT} />
-        </View>
-
-        {/*
-          초대 자리. 점선 테두리라 "여기에 사람을 더 넣는다" 로 읽힌다.
-          모임을 안 골랐어도 링크는 나간다. 모임 정리는 여행장이 수락할 때 한다.
-          (docs/10_여행초대정책_v2.md §9-5 · 2026-09-11)
-        */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="여행 멤버 초대하기"
-          accessibilityState={{ disabled: inviteDisabled }}
-          disabled={inviteDisabled}
-          onPress={onInvite}
-          className={`flex-row items-center ${inviteDisabled ? "" : "active:opacity-70"}`}
-          style={{
-            gap: 12,
-            marginTop: 2,
-            borderWidth: 1.5,
-            borderStyle: "dashed",
-            borderColor: "#c8ced6",
-            borderRadius: 14,
-            paddingHorizontal: 14,
-            paddingVertical: 13,
-            opacity: inviting ? 0.6 : canInvite ? 1 : 0.45,
-          }}
-        >
-          <View
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 15,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#f3f5f7",
-            }}
-          >
-            {inviting ? (
-              <ActivityIndicator size="small" color={INK} />
-            ) : (
-              <Ionicons name="person-add-outline" size={15} color={INK} />
-            )}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: INK }}>여행 멤버 초대하기</Text>
-            <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
-              {canInvite
-                ? "초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요."
-                : `${joinedCount ?? 0}명이 모두 참여 중이에요. 위에서 인원을 늘리면 초대할 수 있어요.`}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={15} color={FAINT} />
-        </Pressable>
-
-        {/*
-          참여 요청 (INV-04 진입점). 초대 자리 바로 아래 — 링크를 보낸 사람이 답을 기다리는 곳이다.
-          여행장에게만 데이터가 오므로 다른 멤버 화면엔 아무것도 없다. 누르면 수락·거절 시트.
-        */}
-        {joinRequests.length > 0 ? (
-          <View style={{ marginTop: 10, gap: 6 }}>
-            <Text style={{ fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.3 }}>
-              참여 요청 {joinRequests.length}건
-            </Text>
-            {joinRequests.map((request) => (
-              <Pressable
-                key={request.requestId}
-                accessibilityRole="button"
-                accessibilityLabel={`${request.name}님의 참여 요청 보기`}
-                onPress={() => onPressJoinRequest(request)}
-                className="flex-row items-center active:opacity-70"
+            {flag ? (
+              <Text
                 style={{
-                  gap: 12,
-                  borderWidth: 1,
-                  borderColor: "#e5e8ec",
-                  borderRadius: 14,
-                  paddingHorizontal: 14,
-                  paddingVertical: 12,
-                  backgroundColor: "#fff",
+                  borderRadius: 5,
+                  backgroundColor: INK,
+                  color: "#fff",
+                  paddingHorizontal: 8,
+                  paddingVertical: 5,
+                  fontSize: 11,
+                  fontWeight: "900",
                 }}
               >
-                <View
+                {flag} {destinationEn ?? ""}
+              </Text>
+            ) : null}
+          </View>
+          {destinationEn ? (
+            <Text
+              numberOfLines={1}
+              style={{
+                marginTop: 10,
+                fontFamily,
+                fontSize: 44,
+                lineHeight: 46,
+                letterSpacing: 0.5,
+                color: INK,
+              }}
+            >
+              {destinationEn}
+            </Text>
+          ) : null}
+          <Text
+            style={{
+              marginTop: destinationEn ? 2 : 10,
+              fontSize: destinationEn ? 14 : 22,
+              fontWeight: "800",
+              color: destinationEn ? MUTED : INK,
+            }}
+          >
+            {destination}
+          </Text>
+          <View
+            style={{
+              marginTop: 12,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderStyle: "dashed",
+              borderColor: "#cfd5dc",
+            }}
+          >
+            <Text style={{ fontSize: 12, lineHeight: 18, color: MUTED }}>
+              일정과 인원을 고칠 수 있어요. 여행지와 모임을 바꾸려면 새 여행을
+              만들어 주세요.
+            </Text>
+          </View>
+        </View>
+
+        {/* ── 인원 ───────────────────────────────────────────────────── */}
+        <Section eyebrow="TRAVELERS" title="인원">
+          <HeadcountStepper value={headcount} onChange={onChangeHeadcount} />
+        </Section>
+
+        {/* ── 모임 + 초대 ────────────────────────────────────────────── */}
+        <Section eyebrow="GROUP" title="모임">
+          <View
+            accessible
+            accessibilityLabel={`모임 ${groupLabel}. 이 화면에서는 바꿀 수 없어요`}
+            className="flex-row items-center"
+            style={{
+              gap: 12,
+              borderRadius: 14,
+              backgroundColor: "#f7f8fa",
+              paddingHorizontal: 14,
+              paddingVertical: 13,
+            }}
+          >
+            <Ionicons
+              name={isGroupTrip ? "people-outline" : "person-outline"}
+              size={16}
+              color={INK}
+            />
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "700", color: INK }}>
+                {groupLabel}
+              </Text>
+              <Text style={{ marginTop: 3, fontSize: 11, color: MUTED }}>
+                여행을 만든 뒤에는 모임을 바꿀 수 없어요
+              </Text>
+            </View>
+            <Ionicons name="lock-closed-outline" size={14} color={FAINT} />
+          </View>
+
+          {/*
+            초대 자리. 점선 테두리라 "여기에 사람을 더 넣는다" 로 읽힌다.
+            모임을 안 골랐어도 링크는 나간다. 모임 정리는 여행장이 수락할 때 한다.
+            (docs/10_여행초대정책_v2.md §9-5 · 2026-09-11)
+          */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="여행 멤버 초대하기"
+            accessibilityState={{ disabled: inviteDisabled }}
+            disabled={inviteDisabled}
+            onPress={onInvite}
+            className={`flex-row items-center ${inviteDisabled ? "" : "active:opacity-70"}`}
+            style={{
+              gap: 12,
+              marginTop: 2,
+              borderWidth: 1.5,
+              borderStyle: "dashed",
+              borderColor: "#c8ced6",
+              borderRadius: 14,
+              paddingHorizontal: 14,
+              paddingVertical: 13,
+              opacity: inviting ? 0.6 : canInvite ? 1 : 0.45,
+            }}
+          >
+            <View
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#f3f5f7",
+              }}
+            >
+              {inviting ? (
+                <ActivityIndicator size="small" color={INK} />
+              ) : (
+                <Ionicons name="person-add-outline" size={15} color={INK} />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: INK }}>여행 멤버 초대하기</Text>
+              <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
+                {canInvite
+                  ? "초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요."
+                  : `${joinedCount ?? 0}명이 모두 참여 중이에요. 위에서 인원을 늘리면 초대할 수 있어요.`}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={15} color={FAINT} />
+          </Pressable>
+
+          {/*
+            참여 요청 (INV-04 진입점). 초대 자리 바로 아래 — 링크를 보낸 사람이 답을 기다리는 곳이다.
+            여행장에게만 데이터가 오므로 다른 멤버 화면엔 아무것도 없다. 누르면 수락·거절 시트.
+          */}
+          {joinRequests.length > 0 ? (
+            <View style={{ marginTop: 10, gap: 6 }}>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.3 }}>
+                참여 요청 {joinRequests.length}건
+              </Text>
+              {joinRequests.map((request) => (
+                <Pressable
+                  key={request.requestId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${request.name}님의 참여 요청 보기`}
+                  onPress={() => onPressJoinRequest(request)}
+                  className="flex-row items-center active:opacity-70"
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "#eef2ff",
+                    gap: 12,
+                    borderWidth: 1,
+                    borderColor: "#e5e8ec",
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    backgroundColor: "#fff",
                   }}
                 >
-                  <Ionicons name="hand-right-outline" size={15} color="#4941B8" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "800", color: INK }}>
-                    {request.name}님이 참여를 요청했어요
-                  </Text>
-                  <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
-                    {request.needsNewGroup
-                      ? "수락하면 새 모임이 만들어져요 · 눌러서 확인"
-                      : "눌러서 수락하거나 거절해요"}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={15} color={FAINT} />
-              </Pressable>
-            ))}
-          </View>
+                  <View
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 15,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "#eef2ff",
+                    }}
+                  >
+                    <Ionicons name="hand-right-outline" size={15} color="#4941B8" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "800", color: INK }}>
+                      {request.name}님이 참여를 요청했어요
+                    </Text>
+                    <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
+                      {request.needsNewGroup
+                        ? "수락하면 새 모임이 만들어져요 · 눌러서 확인"
+                        : "눌러서 수락하거나 거절해요"}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={15} color={FAINT} />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </Section>
+
+        {/* ── 일정 ───────────────────────────────────────────────────── */}
+        <Section eyebrow="SCHEDULE" title="여행 일정">
+          <DateRangeCalendar
+            startDate={startDate}
+            endDate={endDate}
+            onChange={onChangeDates}
+            // 이미 시작한 여행의 시작일을 고치는 일이 있다. 과거를 막지 않는다.
+            disablePast={false}
+          />
+          <Text style={{ fontSize: 11, lineHeight: 17, color: FAINT }}>
+            일정을 바꿔도 이미 정한 예산 금액은 그대로예요. 필요하면 전체 예산에서
+            직접 고쳐 주세요.
+          </Text>
+        </Section>
+
+      </ScrollView>
+
+      {/* ── 하단 고정: 저장하기 ─────────────────────────────────────── */}
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: LINE,
+          backgroundColor: "#ffffff",
+          paddingHorizontal: 16,
+          paddingTop: 12,
+          paddingBottom: 28,
+          gap: 8,
+        }}
+      >
+        {errorMessage ? (
+          <Text style={{ fontSize: 12, color: "#d1373f" }}>{errorMessage}</Text>
         ) : null}
-      </Section>
 
-      {errorMessage ? (
-        <Text style={{ fontSize: 12, color: "#d1373f" }}>{errorMessage}</Text>
-      ) : null}
-
-      <Button
-        label="저장하기"
-        loading={saving}
-        disabled={!canSubmit}
-        onPress={onSubmit}
-      />
+        <Button
+          label="저장하기"
+          loading={saving}
+          disabled={!canSubmit}
+          onPress={onSubmit}
+        />
+      </View>
     </View>
   );
 }
