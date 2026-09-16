@@ -17,11 +17,15 @@
 //   카드가 viewport 보다 길어지면 그때만 스크롤한다. 고정 height 없음 → 잘리지 않는다.
 // 모양 원칙: 네 모서리 concave quarter-circle. 배경색 원의 **중심이 카드 모서리(0,0)** 에 오게 두어
 //   원의 1/4 만 카드를 파낸다(TICKET_CUTOUT_RADIUS). 카드에는 아주 옅은 그림자만 — 종이가 배경
-//   위에 살짝 떠 있는 정도. 배경은 단색, 카드는 순백. 우표 · 도장 · 질감 · gradient 없음.
+//   위에 살짝 떠 있는 정도. 배경은 단색 보라. 카드는 옅은 아이보리 + 아주 은은한 종이 결
+//   (assets/paper-grain.png 128px 타일을 repeat · 낮은 불투명도). 텍스트는 그 위의 실제 컴포넌트다.
+//   우표 · 도장 · 얼룩 · 접힘 · 강한 grain · gradient 없음.
 // 로고: 공용 assets/logo.png 를 그대로 tint. 워드마크 에셋이 없어 "TripPot" 은 Text.
 // ============================================================================
 import type { ReactNode } from 'react';
 import { Image, ScrollView, Text, View } from 'react-native';
+
+const PAPER_GRAIN = require('@/assets/paper-grain.png');
 
 import { INVITE_THEME } from './inviteTheme';
 
@@ -89,6 +93,27 @@ export function InviteShell({ children, footer }: Props) {
           elevation: 3,
         }}
       >
+        {/* 종이 결. 카드 전체에 타일로 깔고 아주 옅게 — 글자 대비를 해치지 않는다. 터치는 통과. */}
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            borderRadius: CARD_RADIUS,
+            overflow: 'hidden',
+          }}
+        >
+          <Image
+            source={PAPER_GRAIN}
+            resizeMode="repeat"
+            accessibilityElementsHidden
+            style={{ width: '100%', height: '100%', opacity: 0.6 }}
+          />
+        </View>
+
         <Notch top left />
         <Notch top />
         <Notch left />
