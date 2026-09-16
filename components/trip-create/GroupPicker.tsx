@@ -98,7 +98,7 @@ export function GroupPicker({
               onPress={() => onSelect(group.id)}
               className={`rounded-full border px-3.5 py-2.5 ${
                 selected
-                  ? 'border-blue-600 bg-blue-600'
+                  ? 'border-brand bg-brand'
                   : 'border-gray-200 bg-white active:bg-gray-50'
               }`}
             >

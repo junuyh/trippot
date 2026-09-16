@@ -237,15 +237,15 @@ export function LeaveChoice({
       disabled={disabled}
       onPress={onPress}
       className={`flex-row items-center gap-2.5 rounded-xl border px-3.5 py-3 active:opacity-70 ${
-        selected ? "border-blue-600 bg-white" : "border-gray-200 bg-white"
+        selected ? "border-brand bg-white" : "border-gray-200 bg-white"
       } ${disabled ? "opacity-40" : ""}`}
     >
       <View
         className={`h-5 w-5 items-center justify-center rounded-full border-2 ${
-          selected ? "border-blue-600" : "border-gray-300"
+          selected ? "border-brand" : "border-gray-300"
         }`}
       >
-        {selected ? <View className="h-2 w-2 rounded-full bg-blue-600" /> : null}
+        {selected ? <View className="h-2 w-2 rounded-full bg-brand" /> : null}
       </View>
       <View style={{ flex: 1 }}>
         <Text className="text-sm font-semibold text-gray-900">{title}</Text>

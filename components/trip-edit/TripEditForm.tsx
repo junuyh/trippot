@@ -36,6 +36,7 @@ import { DateRangeCalendar, HeadcountStepper } from "@/components/trip-create";
 import { Button } from "@/components/ui";
 import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
 import { InviteArt } from "./inviteArt";
+import { BRAND } from "@/lib/constants/brandColor";
 import type { JoinRequestItem } from "@/components/invite";
 
 /** 멤버 한 줄에 필요한 최소 모양. Trip 전체를 요구하지 않는다 */
@@ -45,8 +46,8 @@ export type TripMemberChip = {
   isLeader: boolean;
 };
 
-/** TripPot 보라. components/home/palette.ts HOME_ACCENT 와 같은 값 */
-const ACCENT = "#6C5CE7";
+/** TripPot 브랜드 보라. lib/constants/brandColor.ts */
+const ACCENT = BRAND.primary;
 const INK = "#111827";
 const MUTED = "#7f8998";
 const FAINT = "#a8afb9";
@@ -401,8 +402,8 @@ export function TripEditForm({
                     <Text
                       style={{
                         borderRadius: 6,
-                        backgroundColor: "#e8efff",
-                        color: "#1B64F2",
+                        backgroundColor: BRAND.primarySoft,
+                        color: BRAND.primary,
                         paddingHorizontal: 7,
                         paddingVertical: 3,
                         fontSize: 10.5,
@@ -450,10 +451,10 @@ export function TripEditForm({
                       borderRadius: 15,
                       alignItems: "center",
                       justifyContent: "center",
-                      backgroundColor: "#eef2ff",
+                      backgroundColor: BRAND.primarySoft,
                     }}
                   >
-                    <Ionicons name="hand-right-outline" size={15} color="#4941B8" />
+                    <Ionicons name="hand-right-outline" size={15} color={BRAND.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "800", color: INK }}>

@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import { CurrencyInput } from '@/components/ui';
+import { BRAND } from '@/lib/constants/brandColor';
 import { BUDGET_METHOD, type BudgetMethod } from '@/lib/constants/status';
 
 type Props = {
@@ -72,8 +73,8 @@ export function BudgetResultHero({
   const canApply = userTotalDraft !== null && userTotalDraft > 0;
 
   return (
-    <View className="mt-5 rounded-[22px] border border-blue-100 bg-[#f6f9ff] px-[18px] pb-[18px] pt-5">
-      <Text className="text-xs font-bold text-blue-600">
+    <View className="mt-5 rounded-[22px] border border-brand-soft bg-brand-soft px-[18px] pb-[18px] pt-5">
+      <Text className="text-xs font-bold text-brand">
         {userDefined ? '내가 정한 목표 여행비' : 'TripPot 추천 여행비'}
       </Text>
 
@@ -112,14 +113,14 @@ export function BudgetResultHero({
               accessibilityLabel="목표 여행비 금액 변경"
               disabled={disabled}
               onPress={onStartEditAmount}
-              className={`flex-row items-center gap-1 rounded-lg px-1.5 py-1 active:bg-blue-100 ${
+              className={`flex-row items-center gap-1 rounded-lg px-1.5 py-1 active:bg-brand-soft ${
                 disabled ? 'opacity-40' : ''
               }`}
             >
-              <Ionicons name="create-outline" size={13} color="#2563eb" />
-              <Text className="text-xs font-bold text-blue-600">금액 변경</Text>
+              <Ionicons name="create-outline" size={13} color={BRAND.primary} />
+              <Text className="text-xs font-bold text-brand">금액 변경</Text>
             </Pressable>
-            <Text className="text-[10px] text-blue-300">·</Text>
+            <Text className="text-[10px] text-pot-dash">·</Text>
           </>
         ) : null}
 
@@ -128,14 +129,14 @@ export function BudgetResultHero({
           accessibilityLabel={userDefined ? '추천 예산으로 돌아가기' : '총 예산을 직접 정하기'}
           disabled={disabled}
           onPress={onToggleMethod}
-          className={`flex-row items-center gap-1 rounded-lg py-1 pr-2 active:bg-blue-100 ${
+          className={`flex-row items-center gap-1 rounded-lg py-1 pr-2 active:bg-brand-soft ${
             userDefined && !amountEditing ? 'pl-1.5' : ''
           } ${disabled ? 'opacity-40' : ''}`}
         >
-          <Text className="text-xs font-bold text-blue-600">
+          <Text className="text-xs font-bold text-brand">
             {userDefined ? '추천 예산으로 돌아가기' : '총 예산을 직접 정할래요'}
           </Text>
-          <Ionicons name="chevron-forward" size={13} color="#2563eb" />
+          <Ionicons name="chevron-forward" size={13} color={BRAND.primary} />
         </Pressable>
       </View>
 
@@ -146,7 +147,7 @@ export function BudgetResultHero({
            TextInput 이 다시 마운트되어 포커스가 풀린다. (요청 '유지할 동작')
       */}
       {userDefined && amountEditing ? (
-        <View className="mt-3.5 border-t border-blue-100 pt-3.5">
+        <View className="mt-3.5 border-t border-brand-soft pt-3.5">
           <CurrencyInput
             label="생각한 총 예산"
             value={userTotalDraft}
@@ -160,7 +161,7 @@ export function BudgetResultHero({
             accessibilityState={{ disabled: disabled || !canApply }}
             disabled={disabled || !canApply}
             onPress={onApplyUserTotal}
-            className={`mt-2 h-[42px] items-center justify-center rounded-xl bg-blue-600 active:bg-blue-700 ${
+            className={`mt-2 h-[42px] items-center justify-center rounded-xl bg-brand active:bg-brand-pressed ${
               disabled || !canApply ? 'opacity-40' : ''
             }`}
           >

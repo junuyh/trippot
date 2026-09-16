@@ -32,6 +32,8 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { Button } from "@/components/ui";
 import type { JoinRequestItem } from "@/components/invite";
 
+import { BRAND } from "@/lib/constants/brandColor";
+
 import type { TripMemberItem } from "./types";
 
 type Props = {
@@ -159,7 +161,7 @@ export function TripMemberListView({
                     accessibilityRole="button"
                     accessibilityLabel={`${request.name} 참여 요청 보기`}
                     onPress={() => onOpenRequest(request.requestId)}
-                    className="rounded-lg bg-blue-600 px-3 py-2 active:opacity-80"
+                    className="rounded-lg bg-brand px-3 py-2 active:bg-brand-pressed"
                   >
                     <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>보기</Text>
                   </Pressable>
@@ -218,9 +220,9 @@ function Badge({ tone, children }: { tone: "brand" | "wait"; children: string })
   return (
     <View
       className="shrink-0 rounded px-1.5 py-0.5"
-      style={{ backgroundColor: brand ? "#EBF1FF" : "#FFF7E8" }}
+      style={{ backgroundColor: brand ? BRAND.primarySoft : "#FFF7E8" }}
     >
-      <Text style={{ fontSize: 10, fontWeight: "800", color: brand ? "#0043D1" : "#8A5A00" }}>
+      <Text style={{ fontSize: 10, fontWeight: "800", color: brand ? BRAND.primary : "#8A5A00" }}>
         {children}
       </Text>
     </View>

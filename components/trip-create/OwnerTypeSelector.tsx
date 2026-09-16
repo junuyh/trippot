@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { BRAND } from '@/lib/constants/brandColor';
 import { COMPANION_TYPE, type CompanionType } from '@/lib/constants/status';
 
 const OPTIONS: {
@@ -60,7 +61,7 @@ export function OwnerTypeSelector({ value, onChange, bodies, disabled = false }:
           <View
             key={option.value}
             className={`overflow-hidden rounded-2xl ${
-              selected ? 'border-2 border-blue-600' : 'border border-gray-200'
+              selected ? 'border-2 border-brand' : 'border border-gray-200'
             } ${disabled ? 'opacity-40' : ''}`}
           >
             <Pressable
@@ -70,12 +71,12 @@ export function OwnerTypeSelector({ value, onChange, bodies, disabled = false }:
               disabled={disabled}
               onPress={() => onChange(option.value)}
               className={`flex-row items-center gap-3 px-4 py-3.5 ${
-                selected ? 'bg-blue-50' : 'bg-white active:bg-gray-50'
+                selected ? 'bg-brand-soft' : 'bg-white active:bg-gray-50'
               }`}
             >
               <View
                 className={`h-10 w-10 items-center justify-center rounded-full ${
-                  selected ? 'bg-blue-600' : 'bg-gray-100'
+                  selected ? 'bg-brand' : 'bg-gray-100'
                 }`}
               >
                 <Ionicons name={option.icon} size={20} color={selected ? '#ffffff' : '#96a0ae'} />
@@ -83,18 +84,18 @@ export function OwnerTypeSelector({ value, onChange, bodies, disabled = false }:
 
               <View className="flex-1">
                 <Text
-                  className={`text-[15px] font-bold ${selected ? 'text-blue-700' : 'text-gray-900'}`}
+                  className={`text-[15px] font-bold ${selected ? 'text-brand' : 'text-gray-900'}`}
                 >
                   {option.label}
                 </Text>
                 <Text className="mt-0.5 text-xs text-gray-500">{option.description}</Text>
               </View>
 
-              {selected ? <Ionicons name="checkmark-circle" size={22} color="#2563eb" /> : null}
+              {selected ? <Ionicons name="checkmark-circle" size={22} color={BRAND.primary} /> : null}
             </Pressable>
 
             {body ? (
-              <View className="border-t border-blue-100 bg-white p-4">{body}</View>
+              <View className="border-t border-brand-soft bg-white p-4">{body}</View>
             ) : null}
           </View>
         );

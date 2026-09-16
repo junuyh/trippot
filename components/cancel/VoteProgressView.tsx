@@ -20,6 +20,8 @@ import { Text, View } from "react-native";
 
 import { Button } from "@/components/ui";
 
+import { BRAND } from "@/lib/constants/brandColor";
+
 import type { VoteItem } from "./types";
 
 type Props = {
@@ -91,7 +93,7 @@ export function VoteProgressView({
             style={{ height: 7, marginTop: 14 }}
           >
             <View
-              style={{ height: "100%", width: `${percent}%`, backgroundColor: "#2563eb" }}
+              style={{ height: "100%", width: `${percent}%`, backgroundColor: BRAND.primary }}
             />
           </View>
         </View>

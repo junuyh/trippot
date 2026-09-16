@@ -189,7 +189,7 @@ export function NextTripCard({ trip, onPress }: Props) {
                 : `${shortage.toLocaleString('ko-KR')}원 더 준비하면 돼요!`}
           </Text>
 
-          <View className="flex-row items-center rounded-full bg-pot-ink px-3 py-2">
+          <View className="flex-row items-center rounded-full bg-brand px-3 py-2">
             <Text className="font-bold text-white" style={{ fontSize: 11.5 }} numberOfLines={1}>
               {`${destination} 보기`}
             </Text>

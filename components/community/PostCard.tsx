@@ -142,7 +142,7 @@ export function PostCard({ post, onPress }: Props) {
         <Ionicons
           name={post.likedByMe ? 'thumbs-up' : 'thumbs-up-outline'}
           size={15}
-          color={post.likedByMe ? '#111827' : '#8B94A2'}
+          color={post.likedByMe ? BRAND.primary : '#8B94A2'}
         />
         <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
           {post.likeCount}
@@ -151,7 +151,7 @@ export function PostCard({ post, onPress }: Props) {
         <Ionicons
           name={post.dislikedByMe ? 'thumbs-down' : 'thumbs-down-outline'}
           size={15}
-          color={post.dislikedByMe ? '#111827' : '#8B94A2'}
+          color={post.dislikedByMe ? BRAND.primary : '#8B94A2'}
           style={{ marginLeft: 18 }}
         />
         <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
@@ -172,7 +172,7 @@ export function PostCard({ post, onPress }: Props) {
 
         {/* 찜 표시. 목록에서는 보여주기만 한다 — 누르면 글로 들어간다.
             카드 전체가 이미 누르는 자리라 그 안에 또 누를 곳을 만들지 않는다. */}
-        {post.bookmarkedByMe ? <Ionicons name="bookmark" size={15} color="#111827" /> : null}
+        {post.bookmarkedByMe ? <Ionicons name="bookmark" size={15} color={BRAND.primary} /> : null}
       </View>
     </Pressable>
   );

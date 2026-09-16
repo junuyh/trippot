@@ -59,7 +59,7 @@ function Chip({
       accessibilityLabel={label}
       onPress={onPress}
       className={`rounded-full border px-4 py-2.5 ${
-        selected ? 'border-blue-600 bg-blue-600' : 'border-gray-200 bg-white active:bg-gray-50'
+        selected ? 'border-brand bg-brand' : 'border-gray-200 bg-white active:bg-gray-50'
       }`}
     >
       <Text className={`text-[13px] font-bold ${selected ? 'text-white' : 'text-gray-600'}`}>

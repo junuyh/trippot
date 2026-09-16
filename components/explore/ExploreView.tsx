@@ -83,7 +83,7 @@ export function ExploreView({
               accessibilityRole="tab"
               accessibilityState={{ selected }}
               onPress={() => onChangeTab(item.key)}
-              className={`rounded-full px-4 py-2 ${selected ? 'bg-pot-ink' : 'border border-pot-line bg-white'}`}
+              className={`rounded-full px-4 py-2 ${selected ? 'bg-brand' : 'border border-pot-line bg-white'}`}
             >
               <Text
                 style={{ fontSize: 13, fontWeight: selected ? '800' : '600' }}
@@ -122,7 +122,7 @@ export function ExploreView({
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     onPress={() => onChangeChip(chip.key)}
-                    className={`rounded-full px-3.5 py-1.5 ${selected ? 'bg-pot-ink' : 'bg-pot-visual'}`}
+                    className={`rounded-full px-3.5 py-1.5 ${selected ? 'bg-brand' : 'bg-pot-visual'}`}
                   >
                     <Text
                       style={{ fontSize: 12.5, fontWeight: selected ? '800' : '600' }}

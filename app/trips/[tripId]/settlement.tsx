@@ -780,8 +780,8 @@ export default function ScreenSETTLE01() {
 
       {settled ? (
         <View className="gap-2.5">
-          <View className="flex-row items-start gap-1.5 rounded-xl bg-blue-50 px-3 py-2.5">
-            <Text className="flex-1 text-xs leading-4 text-blue-700">
+          <View className="flex-row items-start gap-1.5 rounded-xl bg-brand-soft px-3 py-2.5">
+            <Text className="flex-1 text-xs leading-4 text-brand">
               정산이 확정됐어요. 이 기록은 다음 여행 예산을 추천할 때 쓰여요.
             </Text>
           </View>

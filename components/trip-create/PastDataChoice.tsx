@@ -40,7 +40,7 @@ export function PastDataChoice({ pastTripCount, value, onChange, disabled = fals
           disabled={disabled}
           onPress={() => onChange(!on)}
           className={`h-7 w-[46px] justify-center rounded-full px-[3px] ${
-            on ? 'bg-blue-600' : 'bg-gray-300'
+            on ? 'bg-brand' : 'bg-gray-300'
           } ${disabled ? 'opacity-40' : ''}`}
         >
           <View className={`h-[21px] w-[21px] rounded-full bg-white ${on ? 'self-end' : 'self-start'}`} />
