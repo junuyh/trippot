@@ -1578,6 +1578,10 @@ export type Database = {
         Args: { p_to_user_id: string; p_trip_id: string }
         Returns: undefined
       }
+      expire_trip_cancel_request: {
+        Args: { p_trip_id: string }
+        Returns: string
+      }
       get_or_create_trip_invite: {
         Args: { p_trip_id: string }
         Returns: {
