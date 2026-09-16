@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, Text, View } from 'react-native';
 
 import { Button } from '@/components/ui';
+import { BRAND } from '@/lib/constants/brandColor';
 import type { HomeInvite } from './types';
 
 type Props = {
@@ -45,8 +46,8 @@ export function InviteModal({ invite, requesting, onRequestJoin, onDecline, onCl
         <Pressable className="w-full max-w-sm rounded-3xl bg-white px-6 pb-5 pt-6" onPress={() => {}}>
           {invite ? (
             <>
-              <View className="h-12 w-12 items-center justify-center self-center rounded-full bg-pot-visual">
-                <Ionicons name="mail-unread-outline" size={24} color="#111827" />
+              <View className="h-12 w-12 items-center justify-center self-center rounded-full bg-brand-soft">
+                <Ionicons name="mail-unread-outline" size={24} color={BRAND.primary} />
               </View>
 
               <Text className="mt-4 text-center text-lg font-bold text-pot-ink">

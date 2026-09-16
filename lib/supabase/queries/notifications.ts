@@ -167,6 +167,39 @@ export async function markNotificationAsRead(
  * ⚠️ 남의 알림을 지울 수 없도록 사용자까지 좁힌다. (CLAUDE.md 7장)
  *    id 만으로 지우면 uuid 를 아는 누구나 남의 알림을 지울 수 있다.
  */
+/**
+ * 초대 내용을 실제로 본 순간 INVITE_RECEIVED 를 읽음으로 맞춘다. (2026-09-17 · 읽음 정책)
+ *
+ * 기준은 "어디서 들어왔는가" 가 아니라 "그 초대 내용을 확인했는가" 다. 홈 배너 · 홈 모달 · 알림 CTA ·
+ * 외부 링크가 전부 초대 화면(InviteFlowScreen)으로 모이므로, 그 화면의 resolve 성공 한 곳에서만 부른다.
+ * 배너가 떠 있기만 한 것 · 홈이 초대를 미리 확인하는 것(loadInvites)은 읽음이 아니다.
+ *
+ * 매핑: inviteId 판(/invite/by/:inviteId)은 data->>'inviteId' 로 정확히 한 행. token 판(/invite/:token)은
+ *   resolve 결과에 invite id 가 없어(token 은 앱이 서버에 되묻지 않는다) 같은 여행의 INVITE_RECEIVED 로 좁힌다.
+ *   ⚠️ raw token 으로 알림을 찾지 않는다.
+ * 멱등: read_at is null 인 행만 바꾼다. 맞는 행이 없어도 오류가 아니다(0행). 호출부는 결과를 화면 흐름에
+ *   섞지 않는다 — 읽음 처리가 실패해도 초대 화면은 그대로 보여야 한다.
+ */
+export async function markInviteNotificationsAsRead(
+  userId: string,
+  target: { inviteId?: string | null; tripId?: string | null },
+): Promise<void> {
+  if (!target.inviteId && !target.tripId) return;
+
+  let query = supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('type', 'INVITE_RECEIVED')
+    .is('read_at', null);
+  query = target.inviteId
+    ? query.eq('data->>inviteId', target.inviteId)
+    : query.eq('trip_id', target.tripId as string);
+
+  const { error } = await query;
+  if (error) throw error;
+}
+
 export async function deleteNotification(
   notificationId: string,
   userId: string,
