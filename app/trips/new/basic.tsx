@@ -47,15 +47,20 @@ export default function ScreenTRIP02() {
   // 기존 모임이면 그 모임의 멤버 수, 그 밖에는 본인 1명에서 시작한다.
   // 사용자가 직접 만진 뒤에는 덮어쓰지 않는다.
   //
-  // ⚠️ 2026-09-15 · 신규 모임도 1명에서 시작한다. TRIP-01 에서 동행자 이름을
-  //    미리 받지 않게 되어(NewGroupForm 주석) 셀 근거가 없다. 몇 명이 갈지는
-  //    아래 스테퍼로 직접 정한다. 멤버는 초대 수락으로 늘어난다.
+  // ⚠️⚠️ 신규 모임은 **2명**에서 시작한다. (2026-09-16 다빈 확정)
+  //    TRIP-01 에서 동행자 이름을 미리 받지 않게 되어(NewGroupForm 주석) 셀
+  //    근거가 사라졌는데, 1 로 두면 **빈자리가 없어 초대해도 수락이 막힌다.**
+  //    여행 정보 수정의 초대 버튼은 빈자리가 있을 때만 켜지고, 서버도
+  //    HEADCOUNT_REACHED 로 거절한다. '새 모임을 만들어요' 를 고른 사람이
+  //    혼자 갈 리는 없으므로 나 + 1 로 연다. 더 부르려면 아래 스테퍼로 올린다.
   const [headcountTouched, setHeadcountTouched] = useState(false);
   const suggestedHeadcount =
     draft.companionType === COMPANION_TYPE.EXISTING_GROUP
       ? // 기존 모임은 참여 멤버 수. 아직 못 불러왔으면(0) 1 로 둔다.
         Math.max(1, draft.groupMemberCount)
-      : 1;
+      : draft.companionType === COMPANION_TYPE.NEW_GROUP
+        ? 2
+        : 1;
 
   useEffect(() => {
     if (headcountTouched) return;

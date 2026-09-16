@@ -23,6 +23,7 @@ import {
 } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
+import * as Clipboard from "expo-clipboard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -80,12 +81,20 @@ import {
   FUND_SOURCE_TYPE,
   SETTLEMENT_TRIGGER,
   TRANSACTION_TYPE,
+  TRIP_OWNER_TYPE,
   TRIP_STATUS,
   type CategoryCode,
   type TripStatus,
 } from "@/lib/constants/status";
+import { markInviteNudgeShown, wasInviteNudgeShown } from "@/lib/invite/inviteNudge";
+import {
+  buildTripInviteLink,
+  buildTripInviteMessage,
+  pickTripInviteOpener,
+} from "@/lib/invite/tripInviteLink";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import { useTripContext } from "@/lib/hooks/useTripContext";
+import { getOrCreateTripInvite } from "@/lib/supabase/queries/tripInvites";
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -159,7 +168,7 @@ import {
 } from "@/components/cancel";
 import { LeaveDoneView, LeaveTripFlow } from "@/components/members";
 import { useLeaveTrip } from "@/lib/hooks/useLeaveTrip";
-import { JoinRequestBanner } from "@/components/invite";
+import { InviteNudgeModal, JoinRequestBanner } from "@/components/invite";
 import { getTripJoinRequests } from "@/lib/supabase/queries/tripJoinRequests";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
@@ -735,6 +744,75 @@ export default function ScreenTripHome() {
       trigger: SETTLEMENT_TRIGGER.AUTO,
     });
   }, [data]);
+
+  /**
+   * 초대 권유 모달. 여행을 만들고 여행 홈에 **처음** 들어왔을 때 한 번 뜬다.
+   *
+   * ⚠️ 여행 만들기에서 동행자 이름을 미리 받지 않게 되면서(2026-09-16) 새 여행에는
+   *    나 혼자만 있다. 초대 진입점이 '여행 정보 수정' 맨 아래 하나뿐이라
+   *    그냥 두면 사용자가 초대하는 길을 못 찾는다.
+   *
+   * ⚠️ '처음' 을 서버에 기록하지 않는다. 기기에 남긴다. (lib/invite/inviteNudge)
+   *    useScreenView 로 대신하지 않는다 — 분석용이고 __DEV__ 에서는 저장도 안 한다.
+   *
+   * ⚠️ 뜨는 조건을 좁게 잡는다. 하나라도 어긋나면 안 띄운다.
+   *      · 내가 이 여행의 참여자
+   *      · 아직 **나 혼자** (가입 멤버 1명) — 누가 들어왔으면 권할 이유가 없다
+   *      · 개인 여행이 아님 — 혼자 가는 여행에 초대는 말이 안 된다
+   *      · 준비 중(PLANNING) — 취소·종료된 여행에 초대를 권하지 않는다
+   */
+  const [inviteNudgeOpen, setInviteNudgeOpen] = useState(false);
+  const [inviteCopying, setInviteCopying] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const inviteNudgeRef = useRef(false);
+
+  useEffect(() => {
+    if (!data || !userId || inviteNudgeRef.current) return;
+    if (data.trip.status !== TRIP_STATUS.PLANNING) return;
+    if (data.trip.owner_type === TRIP_OWNER_TYPE.PERSONAL) return;
+    if (!data.members.some((m) => m.user_id === userId)) return;
+    if (data.members.filter((m) => m.user_id !== null).length !== 1) return;
+
+    // ⚠️ ref 를 먼저 세운다. 아래 await 사이에 effect 가 다시 돌면 두 번 뜬다.
+    inviteNudgeRef.current = true;
+    const tripId = data.trip.id;
+    void (async () => {
+      if (await wasInviteNudgeShown(userId, tripId)) return;
+      // ⚠️ 닫는 시점이 아니라 **띄우는 시점**에 표시한다. 닫기 전에 앱이 꺼져도
+      //    다음에 또 뜨지 않는다.
+      await markInviteNudgeShown(userId, tripId);
+      setInviteNudgeOpen(true);
+    })();
+  }, [data, userId]);
+
+  /**
+   * 초대 링크를 만들어 클립보드에 넣는다.
+   *
+   * ⚠️ 여기서 다른 시트를 열지 않는다. 닫는 중에 새 Modal 을 띄우면 iOS 가
+   *    조용히 무시한다. 복사까지 이 모달 안에서 끝낸다.
+   *
+   * ⚠️ 글은 '여행 정보 수정' 의 초대와 **같은 빌더**를 쓴다. 두 벌이 되면
+   *    한쪽만 고쳐진다.
+   */
+  const handleCopyInviteLink = useCallback(async () => {
+    if (!data || inviteCopying) return;
+    setInviteCopying(true);
+    try {
+      const invite = await getOrCreateTripInvite(data.trip.id);
+      const message = buildTripInviteMessage({
+        opener: pickTripInviteOpener(),
+        destination: data.trip.destination ?? "여행",
+        periodLabel: null,
+        link: buildTripInviteLink(invite.token),
+      });
+      await Clipboard.setStringAsync(message);
+      setInviteCopied(true);
+    } catch {
+      Alert.alert("초대 링크를 만들지 못했어요", "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setInviteCopying(false);
+    }
+  }, [data, inviteCopying]);
 
   useScreenView(
     SCREENS.TRIP_HOME,
@@ -1797,6 +1875,16 @@ export default function ScreenTripHome() {
           />
         </View>
       ) : null}
+
+      {/* 여행을 만들고 처음 들어왔을 때 한 번. 조건은 위 effect 가 정한다 */}
+      <InviteNudgeModal
+        visible={inviteNudgeOpen}
+        tripLabel={trip.destination ? `${trip.destination} 여행` : "이 여행"}
+        copying={inviteCopying}
+        copied={inviteCopied}
+        onCopy={() => void handleCopyInviteLink()}
+        onClose={() => setInviteNudgeOpen(false)}
+      />
 
       {/*
         ── TRIP-HOME-04 취소 요청 중 배너 ──
