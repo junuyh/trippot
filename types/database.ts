@@ -1544,6 +1544,7 @@ export type Database = {
         Args: { p_trip_id: string; p_user_id: string }
         Returns: undefined
       }
+      can_access_trip: { Args: { p_trip_id: string }; Returns: boolean }
       cancel_trip_join_request: {
         Args: { p_request_id: string }
         Returns: {
