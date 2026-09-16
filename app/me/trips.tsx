@@ -60,6 +60,7 @@ import {
   restoreRemainingLabel,
   restoredRemainingAmount,
 } from '@/lib/trip/cancelPolicy';
+import { tripStage } from '@/lib/trip/stage';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 
 /** 되돌리기 확인 시트(CXL-05)에 띄울 여행과, 취소 뒤 달라진 내역 전부. */
@@ -254,6 +255,7 @@ export default function ScreenMY02() {
         finalAmount: trip.finalAmount,
         color: theme.primary,
         colorSoft: theme.primarySoft,
+        stage: tripStage({ status, hasPlan: trip.hasPlan, hasExpense: trip.hasExpense }),
       },
     ];
   });
@@ -350,11 +352,19 @@ export default function ScreenMY02() {
       <MyTripListView
         trips={visible}
         filter={filter}
-        onChangeFilter={setFilter}
+        // ⚠️ 탭을 params 에도 적는다. 여행 홈의 '<' 가 dismissTo 로 이 화면을 찾을 때
+        //    params 까지 맞아야 스택의 이 화면으로 돌아온다. 안 맞으면 새 사본을 만든다.
+        onChangeFilter={(next) => {
+          setFilter(next);
+          router.setParams({ filter: next });
+        }}
         // 준비 중·여행 중·종료 모두 같은 라우트다. 도착 화면이 trip.status 로 분기한다. (docs/04_v3 §5)
         // ⚠️ 나간 여행은 열지 않는다 — 목록 이력으로만 보인다. 모임 상세와 같은 안내만 띄운다.
+        // ⚠️ from=my-trips 를 붙인다. 여행 홈이 집 대신 '<' 로 여기에 돌아온다.
         onPressTrip={(tripId) =>
-          leftIds.has(tripId) ? setLeftNoticeOpen(true) : router.push(`/trips/${tripId}`)
+          leftIds.has(tripId)
+            ? setLeftNoticeOpen(true)
+            : router.push(`/trips/${tripId}?from=my-trips&filter=${filter}`)
         }
         // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint param 을 읽어 기록한다.
         onPressCreateTrip={() => router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)}

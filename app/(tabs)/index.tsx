@@ -699,7 +699,9 @@ export default function ScreenHOME01() {
       onPressTrip={handlePressTrip}
       onPressSettle={handlePressSettle}
       onPressCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.HOME)}
-      onPressAllPastTrips={() => router.push('/me/trips')}
+      // 지난 여행의 '전체 보기' 라 지난 여행 탭으로 연다. 기본 탭(준비 중)으로 열면
+      // 방금 누른 목록과 다른 목록이 보인다. (2026-09-15)
+      onPressAllPastTrips={() => router.push('/me/trips?filter=past')}
       onPressNotifications={handlePressNotifications}
       invitePrompt={invitePrompt}
     />

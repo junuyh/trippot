@@ -2,7 +2,17 @@
 // 여행 기본 정보 수정  ·  /trips/:tripId/edit
 //
 // TRIP-HOME-01 여행명 아래 수정 버튼으로 들어온다. (시안 v4)
-// 일정 · 인원 · 모임을 고친다. 맨 아래 '여행 멤버 초대하기' 도 여기다.
+// 일정 · 인원을 고친다. 모임은 보여주기만 한다. 맨 아래 '여행 멤버 초대하기' 도 여기다.
+//
+// ⚠️ **모임은 여기서 못 바꾼다.** (2026-09-15)
+//    모임을 바꾸면 그 여행의 멤버·자금·결산을 볼 사람이 통째로 바뀌는데, 이 화면은
+//    그걸 정리하지 않고 group_id 만 갈아 끼웠다. 모임이 정해지는 곳은 여행을 만들 때와
+//    여행장이 참가 요청을 수락할 때(RPC) 두 곳뿐이다.
+//
+// ⚠️ **초대 버튼은 빈자리가 있을 때만 켠다.** (2026-09-15)
+//    참여 중인 가입자가 인원만큼 차 있으면 링크를 보내도 수락이 HEADCOUNT_REACHED 로
+//    막힌다. 인원을 늘리면 켜지고, 누르면 늘린 인원을 먼저 저장한 뒤 링크를 연다 —
+//    저장 전 인원으로는 서버가 수락해 주지 않는다.
 //
 // 초대 규칙 (docs/10_여행초대정책_v2.md §5 · 2026-09-11)
 //   · 여행 멤버 초대하기 → get_or_create_trip_invite RPC → 링크 하나 → 공유 시트
@@ -41,7 +51,7 @@ import {
 import { TripEditForm } from "@/components/trip-edit";
 import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { findDestinationByName } from "@/lib/constants/destinations";
-import { TRIP_OWNER_TYPE, TRIP_STATUS } from "@/lib/constants/status";
+import { TRIP_OWNER_TYPE_LABEL, TRIP_STATUS } from "@/lib/constants/status";
 import {
   buildTripInviteLink,
   buildTripInviteMessage,
@@ -59,6 +69,7 @@ import {
 import { isTripLeader } from "@/lib/trip/tripLeader";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
+  getJoinedTripMemberCount,
   getTripById,
   updateTrip,
   type Trip,
@@ -66,7 +77,7 @@ import {
 
 export default function ScreenTripEdit() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
-  // 로그인한 사용자. 개인 여행으로 바꿀 때 소유자가 된다.
+  // 로그인한 사용자. 여행장인지 가려 참여 요청을 읽는다.
   const userId = useCurrentUserId();
   // 개발용 미리보기인가. 미리보기에는 Supabase 세션이 없어 초대 RPC 를 부를 수 없다.
   const { isPreview } = useAuth();
@@ -84,7 +95,11 @@ export default function ScreenTripEdit() {
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
   const [headcount, setHeadcount] = useState(1);
-  const [groupId, setGroupId] = useState<string | null>(null);
+  /**
+   * 참여 중인 가입자 수. 초대 버튼을 켤지 정한다.
+   * 못 읽으면 null 이고 버튼은 켜 둔다 — 서버가 수락할 때 다시 막는다.
+   */
+  const [joinedCount, setJoinedCount] = useState<number | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -119,7 +134,11 @@ export default function ScreenTripEdit() {
     }
     setError(false);
     try {
-      const found = await getTripById(tripId);
+      const [found, joined] = await Promise.all([
+        getTripById(tripId),
+        // 부가 정보다. 실패해도 일정·인원은 고칠 수 있어야 한다.
+        getJoinedTripMemberCount(tripId).catch(() => null),
+      ]);
       if (!found) {
         setNotFound(true);
         return;
@@ -128,7 +147,7 @@ export default function ScreenTripEdit() {
       setStartDate(found.start_date);
       setEndDate(found.end_date);
       setHeadcount(found.headcount);
-      setGroupId(found.group_id);
+      setJoinedCount(joined);
     } catch {
       setError(true);
     } finally {
@@ -194,29 +213,21 @@ export default function ScreenTripEdit() {
   const handleSubmit = useCallback(async () => {
     if (!trip || saving) return;
     if (!startDate || !endDate) return;
-    if (!groupId && !userId) {
-      setSaveError("로그인 정보가 없어요. 다시 로그인한 뒤 시도해 주세요.");
-      return;
-    }
     setSaving(true);
     setSaveError(null);
     try {
+      // ⚠️ group_id · owner_type · owner_user_id 를 보내지 않는다. 모임은 이 화면에서 못 바꾼다.
       await updateTrip(trip.id, {
         start_date: startDate,
         end_date: endDate,
         headcount,
-        group_id: groupId,
-        // 모임을 붙이거나 떼면 소유 형태도 함께 바뀐다.
-        // 하나만 바꾸면 개인 여행인데 group_id 가 남는 상태가 된다.
-        owner_type: groupId ? TRIP_OWNER_TYPE.GROUP : TRIP_OWNER_TYPE.PERSONAL,
-        owner_user_id: groupId ? null : userId,
       });
       router.back();
     } catch {
       setSaveError("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
       setSaving(false);
     }
-  }, [endDate, groupId, headcount, saving, startDate, trip, userId]);
+  }, [endDate, headcount, saving, startDate, trip]);
 
   const periodLabel =
     startDate && endDate
@@ -251,6 +262,17 @@ export default function ScreenTripEdit() {
 
     setInviting(true);
     try {
+      // 늘린 인원이 아직 저장 전이면 먼저 저장한다. 서버는 저장된 인원으로 수락을 판정한다.
+      // ⚠️ 인원만 저장한다. 일정은 사용자가 '저장하기' 로 확정한다.
+      if (headcount !== trip.headcount) {
+        try {
+          await updateTrip(trip.id, { headcount });
+          setTrip({ ...trip, headcount });
+        } catch {
+          Alert.alert("인원을 저장하지 못했어요", "잠시 후 다시 시도해 주세요.");
+          return;
+        }
+      }
       const invite = await getOrCreateTripInvite(trip.id);
       setInviteLink(buildTripInviteLink(invite.token));
       setInviteOpener(pickTripInviteOpener());
@@ -264,7 +286,7 @@ export default function ScreenTripEdit() {
     } finally {
       setInviting(false);
     }
-  }, [inviting, isPreview, trip]);
+  }, [headcount, inviting, isPreview, trip]);
 
   /** 수락·거절이 끝난 뒤. 목록과 여행(모임 · 인원)을 다시 읽는다. */
   const afterDecision = useCallback(async () => {
@@ -472,6 +494,13 @@ export default function ScreenTripEdit() {
   );
   const canSubmit = datesValid && headcount >= 1;
 
+  /** 초대할 빈자리가 있는가. 인원(편집 중인 값)이 참여 중인 가입자보다 많아야 한다 */
+  const canInvite = joinedCount === null || headcount > joinedCount;
+  /** 모임 이름. 내 모임 목록에 없으면(불러오는 중·못 읽음) 소유 형태 이름으로 둔다 */
+  const groupLabel = trip.group_id
+    ? (currentGroupName ?? (groupsLoading ? "불러오는 중…" : TRIP_OWNER_TYPE_LABEL.GROUP))
+    : TRIP_OWNER_TYPE_LABEL.PERSONAL;
+
   return (
     <ScrollView
       className="flex-1"
@@ -496,10 +525,10 @@ export default function ScreenTripEdit() {
         onChangeDates={handleChangeDates}
         headcount={headcount}
         onChangeHeadcount={setHeadcount}
-        groups={groups}
-        groupsLoading={groupsLoading}
-        selectedGroupId={groupId}
-        onSelectGroup={setGroupId}
+        groupLabel={groupLabel}
+        isGroupTrip={trip.group_id !== null}
+        joinedCount={joinedCount}
+        canInvite={canInvite}
         canSubmit={canSubmit}
         saving={saving}
         errorMessage={saveError}

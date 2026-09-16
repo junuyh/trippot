@@ -59,7 +59,7 @@ import {
   type TypeEvidenceRow,
 } from "@/components/trip-type";
 import { TripStorySheet, TripStoryTeaser } from "@/components/trip-record";
-import { Button, EmptyState, ErrorState, Loading } from "@/components/ui";
+import { Button, EmptyState, ErrorState, HeaderBackButton, Loading } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { allocateVault } from "@/lib/budget/vault";
@@ -203,6 +203,9 @@ async function fundReadyDaysBefore(data: TripHomeData): Promise<number | undefin
   return differenceInCalendarDays(parseISO(data.trip.start_date), parseISO(readyAt));
 }
 
+/** 내 여행(MY-02) 탭 값. 모르는 값으로 돌아가지 않게 거른다. (components/my/types.ts) */
+const MY_TRIP_FILTERS: string[] = ["planning", "traveling", "past", "canceled", "left"];
+
 type TripHomeData = {
   trip: Trip;
   budget: TripBudget | null;
@@ -243,9 +246,35 @@ export default function ScreenTripHome() {
    *    '마지막 1명이라 못 나감 → 여행 취소하기' 를 여기로 보낸다.
    *    바로 취소하지 않는다. CXL-01(사유)부터 연다. (POL-CXL-060)
    */
-  const { tripId, cancel } = useLocalSearchParams<{ tripId: string; cancel?: string }>();
+  const { tripId, cancel, from, filter } = useLocalSearchParams<{
+    tripId: string;
+    cancel?: string;
+    from?: string;
+    filter?: string;
+  }>();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
+
+  /**
+   * 헤더 왼쪽 버튼.
+   *
+   * ⚠️ 내 여행(MY-02)에서 들어오면 집 대신 '<' 로 **내 여행**에 돌아간다. (2026-09-15)
+   *    목록을 훑다가 한 여행을 열어 본 사람의 다음 할 일은 다른 여행을 여는 것이라,
+   *    앱 홈으로 밀어내면 목록을 다시 찾아 들어가야 한다.
+   *    그 밖의 진입(홈·모임·딥링크)은 지금처럼 집 버튼으로 앱 홈에 간다.
+   *
+   * ⚠️ 보던 탭(filter)을 함께 넘긴다. dismissTo 는 스택의 내 여행과 params 까지
+   *    맞아야 거기로 걷어내므로, 내 여행도 탭을 바꿀 때 params 를 맞춰 둔다.
+   *    (app/me/trips.tsx)
+   */
+  const renderHeaderLeft =
+    from === "my-trips"
+      ? () => (
+          <HeaderBackButton
+            parentHref={`/me/trips?filter=${MY_TRIP_FILTERS.includes(filter ?? "") ? filter : "planning"}`}
+          />
+        )
+      : () => <AppHomeButton />;
 
   const [data, setData] = useState<TripHomeData | null>(null);
   /**
@@ -896,7 +925,7 @@ export default function ScreenTripHome() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: renderHeaderLeft }} />
         <Loading message="여행 정보를 불러오는 중…" />
       </View>
     );
@@ -905,7 +934,7 @@ export default function ScreenTripHome() {
   if (leftTrip) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: renderHeaderLeft }} />
         <EmptyState
           icon="exit-outline"
           title="나간 여행이에요"
@@ -919,7 +948,7 @@ export default function ScreenTripHome() {
   if (notFound) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: renderHeaderLeft }} />
         <EmptyState
           icon="airplane-outline"
           title="여행을 찾을 수 없어요"
@@ -933,7 +962,7 @@ export default function ScreenTripHome() {
   if (error || !data) {
     return (
       <View className="flex-1 bg-white">
-        <Stack.Screen options={{ title: "여행 홈", headerLeft: () => <AppHomeButton /> }} />
+        <Stack.Screen options={{ title: "여행 홈", headerLeft: renderHeaderLeft }} />
         <ErrorState
           message="여행 정보를 불러오지 못했어요."
           onRetry={() => void load()}
@@ -1394,7 +1423,7 @@ export default function ScreenTripHome() {
         <Stack.Screen
           options={{
             title: trip.destination ?? "여행",
-            headerLeft: () => <AppHomeButton />,
+            headerLeft: renderHeaderLeft,
             headerRight: undefined,
           }}
         />
@@ -1431,7 +1460,7 @@ export default function ScreenTripHome() {
         <Stack.Screen
           options={{
             title: "취소 동의 현황",
-            headerLeft: () => <AppHomeButton />,
+            headerLeft: renderHeaderLeft,
             headerRight: undefined,
           }}
         />
@@ -1530,7 +1559,7 @@ export default function ScreenTripHome() {
         options={{
           title: trip.destination ?? "여행 홈",
           /* 왼쪽은 앱 홈(집), 오른쪽은 여행 설정(톱니). '<' 는 어디로 가는지 알 수 없었다 */
-          headerLeft: () => <AppHomeButton />,
+          headerLeft: renderHeaderLeft,
           /*
             끝난 여행은 고칠 것도 나갈 것도 취소할 것도 없다. 톱니를 아예 안 그린다.
             ⚠️ 취소된 여행도 마찬가지다. ended 로는 안 걸린다 — 출발 전에 취소한
