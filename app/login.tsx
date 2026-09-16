@@ -13,7 +13,7 @@ import { useState } from 'react';
 
 import { LoginView } from '@/components/auth/LoginView';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { DEV_PREVIEW_USERS } from '@/lib/constants/devUser';
+import { DEV_PREVIEW_USERS, DEV_USER_ID } from '@/lib/constants/devUser';
 import { signInWithKakao } from '@/lib/auth/kakao';
 
 export default function ScreenLogin() {
@@ -48,6 +48,22 @@ export default function ScreenLogin() {
     }
   }
 
+  /**
+   * [개발용] 신규 사용자 홈(여행 0개) 미리보기. (2026-09-16 · HOME-01 담당)
+   *
+   * 미리보기로 들어간 **뒤 어디로 갈지**는 가드(app/_layout.tsx)가 next 파라미터로
+   * 정한다. 그래서 여기서 router.replace 를 부르지 않고 next 만 심어 둔다.
+   * 두 곳이 같이 옮기면 화면이 두 번 바뀐다. (이 파일 머리말)
+   *
+   * ⚠️ 어느 seed 사용자로 들어가도 화면은 같다. 홈이 ?preview=empty 를 보고
+   *    **조회 결과와 무관하게** 신규 사용자 홈을 그린다. (app/(tabs)/index.tsx)
+   * ⚠️ 확인이 끝나면 이 함수와 LoginView 의 칩을 지운다.
+   */
+  function handlePressNewUserPreview() {
+    router.setParams({ next: '/?preview=empty' });
+    enterPreview(DEV_USER_ID);
+  }
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -69,6 +85,7 @@ export default function ScreenLogin() {
         */
         devPreviewUsers={DEV_PREVIEW_USERS}
         onPressDevPreview={enterPreview}
+        onPressDevPreviewNewUser={handlePressNewUserPreview}
       />
     </>
   );

@@ -12,6 +12,10 @@ type Props = {
   onChangeFilter: (filter: MyTripFilter) => void;
   onPressTrip: (tripId: string) => void;
   onPressCreateTrip: () => void;
+  /** 취소된 여행 카드의 '되돌리기'. 화면 파일이 CXL-05 확인 시트를 연다. */
+  onRestoreTrip: (tripId: string) => void;
+  /** 되돌리기 준비(내역 조회) 중인 여행. 없으면 null. */
+  preparingRestoreTripId: string | null;
 };
 
 /** 탭마다 비었을 때 할 말이 다르다. */
@@ -40,6 +44,8 @@ export function MyTripListView({
   onChangeFilter,
   onPressTrip,
   onPressCreateTrip,
+  onRestoreTrip,
+  preparingRestoreTripId,
 }: Props) {
   return (
     <View className="flex-1 bg-pot-visual">
@@ -70,7 +76,13 @@ export function MyTripListView({
         ) : (
           <View className="gap-2.5">
             {trips.map((trip) => (
-              <MyTripCard key={trip.tripId} trip={trip} onPress={onPressTrip} />
+              <MyTripCard
+                key={trip.tripId}
+                trip={trip}
+                onPress={onPressTrip}
+                onRestore={onRestoreTrip}
+                restoreLoading={preparingRestoreTripId === trip.tripId}
+              />
             ))}
           </View>
         )}

@@ -40,6 +40,11 @@ type Props = {
   previewToken?: string;
   /** 식별자가 아예 없을 때(잘못된 링크). NOT_FOUND 로 그린다. */
   missing?: boolean;
+  /**
+   * 확인 결과 · 요청 뒤 상태가 정해질 때마다 알린다. (2026-09-16 · PR #111 pending invite)
+   * token 판이 기기 보관(lib/invite/pendingInvites)을 맞추는 데 쓴다. 화면 흐름과 무관하다.
+   */
+  onStateChange?: (next: InviteRouteState) => void;
 };
 
 /** 서버 my_state 문자열 → 화면 타입. 모르는 값은 NONE 으로 — 요청 CTA 가 가장 안전한 기본이다. */
@@ -84,7 +89,13 @@ function toPeriodLabel(start: string | null, end: string | null): string | null 
   return `${format(parseISO(start), 'M.d')}–${format(parseISO(end), 'M.d')}`;
 }
 
-export function InviteFlowScreen({ resolve, request, previewToken, missing = false }: Props) {
+export function InviteFlowScreen({
+  resolve,
+  request,
+  previewToken,
+  missing = false,
+  onStateChange,
+}: Props) {
   const { isPreview, status } = useAuth();
   const userId = useCurrentUserId();
 
@@ -103,20 +114,24 @@ export function InviteFlowScreen({ resolve, request, previewToken, missing = fal
     // 미리보기에는 세션이 없어 RPC 가 AUTH_REQUIRED 를 내므로 preview-* 토큰만 그린다.
     if (__DEV__ && isPreview) {
       const preview = previewToken ? previewInviteState(previewToken) : null;
-      setState(preview ?? { kind: 'NOT_CONNECTED' });
+      const next = preview ?? { kind: 'NOT_CONNECTED' as const };
+      setState(next);
+      onStateChange?.(next);
       return;
     }
 
     setState({ kind: 'LOADING' });
     try {
       const row = await resolve();
+      const next = toRouteState(row);
       setTripId(row.trip_id ?? null);
-      setState(toRouteState(row));
+      setState(next);
+      onStateChange?.(next);
     } catch {
       // 네트워크 · 세션 없음 등. 예외 객체를 화면에 그대로 내보내지 않는다.
       setState({ kind: 'ERROR' });
     }
-  }, [missing, isPreview, previewToken, resolve]);
+  }, [missing, isPreview, previewToken, resolve, onStateChange]);
 
   useEffect(() => {
     void load();
@@ -136,20 +151,28 @@ export function InviteFlowScreen({ resolve, request, previewToken, missing = fal
 
     // 미리보기 — 서버에 아무것도 쓰지 않고 화면 전환만 흉내 낸다.
     if (__DEV__ && isPreview) {
-      setState({ ...state, myState: 'PENDING', myRequestId: 'preview' });
+      const next = { ...state, myState: 'PENDING' as const, myRequestId: 'preview' };
+      setState(next);
+      onStateChange?.(next);
       return;
     }
 
     setRequesting(true);
     try {
       const row = await request();
-      setState({ ...state, myState: 'PENDING', myRequestId: row.request_id });
+      const next = { ...state, myState: 'PENDING' as const, myRequestId: row.request_id };
+      setState(next);
+      onStateChange?.(next);
     } catch (error) {
       const code = tripJoinErrorCode(error);
       if (code === TRIP_JOIN_ERROR.ALREADY_MEMBER) {
-        setState({ ...state, myState: 'ACTIVE', myRequestId: null });
+        const next = { ...state, myState: 'ACTIVE' as const, myRequestId: null };
+        setState(next);
+        onStateChange?.(next);
       } else if (code === TRIP_JOIN_ERROR.REJECTED_FOR_INVITE) {
-        setState({ ...state, myState: 'REJECTED', myRequestId: null });
+        const next = { ...state, myState: 'REJECTED' as const, myRequestId: null };
+        setState(next);
+        onStateChange?.(next);
       } else if (code === TRIP_JOIN_ERROR.INVITE_NOT_VALID || code === TRIP_JOIN_ERROR.NOT_FOUND) {
         void load();
       } else {
@@ -158,7 +181,7 @@ export function InviteFlowScreen({ resolve, request, previewToken, missing = fal
     } finally {
       setRequesting(false);
     }
-  }, [state, requesting, missing, isPreview, request, load]);
+  }, [state, requesting, missing, isPreview, request, load, onStateChange]);
 
   const periodLabel = useMemo(
     () =>

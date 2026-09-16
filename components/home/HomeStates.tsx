@@ -6,6 +6,8 @@ import { DestinationSuggestSection } from './DestinationSuggestSection';
 import { DiscoverDestinationSection } from './DiscoverDestinationSection';
 import { HomeButton } from './HomeButton';
 import { HomeHeader } from './HomeHeader';
+import { HowItWorksSection } from './HowItWorksSection';
+import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
 import type { DestinationSuggestion, DiscoverDestination } from './types';
 import { useFabExpand } from './useFabExpand';
 
@@ -54,6 +56,10 @@ type HomeEmptyProps = {
   onPressSuggestion: (code: string) => void;
   /** 여행자들은 이렇게 다녀왔어요 태그를 눌렀을 때. 커뮤니티로 보낸다. 한글 도시명을 넘긴다. */
   onPressDiscovery: (nameKo: string) => void;
+  /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
+  onPressNotifications: () => void;
+  /** 답하지 않은 여행 초대. 추천 여행지 위 배너와 모달. (InvitePrompt) */
+  invitePrompt: InvitePromptProps;
 };
 
 /**
@@ -101,13 +107,19 @@ export function HomeEmpty({
   onCreateTrip,
   onPressSuggestion,
   onPressDiscovery,
+  onPressNotifications,
+  invitePrompt,
 }: HomeEmptyProps) {
   const { expanded, onScroll } = useFabExpand();
 
   return (
     <View className="flex-1 bg-white">
       {/* 기존 홈과 같은 상단바다. 다가오는 여행이 없으므로 남은 일수는 null 이다. */}
-      <HomeHeader userName={userName} daysToNextTrip={null} />
+      <HomeHeader
+        userName={userName}
+        daysToNextTrip={null}
+        onPressNotifications={onPressNotifications}
+      />
 
       {/* 아래 여백은 기존 홈(HomeView)과 같은 값이다. 떠 있는 버튼까지 덮는다. */}
       <ScrollView
@@ -116,10 +128,27 @@ export function HomeEmpty({
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
+        {/* 초대받은 사람은 여행이 없는 신규 사용자일 때가 많다. 기존 홈과 같은 자리에 둔다. */}
+        <InvitePrompt {...invitePrompt} />
+
         <DestinationSuggestSection
           suggestions={suggestions}
           onPressSuggestion={onPressSuggestion}
         />
+
+        {/*
+          2026-09-16 서비스 소개 칸.
+
+          ⚠️ **추천 여행지 아래, 다녀온 이야기 위**다. 첫 화면은 '어디 가지?' 가
+             먼저 잡고, 바로 아래에서 '이 앱이 뭘 해주나' 에 답한다. 맨 위에 두면
+             처음 온 사람이 안내문부터 읽어야 한다.
+
+          ⚠️ **신규 사용자 홈에만 둔다.** 기존 홈(HomeView)에는 넣지 않는다 —
+             이미 여행을 만들어 본 사람에게 서비스 설명을 반복하지 않는다.
+        */}
+        <View className="mt-7">
+          <HowItWorksSection />
+        </View>
 
         {/* 칸 사이 간격은 기존 홈(HomeView)의 mt-7 과 같다. */}
         <View className="mt-7">
