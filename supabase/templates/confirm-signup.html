@@ -1,0 +1,77 @@
+<!-- Supabase > Authentication > Emails > Confirm sign up > Source 에 그대로 붙여 넣기 -->
+<!-- 메일 앱은 <style> 을 지우는 경우가 많아 모든 스타일을 태그에 직접 적었다 -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F6FA;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:440px;background:#FFFFFF;border-radius:20px;overflow:hidden;">
+
+        <!-- 머리: 로고 이미지 -->
+        <!-- 로고 주소: Storage brand-assets 버킷. 로고를 바꾸면 이 파일도 같은 이름으로 덮어쓴다 (20260916000006) -->
+        <tr>
+          <td style="height:6px;background:#2E5BFF;line-height:6px;font-size:0;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px 4px 32px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="vertical-align:middle;">
+                  <img src="https://pzwabphxitubsioyhgkk.supabase.co/storage/v1/object/public/brand-assets/trippot-logo.png"
+                       width="54" height="44" alt="TripPot"
+                       style="display:block;width:54px;height:44px;border:0;outline:none;">
+                </td>
+                <td style="vertical-align:middle;padding-left:10px;">
+                  <div style="font-size:22px;font-weight:800;letter-spacing:-0.4px;color:#111827;">TripPot</div>
+                  <div style="margin-top:2px;font-size:12px;color:#8B94A2;">여행 준비부터 자금 관리까지</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- 본문 -->
+        <tr>
+          <td style="padding:24px 32px 8px 32px;">
+            <div style="font-size:20px;font-weight:700;color:#111827;letter-spacing:-0.3px;">이메일 인증 코드</div>
+            <div style="margin-top:10px;font-size:14px;line-height:22px;color:#4B5563;">
+              TripPot 가입을 마무리하려면<br>아래 코드를 앱에 입력해 주세요.
+            </div>
+          </td>
+        </tr>
+
+        <!-- 코드 -->
+        <tr>
+          <td style="padding:20px 32px 8px 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F0F4FF;border-radius:14px;">
+              <tr>
+                <td align="center" style="padding:22px 12px;">
+                  <div style="font-size:32px;font-weight:800;letter-spacing:8px;color:#1E3A8A;font-family:'SF Mono',Menlo,Consolas,monospace;">{{ .Token }}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- 안내 -->
+        <tr>
+          <td style="padding:16px 32px 28px 32px;">
+            <div style="font-size:13px;line-height:20px;color:#6B7280;">
+              코드는 <b style="color:#111827;">1시간</b> 동안 쓸 수 있어요.<br>
+              본인이 요청하지 않았다면 이 메일을 무시해 주세요. 아무 일도 일어나지 않아요.
+            </div>
+          </td>
+        </tr>
+
+        <!-- 꼬리 -->
+        <tr>
+          <td style="border-top:1px solid #EEF0F4;padding:18px 32px 24px 32px;">
+            <div style="font-size:11.5px;line-height:18px;color:#9CA3AF;">
+              이 메일은 TripPot 테스트 버전 가입 확인을 위해 보내드렸어요.<br>
+              발신 전용 주소라 답장은 받을 수 없어요.
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
