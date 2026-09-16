@@ -59,6 +59,36 @@ export function InviteNudgeModal({
       >
         {/* 카드 안을 눌렀을 때 바깥 닫기로 번지지 않게 한 번 받는다 */}
         <Pressable className="w-full max-w-sm rounded-3xl bg-white px-6 pb-5 pt-6" onPress={() => {}}>
+          {/*
+            ⚠️ 닫는 길이 이미 둘(나중에 할게요 · 바깥 탭)인데도 X 를 둔다.
+               바깥 탭은 모르는 사람이 많고, '나중에 할게요' 는 거절처럼 읽혀서
+               그냥 닫고 싶은 사람에게 부담이 된다. (2026-09-16 다빈)
+            ⚠️ 복사 중에는 막는다. 링크를 만드는 사이에 닫히면 복사가 끊긴다.
+          */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="닫기"
+            disabled={copying}
+            onPress={onClose}
+            hitSlop={10}
+            className={copying ? "" : "active:opacity-70"}
+            style={{
+              position: "absolute",
+              top: 12,
+              right: 12,
+              zIndex: 1,
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "#f1f3f7",
+              opacity: copying ? 0.4 : 1,
+            }}
+          >
+            <Ionicons name="close" size={17} color="#6b7684" />
+          </Pressable>
+
           <View className="items-center">
             {/* ⚠️ '여행 정보 수정' 의 초대 카드와 **같은 그림**을 쓴다. 초대를 권하는
                    자리가 둘인데 그림이 다르면 다른 기능으로 읽힌다. (2026-09-16) */}
