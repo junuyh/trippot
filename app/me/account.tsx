@@ -19,7 +19,6 @@ import {
   AccountView,
   WithdrawConfirmModal,
   ENGLISH_NAME_MAX_LENGTH,
-  MY_PAGE_BG,
   NAME_MAX_LENGTH,
 } from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
@@ -253,8 +252,7 @@ export default function ScreenMyAccount() {
       ) : null}
       {loadState === 'ready' ? (
         <ScrollView
-          className="flex-1"
-          style={{ backgroundColor: MY_PAGE_BG }}
+          className="flex-1 bg-brand-soft"
           contentContainerClassName="pb-16"
           keyboardShouldPersistTaps="handled"
         >

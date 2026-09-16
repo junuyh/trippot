@@ -4,7 +4,6 @@ import { FlatList, Pressable, Text, View } from 'react-native';
 import type { MyCommentListItem } from '@/lib/supabase/queries/community';
 
 import { SwipeToAction } from './SwipeToAction';
-import { MY_PAGE_BG } from './passport';
 import { formatNotifiedAt } from './format';
 
 type Props = {
@@ -29,8 +28,7 @@ type Props = {
 export function MyCommentList({ comments, onPressComment, onDeleteComment }: Props) {
   return (
     <FlatList
-      className="flex-1"
-      style={{ backgroundColor: MY_PAGE_BG }}
+      className="flex-1 bg-brand-soft"
       contentContainerClassName="pb-16 pt-4"
       contentContainerStyle={{ paddingHorizontal: 18 }}
       data={comments}

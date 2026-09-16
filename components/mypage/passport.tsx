@@ -17,13 +17,6 @@ import Svg, { Path } from 'react-native-svg';
 
 import { BRAND } from '@/lib/constants/brandColor';
 
-/**
- * MY 세부 화면(작성한 게시글 · 댓글 · 저장 · 좋아요 · 계정 관리)의 페이지 바탕. (2026-09-17)
- * 흰 카드가 놓이는 아주 연한 보라 — 브랜드 soft(#F6F0FA · 선택 칩용)보다 한 단계 옅다.
- * ⚠️ MY 메인은 흰색이다. 이 값을 메인에 쓰지 않는다.
- */
-export const MY_PAGE_BG = '#F7F5FB';
-
 export const PASSPORT = {
   /** 내지 바탕. 실제 여권 속지 같은 밝은 off-white — 노란 기 없이 색만 종이. (2026-09-17) */
   paper: '#FAF9F6',

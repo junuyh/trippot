@@ -1,7 +1,6 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { HOME_ACCENT } from '@/components/home/palette';
-import { MY_PAGE_BG } from '@/components/mypage';
 
 import { MyTripCard } from './MyTripCard';
 import { MY_TRIP_FILTER_TABS, TripFilterTabs } from './TripFilterTabs';
@@ -50,10 +49,16 @@ export function MyTripListView({
   preparingRestoreTripId,
 }: Props) {
   return (
-    // 페이지 바탕 = MY 세부 화면 공통 연한 보라(MY_PAGE_BG). 탭 바 · 카드 · 글자는 그대로다. (2026-09-17)
-    <View className="flex-1" style={{ backgroundColor: MY_PAGE_BG }}>
+    // 페이지 바탕 = 브랜드 soft(#F6F0FA · MY 세부 화면 공통). 헤더 아래 탭 영역부터 하단까지 한 색이다. (2026-09-17)
+    <View className="flex-1 bg-brand-soft">
       {/* 탭. GROUP-02 모임 상세와 같은 컴포넌트를 쓴다. */}
-      <TripFilterTabs filter={filter} onChangeFilter={onChangeFilter} tabs={MY_TRIP_FILTER_TABS} />
+      {/* 탭 버튼 스타일은 그대로, 탭 바깥 배경만 페이지와 같은 soft 로 잇는다 (GROUP 상세는 기본 white 그대로). */}
+      <TripFilterTabs
+        filter={filter}
+        onChangeFilter={onChangeFilter}
+        tabs={MY_TRIP_FILTER_TABS}
+        className="bg-brand-soft"
+      />
 
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-16 pt-4">
         {trips.length === 0 ? (

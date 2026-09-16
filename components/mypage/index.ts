@@ -19,4 +19,3 @@ export { TravelPassportPanel } from './TravelPassportPanel';
 export { TripSummaryCards } from './TripSummaryCards';
 export { WithdrawConfirmModal } from './WithdrawConfirmModal';
 export type { MyProfile, MyTripCounts, NotificationDetailItem, NotificationListItem } from './types';
-export { MY_PAGE_BG } from './passport';
