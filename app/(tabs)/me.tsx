@@ -285,16 +285,15 @@ export default function ScreenMY01() {
     router.push('/me/likes');
   }
 
-  function handlePressNotification() {
-    router.push('/me/settings/notifications');
+  function handlePressMyBookmarks() {
+    router.push('/me/bookmarks');
   }
 
   /**
    * 헤더 알림 아이콘. 받은 알림 목록으로 간다.
    *
-   * ⚠️ 설정 > 알림 설정 과 다른 화면이다.
-   *    설정 > 알림 설정 = 어떤 알림을 받을지 (/me/settings/notifications)
-   *    이 버튼          = 실제로 받은 알림   (/me/notifications)
+   * ⚠️ /me/settings/notifications(어떤 알림을 받을지)와 다른 화면이다.
+   *    이 버튼 = 실제로 받은 알림 (/me/notifications). 알림 설정 메뉴는 MY 에서 뺐다.
    */
   function handlePressNotifications() {
     router.push('/me/notifications');
@@ -408,13 +407,19 @@ export default function ScreenMY01() {
         <MenuSection title="내 커뮤니티 활동">
           <MenuRow label="작성한 게시글" onPress={handlePressMyPosts} />
           <MenuRow label="작성한 댓글" onPress={handlePressMyComments} />
-          <MenuRow label="좋아요" onPress={handlePressMyLikes} isLast />
+          <MenuRow label="좋아요" onPress={handlePressMyLikes} />
+          <MenuRow label="저장된 게시물" onPress={handlePressMyBookmarks} isLast />
         </MenuSection>
 
         <View className="mt-7">
           <MenuSection title="설정">
+            {/*
+              알림 설정(/me/settings/notifications)은 메뉴에서 뺐다. (2026-09-17 MY Finalization)
+              스위치 값은 users.notification_settings_json 에 저장되지만 알림을 만드는 RPC ·
+              배너 · 목록 어디도 그 값을 읽지 않아 사용자에게 아무 효과가 없는 설정이었다.
+              실제 preference 가 연결되면 다시 넣는다. 화면 파일은 그대로 둔다.
+            */}
             <MenuRow label="계정 관리" onPress={handlePressAccount} />
-            <MenuRow label="알림 설정" onPress={handlePressNotification} />
             <MenuRow label="이용약관" onPress={handlePressTerms} />
             <MenuRow label="개인정보처리방침" onPress={handlePressPrivacy} isLast />
           </MenuSection>

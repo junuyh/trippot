@@ -713,6 +713,37 @@ export async function getMyLikedPosts(
   }));
 }
 
+/**
+ * 내가 저장(찜)한 글. 저장한 순서대로. (MY → 내 커뮤니티 활동 → 저장된 게시물 · 2026-09-17)
+ *
+ * getMyLikedPosts 와 같은 조인·필터다. reaction_type 만 BOOKMARK 다. 새 표를 만들지 않는다 —
+ * 상세의 찜 버튼이 이미 reactions(BOOKMARK) 에 쓰고 있다. 내 reaction 만 읽어 남의 저장은 섞이지 않는다.
+ */
+export async function getMyBookmarkedPosts(
+  userId: string,
+  limit = 50,
+): Promise<MyPostListItem[]> {
+  const { data, error } = await supabase
+    .from('reactions')
+    .select(`created_at, community_posts!inner(${MY_POST_COLUMNS})`)
+    .eq('user_id', userId)
+    .eq('reaction_type', REACTION_TYPE.BOOKMARK)
+    .eq('community_posts.status', POST_STATUS.PUBLISHED)
+    .in('community_posts.post_type', [...VISIBLE_POST_TYPES])
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    postId: row.community_posts.id,
+    title: row.community_posts.title,
+    postType: row.community_posts.post_type as PostType,
+    destination: row.community_posts.trips?.destination ?? null,
+    publishedAt: row.community_posts.published_at,
+  }));
+}
+
 /** MY '작성한 댓글' 목록 한 줄. */
 export type MyCommentListItem = {
   commentId: string;
