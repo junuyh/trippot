@@ -73,7 +73,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       const isInternalPath = next !== null && next.startsWith('/') && !next.startsWith('//');
 
       // ⚠️ 초대 링크로 들어와 로그인한 사람은 **원래 /invite/:token 으로 바로 돌아간다.**
-      //    (확정 정책 · docs/13 · 2026-09-16) 홈을 거쳐 다시 안내하는 흐름(PR #111)은 쓰지 않는다.
+      //    (확정 정책 · docs/14 · 2026-09-16) 홈을 거쳐 다시 안내하는 흐름(PR #111)은 쓰지 않는다.
       //    "답하지 않은 초대" 홈 배너·모달은 초대 화면이 token 을 기기에 남기는 것으로
       //    그대로 동작한다. (app/invite/[token].tsx syncPendingInvite → lib/invite/pendingInvites)
       router.replace(isInternalPath ? (next as never) : '/');

@@ -8,7 +8,7 @@
 //   - Supabase error 가 있으면 throw 한다. 화면이 Error 상태로 처리한다.
 //
 // ⚠️ 알림을 **만드는** 코드는 여기 없다. 알림 행은 서버 RPC(SECURITY DEFINER)가
-//    domain 전이와 같은 트랜잭션에서 만든다. (docs/13_알림센터_v1.md §2 ·
+//    domain 전이와 같은 트랜잭션에서 만든다. (docs/14_알림센터_v1.md §2 ·
 //    migration 20260916000001) 앱은 읽고 · 읽음 처리하고 · 지우기만 한다.
 // ============================================================================
 import { supabase } from '@/lib/supabase/client';
@@ -23,11 +23,11 @@ export type NotificationCursor = { createdAt: string; id: string };
 export type GetNotificationsOptions = {
   /** 이 type 들만. 비우면 전부. (lib/notifications/notificationCategory 가 만든다) */
   types?: readonly NotificationType[] | null;
-  /** 페이지 크기. 기본 30. (docs/13 §9) */
+  /** 페이지 크기. 기본 30. (docs/14 §9) */
   limit?: number;
   /** 이전 페이지가 돌려준 nextCursor. 첫 페이지는 없음. */
   cursor?: NotificationCursor | null;
-  /** 조회 window. 기본 365일. (docs/13 §9 — UI 는 1년, DB 보관은 730일. 서로 다르다) */
+  /** 조회 window. 기본 365일. (docs/14 §9 — UI 는 1년, DB 보관은 730일. 서로 다르다) */
   sinceDays?: number;
 };
 
@@ -37,17 +37,17 @@ export type NotificationPage = {
   nextCursor: NotificationCursor | null;
 };
 
-/** 알림센터 한 페이지. (docs/13 §9) */
+/** 알림센터 한 페이지. (docs/14 §9) */
 export const NOTIFICATION_PAGE_SIZE = 30;
 /**
- * 알림센터 조회 window — 최근 1년. (docs/13 §9 · 2026-09-16 확정)
+ * 알림센터 조회 window — 최근 1년. (docs/14 §9 · 2026-09-16 확정)
  * 해외여행은 수개월~1년 전부터 준비하므로 90일은 짧았다. "진행 중 여행은 기간 무관" 같은
  * 예외 정책은 두지 않고 단순한 window 하나로 간다. DB 보관(730일 · cron)과는 별개다.
  */
 export const NOTIFICATION_CENTER_WINDOW_DAYS = 365;
 
 /**
- * 내 알림 한 페이지 — 최근 1년 · 최신순 · 30건 · 커서 기반. (docs/13 §9)
+ * 내 알림 한 페이지 — 최근 1년 · 최신순 · 30건 · 커서 기반. (docs/14 §9)
  *
  * 정렬은 `created_at desc, id desc` 두 키다. 같은 시각의 알림이 있어도 페이지 경계에서
  * 빠지거나 두 번 나오지 않는다. 커서 조건은 `(created_at, id) < (cursor)` 를
@@ -116,7 +116,7 @@ export async function getNotification(
 }
 
 /**
- * 안 읽은 알림 몇 건, 최신순. In-app Banner 의 보완 경로용 (docs/13 §8) —
+ * 안 읽은 알림 몇 건, 최신순. In-app Banner 의 보완 경로용 (docs/14 §8) —
  * 앱을 켰을 때 · 포그라운드로 돌아왔을 때 Realtime 이 놓친 것을 다시 본다.
  * 목록 화면이 쓰는 함수가 아니다. limit 은 작게.
  */

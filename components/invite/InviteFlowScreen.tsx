@@ -4,7 +4,7 @@
 // 2026-09-16 · app/invite/[token].tsx 의 본문을 그대로 옮겼다. 다른 점은 하나다:
 // 초대를 확인(resolve)하고 요청(request)하는 함수를 **밖에서 받는다.**
 //   token 판   resolveTripInvite(token)      · requestTripJoin(token)
-//   inviteId 판 resolveTripInviteById(id)    · requestTripJoinByInvite(id)   (docs/13 §5 · 알림 재진입)
+//   inviteId 판 resolveTripInviteById(id)    · requestTripJoinByInvite(id)   (docs/14 §5 · 알림 재진입)
 // 화면 상태 · 분기 · 오류 처리는 두 판이 완전히 같다. UI 를 두 번 만들지 않는다.
 //
 // ⚠️ 이 파일은 supabase 를 직접 부르지 않는다. 주입된 함수만 부른다. (CLAUDE.md §9)

@@ -8,7 +8,7 @@
 //   → 초대 확인(resolve) → INV-02 → [참여 요청] → PENDING → INV-03 승인 대기
 //
 // 2026-09-16 · 화면 몸통은 components/invite/InviteFlowScreen 으로 옮겼다. 알림센터에서
-// inviteId 로 다시 들어오는 /invite/by/:inviteId 가 같은 몸통을 쓴다. (docs/13 §5)
+// inviteId 로 다시 들어오는 /invite/by/:inviteId 가 같은 몸통을 쓴다. (docs/14 §5)
 // 이 파일은 token 으로 부를 서버 함수 둘과, 아래 pending invite 동기화만 넘긴다.
 //
 // ⚠️ 2026-09-15 답하지 않은 초대를 기기에 남긴다. (HOME-01 담당 · 한나 확인)

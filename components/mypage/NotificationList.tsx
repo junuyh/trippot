@@ -13,7 +13,7 @@ type Props = {
   notifications: NotificationListItem[];
   onPressNotification: (notification: NotificationListItem) => void;
   onDeleteNotification: (notification: NotificationListItem) => void;
-  /** 다음 페이지가 있는가. 있으면 맨 아래 [더 보기]. (docs/13 §9 · 30건 커서) */
+  /** 다음 페이지가 있는가. 있으면 맨 아래 [더 보기]. (docs/14 §9 · 30건 커서) */
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;

@@ -19,7 +19,7 @@ import { signInWithKakao } from '@/lib/auth/kakao';
 export default function ScreenLogin() {
   const router = useRouter();
   // 초대 링크에서 왔는가. 가드가 /login?next=/invite/:token 으로 보낸다. (app/_layout.tsx)
-  // next 를 여기서 소비하지 않는다 — 복귀는 가드가 한다. 문구만 바꾼다. (docs/13 · 2026-09-16)
+  // next 를 여기서 소비하지 않는다 — 복귀는 가드가 한다. 문구만 바꾼다. (docs/14 · 2026-09-16)
   const { next } = useLocalSearchParams<{ next?: string }>();
   const inviteContext = typeof next === 'string' && next.startsWith('/invite/');
   const { enterPreview } = useAuth();

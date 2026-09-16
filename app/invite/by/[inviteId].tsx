@@ -1,5 +1,5 @@
 // ============================================================================
-// 여행 초대 다시 열기  ·  /invite/by/:inviteId        (docs/13_알림센터_v1.md §5)
+// 여행 초대 다시 열기  ·  /invite/by/:inviteId        (docs/14_알림센터_v1.md §5)
 //
 // 알림센터 → INVITE_RECEIVED 상세 → [여행 초대 확인하기] 로 온다. 앱은 raw invite token 을
 // 저장하지 않으므로 inviteId(uuid)만 안다. 서버(resolve_trip_invite_by_id ·

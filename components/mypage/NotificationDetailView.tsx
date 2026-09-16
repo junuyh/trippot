@@ -19,7 +19,7 @@ function toDateTimeLabel(iso: string): string | null {
 }
 
 /**
- * 알림 상세 (docs/13 §6).
+ * 알림 상세 (docs/14 §6).
  *
  * title · body 는 **발생 당시의 스냅샷**이라 그대로 보여준다. 아래 상태 pill 과 CTA 만
  * 지금 상태로 계산된 값이다(화면 파일 → resolveNotificationAction). 과거 버튼을 다시 그리지 않는다.

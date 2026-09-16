@@ -141,7 +141,7 @@ export async function rejectTripJoinRequest(requestId: string): Promise<RejectTr
   return single(data, 'reject_trip_join_request');
 }
 
-// ── inviteId 재진입 (docs/13 §5 · migration 20260916000001 ⑨) ────────────────
+// ── inviteId 재진입 (docs/14 §5 · migration 20260916000001 ⑨) ────────────────
 // 알림 상세 "여행 초대 확인하기" 에서 온다. 앱은 raw token 을 모른다 — 서버가 inviteId 로
 // token 을 찾아 위 함수를 그대로 부르고, token 은 응답에 없다. 응답 형태는 token 판과 같다.
 // 서버 게이트: 그 invite 의 INVITE_RECEIVED 알림 소유자 · 그 invite 로 요청한 적 있는 사람 ·

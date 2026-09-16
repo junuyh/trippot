@@ -1,5 +1,5 @@
 // ============================================================================
-// 알림 상세  ·  /me/notifications/:notificationId?source=db|push   (docs/13 §6 · §7)
+// 알림 상세  ·  /me/notifications/:notificationId?source=db|push   (docs/14 §6 · §7)
 //
 // 목록에서 누르면 바로 domain 화면으로 가지 않고 여기를 먼저 거친다.
 //   title · body(스냅샷) · 발생 시각 · 관련 여행 · **지금 상태** · CTA

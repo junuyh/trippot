@@ -1,11 +1,11 @@
 // ============================================================================
-// 알림센터 (MY 헤더 🔔)  ·  /me/notifications        (docs/13_알림센터_v1.md)
+// 알림센터 (MY 헤더 🔔)  ·  /me/notifications        (docs/14_알림센터_v1.md)
 //
 // 사용자가 알아야 하는 여행·참여 상태 변화를 나중에도 다시 보고, 눌러서 상세 → 행동으로
 // 이어가는 통합 알림함이다. "푸시 알림 목록" 이 아니다. 어떤 알림을 받을지 고르는 곳은
 // /me/settings/notifications 다.
 //
-// 데이터 (docs/13 §2 · §9 · §11)
+// 데이터 (docs/14 §2 · §9 · §11)
 //   db    public.notifications — Source of Truth. 최근 1년 · 최신순 · 30건 커서 페이지.
 //         필터 칩은 **서버 쪽** type 필터다. 30건 받아 놓고 앱에서 거르지 않는다.
 //   push  기기에 도착해 보관한 알림(lib/notifications/pushInbox) — notificationId 가 없는
@@ -16,7 +16,7 @@
 // ⚠️ 개발용 미리보기(isPreview)는 실제 세션이 없다. RLS 가 잠기면 notifications 조회가
 //    permission 오류가 되므로 DB 를 묻지 않고 기기 보관함(push)만 보여준다. 가짜 DB 알림을 만들지 않는다.
 //
-// 누르면 상세(/me/notifications/:id)로 간다. 읽음 처리는 상세 진입에서 한다. (docs/13 §7)
+// 누르면 상세(/me/notifications/:id)로 간다. 읽음 처리는 상세 진입에서 한다. (docs/14 §7)
 // 왼쪽으로 밀면 삭제. DB 는 hard delete, push 는 기기 보관함 + OS 알림 센터에서 제거.
 //
 // ⚠️ 알림을 **만들지 않는다.** 서버 RPC 가 만든다. (migration 20260916000001)
@@ -133,7 +133,7 @@ export default function ScreenNotifications() {
     }
   }
 
-  /** 상세로. 읽음 처리는 상세 화면이 한다. (docs/13 §7 — 목록에 떴다고 읽은 게 아니다) */
+  /** 상세로. 읽음 처리는 상세 화면이 한다. (docs/14 §7 — 목록에 떴다고 읽은 게 아니다) */
   function handlePressNotification(item: NotificationListItem) {
     router.push({
       pathname: '/me/notifications/[notificationId]',

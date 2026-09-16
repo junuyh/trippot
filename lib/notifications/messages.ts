@@ -15,7 +15,7 @@
 //    (이슈 #73 확정본) 이 Record 가 컴파일로 요구해서 함께 넣은 것이고,
 //    **발송하는 코드는 아직 없다.**
 //
-// ⚠️ 2026-09-16 · docs/13_알림센터_v1.md §4 — 1차 4종(INVITE_RECEIVED · JOIN_*)은
+// ⚠️ 2026-09-16 · docs/14_알림센터_v1.md §4 — 1차 4종(INVITE_RECEIVED · JOIN_*)은
 //    DB producer(migration 20260916000001)가 **같은 문자열**로 title/body 를 스냅샷한다.
 //    여기 문구를 바꾸면 DB 함수도 같이 바꿔야 한다. 앱은 이 빌더로 새 알림을 만들지 않고,
 //    DB 가 준 title/body 를 그대로 보여준다. 이 파일은 문구의 앱 쪽 기준일 뿐이다.
@@ -73,12 +73,12 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
   }),
 
   // ── 초대 · 멤버 (INV/MEM) ─────────────────────────────────────────────
-  /** ⚠️ 미사용. 발송 시점에 수신자를 알 수 없다. (docs/13 §3) 값만 지킨다. */
+  /** ⚠️ 미사용. 발송 시점에 수신자를 알 수 없다. (docs/14 §3) 값만 지킨다. */
   [NOTIFICATION_TYPE.INVITE_SENT]: (tripLabel) => ({
     title: '여행에 초대받았어요',
     body: `${tripLabel}에 함께 가자는 초대가 왔어요.`,
   }),
-  // ── 1차 4종 · docs/13 §4 확정 문구 · DB producer 와 글자까지 같다 ─────────
+  // ── 1차 4종 · docs/14 §4 확정 문구 · DB producer 와 글자까지 같다 ─────────
   [NOTIFICATION_TYPE.INVITE_RECEIVED]: (tripLabel, personName = '사용자') => ({
     title: '여행 초대를 받았어요',
     body: `${personName}님이 ${tripLabel}에 초대했어요.`,
