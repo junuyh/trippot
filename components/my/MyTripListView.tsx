@@ -66,7 +66,7 @@ export function MyTripListView({
                 accessibilityRole="button"
                 accessibilityLabel="새 여행 만들기"
                 onPress={onPressCreateTrip}
-                className="mt-3 rounded-full bg-pot-ink px-4 py-2.5 active:opacity-80"
+                className="mt-3 rounded-full bg-brand px-4 py-2.5 active:bg-brand-pressed"
               >
                 <Text className="font-bold text-white" style={{ fontSize: 12.5 }}>
                   + 여행 만들기

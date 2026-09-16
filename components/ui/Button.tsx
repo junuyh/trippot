@@ -1,11 +1,17 @@
 import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-native';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'brand' | 'secondary' | 'ghost' | 'danger';
 
 const BASE = 'flex-row items-center justify-center rounded-xl px-5 py-3.5';
 
 const VARIANT: Record<Variant, { box: string; label: string }> = {
   primary: { box: 'bg-blue-600 active:bg-blue-700', label: 'text-white' },
+  /**
+   * TripPot 브랜드 CTA (#64139E · 눌림 #521080). 일반 화면(MY · GROUP · 알림 · 설정)이 쓴다.
+   * ⚠️ primary 기본값은 그대로 둔다 — 여행준비홈(app/trips/[tripId]/**) 화면들이 기본값에 기대고
+   *    있어 전역으로 바꾸면 국가 테마 화면까지 함께 바뀐다. (2026-09-16 Final Color System)
+   */
+  brand: { box: 'bg-brand active:bg-brand-pressed', label: 'text-white' },
   secondary: { box: 'bg-gray-100 active:bg-gray-200', label: 'text-gray-900' },
   ghost: { box: 'bg-transparent active:bg-gray-100', label: 'text-blue-600' },
   danger: { box: 'bg-red-600 active:bg-red-700', label: 'text-white' },

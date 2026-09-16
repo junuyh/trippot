@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BRAND } from '@/lib/constants/brandColor';
+
 type Props = {
   title: string;
   body: string | null;
@@ -40,7 +42,7 @@ export function NotificationBanner({ title, body, onConfirm, onDismiss }: Props)
         }}
       >
         <View className="mr-3 mt-0.5 h-8 w-8 items-center justify-center rounded-full bg-pot-visual">
-          <Ionicons name="notifications" size={16} color="#3B2F8F" />
+          <Ionicons name="notifications" size={16} color={BRAND.primary} />
         </View>
 
         <View className="flex-1">

@@ -127,12 +127,12 @@ export function GroupCreateForm({
                 disabled={disabled}
                 onPress={() => onToggleMember(member.userId)}
                 className={`h-12 flex-row items-center gap-2.5 rounded-xl border px-3.5 active:opacity-70 ${
-                  on ? "border-blue-600 bg-white" : "border-gray-200 bg-white"
+                  on ? "border-brand bg-white" : "border-gray-200 bg-white"
                 } ${disabled ? "opacity-40" : ""}`}
               >
                 <View
                   className={`h-5 w-5 items-center justify-center rounded-md ${
-                    on ? "bg-blue-600" : "border border-gray-300 bg-white"
+                    on ? "bg-brand" : "border border-gray-300 bg-white"
                   }`}
                 >
                   {on ? <Ionicons name="checkmark" size={13} color="#fff" /> : null}

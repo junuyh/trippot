@@ -10,8 +10,10 @@
 // 진행률·강조 숫자·CTA 같은 '서비스의 색'은 아래 보라 하나로 통일한다.
 // ============================================================================
 
+import { BRAND } from '@/lib/constants/brandColor';
+
 /** 진행률·강조 숫자·CTA. 서비스 대표 색. */
-export const HOME_ACCENT = '#6C5CE7';
+export const HOME_ACCENT = BRAND.primary;
 
 /**
  * 새 여행 만들기 버튼(CreateTripFab) 색. 짙은 보라. (2026-09-10)
@@ -21,9 +23,9 @@ export const HOME_ACCENT = '#6C5CE7';
  *    담당이 다른 화면의 색까지 같이 바뀐다. (CLAUDE.md 13장)
  *    두 색을 하나로 합칠지는 팀에서 정할 일이다. [검토 필요]
  */
-export const HOME_FAB = '#4941B8';
+export const HOME_FAB = BRAND.primary;
 /** 보라를 흰 바탕에 얹은 옅은 톤. 카드 배경·배지에 쓴다. */
-export const HOME_ACCENT_SOFT = '#EFEDFF';
+export const HOME_ACCENT_SOFT = BRAND.primarySoft;
 
 /** 부족·초과처럼 사용자가 챙겨야 하는 숫자. */
 export const HOME_DANGER = '#F0424E';

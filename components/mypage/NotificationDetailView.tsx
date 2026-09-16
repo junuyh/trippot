@@ -72,6 +72,7 @@ export function NotificationDetailView({ notification, resolving, onPressCta }: 
         <View className="mt-8">
           <Button
             label={notification.cta.label}
+            variant="brand"
             onPress={() => onPressCta(notification.cta!.href)}
           />
         </View>

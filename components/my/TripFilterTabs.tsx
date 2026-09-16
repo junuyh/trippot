@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, Text } from 'react-native';
 
 import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
+import { BRAND } from '@/lib/constants/brandColor';
 
 import type { MyTripFilter } from './types';
 
@@ -108,9 +109,9 @@ export function TripFilterTabs({
               //    (pot-visual 바탕)에서도 형태가 보인다. (2026-09-09)
               // ⚠️ 선택된 탭에도 같은 굵기의 테두리를 둔다. 없으면 탭을 바꿀
               //    때마다 높이가 1px 씩 흔들린다.
-              backgroundColor: active ? '#111827' : '#FFFFFF',
+              backgroundColor: active ? BRAND.primary : '#FFFFFF',
               borderWidth: 1,
-              borderColor: active ? '#111827' : '#E5E8EC',
+              borderColor: active ? BRAND.primary : '#E5E8EC',
             }}
           >
             <Text

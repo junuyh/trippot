@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomSheet, Header } from '@/components/ui';
+import { BRAND } from '@/lib/constants/brandColor';
 
 import { NO_FOCUS_RING } from './inputStyle';
 import { PostCard } from './PostCard';
@@ -26,8 +27,8 @@ type Props = {
   onPressWrite: () => void;
 };
 
-const ACCENT = '#6C5CE7';
-const ACCENT_SOFT = '#EFEDFF';
+const ACCENT = BRAND.primary;
+const ACCENT_SOFT = BRAND.primarySoft;
 
 /**
  * COMM-01 커뮤니티 홈. (docs/09_IA_v1.md §4-1, §4-2)

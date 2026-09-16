@@ -33,7 +33,7 @@ export function NotificationFilterChips({ selected, onSelect }: Props) {
             accessibilityState={{ selected: active }}
             accessibilityLabel={`${category.label} 알림`}
             onPress={() => onSelect(category.key)}
-            className={`rounded-full px-3.5 py-1.5 ${active ? 'bg-pot-ink' : 'bg-pot-visual'}`}
+            className={`rounded-full px-3.5 py-1.5 ${active ? 'bg-brand' : 'bg-pot-visual'}`}
           >
             <Text
               className={active ? 'text-white' : 'text-pot-mute'}
