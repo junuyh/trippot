@@ -7,9 +7,11 @@ type Props = {
   /** 실패했을 때 보여줄 한 줄. 없으면 그리지 않는다. */
   errorMessage: string | null;
   onPressKakao: () => void;
+  onPressGoogle: () => void;
+  onPressEmail: () => void;
   /**
    * 초대 링크로 들어와 로그인이 필요한 경우. 설명문과 버튼 글자만 바뀐다.
-   * 회원가입 화면은 없다 — 카카오 로그인 = 로그인 + 필요하면 계정 생성. (2026-09-16)
+   * 회원가입 화면은 없다 — 소셜 로그인 = 로그인 + 필요하면 계정 생성. (2026-09-16)
    */
   inviteContext?: boolean;
   onPressTerms: () => void;
@@ -46,8 +48,11 @@ const KAKAO_LABEL = '#191600';
 /**
  * 로그인 화면.
  *
- * 카카오 하나뿐이다. 회원가입·이메일 로그인·SNS 선택 화면을 두지 않는다.
- * (2026-09-07 MVP 인증 정책)
+ * 카카오 · 구글 · 이메일 셋이다. 카카오가 첫 번째다.
+ * (2026-09-07 카카오 단일 → 2026-09-16 확대 · 테스트 빌드 보안 점검 필수 2)
+ *
+ * ⚠️ 이메일은 화면을 따로 두지 않고 이 화면 안에서 EmailAuthView 로 바꿔 끼운다.
+ *    app/_layout.tsx 가드가 'login' 세그먼트만 로그인 전 화면으로 열어 두기 때문이다.
  *
  * ⚠️ supabase · track() 을 직접 부르지 않는다. 화면 파일이 부른다. (CLAUDE.md 9장)
  */
@@ -55,6 +60,8 @@ export function LoginView({
   loading,
   errorMessage,
   onPressKakao,
+  onPressGoogle,
+  onPressEmail,
   inviteContext = false,
   onPressTerms,
   onPressPrivacy,
@@ -151,6 +158,42 @@ export function LoginView({
               </Text>
             </>
           )}
+        </Pressable>
+
+        {/*
+          구글 · 이메일. (2026-09-16 · 보안 점검 필수 2)
+          ⚠️ 카카오가 첫 번째다. 지금 쓰는 사람 대부분이 카카오로 들어온다.
+          ⚠️ 구글 버튼은 구글 브랜드 규정을 따라 **흰 바탕 + 테두리**다.
+             카카오 노랑처럼 색을 칠하지 않는다.
+        */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Google로 시작하기"
+          accessibilityState={{ disabled: loading, busy: loading }}
+          disabled={loading}
+          onPress={onPressGoogle}
+          className="mt-3 h-14 flex-row items-center justify-center rounded-xl border border-pot-line bg-white active:opacity-80"
+          style={{ opacity: loading ? 0.6 : 1 }}
+        >
+          <Ionicons name="logo-google" size={17} color="#4285F4" />
+          <Text className="ml-2 font-semibold text-pot-ink" style={{ fontSize: 15.5 }}>
+            Google로 시작하기
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="이메일로 시작하기"
+          accessibilityState={{ disabled: loading }}
+          disabled={loading}
+          onPress={onPressEmail}
+          className="mt-3 h-14 flex-row items-center justify-center rounded-xl border border-pot-line bg-white active:opacity-80"
+          style={{ opacity: loading ? 0.6 : 1 }}
+        >
+          <Ionicons name="mail-outline" size={17} color="#111827" />
+          <Text className="ml-2 font-semibold text-pot-ink" style={{ fontSize: 15.5 }}>
+            이메일로 시작하기
+          </Text>
         </Pressable>
 
         <View className="mt-5 flex-row items-center justify-center">

@@ -199,7 +199,11 @@ export function toProductAuthProvider(raw: string | null): AuthProvider | null {
   // (lib/auth/kakao.ts OIDC_PROVIDER 와 같은 값이다)
   const KAKAO_IDS = ['kakao', 'custom:kakao-oidc'];
   if (raw === null) return null;
-  return KAKAO_IDS.includes(raw) ? AUTH_PROVIDER.KAKAO : null;
+  if (KAKAO_IDS.includes(raw)) return AUTH_PROVIDER.KAKAO;
+  // 로그인 수단 확대(2026-09-16). Supabase identity.provider 값 그대로다.
+  if (raw === 'google') return AUTH_PROVIDER.GOOGLE;
+  if (raw === 'email') return AUTH_PROVIDER.EMAIL;
+  return null;
 }
 
 /**
