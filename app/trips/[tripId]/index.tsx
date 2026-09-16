@@ -24,7 +24,6 @@ import {
 } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
-import * as Clipboard from "expo-clipboard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -88,14 +87,9 @@ import {
   type TripStatus,
 } from "@/lib/constants/status";
 import { markInviteNudgeShown, wasInviteNudgeShown } from "@/lib/invite/inviteNudge";
-import {
-  buildTripInviteLink,
-  buildTripInviteMessage,
-  pickTripInviteOpener,
-} from "@/lib/invite/tripInviteLink";
+import { useTripInvite } from "@/lib/hooks/useTripInvite";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import { useTripContext } from "@/lib/hooks/useTripContext";
-import { getOrCreateTripInvite } from "@/lib/supabase/queries/tripInvites";
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -169,7 +163,7 @@ import {
 } from "@/components/cancel";
 import { LeaveDoneView, LeaveTripFlow } from "@/components/members";
 import { useLeaveTrip } from "@/lib/hooks/useLeaveTrip";
-import { InviteNudgeModal, JoinRequestBanner } from "@/components/invite";
+import { InviteLinkSheet, InviteNudgeModal, JoinRequestBanner } from "@/components/invite";
 import { getTripJoinRequests } from "@/lib/supabase/queries/tripJoinRequests";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
@@ -770,8 +764,6 @@ export default function ScreenTripHome() {
    */
   const isFocused = useIsFocused();
   const [inviteNudgeOpen, setInviteNudgeOpen] = useState(false);
-  const [inviteCopying, setInviteCopying] = useState(false);
-  const [inviteCopied, setInviteCopied] = useState(false);
   const inviteNudgeRef = useRef(false);
 
   useEffect(() => {
@@ -794,33 +786,36 @@ export default function ScreenTripHome() {
   }, [data, userId]);
 
   /**
-   * 초대 링크를 만들어 클립보드에 넣는다.
-   *
-   * ⚠️ 여기서 다른 시트를 열지 않는다. 닫는 중에 새 Modal 을 띄우면 iOS 가
-   *    조용히 무시한다. 복사까지 이 모달 안에서 끝낸다.
-   *
-   * ⚠️ 글은 '여행 정보 수정' 의 초대와 **같은 빌더**를 쓴다. 두 벌이 되면
-   *    한쪽만 고쳐진다.
+   * 초대 배선은 '여행 정보 수정' 과 **같은 훅**을 쓴다. 버튼 이름도 하는 일도
+   * 같아야 해서다. (2026-09-16 다빈)
    */
-  const handleCopyInviteLink = useCallback(async () => {
-    if (!data || inviteCopying) return;
-    setInviteCopying(true);
-    try {
-      const invite = await getOrCreateTripInvite(data.trip.id);
-      const message = buildTripInviteMessage({
-        opener: pickTripInviteOpener(),
-        destination: data.trip.destination ?? "여행",
-        periodLabel: null,
-        link: buildTripInviteLink(invite.token),
-      });
-      await Clipboard.setStringAsync(message);
-      setInviteCopied(true);
-    } catch {
-      Alert.alert("초대 링크를 만들지 못했어요", "잠시 후 다시 시도해 주세요.");
-    } finally {
-      setInviteCopying(false);
-    }
-  }, [data, inviteCopying]);
+  const invite = useTripInvite({
+    tripId: data?.trip.id ?? null,
+    destination: data?.trip.destination ?? null,
+    periodLabel: null,
+  });
+
+  /**
+   * 모달에서 '여행 멤버 초대하기' 를 눌렀을 때.
+   *
+   * ⚠️ 여기서 바로 시트를 열지 않는다. 모달이 닫히는 중에 새 Modal 을 띄우면
+   *    iOS 가 조용히 무시한다. 모달이 **완전히 내려간 뒤**(onDismiss) 연다.
+   */
+  const pendingInviteRef = useRef(false);
+  const handleNudgeInvite = useCallback(() => {
+    pendingInviteRef.current = true;
+    setInviteNudgeOpen(false);
+    // 안드로이드는 Modal 에 onDismiss 가 없다. 닫히는 시간만큼 기다렸다 연다.
+    if (Platform.OS !== "ios") setTimeout(() => flushPendingInviteRef.current?.(), SHEET_SWAP_MS);
+  }, []);
+  const flushPendingInvite = useCallback(() => {
+    if (!pendingInviteRef.current) return;
+    pendingInviteRef.current = false;
+    void invite.startInvite();
+  }, [invite]);
+  /* 안드로이드 타이머가 최신 함수를 부르도록 담아 둔다 */
+  const flushPendingInviteRef = useRef<(() => void) | null>(null);
+  flushPendingInviteRef.current = flushPendingInvite;
 
   useScreenView(
     SCREENS.TRIP_HOME,
@@ -1888,11 +1883,27 @@ export default function ScreenTripHome() {
       <InviteNudgeModal
         visible={inviteNudgeOpen && isFocused}
         tripLabel={trip.destination ? `${trip.destination} 여행` : "이 여행"}
-        copying={inviteCopying}
-        copied={inviteCopied}
-        onCopy={() => void handleCopyInviteLink()}
+        inviting={invite.inviting}
+        onInvite={handleNudgeInvite}
         onClose={() => setInviteNudgeOpen(false)}
+        /* iOS. 안드로이드는 Modal 에 onDismiss 가 없어 아래 타이머가 받는다 */
+        onDismiss={flushPendingInvite}
       />
+
+      {/* 초대 링크 공유. '여행 정보 수정' 이 여는 것과 **같은 시트**다 */}
+      {invite.link ? (
+        <InviteLinkSheet
+          visible={invite.open}
+          onClose={invite.close}
+          destination={trip.destination ?? "여행"}
+          inviteUrl={invite.link}
+          onCopyLink={() => void invite.copy()}
+          copied={invite.copied}
+          headcount={trip.headcount}
+          onShareKakao={() => void invite.share()}
+          sending={false}
+        />
+      ) : null}
 
       {/*
         ── TRIP-HOME-04 취소 요청 중 배너 ──

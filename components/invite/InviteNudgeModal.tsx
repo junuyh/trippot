@@ -11,9 +11,13 @@
 // ⚠️ 닫아도 초대할 길은 남는다. '여행 정보 수정 > 여행 멤버 초대하기' 가 상시
 //    열려 있다. (여행 홈 상단 배너는 담당자와 상의 후 별도 작업 · 2026-09-16)
 //
-// ⚠️ 여기서 **다른 시트를 열지 않는다.** 복사까지 이 모달 안에서 끝낸다.
-//    닫는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시한다. 이번 프로젝트에서
-//    CXL-01 구제 카드가 같은 이유로 안 눌렸다. (2026-09-15)
+// ⚠️ 버튼은 '여행 정보 수정 > 여행 멤버 초대하기' 와 **이름도 하는 일도 같다.**
+//    누르면 이 모달이 닫히고 같은 공유 시트(InviteLinkSheet)가 열린다.
+//    (2026-09-16 다빈)
+//
+// ⚠️ 닫는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고, 보이지 않는 Modal 이
+//    화면 전체의 터치를 삼킨다. 그래서 **onDismiss 신호를 받은 뒤** 화면이 시트를
+//    연다. 타이머로 어림잡지 않는다. (CXL 시트들이 같은 이유로 안 열렸다)
 //
 // 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
@@ -27,21 +31,28 @@ type Props = {
   visible: boolean;
   /** "{여행지} 여행" 같은 이름. 문구에 쓴다 */
   tripLabel: string;
-  /** 링크를 만들고 복사하는 중 */
-  copying: boolean;
-  /** 복사에 성공했다. 버튼 문구가 바뀐다 */
-  copied: boolean;
-  onCopy: () => void;
+  /** 링크를 만드는 중 */
+  inviting: boolean;
+  /** 여행 멤버 초대하기. '여행 정보 수정' 의 같은 이름 버튼과 **같은 일**을 한다 */
+  onInvite: () => void;
   onClose: () => void;
+  /**
+   * 모달이 **완전히 내려간 뒤**(iOS). 이어서 공유 시트를 열 때 쓴다.
+   *
+   * ⚠️ 닫는 중에 새 Modal 을 띄우면 iOS 가 조용히 무시하고, 보이지 않는 Modal 이
+   *    화면 전체의 터치를 삼킨다. 타이머로 어림잡지 말고 이 신호를 쓴다.
+   *    (이번 프로젝트에서 CXL 시트들이 같은 이유로 안 열렸다)
+   */
+  onDismiss?: () => void;
 };
 
 export function InviteNudgeModal({
   visible,
   tripLabel,
-  copying,
-  copied,
-  onCopy,
+  inviting,
+  onInvite,
   onClose,
+  onDismiss,
 }: Props) {
   return (
     <Modal
@@ -49,12 +60,13 @@ export function InviteNudgeModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      onDismiss={onDismiss}
       statusBarTranslucent
     >
       {/* ⚠️ 바깥을 눌러도 닫힌다. 답을 강요하지 않는다 — 초대는 나중에도 할 수 있다 */}
       <Pressable
         className="flex-1 items-center justify-center bg-black/40 px-6"
-        onPress={copying ? undefined : onClose}
+        onPress={inviting ? undefined : onClose}
         accessibilityLabel="닫기"
       >
         {/* 카드 안을 눌렀을 때 바깥 닫기로 번지지 않게 한 번 받는다 */}
@@ -68,10 +80,10 @@ export function InviteNudgeModal({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="닫기"
-            disabled={copying}
+            disabled={inviting}
             onPress={onClose}
             hitSlop={10}
-            className={copying ? "" : "active:opacity-70"}
+            className={inviting ? "" : "active:opacity-70"}
             style={{
               position: "absolute",
               top: 12,
@@ -83,7 +95,7 @@ export function InviteNudgeModal({
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: "#f1f3f7",
-              opacity: copying ? 0.4 : 1,
+              opacity: inviting ? 0.4 : 1,
             }}
           >
             <Ionicons name="close" size={17} color="#6b7684" />
@@ -127,12 +139,10 @@ export function InviteNudgeModal({
           </View>
 
           <View className="mt-5" style={{ gap: 6 }}>
-            <Button
-              label={copied ? "복사했어요" : "초대 링크 복사"}
-              loading={copying}
-              onPress={onCopy}
-            />
-            <Button label="나중에 할게요" variant="ghost" disabled={copying} onPress={onClose} />
+            {/* ⚠️ 이름과 하는 일을 '여행 정보 수정 > 여행 멤버 초대하기' 와 맞춘다.
+                   한쪽은 복사, 한쪽은 공유 시트면 같은 기능인 줄 모른다. (2026-09-16 다빈) */}
+            <Button label="여행 멤버 초대하기" loading={inviting} onPress={onInvite} />
+            <Button label="나중에 할게요" variant="ghost" disabled={inviting} onPress={onClose} />
           </View>
 
         </Pressable>
