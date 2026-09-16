@@ -405,7 +405,7 @@ export default function ScreenMY01() {
       {/* ── 하단: 메뉴 · action ───────────────────────────────────────────
           가로 여백 18 = 여행준비홈 계열(페이지 14 + 섹션 안쪽 4 · app/trips/[tripId]/index.tsx)과
           같은 content grid. 제목 · 메뉴 글자 · chevron 이 그 화면들과 같은 선에 선다. (2026-09-17) */}
-      <View className="pt-7" style={{ paddingHorizontal: 18 }}>
+      <View className="pt-8" style={{ paddingHorizontal: 18 }}>
         <MenuSection title="내 커뮤니티 활동">
           <MenuRow label="작성한 게시글" onPress={handlePressMyPosts} />
           <MenuRow label="작성한 댓글" onPress={handlePressMyComments} />
