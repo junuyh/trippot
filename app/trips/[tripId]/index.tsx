@@ -15,6 +15,7 @@
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
+import { useIsFocused } from "@react-navigation/native";
 import {
   Stack,
   router,
@@ -761,6 +762,13 @@ export default function ScreenTripHome() {
    *      · 개인 여행이 아님 — 혼자 가는 여행에 초대는 말이 안 된다
    *      · 준비 중(PLANNING) — 취소·종료된 여행에 초대를 권하지 않는다
    */
+  /**
+   * ⚠️ 이 화면이 **지금 보이는 화면인지** 본다. react-native 의 Modal 은 네비게이션
+   *    포커스와 무관하게 언제나 최상단에 그려진다. 그래서 여행 홈이 스택에 남아
+   *    있는 채로 다른 화면으로 가면, 거기 위에 이 모달이 떠 버린다.
+   *    (2026-09-16 · 여행 만들기 화면 위에 남의 여행 이름으로 뜬 것을 확인)
+   */
+  const isFocused = useIsFocused();
   const [inviteNudgeOpen, setInviteNudgeOpen] = useState(false);
   const [inviteCopying, setInviteCopying] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -1878,7 +1886,7 @@ export default function ScreenTripHome() {
 
       {/* 여행을 만들고 처음 들어왔을 때 한 번. 조건은 위 effect 가 정한다 */}
       <InviteNudgeModal
-        visible={inviteNudgeOpen}
+        visible={inviteNudgeOpen && isFocused}
         tripLabel={trip.destination ? `${trip.destination} 여행` : "이 여행"}
         copying={inviteCopying}
         copied={inviteCopied}

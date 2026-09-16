@@ -22,6 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
+import { useDeferredPlaceholder } from '@/lib/hooks/useDeferredPlaceholder';
+
 import {
   DESTINATIONS,
   REGION_LABEL,
@@ -123,6 +125,8 @@ export function DestinationPicker({
   onOpenRegion,
   onSelectDestination,
 }: Props) {
+  // ⚠️ 첫 그림에서 플레이스홀더가 번진다. 한 틱 뒤에 넣어 다시 그리게 한다.
+  const deferredPlaceholder = useDeferredPlaceholder('도시 이름으로 찾기');
   // 검색어는 화면에 올리지 않는다. 저장되지도 기록되지도 않는 표시용 상태다.
   const [query, setQuery] = useState('');
   const trimmedQuery = query.trim();
@@ -161,7 +165,7 @@ export function DestinationPicker({
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="도시 이름으로 찾기"
+          placeholder={deferredPlaceholder}
           placeholderTextColor="#9ca3af"
           autoCorrect={false}
           accessibilityLabel="여행지 검색"

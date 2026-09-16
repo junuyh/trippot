@@ -21,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Modal, Pressable, Text, View } from "react-native";
 
 import { Button } from "@/components/ui";
+import { InviteArt } from "@/components/trip-edit/inviteArt";
 
 type Props = {
   visible: boolean;
@@ -59,14 +60,14 @@ export function InviteNudgeModal({
         {/* 카드 안을 눌렀을 때 바깥 닫기로 번지지 않게 한 번 받는다 */}
         <Pressable className="w-full max-w-sm rounded-3xl bg-white px-6 pb-5 pt-6" onPress={() => {}}>
           <View className="items-center">
-            <View className="h-14 w-14 items-center justify-center rounded-full bg-blue-50">
-              <Ionicons name="person-add-outline" size={26} color="#0043D1" />
-            </View>
+            {/* ⚠️ '여행 정보 수정' 의 초대 카드와 **같은 그림**을 쓴다. 초대를 권하는
+                   자리가 둘인데 그림이 다르면 다른 기능으로 읽힌다. (2026-09-16) */}
+            <InviteArt width={150} height={120} style={{ marginTop: -6 }} />
 
             <Text
               style={{
-                marginTop: 16,
-                fontSize: 19,
+                marginTop: 14,
+                fontSize: 20,
                 fontWeight: "800",
                 lineHeight: 27,
                 color: "#111827",
@@ -79,8 +80,8 @@ export function InviteNudgeModal({
             <Text
               style={{
                 marginTop: 10,
-                fontSize: 13,
-                lineHeight: 21,
+                fontSize: 13.5,
+                lineHeight: 22,
                 color: "#4B5563",
                 textAlign: "center",
               }}
@@ -89,20 +90,27 @@ export function InviteNudgeModal({
               회원님이 수락하면 같이 준비해요.
             </Text>
 
-            <Text
+            {/* 여행 이름과 기한은 한 덩어리로 묶어 칩에 넣는다. 본문과 같은 회색
+                글줄로 흘리면 읽히지 않고 지나간다 */}
+            <View
+              className="flex-row items-center"
               style={{
-                marginTop: 12,
-                fontSize: 12,
-                lineHeight: 19,
-                color: "#8B94A2",
-                textAlign: "center",
+                marginTop: 14,
+                gap: 6,
+                borderRadius: 999,
+                backgroundColor: "#f1f3f7",
+                paddingHorizontal: 13,
+                paddingVertical: 8,
               }}
             >
-              {tripLabel} · 링크는 7일간 쓸 수 있어요
-            </Text>
+              <Ionicons name="calendar-outline" size={13} color="#6b7684" />
+              <Text style={{ fontSize: 12, color: "#4B5563" }}>
+                {tripLabel} · 링크는 7일간 쓸 수 있어요
+              </Text>
+            </View>
           </View>
 
-          <View style={{ marginTop: 20, gap: 8 }}>
+          <View style={{ marginTop: 22, gap: 6 }}>
             <Button
               label={copied ? "복사했어요" : "초대 링크 복사"}
               loading={copying}
