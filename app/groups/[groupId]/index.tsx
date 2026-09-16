@@ -53,9 +53,15 @@ import {
   getGroupMemberCount,
   getGroupMembers,
   getGroupTrips,
+  getMyGroups,
   getTripAmountSummaries,
   updateGroup,
 } from '@/lib/supabase/queries/groups';
+import {
+  FALLBACK_GROUP_CARD_THEME,
+  assignGroupThemesByOrder,
+  type GroupCardTheme,
+} from '@/components/groups/cardTheme';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 import { LeaveDoneView, LeaveTripFlow } from '@/components/members';
 import { useLeaveTrip } from '@/lib/hooks/useLeaveTrip';
@@ -71,6 +77,8 @@ export default function ScreenGROUP02() {
   const userId = useCurrentUserId();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [group, setGroup] = useState<GroupDetailData | null>(null);
+  /** 목록 카드와 같은 모임 색. 내 모임 전체의 안정 순서로 정해진다. (2026-09-17) */
+  const [theme, setTheme] = useState<GroupCardTheme>(FALLBACK_GROUP_CARD_THEME);
   /** 여행을 고르는 시트에 올라온 계좌. null 이면 닫혀 있다. */
   const [pickingAccount, setPickingAccount] = useState<GroupAccountItem | null>(null);
   /** '전체 계좌' 시트. 이 모임의 모든 계좌를 담는다. */
@@ -134,7 +142,7 @@ export default function ScreenGROUP02() {
         return;
       }
 
-      const [memberCount, members, accounts, participating, trips, canceledTrips, myLeftTrips] =
+      const [memberCount, members, accounts, participating, trips, canceledTrips, myLeftTrips, myGroups] =
         await Promise.all([
         // 인원 수는 GROUP-01 카드와 같은 기준을 쓴다.
         // ⚠️ getGroupMembers() 는 탈퇴 회원까지 추가로 걸러서 members.length 와
@@ -151,7 +159,15 @@ export default function ScreenGROUP02() {
         getGroupCanceledTrips(groupId),
         // 내가 나간 여행 id. 탭이 아니라 카드 배지에만 쓴다. MY 와 같은 쿼리다.
         getLeftTrips(userId),
+        // 목록(GROUP-01)과 같은 색을 내려면 내 모임 전체가 필요하다. (cardTheme.assignGroupThemesByOrder)
+        getMyGroups(userId).catch(() => []),
       ]);
+
+      setTheme(
+        assignGroupThemesByOrder(
+          myGroups.map((g) => ({ groupId: g.id, createdAt: g.created_at })),
+        ).get(groupId) ?? FALLBACK_GROUP_CARD_THEME,
+      );
 
       /**
        * ⚠️ 이 모임의 **참여 중(ACTIVE) 멤버만** 상세를 볼 수 있다.
@@ -468,6 +484,7 @@ export default function ScreenGROUP02() {
       <Stack.Screen options={{ title: group.name }} />
       <GroupDetailView
         group={group}
+        theme={theme}
         onPressRename={() => {
           setRenameError(null);
           setRenameOpen(true);

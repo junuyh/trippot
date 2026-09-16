@@ -30,7 +30,7 @@ import { groupTravelCardKey, type GroupTravelCardData } from './types';
 export type GroupCardTheme = {
   /** 이름. 디버깅·나중에 사용자 선택 UI 에 쓴다 */
   name: string;
-  /** 바탕 그라데이션 시작(왼쪽 위) · 끝(오른쪽 아래). 뮤트 파스텔 */
+  /** 바탕 그라데이션 시작(왼쪽 위) · 끝(오른쪽 아래). 같은 hue 의 soft~medium tint (2026-09-17 한 단계 진하게 · accent 쪽 12~14% 블렌드) */
   paperStart: string;
   paperEnd: string;
   /** 모임명 · 여행지 · 값 */
@@ -69,8 +69,8 @@ const LAVENDER: GroupCardTheme = {
 const GROUP_THEMES: GroupCardTheme[] = [
   {
     name: 'mint',
-    paperStart: '#E8F4EF',
-    paperEnd: '#D6EAE1',
+    paperStart: '#D2E4DD',
+    paperEnd: '#BFD8CE',
     ink: '#1F3D34',
     secondary: '#6C8C82',
     accent: '#2F6B5A',
@@ -80,8 +80,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
   },
   {
     name: 'sky',
-    paperStart: '#E7EFF9',
-    paperEnd: '#D5E3F4',
+    paperStart: '#D1DEED',
+    paperEnd: '#BED0E7',
     ink: '#1E3350',
     secondary: '#6C819C',
     accent: '#2F5E96',
@@ -91,8 +91,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
   },
   {
     name: 'rose',
-    paperStart: '#F9ECEF',
-    paperEnd: '#F0DCE2',
+    paperStart: '#EED9DE',
+    paperEnd: '#E4C8D0',
     ink: '#4A2530',
     secondary: '#A07684',
     accent: '#9A4A5F',
@@ -102,8 +102,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
   },
   {
     name: 'sand',
-    paperStart: '#F7F1E6',
-    paperEnd: '#ECE2D0',
+    paperStart: '#EAE1D2',
+    paperEnd: '#DED1BC',
     ink: '#3F3225',
     secondary: '#9A8A72',
     accent: '#8A6A3E',
@@ -113,8 +113,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
   },
   {
     name: 'indigo',
-    paperStart: '#E8EAF7',
-    paperEnd: '#D7DBF0',
+    paperStart: '#D3D6EB',
+    paperEnd: '#C1C6E3',
     ink: '#232A5C',
     secondary: '#6F76A2',
     accent: '#3A4590',
@@ -127,8 +127,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
     // rose(핑크) · sand(베이지) 사이가 아니라 그 옆의 **주황빛 갈색** 이다.
     // 쨍한 주황이 아니라 채도를 낮춘 벽돌색. 잉크는 가지색 섞인 진갈색.
     name: 'terracotta',
-    paperStart: '#F9E8DE',
-    paperEnd: '#EFD1C0',
+    paperStart: '#EED7CB',
+    paperEnd: '#E3C0AE',
     ink: '#4A2C26',
     secondary: '#A47B6B',
     accent: '#9B5A3F',
@@ -148,6 +148,24 @@ function hashString(value: string): number {
 }
 
 /**
+ * 모임 6색 배정의 **단일 기준** — 목록(GROUP-01)과 상세(GROUP-02)가 같은 함수를 쓴다. (2026-09-17)
+ * 입력은 내가 속한 모임 전체(created_at · groupId). 안정 순서(created_at ASC → groupId ASC)로
+ * 0번째 = mint … 5번째 = terracotta, 이후 순환. 화면 정렬 · 진입 경로와 무관하게 같은 모임 = 같은 색.
+ * ⚠️ 상세에서 다시 계산할 때도 반드시 **전체 목록**을 넣는다. 한 모임만 넣으면 항상 mint 가 된다.
+ */
+export function assignGroupThemesByOrder(
+  groups: { groupId: string; createdAt: string }[],
+): Map<string, GroupCardTheme> {
+  const themes = new Map<string, GroupCardTheme>();
+  [...groups]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.groupId.localeCompare(b.groupId))
+    .forEach((group, index) => {
+      themes.set(group.groupId, GROUP_THEMES[index % GROUP_THEMES.length]);
+    });
+  return themes;
+}
+
+/**
  * 목록 전체의 테마 배정. key = groupTravelCardKey(card).
  *
  * PERSONAL → Lavender Air. GROUP → created_at ASC · groupId ASC 순서로 6색을 한 번씩,
@@ -161,15 +179,17 @@ export function assignGroupCardThemes(
 ): Map<string, GroupCardTheme> {
   const themes = new Map<string, GroupCardTheme>();
 
-  const stableGroups = cards
-    .filter((card): card is Extract<GroupTravelCardData, { kind: 'GROUP' }> => card.kind === 'GROUP')
-    .sort(
-      (a, b) => a.createdAt.localeCompare(b.createdAt) || a.groupId.localeCompare(b.groupId),
-    );
-
-  stableGroups.forEach((card, index) => {
-    themes.set(groupTravelCardKey(card), GROUP_THEMES[index % GROUP_THEMES.length]);
-  });
+  const byGroupId = assignGroupThemesByOrder(
+    cards
+      .filter((card): card is Extract<GroupTravelCardData, { kind: 'GROUP' }> => card.kind === 'GROUP')
+      .map((card) => ({ groupId: card.groupId, createdAt: card.createdAt })),
+  );
+  for (const card of cards) {
+    if (card.kind === 'GROUP') {
+      const theme = byGroupId.get(card.groupId);
+      if (theme) themes.set(groupTravelCardKey(card), theme);
+    }
+  }
 
   for (const card of cards) {
     if (card.kind === 'PERSONAL') themes.set(groupTravelCardKey(card), LAVENDER);
