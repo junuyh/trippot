@@ -13,6 +13,8 @@ import '../global.css';
 
 /** 로그인 없이 볼 수 있는 화면. 이 안에서는 가드가 내보내지 않는다. */
 const PUBLIC_SEGMENT = 'login';
+/** 탈퇴 대기(PENDING_WITHDRAWAL) 계정이 볼 수 있는 유일한 화면. (회원탈퇴 30일 유예 · 2026-09-17) */
+const WITHDRAWAL_SEGMENT = 'withdrawal-pending';
 
 /**
  * 로그인 상태에 따라 화면을 옮긴다.
@@ -27,7 +29,7 @@ const PUBLIC_SEGMENT = 'login';
  * ⚠️ /login 에서 다시 /login 으로 보내지 않는다. 무한 반복이 된다.
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { status, isPreview } = useAuth();
+  const { status, isPreview, accountState } = useAuth();
   const segments = useSegments();
   const pathname = usePathname();
   // ⚠️ useGlobalSearchParams 다. 루트 레이아웃의 useLocalSearchParams 는 leaf(/login)의 ?next 를
@@ -36,6 +38,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const onLoginScreen = segments[0] === PUBLIC_SEGMENT;
+  const onWithdrawalScreen = segments[0] === WITHDRAWAL_SEGMENT;
+  /** 탈퇴 신청 뒤 30일 이내. 홈 · 여행 · 커뮤니티 어디도 못 들어가고 /withdrawal-pending 만 본다. */
+  const pendingWithdrawal =
+    status === 'signedIn' && !isPreview && accountState?.kind === 'PENDING_WITHDRAWAL';
 
   /**
    * 내부 화면을 볼 수 있는 상태인가.
@@ -63,6 +69,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // 탈퇴 대기 계정: 진입 지점 한 곳에서 막는다. 화면마다 if 를 두지 않는다.
+    if (pendingWithdrawal && !onWithdrawalScreen) {
+      router.replace('/withdrawal-pending');
+      return;
+    }
+    if (!pendingWithdrawal && onWithdrawalScreen) {
+      router.replace(canEnter ? '/' : '/login');
+      return;
+    }
+
     if (canEnter && onLoginScreen) {
       // 남겨 둔 목적지가 있으면 그리로, 없으면 홈으로.
       //
@@ -78,7 +94,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       //    그대로 동작한다. (app/invite/[token].tsx syncPendingInvite → lib/invite/pendingInvites)
       router.replace(isInternalPath ? (next as never) : '/');
     }
-  }, [status, canEnter, onLoginScreen, pathname, params.next, router]);
+  }, [status, canEnter, onLoginScreen, pendingWithdrawal, onWithdrawalScreen, pathname, params.next, router]);
 
   if (status === 'loading') {
     return (
@@ -107,6 +123,12 @@ function RootStack() {
     >
       {/* 로그인. 헤더도 뒤로가기도 없다. */}
       <Stack.Screen name="login" options={{ headerShown: false, gestureEnabled: false }} />
+
+      {/* 탈퇴 진행 중. 로그인처럼 헤더도 뒤로가기도 없다 — 가드가 다른 화면을 허용하지 않는다. */}
+      <Stack.Screen
+        name="withdrawal-pending"
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
 
       {/* 하단 탭 4개. (tabs) 는 URL 에 나타나지 않는다. */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

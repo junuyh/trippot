@@ -1465,6 +1465,7 @@ export type Database = {
           notification_settings_json: Json
           profile_image_url: string | null
           updated_at: string
+          withdrawal_requested_at: string | null
         }
         Insert: {
           auth_provider?: string | null
@@ -1477,6 +1478,7 @@ export type Database = {
           notification_settings_json?: Json
           profile_image_url?: string | null
           updated_at?: string
+          withdrawal_requested_at?: string | null
         }
         Update: {
           auth_provider?: string | null
@@ -1489,6 +1491,7 @@ export type Database = {
           notification_settings_json?: Json
           profile_image_url?: string | null
           updated_at?: string
+          withdrawal_requested_at?: string | null
         }
         Relationships: []
       }
@@ -1564,6 +1567,7 @@ export type Database = {
           status: string
         }[]
       }
+      cancel_withdrawal: { Args: never; Returns: undefined }
       cast_trip_cancel_vote: {
         Args: { p_request_id: string; p_vote: string }
         Returns: string
@@ -1595,6 +1599,7 @@ export type Database = {
         Args: { p_trip_id: string }
         Returns: string
       }
+      finalize_withdrawals: { Args: never; Returns: number }
       get_or_create_trip_invite: {
         Args: { p_trip_id: string }
         Returns: {
@@ -1664,6 +1669,12 @@ export type Database = {
           request_id: string
           status: string
           trip_id: string
+        }[]
+      }
+      request_withdrawal: {
+        Args: never
+        Returns: {
+          withdrawal_effective_at: string
         }[]
       }
       resolve_trip_invite: {
