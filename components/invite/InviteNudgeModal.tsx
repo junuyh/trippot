@@ -76,7 +76,7 @@ export function InviteNudgeModal({
         accessibilityLabel="닫기"
       >
         {/* 카드 안을 눌렀을 때 바깥 닫기로 번지지 않게 한 번 받는다 */}
-        <Pressable className="w-full max-w-sm rounded-3xl bg-white px-6 pb-5 pt-6" onPress={() => {}}>
+        <Pressable className="w-full max-w-sm rounded-3xl bg-white px-6 pb-5 pt-8" onPress={() => {}}>
           {/*
             ⚠️ 닫는 길이 이미 둘(나중에 할게요 · 바깥 탭)인데도 X 를 둔다.
                바깥 탭은 모르는 사람이 많고, '나중에 할게요' 는 거절처럼 읽혀서
@@ -108,7 +108,7 @@ export function InviteNudgeModal({
           <View className="items-center">
             {/* ⚠️ '여행 정보 수정' 의 초대 카드와 **같은 그림**을 쓴다. 초대를 권하는
                    자리가 둘인데 그림이 다르면 다른 기능으로 읽힌다. (2026-09-16) */}
-            <InviteArt width={150} height={120} style={{ marginTop: -6 }} />
+            <InviteArt width={150} height={120} />
 
             {/* ⚠️ 크기·색은 components/home/InviteModal 과 맞춘다. 같은 앱에서
                    같은 성격의 모달이 다르게 생기지 않게. (2026-09-16 다빈) */}
