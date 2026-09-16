@@ -32,6 +32,7 @@ import {
 
 import { GroupAccountList } from './GroupAccountList';
 import { Section } from './GroupDetailView';
+import { PERSONAL_CARD_THEME } from './cardTheme';
 import type { GroupAccountItem } from './types';
 
 /** 개인 여행 상세의 탭. MY-02 의 5탭에서 '나간 여행' 만 뺀다. */
@@ -86,8 +87,9 @@ export function PersonalDetailView({
           : data.planningTrips;
 
   return (
-    <View className="flex-1 bg-pot-visual">
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-10 pt-5">
+    // 페이지는 흰색(모임 상세와 같은 sibling). MY > 내 여행 목록(brand-soft)과 다른 화면이다.
+    <View className="flex-1 bg-white">
+      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-10 pt-4">
         {/*
           상단 소개. 모임 상세의 기본정보 자리다. 이름 대신 시스템 표시명.
           ⚠️ 여행 수를 적지 않는다 — "준비하는 여행 3개" 는 준비 중 탭의 수와 헷갈린다.
@@ -95,14 +97,42 @@ export function PersonalDetailView({
              가장 오래된 여행의 날짜를 그 자리에 넣으면 실제 모임의 만든 날과 혼동된다.
           ⚠️ "멤버가 없다" 고 쓰지 않는다 — 개인 여행에도 본인은 trip_members ACTIVE 다.
         */}
-        <View>
+        {/*
+          상단 identity 카드 — 모임 상세(GroupDetailView)와 같은 카드 문법(radius 14 · 1px rule 테두리 ·
+          옅은 그림자 · 안쪽 16). 색은 개인 여행 고정 보라(PERSONAL_CARD_THEME = 목록의 Lavender Air).
+          멤버 · 만든 날 · 연필 같은 모임 전용 정보는 두지 않는다. (2026-09-17)
+        */}
+        <View
+          style={{
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: PERSONAL_CARD_THEME.rule,
+            backgroundColor: PERSONAL_CARD_THEME.paperStart,
+            paddingHorizontal: 16,
+            paddingTop: 14,
+            paddingBottom: 16,
+            shadowColor: PERSONAL_CARD_THEME.ink,
+            shadowOpacity: 0.06,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 2,
+          }}
+        >
+          <View className="flex-row items-center gap-1.5">
+            <Ionicons name="person-outline" size={12} color={PERSONAL_CARD_THEME.accent} />
+            <Text
+              style={{ fontSize: 10.5, lineHeight: 14, fontWeight: '700', letterSpacing: 0.4, color: PERSONAL_CARD_THEME.accent }}
+            >
+              PERSONAL
+            </Text>
+          </View>
           <Text
-            className="font-black text-pot-ink"
-            style={{ fontSize: 22, lineHeight: 30, letterSpacing: -0.6 }}
+            className="mt-1 font-black"
+            style={{ fontSize: 22, lineHeight: 30, letterSpacing: -0.6, color: PERSONAL_CARD_THEME.ink }}
           >
             개인 여행
           </Text>
-          <Text className="mt-1.5 text-pot-mute" style={{ fontSize: 12.5 }}>
+          <Text className="mt-1" style={{ fontSize: 12.5, lineHeight: 18, color: PERSONAL_CARD_THEME.secondary }}>
             내 개인 여행을 한곳에서 관리해요.
           </Text>
         </View>
@@ -122,7 +152,8 @@ export function PersonalDetailView({
               accessibilityLabel="전체 계좌"
               hitSlop={10}
               onPress={onPressAllAccounts}
-              className="flex-row items-center px-1 py-1 active:opacity-60"
+              // 모임 상세와 같은 알약 affordance. (2026-09-17)
+              className="flex-row items-center rounded-full border border-pot-line bg-white py-1 pl-2.5 pr-1.5 active:bg-pot-visual"
             >
               <Text className="text-pot-mute" style={{ fontSize: 12.5, fontWeight: '600' }}>
                 전체 계좌
@@ -150,7 +181,7 @@ export function PersonalDetailView({
 
           <View className="mt-3 gap-3">
             {visibleTrips.length === 0 ? (
-              <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-8">
+              <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-pot-visual px-4 py-8">
                 <Text className="text-pot-faint" style={{ fontSize: 13 }}>
                   {TAB_EMPTY_MESSAGE[filter]}
                 </Text>
@@ -159,12 +190,10 @@ export function PersonalDetailView({
               // 개인 여행은 전부 내 것이다. 카드를 누르면 여행 홈으로 간다.
               // 모임 이름 줄은 끈다 — 이 화면 안에서는 전부 '개인' 이라 반복이다.
               visibleTrips.map((trip) => (
-                <MyTripCard
-                  key={trip.tripId}
-                  trip={trip}
-                  onPress={onPressTrip}
-                  showGroupName={false}
-                />
+                // 흰 바탕 위 카드 가장자리 — 모임 상세와 같은 1px 테두리. MyTripCard 자체는 MY 공유라 그대로.
+                <View key={trip.tripId} className="overflow-hidden rounded-2xl border border-pot-line">
+                  <MyTripCard trip={trip} onPress={onPressTrip} showGroupName={false} />
+                </View>
               ))
             )}
           </View>

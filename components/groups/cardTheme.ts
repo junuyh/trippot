@@ -198,6 +198,9 @@ export function assignGroupCardThemes(
   return themes;
 }
 
+/** 개인 여행 고정 색 — 목록 카드(Lavender Air)와 상세(PersonalDetailView)가 같은 값을 본다. (2026-09-17) */
+export const PERSONAL_CARD_THEME: GroupCardTheme = LAVENDER;
+
 /** Map 에 없을 때의 안전값. 목록을 거치지 않고 카드를 그리는 경우는 없지만 타입상 둔다. */
 export const FALLBACK_GROUP_CARD_THEME: GroupCardTheme = LAVENDER;
 
