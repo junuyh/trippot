@@ -9,3 +9,4 @@ export { Header } from './Header';
 export { HeaderBackButton } from './HeaderBackButton';
 export { Input } from './Input';
 export { Loading } from './Loading';
+export { NotificationBanner } from './NotificationBanner';

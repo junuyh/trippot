@@ -587,6 +587,7 @@ export type Database = {
         Row: {
           body: string | null
           created_at: string
+          data: Json | null
           id: string
           read_at: string | null
           title: string
@@ -597,6 +598,7 @@ export type Database = {
         Insert: {
           body?: string | null
           created_at?: string
+          data?: Json | null
           id?: string
           read_at?: string | null
           title: string
@@ -607,6 +609,7 @@ export type Database = {
         Update: {
           body?: string | null
           created_at?: string
+          data?: Json | null
           id?: string
           read_at?: string | null
           title?: string
@@ -1518,6 +1521,17 @@ export type Database = {
           status: string
         }[]
       }
+      create_notification: {
+        Args: {
+          p_body: string
+          p_data: Json
+          p_title: string
+          p_trip_id: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       get_or_create_trip_invite: {
         Args: { p_trip_id: string }
         Returns: {
@@ -1540,6 +1554,24 @@ export type Database = {
           trip_owner_type: string
         }[]
       }
+      notification_invite_access: {
+        Args: { p_invite_id: string; p_uid: string }
+        Returns: boolean
+      }
+      notification_person_label: { Args: { p_name: string }; Returns: string }
+      notification_trip_label: {
+        Args: { p_destination: string }
+        Returns: string
+      }
+      notify_join_accepted: {
+        Args: {
+          p_group_id: string
+          p_request_id: string
+          p_trip: Database["public"]["Tables"]["trips"]["Row"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       reject_trip_join_request: {
         Args: { p_request_id: string }
         Returns: {
@@ -1555,8 +1587,31 @@ export type Database = {
           trip_id: string
         }[]
       }
+      request_trip_join_by_invite: {
+        Args: { p_invite_id: string }
+        Returns: {
+          request_id: string
+          status: string
+          trip_id: string
+        }[]
+      }
       resolve_trip_invite: {
         Args: { p_token: string }
+        Returns: {
+          active_member_count: number
+          destination: string
+          end_date: string
+          headcount: number
+          invite_state: string
+          inviter_name: string
+          my_request_id: string
+          my_state: string
+          start_date: string
+          trip_id: string
+        }[]
+      }
+      resolve_trip_invite_by_id: {
+        Args: { p_invite_id: string }
         Returns: {
           active_member_count: number
           destination: string
