@@ -44,6 +44,8 @@ type Props = {
   group: GroupDetailData;
   onPressTrip: (tripId: string) => void;
   onPressCreateTrip: () => void;
+  /** 모임 이름 옆 연필. 기존 이름 수정 모달을 연다(화면 파일이 처리). */
+  onPressRename: () => void;
   /**
    * 계좌를 눌렀을 때. 여행이 하나면 바로 이동하고 둘 이상이면 고르게 한다.
    * 어느 쪽인지는 화면 파일이 정한다.
@@ -160,6 +162,7 @@ export function GroupDetailView({
   group,
   onPressTrip,
   onPressCreateTrip,
+  onPressRename,
   onPressAccount,
   onPressAllAccounts,
   onPressLeaveTrip,
@@ -189,17 +192,28 @@ export function GroupDetailView({
           : group.planningTrips;
 
   return (
-    <View className="flex-1 bg-pot-visual">
+    <View className="flex-1 bg-white">
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-10 pt-5">
-      {/* 모임 기본정보 */}
+      {/* 모임 기본정보 — 이름 오른쪽에 수정 연필. 헤더 오른쪽 버튼을 여기로 옮겼다. (2026-09-17) */}
       <View>
-        <Text
-          numberOfLines={2}
-          className="font-black text-pot-ink"
-          style={{ fontSize: 22, lineHeight: 30, letterSpacing: -0.6 }}
-        >
-          {group.name}
-        </Text>
+        <View className="flex-row items-center">
+          <Text
+            numberOfLines={2}
+            className="shrink font-black text-pot-ink"
+            style={{ fontSize: 22, lineHeight: 30, letterSpacing: -0.6 }}
+          >
+            {group.name}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="모임 이름 수정"
+            hitSlop={10}
+            onPress={onPressRename}
+            className="ml-2 h-8 w-8 items-center justify-center rounded-full active:bg-pot-visual"
+          >
+            <Ionicons name="pencil-outline" size={17} color="#747B88" />
+          </Pressable>
+        </View>
         {/* ⚠️ 여기에는 생성일만 둔다. 인원 수와 이동은 아래 '멤버' 섹션
             제목 오른쪽으로 옮겼다. 멤버로 가는 입구가 두 군데면 헷갈린다. */}
         <Text className="mt-1.5 text-pot-mute" style={{ fontSize: 12.5 }}>
@@ -238,7 +252,8 @@ export function GroupDetailView({
             // 작은 텍스트라 터치 영역을 따로 넓힌다.
             hitSlop={10}
             onPress={onPressAllAccounts}
-            className="flex-row items-center px-1 py-1 active:opacity-60"
+            // 눌리는 항목으로 읽히게 옅은 테두리의 알약. (2026-09-17) 글자 단·색은 그대로.
+            className="flex-row items-center rounded-full border border-pot-line bg-white py-1 pl-2.5 pr-1.5 active:bg-pot-visual"
           >
             {/*
               ⚠️ 보조 액션이다. 색은 pot-mute 로 둔다 — pot-ink 로 올렸더니
@@ -283,7 +298,7 @@ export function GroupDetailView({
 
         <View className="mt-3 gap-3">
           {visibleTrips.length === 0 ? (
-            <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-8">
+            <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-pot-visual px-4 py-8">
               <Text className="text-pot-faint" style={{ fontSize: 13 }}>
                 {TAB_EMPTY_MESSAGE[filter]}
               </Text>
@@ -335,7 +350,11 @@ export function GroupDetailView({
                 ⚠️ 나갈 수 없는 여행은 감싸지 않는다. 밀어도 아무것도 안 나온다.
               */
               return (
-                <View key={trip.tripId} className="overflow-hidden rounded-2xl">
+                // 흰 바탕 위 카드 가장자리 — MyTripCard 는 MY 와 공유라 여기서 1px 테두리만 두른다. (2026-09-17)
+                <View
+                  key={trip.tripId}
+                  className="overflow-hidden rounded-2xl border border-pot-line"
+                >
                   {canLeave ? (
                     <SwipeToAction
                       label="여행 나가기"

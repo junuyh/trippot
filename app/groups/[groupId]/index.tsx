@@ -15,10 +15,8 @@
 //       app/trips/new/owner.tsx 가 groupId param 을 받지 않는다.
 //       그 파일은 L 담당이라 여기서 고치지 않는다. 담당자 요청 후 &groupId= 를 붙인다.
 // ============================================================================
-import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable } from 'react-native';
 
 import {
   AccountTripPickerSheet,
@@ -465,29 +463,15 @@ export default function ScreenGROUP02() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: group.name,
-          // 이름 수정 진입점. 실제 모임(groupId 있음)에서만 이 화면이 열리므로
-          // 개인 여행에는 애초에 나타나지 않는다. (docs/11_모임정책_v1.md §3)
-          headerRight: () => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="모임 이름 수정"
-              hitSlop={8}
-              onPress={() => {
-                setRenameError(null);
-                setRenameOpen(true);
-              }}
-              className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
-            >
-              <Ionicons name="pencil-outline" size={20} color="#111827" />
-            </Pressable>
-          ),
-        }}
-      />
+      {/* 이름 수정 연필은 헤더가 아니라 본문의 모임 이름 옆에 있다. (2026-09-17 · GroupDetailView onPressRename)
+          실제 모임(groupId 있음)에서만 이 화면이 열리므로 개인 여행에는 애초에 나타나지 않는다. (docs/11 §3) */}
+      <Stack.Screen options={{ title: group.name }} />
       <GroupDetailView
         group={group}
+        onPressRename={() => {
+          setRenameError(null);
+          setRenameOpen(true);
+        }}
         onPressTrip={handlePressTrip}
         onPressCreateTrip={handlePressCreateTrip}
         /**

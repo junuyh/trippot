@@ -50,8 +50,10 @@ export function GroupAccountList({ accounts, onPressAccount }: Props) {
      *    점선 테두리라 실제 카드와 구분된다. 누르는 자리가 아니다.
      */
     return (
-      <View className="items-center rounded-2xl border border-dashed border-pot-dash px-4 py-5">
-        <Text className="text-pot-faint" style={{ fontSize: 12.5 }}>
+      <View className="flex-row items-center justify-center rounded-2xl border border-dashed border-pot-dash bg-pot-visual px-4 py-5">
+        {/* 연결된 계좌 행과 같은 card-outline. 문구와 한 세트로 읽히게 왼쪽에 둔다. (2026-09-17) */}
+        <Ionicons name="card-outline" size={17} color="#B6BCC6" />
+        <Text className="ml-2 text-pot-faint" style={{ fontSize: 12.5 }}>
           현재 사용 중인 연결 계좌가 없어요.
         </Text>
       </View>
