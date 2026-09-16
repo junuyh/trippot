@@ -25,16 +25,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { Modal, Pressable, Text, View } from "react-native";
 
 import { Button } from "@/components/ui";
+
+import { InviteLinkBox, InviteSendButton } from "./inviteLinkParts";
 import { InviteArt } from "@/components/trip-edit/inviteArt";
 
 type Props = {
   visible: boolean;
   /** "{여행지} 여행" 같은 이름. 문구에 쓴다 */
   tripLabel: string;
-  /** 링크를 만드는 중 */
-  inviting: boolean;
-  /** 여행 멤버 초대하기. '여행 정보 수정' 의 같은 이름 버튼과 **같은 일**을 한다 */
-  onInvite: () => void;
+  /** 이미 만들어진 초대 링크. 화면이 모달을 띄우기 전에 준비한다 */
+  inviteUrl: string;
+  /** 예정 인원. 그 인원까지만 수락된다는 안내에 쓴다 */
+  headcount: number;
+  copied: boolean;
+  onCopyLink: () => void;
+  onSend: () => void;
   onClose: () => void;
   /**
    * 모달이 **완전히 내려간 뒤**(iOS). 이어서 공유 시트를 열 때 쓴다.
@@ -49,10 +54,12 @@ type Props = {
 export function InviteNudgeModal({
   visible,
   tripLabel,
-  inviting,
-  onInvite,
+  inviteUrl,
+  headcount,
+  copied,
+  onCopyLink,
+  onSend,
   onClose,
-  onDismiss,
 }: Props) {
   return (
     <Modal
@@ -60,13 +67,12 @@ export function InviteNudgeModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      onDismiss={onDismiss}
       statusBarTranslucent
     >
       {/* ⚠️ 바깥을 눌러도 닫힌다. 답을 강요하지 않는다 — 초대는 나중에도 할 수 있다 */}
       <Pressable
         className="flex-1 items-center justify-center bg-black/40 px-6"
-        onPress={inviting ? undefined : onClose}
+        onPress={onClose}
         accessibilityLabel="닫기"
       >
         {/* 카드 안을 눌렀을 때 바깥 닫기로 번지지 않게 한 번 받는다 */}
@@ -80,10 +86,9 @@ export function InviteNudgeModal({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="닫기"
-            disabled={inviting}
             onPress={onClose}
             hitSlop={10}
-            className={inviting ? "" : "active:opacity-70"}
+            className="active:opacity-70"
             style={{
               position: "absolute",
               top: 12,
@@ -95,7 +100,6 @@ export function InviteNudgeModal({
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: "#f1f3f7",
-              opacity: inviting ? 0.4 : 1,
             }}
           >
             <Ionicons name="close" size={17} color="#6b7684" />
@@ -117,32 +121,30 @@ export function InviteNudgeModal({
             </Text>
 
             {/*
-              ⚠️ 상황 설명은 회색 박스 하나에 모은다. InviteModal 이 초대한 사람·
-                 여행지·날짜를 같은 방식으로 담는다.
-              ⚠️ 버튼 **아래에는 아무것도 두지 않는다.** 행동을 고르고 난 자리에
-                 글이 더 있으면 다 읽고도 끝난 느낌이 안 난다. (2026-09-16 다빈)
+              ⚠️ 링크를 **여기서 바로** 보여준다. 전에는 눌러야 시트가 열렸는데,
+                 권유와 실행이 갈려 한 단계가 더 있었다. (2026-09-16 다빈)
+                 모달 → 시트 연결(onDismiss)도 이 덕에 통째로 사라졌다.
+              ⚠️ 조각은 InviteLinkSheet 와 **같은 것**을 쓴다 (inviteLinkParts).
+                 두 벌이면 링크 문구나 기한 안내가 갈라진다.
             */}
-            <View className="mt-5 w-full rounded-2xl bg-pot-visual px-4 py-3.5">
-              <View className="flex-row items-center" style={{ gap: 6 }}>
-                <Ionicons name="calendar-outline" size={13} color="#747B88" />
-                <Text className="flex-1 text-[12.5px] text-pot-mute">
-                  {tripLabel} · 링크는 7일간 쓸 수 있어요
-                </Text>
-              </View>
-              <View className="mt-2 flex-row items-center" style={{ gap: 6 }}>
-                <Ionicons name="create-outline" size={13} color="#747B88" />
-                <Text className="flex-1 text-[12.5px] text-pot-mute">
-                  여행 정보 수정에서 언제든 초대할 수 있어요
-                </Text>
-              </View>
+            <View className="mt-5 w-full">
+              <InviteLinkBox
+                inviteUrl={inviteUrl}
+                copied={copied}
+                onCopyLink={onCopyLink}
+                headcount={headcount}
+              />
             </View>
+
+            <Text className="mt-3 w-full text-[11.5px] leading-[18px] text-pot-mute">
+              여행 정보 수정에서 언제든 다시 초대할 수 있어요.
+            </Text>
           </View>
 
           <View className="mt-5" style={{ gap: 6 }}>
-            {/* ⚠️ 이름과 하는 일을 '여행 정보 수정 > 여행 멤버 초대하기' 와 맞춘다.
-                   한쪽은 복사, 한쪽은 공유 시트면 같은 기능인 줄 모른다. (2026-09-16 다빈) */}
-            <Button label="여행 멤버 초대하기" loading={inviting} onPress={onInvite} />
-            <Button label="나중에 할게요" variant="ghost" disabled={inviting} onPress={onClose} />
+            {/* 시트와 같은 보내기 버튼. 색과 문구가 갈리지 않는다 */}
+            <InviteSendButton onPress={onSend} />
+            <Button label="나중에 할게요" variant="ghost" onPress={onClose} />
           </View>
 
         </Pressable>

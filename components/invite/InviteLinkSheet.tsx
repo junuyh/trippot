@@ -26,6 +26,8 @@ import { Pressable, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/ui";
 
+import { InviteLinkBox, InviteSendButton } from "./inviteLinkParts";
+
 import type { GroupBranch, InviteCandidate } from "./types";
 
 type Props = {
@@ -93,26 +95,7 @@ export function InviteLinkSheet({
       }
       footer={
         <View style={{ gap: 8 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="초대 링크 보내기"
-            accessibilityState={{ disabled: !canSend }}
-            disabled={!canSend}
-            onPress={onShareKakao}
-            className="h-12 flex-row items-center justify-center gap-2 rounded-xl active:opacity-90"
-            style={{ backgroundColor: canSend ? "#FEE500" : "#E5E8EB" }}
-          >
-            <Ionicons name="chatbubble" size={16} color={canSend ? "#191919" : "#B0B8C1"} />
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "800",
-                color: canSend ? "#191919" : "#B0B8C1",
-              }}
-            >
-              초대 링크 보내기
-            </Text>
-          </Pressable>
+          <InviteSendButton onPress={onShareKakao} disabled={!canSend} />
         </View>
       }
     >
@@ -175,29 +158,13 @@ export function InviteLinkSheet({
         </View>
         ) : null}
 
-        {/* 링크 박스. 고른 사람이 없어도 링크는 언제나 복사할 수 있다 */}
-        <View className="flex-row items-center gap-2 rounded-xl bg-gray-100 px-3.5 py-3">
-          <Text
-            numberOfLines={1}
-            style={{ flex: 1, fontSize: 12, color: "#4B5563" }}
-          >
-            {inviteUrl}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="초대 링크 복사"
-            onPress={onCopyLink}
-            className="rounded-lg bg-white px-2.5 py-1.5 active:opacity-70"
-          >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: "#4B5563" }}>
-              {copied ? "복사됨" : "복사"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <Text style={{ fontSize: 11.5, lineHeight: 18, color: "#8B94A2" }}>
-          링크는 7일간 쓸 수 있어요 · {headcount}명 예정이라 그 인원까지만 수락돼요
-        </Text>
+        {/* 링크 박스·안내는 여행 홈 모달과 같은 조각을 쓴다 (inviteLinkParts) */}
+        <InviteLinkBox
+          inviteUrl={inviteUrl}
+          copied={copied}
+          onCopyLink={onCopyLink}
+          headcount={headcount}
+        />
       </View>
     </BottomSheet>
   );

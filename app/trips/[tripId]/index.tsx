@@ -757,6 +757,16 @@ export default function ScreenTripHome() {
    *      · 준비 중(PLANNING) — 취소·종료된 여행에 초대를 권하지 않는다
    */
   /**
+   * 초대 배선은 '여행 정보 수정' 과 **같은 훅**을 쓴다. 버튼 이름도 하는 일도
+   * 같아야 해서다. (2026-09-16 다빈)
+   */
+  const invite = useTripInvite({
+    tripId: data?.trip.id ?? null,
+    destination: data?.trip.destination ?? null,
+    periodLabel: null,
+  });
+
+  /**
    * ⚠️ 이 화면이 **지금 보이는 화면인지** 본다. react-native 의 Modal 은 네비게이션
    *    포커스와 무관하게 언제나 최상단에 그려진다. 그래서 여행 홈이 스택에 남아
    *    있는 채로 다른 화면으로 가면, 거기 위에 이 모달이 떠 버린다.
@@ -778,44 +788,23 @@ export default function ScreenTripHome() {
     const tripId = data.trip.id;
     void (async () => {
       if (await wasInviteNudgeShown(userId, tripId)) return;
-      // ⚠️ 닫는 시점이 아니라 **띄우는 시점**에 표시한다. 닫기 전에 앱이 꺼져도
-      //    다음에 또 뜨지 않는다.
+
+      /**
+       * ⚠️ 링크를 **먼저** 만든다. 모달이 링크를 그대로 보여주기 때문이다.
+       * ⚠️ 실패하면 모달을 띄우지 않고 **표시도 남기지 않는다.** 다음에 다시 권한다.
+       *    (전에는 띄우기 전에 표시해서, 한 번 실패하면 영영 못 권했다)
+       */
+      const url = await invite.prepareLink();
+      if (url === null) return;
+
       await markInviteNudgeShown(userId, tripId);
       setInviteNudgeOpen(true);
     })();
-  }, [data, userId]);
+  }, [data, invite, userId]);
 
-  /**
-   * 초대 배선은 '여행 정보 수정' 과 **같은 훅**을 쓴다. 버튼 이름도 하는 일도
-   * 같아야 해서다. (2026-09-16 다빈)
-   */
-  const invite = useTripInvite({
-    tripId: data?.trip.id ?? null,
-    destination: data?.trip.destination ?? null,
-    periodLabel: null,
-  });
 
-  /**
-   * 모달에서 '여행 멤버 초대하기' 를 눌렀을 때.
-   *
-   * ⚠️ 여기서 바로 시트를 열지 않는다. 모달이 닫히는 중에 새 Modal 을 띄우면
-   *    iOS 가 조용히 무시한다. 모달이 **완전히 내려간 뒤**(onDismiss) 연다.
-   */
-  const pendingInviteRef = useRef(false);
-  const handleNudgeInvite = useCallback(() => {
-    pendingInviteRef.current = true;
-    setInviteNudgeOpen(false);
-    // 안드로이드는 Modal 에 onDismiss 가 없다. 닫히는 시간만큼 기다렸다 연다.
-    if (Platform.OS !== "ios") setTimeout(() => flushPendingInviteRef.current?.(), SHEET_SWAP_MS);
-  }, []);
-  const flushPendingInvite = useCallback(() => {
-    if (!pendingInviteRef.current) return;
-    pendingInviteRef.current = false;
-    void invite.startInvite();
-  }, [invite]);
-  /* 안드로이드 타이머가 최신 함수를 부르도록 담아 둔다 */
-  const flushPendingInviteRef = useRef<(() => void) | null>(null);
-  flushPendingInviteRef.current = flushPendingInvite;
+
+
 
   useScreenView(
     SCREENS.TRIP_HOME,
@@ -1880,15 +1869,19 @@ export default function ScreenTripHome() {
       ) : null}
 
       {/* 여행을 만들고 처음 들어왔을 때 한 번. 조건은 위 effect 가 정한다 */}
-      <InviteNudgeModal
-        visible={inviteNudgeOpen && isFocused}
-        tripLabel={trip.destination ? `${trip.destination} 여행` : "이 여행"}
-        inviting={invite.inviting}
-        onInvite={handleNudgeInvite}
-        onClose={() => setInviteNudgeOpen(false)}
-        /* iOS. 안드로이드는 Modal 에 onDismiss 가 없어 아래 타이머가 받는다 */
-        onDismiss={flushPendingInvite}
-      />
+      {/* 링크는 위 effect 가 미리 만들어 둔다. 모달 안에서 바로 복사·보내기 한다 */}
+      {invite.link ? (
+        <InviteNudgeModal
+          visible={inviteNudgeOpen && isFocused}
+          tripLabel={trip.destination ? `${trip.destination} 여행` : "이 여행"}
+          inviteUrl={invite.link}
+          headcount={trip.headcount}
+          copied={invite.copied}
+          onCopyLink={() => void invite.copy()}
+          onSend={() => void invite.share()}
+          onClose={() => setInviteNudgeOpen(false)}
+        />
+      ) : null}
 
       {/* 초대 링크 공유. '여행 정보 수정' 이 여는 것과 **같은 시트**다 */}
       {invite.link ? (

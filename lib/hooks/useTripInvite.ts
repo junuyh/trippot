@@ -77,6 +77,28 @@ export function useTripInvite({
     [destination, link, opener, periodLabel],
   );
 
+  /**
+   * 링크만 만들어 둔다. 시트를 열지 않는다.
+   *
+   * 여행 홈 모달이 링크를 **그대로 보여주기** 때문에 띄우기 전에 필요하다.
+   * 실패하면 null 이다 — 부르는 쪽이 모달을 아예 안 띄우면 된다.
+   *
+   * ⚠️ get_or_create 다. 여러 번 불러도 여행당 링크는 하나다. (정책 v2 §4-1)
+   */
+  const prepareLink = useCallback(async (): Promise<string | null> => {
+    if (!tripId || isPreview) return null;
+    try {
+      const invite = await getOrCreateTripInvite(tripId);
+      const url = buildTripInviteLink(invite.token);
+      setLink(url);
+      setOpener(pickTripInviteOpener());
+      setCopied(false);
+      return url;
+    } catch {
+      return null;
+    }
+  }, [isPreview, tripId]);
+
   /** 여행 멤버 초대하기. 링크를 만들고 공유 시트를 연다 */
   const startInvite = useCallback(async () => {
     if (inviting || !tripId) return;
@@ -93,20 +115,18 @@ export function useTripInvite({
     try {
       if (beforeOpen && !(await beforeOpen())) return;
 
-      const invite = await getOrCreateTripInvite(tripId);
-      setLink(buildTripInviteLink(invite.token));
-      setOpener(pickTripInviteOpener());
-      setCopied(false);
+      if ((await prepareLink()) === null) {
+        Alert.alert(
+          '초대 링크를 준비하지 못했어요',
+          '이 여행에 참여 중인 멤버만 초대할 수 있어요. 잠시 후 다시 시도해 주세요.',
+        );
+        return;
+      }
       setOpen(true);
-    } catch {
-      Alert.alert(
-        '초대 링크를 준비하지 못했어요',
-        '이 여행에 참여 중인 멤버만 초대할 수 있어요. 잠시 후 다시 시도해 주세요.',
-      );
     } finally {
       setInviting(false);
     }
-  }, [beforeOpen, inviting, isPreview, tripId]);
+  }, [beforeOpen, inviting, isPreview, prepareLink, tripId]);
 
   /**
    * OS 공유 시트. 카카오톡이든 문자든 사용자가 고른다.
@@ -139,6 +159,7 @@ export function useTripInvite({
     /** 만들어진 링크. 없으면 시트를 그리지 않는다 */
     link,
     copied,
+    prepareLink,
     startInvite,
     close: useCallback(() => setOpen(false), []),
     share,
