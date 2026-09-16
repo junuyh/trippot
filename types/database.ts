@@ -1622,6 +1622,7 @@ export type Database = {
           trip_owner_type: string
         }[]
       }
+      is_account_active: { Args: never; Returns: boolean }
       leave_trip: {
         Args: { p_also_leave_group?: boolean; p_trip_id: string }
         Returns: string

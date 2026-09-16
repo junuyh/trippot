@@ -204,7 +204,8 @@ export function AccountView({
             onPress={onPressWithdraw}
             suppressHighlighting
             className="py-3 text-pot-mute"
-            style={{ fontSize: 13.5, lineHeight: 19 }}
+            // 섹션 제목('프로필')과 같은 단. 탈퇴라고 작게 숨기지 않는다. (2026-09-17)
+            style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.5 }}
           >
             회원탈퇴
           </Text>

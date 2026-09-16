@@ -18,10 +18,10 @@ import Svg, { Path } from 'react-native-svg';
 import { BRAND } from '@/lib/constants/brandColor';
 
 export const PASSPORT = {
-  /** 내지 바탕. 아주 연한 라벤더 */
-  paper: '#F4F1FB',
-  /** 구분선 · 사진 칸 테두리 */
-  rule: '#DDD8EA',
+  /** 내지 바탕. 실제 여권 속지 같은 밝은 off-white — 노란 기 없이 색만 종이. (2026-09-17) */
+  paper: '#FAF9F6',
+  /** 구분선 · 사진 칸 테두리 · 카드 테두리 */
+  rule: '#E4E0EA',
   /** 제목 · 이름 · 값. 진한 남보라 */
   ink: '#2E2A5E',
   /** 라벨 · 보조 글자. 회보라 */

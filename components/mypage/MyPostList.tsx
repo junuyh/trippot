@@ -63,10 +63,12 @@ export function MyPostList({ posts, onPressPost, swipeAction }: Props) {
             onPress={() => onPressPost(item.postId)}
             // ⚠️ 스와이프가 붙으면 모서리를 둥글게 두지 않는다. 카드가 밀려도
             //    뒤 액션이 둥근 틈으로 비쳐 보인다. 액션이 없을 때만 rounded-2xl.
-            className={`flex-row items-center bg-white px-3.5 py-3.5 active:opacity-90 ${
+            className={`flex-row items-center bg-white px-3.5 py-3.5 active:bg-pot-visual ${
               swipeAction ? '' : 'rounded-2xl'
             }`}
             style={{
+              borderWidth: 1,
+              borderColor: '#E5E8EC',
               shadowColor: '#111827',
               shadowOpacity: 0.05,
               shadowRadius: 12,
