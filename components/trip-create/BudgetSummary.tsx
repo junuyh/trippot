@@ -8,6 +8,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
+import { BRAND } from '@/lib/constants/brandColor';
+
 type Props = {
   /** 시스템 추천 총액 (불변) */
   recommendedTotal: number;
@@ -116,8 +118,8 @@ export function BudgetSummary({
 
             {/* 이 금액이 무엇으로 만들어졌는지를 한눈에 보여준다 */}
             <View className="items-end gap-1.5">
-              <View className="rounded-full bg-blue-50 px-2.5 py-1.5">
-                <Text className="text-[9px] font-black text-blue-600">AI 구성</Text>
+              <View className="rounded-full bg-brand-soft px-2.5 py-1.5">
+                <Text className="text-[9px] font-black text-brand">AI 구성</Text>
               </View>
               {pastOn ? (
                 <View className="rounded-full bg-emerald-50 px-2.5 py-1.5">
@@ -132,7 +134,7 @@ export function BudgetSummary({
           {productCount > 0 ? (
             <View className="flex-row items-center justify-between">
               <Text className="text-sm text-gray-500">선택한 근거 상품</Text>
-              <Text className="text-sm font-bold text-blue-600">{productCount}개 포함</Text>
+              <Text className="text-sm font-bold text-brand">{productCount}개 포함</Text>
             </View>
           ) : null}
         </>
@@ -232,8 +234,8 @@ export function BudgetSummary({
           onPress={onPressPastDetail}
           className="-mt-1 flex-row items-center gap-1 self-start rounded-lg py-1 pr-2 active:bg-gray-100"
         >
-          <Text className="text-xs font-bold text-blue-600">어떻게 반영되나요?</Text>
-          <Ionicons name="chevron-forward" size={12} color="#2563eb" />
+          <Text className="text-xs font-bold text-brand">어떻게 반영되나요?</Text>
+          <Ionicons name="chevron-forward" size={12} color={BRAND.primary} />
         </Pressable>
       ) : null}
 

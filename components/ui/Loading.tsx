@@ -1,5 +1,7 @@
 import { ActivityIndicator, Text, View } from 'react-native';
 
+import { BRAND } from '@/lib/constants/brandColor';
+
 type Props = {
   message?: string;
   /** 화면 전체를 채운다. 기본 true. false 면 컨텐츠 크기만 차지한다. */
@@ -10,7 +12,7 @@ type Props = {
 export function Loading({ message, fullScreen = true }: Props) {
   return (
     <View className={`items-center justify-center ${fullScreen ? 'flex-1 bg-white' : 'py-10'}`}>
-      <ActivityIndicator size="large" color="#2563eb" />
+      <ActivityIndicator size="large" color={BRAND.primary} />
       {message ? <Text className="mt-3 text-sm text-gray-500">{message}</Text> : null}
     </View>
   );

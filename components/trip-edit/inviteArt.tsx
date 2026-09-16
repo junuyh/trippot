@@ -14,8 +14,10 @@
 import type { StyleProp, ViewStyle } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 
+import { BRAND } from "@/lib/constants/brandColor";
+
 /** TripPot 보라. components/home/palette.ts 와 같은 값 */
-const ACCENT = "#6C5CE7";
+const ACCENT = BRAND.primary;
 const SOFT = "#D9D3F8";
 const PALE = "#EDEAFC";
 const PAPER = "#FBFAFE";

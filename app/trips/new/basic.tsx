@@ -241,7 +241,7 @@ export default function ScreenTRIP02() {
           {durationLabel ? (
             <View className="mt-3 flex-row items-center rounded-xl bg-gray-100 px-3.5 py-3.5">
               <Text className="text-[13px] font-bold text-gray-900">{durationLabel}</Text>
-              <Text className="ml-auto text-xs font-bold text-blue-600">{nightsLabel}</Text>
+              <Text className="ml-auto text-xs font-bold text-brand">{nightsLabel}</Text>
             </View>
           ) : null}
         </View>

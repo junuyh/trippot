@@ -206,7 +206,7 @@ export function DateRangeCalendar({
                     setMonthPickerOpen(false);
                   }}
                   className={`items-center justify-center rounded-xl py-3 ${
-                    selected ? 'bg-blue-600' : 'active:bg-gray-100'
+                    selected ? 'bg-brand' : 'active:bg-gray-100'
                   }`}
                 >
                   <Text
@@ -266,7 +266,7 @@ export function DateRangeCalendar({
                 disabled={disabled}
                 onPress={() => handlePress(day)}
                 className={`h-10 w-10 items-center justify-center rounded-full ${
-                  edge ? 'bg-blue-600' : inRange ? 'bg-blue-100' : 'active:bg-gray-100'
+                  edge ? 'bg-brand' : inRange ? 'bg-brand-soft' : 'active:bg-gray-100'
                 }`}
               >
                 <Text
@@ -278,7 +278,7 @@ export function DateRangeCalendar({
                         : outside
                           ? 'text-gray-300'
                           : inRange
-                            ? 'font-medium text-blue-700'
+                            ? 'font-medium text-brand'
                             : 'text-gray-800'
                   }`}
                 >

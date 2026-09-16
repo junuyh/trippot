@@ -6,6 +6,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
+import { BRAND } from '@/lib/constants/brandColor';
 import { BUDGET_METHOD, type BudgetMethod } from '@/lib/constants/status';
 
 const OPTIONS: {
@@ -48,25 +49,25 @@ export function BudgetMethodSelector({ value, onChange, disabled = false }: Prop
             disabled={disabled}
             onPress={() => onChange(option.value)}
             className={`flex-row items-center gap-3 rounded-2xl border px-4 py-4 ${
-              selected ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white active:bg-gray-50'
+              selected ? 'border-brand bg-brand-soft' : 'border-gray-200 bg-white active:bg-gray-50'
             } ${disabled ? 'opacity-40' : ''}`}
           >
             <View
               className={`h-10 w-10 items-center justify-center rounded-full ${
-                selected ? 'bg-blue-600' : 'bg-gray-100'
+                selected ? 'bg-brand' : 'bg-gray-100'
               }`}
             >
               <Ionicons name={option.icon} size={20} color={selected ? '#ffffff' : '#6b7280'} />
             </View>
             <View className="flex-1">
               <Text
-                className={`text-base font-semibold ${selected ? 'text-blue-700' : 'text-gray-900'}`}
+                className={`text-base font-semibold ${selected ? 'text-brand' : 'text-gray-900'}`}
               >
                 {option.label}
               </Text>
               <Text className="mt-0.5 text-xs text-gray-500">{option.description}</Text>
             </View>
-            {selected ? <Ionicons name="checkmark-circle" size={22} color="#2563eb" /> : null}
+            {selected ? <Ionicons name="checkmark-circle" size={22} color={BRAND.primary} /> : null}
           </Pressable>
         );
       })}

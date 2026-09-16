@@ -30,6 +30,7 @@ import { Pressable, Text, View } from 'react-native';
 import { CurrencyInput } from '@/components/ui';
 import { institutionName } from '@/lib/constants/bank';
 import { FUND_SOURCE_TYPE, type FundSourceType } from '@/lib/constants/status';
+import { BRAND } from '@/lib/constants/brandColor';
 import type { FinancialAccount } from '@/lib/supabase/queries/funds';
 
 type Props = {
@@ -55,7 +56,7 @@ function CheckMark({ selected }: { selected: boolean }) {
   return (
     <View
       className={`h-5 w-5 items-center justify-center rounded-full ${
-        selected ? 'bg-blue-600' : 'border border-gray-300 bg-white'
+        selected ? 'bg-brand' : 'border border-gray-300 bg-white'
       }`}
     >
       {selected ? <Ionicons name="checkmark" size={12} color="#ffffff" /> : null}
@@ -96,22 +97,22 @@ function OptionRow({
       onPress={onPress}
       className={`flex-row items-center gap-3 px-3.5 py-3 ${
         first ? '' : 'border-t border-gray-100'
-      } ${selected ? 'bg-blue-50' : 'bg-white active:bg-gray-50'} ${
+      } ${selected ? 'bg-brand-soft' : 'bg-white active:bg-gray-50'} ${
         disabled ? 'opacity-40' : ''
       }`}
     >
       <View
         className={`h-[34px] w-[34px] items-center justify-center rounded-full ${
-          selected ? 'bg-white' : 'bg-blue-50'
+          selected ? 'bg-white' : 'bg-brand-soft'
         }`}
       >
-        <Ionicons name={icon} size={18} color="#2563eb" />
+        <Ionicons name={icon} size={18} color={BRAND.primary} />
       </View>
 
       <View className="min-w-0 flex-1">
         <Text
           numberOfLines={1}
-          className={`text-[13px] font-extrabold ${selected ? 'text-blue-700' : 'text-gray-900'}`}
+          className={`text-[13px] font-extrabold ${selected ? 'text-brand' : 'text-gray-900'}`}
         >
           {label}
         </Text>
@@ -177,7 +178,7 @@ export function FundSourceSelector({
                  다른 계좌라고 읽는다.
             */}
             {usingAccount ? (
-              <View className="gap-1.5 bg-blue-50 px-3.5 pb-3.5">
+              <View className="gap-1.5 bg-brand-soft px-3.5 pb-3.5">
                 {accounts.map((account) => {
                   const picked = selectedAccountId === account.id;
                   return (
@@ -191,7 +192,7 @@ export function FundSourceSelector({
                       disabled={disabled}
                       onPress={() => onSelectAccount(account.id)}
                       className={`flex-row items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 ${
-                        picked ? 'border-blue-600' : 'border-gray-200 active:bg-gray-50'
+                        picked ? 'border-brand' : 'border-gray-200 active:bg-gray-50'
                       }`}
                     >
                       <View className="min-w-0 flex-1">
@@ -227,7 +228,7 @@ export function FundSourceSelector({
         />
 
         {usingManual ? (
-          <View className="bg-blue-50 px-3.5 pb-3.5">
+          <View className="bg-brand-soft px-3.5 pb-3.5">
             <CurrencyInput
               value={manualAmount}
               onChangeValue={onChangeManualAmount}

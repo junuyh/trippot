@@ -188,10 +188,10 @@ export function CancelReasonSheet({
                 >
                   <View
                     className={`h-5 w-5 items-center justify-center rounded-full border-2 ${
-                      on ? "border-blue-600" : "border-gray-300"
+                      on ? "border-brand" : "border-gray-300"
                     }`}
                   >
-                    {on ? <View className="h-2 w-2 rounded-full bg-blue-600" /> : null}
+                    {on ? <View className="h-2 w-2 rounded-full bg-brand" /> : null}
                   </View>
                   <Text
                     style={{

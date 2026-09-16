@@ -28,6 +28,8 @@ import { BottomSheet } from "@/components/ui";
 
 import { InviteLinkBox, InviteSendButton } from "./inviteLinkParts";
 
+import { BRAND } from "@/lib/constants/brandColor";
+
 import type { GroupBranch, InviteCandidate } from "./types";
 
 type Props = {
@@ -134,12 +136,12 @@ export function InviteLinkSheet({
                 disabled={sending}
                 onPress={() => onToggle?.(candidate.userId)}
                 className={`flex-row items-center gap-2.5 rounded-xl border px-3.5 py-3 active:opacity-70 ${
-                  on ? "border-blue-600 bg-white" : "border-gray-200 bg-white"
+                  on ? "border-brand bg-white" : "border-gray-200 bg-white"
                 } ${sending ? "opacity-40" : ""}`}
               >
                 <View
                   className={`h-5 w-5 items-center justify-center rounded-md ${
-                    on ? "bg-blue-600" : "border border-gray-300 bg-white"
+                    on ? "bg-brand" : "border border-gray-300 bg-white"
                   }`}
                 >
                   {on ? <Ionicons name="checkmark" size={13} color="#fff" /> : null}
@@ -187,7 +189,7 @@ export function BranchNotice({
         borderRadius: 12,
         paddingHorizontal: 15,
         paddingVertical: 14,
-        backgroundColor: info ? "#EBF1FF" : "#FDF0F0",
+        backgroundColor: info ? BRAND.primarySoft : "#FDF0F0",
       }}
     >
       <Text
@@ -195,7 +197,7 @@ export function BranchNotice({
           fontSize: 13,
           fontWeight: "700",
           lineHeight: 20,
-          color: info ? "#0043D1" : "#B4272B",
+          color: info ? BRAND.primary : "#B4272B",
         }}
       >
         {title}

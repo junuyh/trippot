@@ -112,7 +112,7 @@ export function PostListView({
             accessibilityRole="button"
             accessibilityLabel="글 쓰기"
             onPress={onPressWrite}
-            className="flex-row items-center rounded-full bg-pot-ink px-3.5 py-2.5 active:opacity-80"
+            className="flex-row items-center rounded-full bg-brand px-3.5 py-2.5 active:bg-brand-pressed"
           >
             <Ionicons name="create-outline" size={14} color="#FFFFFF" />
             <Text className="ml-1.5 font-bold text-white" style={{ fontSize: 12.5 }}>

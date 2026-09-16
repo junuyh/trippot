@@ -113,15 +113,15 @@ export function DelegateLeaderSheet({
                 disabled={submitting}
                 onPress={() => onSelect(member.memberId)}
                 className={`flex-row items-center gap-2.5 rounded-xl border px-3.5 py-3 active:opacity-70 ${
-                  on ? "border-blue-600 bg-white" : "border-gray-200 bg-white"
+                  on ? "border-brand bg-white" : "border-gray-200 bg-white"
                 } ${submitting ? "opacity-40" : ""}`}
               >
                 <View
                   className={`h-5 w-5 items-center justify-center rounded-full border-2 ${
-                    on ? "border-blue-600" : "border-gray-300"
+                    on ? "border-brand" : "border-gray-300"
                   }`}
                 >
-                  {on ? <View className="h-2 w-2 rounded-full bg-blue-600" /> : null}
+                  {on ? <View className="h-2 w-2 rounded-full bg-brand" /> : null}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text numberOfLines={1} className="text-sm font-semibold text-gray-900">

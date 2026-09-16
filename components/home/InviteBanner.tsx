@@ -63,7 +63,7 @@ export function InviteBanner({ invite, requesting, onRequestJoin, onDecline }: P
           accessibilityState={{ disabled: requesting, busy: requesting }}
           disabled={requesting}
           onPress={onRequestJoin}
-          className="h-9 min-w-[104px] items-center justify-center rounded-lg bg-pot-ink px-3.5 active:bg-black"
+          className="h-9 min-w-[104px] items-center justify-center rounded-lg bg-brand px-3.5 active:bg-brand-pressed"
         >
           {requesting ? (
             <ActivityIndicator size="small" color="#ffffff" />

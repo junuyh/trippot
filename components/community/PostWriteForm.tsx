@@ -177,7 +177,7 @@ export function PostWriteForm({
               accessibilityState={{ selected: active }}
               disabled={submitting}
               onPress={() => onChangeType(option.value)}
-              className={`rounded-full px-4 py-2.5 ${active ? 'bg-pot-ink' : 'bg-pot-visual'}`}
+              className={`rounded-full px-4 py-2.5 ${active ? 'bg-brand' : 'bg-pot-visual'}`}
             >
               <Text
                 className={`font-bold ${active ? 'text-white' : 'text-pot-mute'}`}
@@ -210,7 +210,7 @@ export function PostWriteForm({
               disabled={submitting}
               onPress={() => onChangeTrip(null)}
               className={`justify-center rounded-2xl px-4 py-2.5 ${
-                tripId === null ? 'bg-pot-ink' : 'bg-pot-visual'
+                tripId === null ? 'bg-brand' : 'bg-pot-visual'
               }`}
             >
               <Text
@@ -230,7 +230,7 @@ export function PostWriteForm({
                   accessibilityState={{ selected: active }}
                   disabled={submitting}
                   onPress={() => onChangeTrip(option.tripId)}
-                  className={`rounded-2xl px-4 py-2 ${active ? 'bg-pot-ink' : 'bg-pot-visual'}`}
+                  className={`rounded-2xl px-4 py-2 ${active ? 'bg-brand' : 'bg-pot-visual'}`}
                 >
                   <View className="flex-row items-center">
                     {option.flag ? (
@@ -327,7 +327,7 @@ export function PostWriteForm({
           disabled={!canSubmit || submitting}
           onPress={onSubmit}
           className={`w-full flex-row items-center justify-center rounded-xl px-5 py-3.5 ${
-            canSubmit ? 'bg-pot-ink active:bg-black' : 'bg-pot-visual'
+            canSubmit ? 'bg-brand active:bg-brand-pressed' : 'bg-pot-visual'
           } ${submitting ? 'opacity-40' : ''}`}
         >
           {submitting ? (

@@ -19,6 +19,7 @@
 import { Text, View } from "react-native";
 
 import { Button } from "@/components/ui";
+import { BRAND } from "@/lib/constants/brandColor";
 
 type Props = {
   /** 대기 중인 요청 수. 0이면 화면 파일이 배너를 그리지 않는다 */
@@ -33,10 +34,10 @@ export function JoinRequestBanner({ count, firstName, onOpen }: Props) {
     <View style={{ gap: 8 }}>
       <View
         className="flex-row items-center rounded-2xl px-4 py-3.5"
-        style={{ gap: 11, backgroundColor: "#EBF1FF" }}
+        style={{ gap: 11, backgroundColor: BRAND.primarySoft }}
       >
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13.5, fontWeight: "700", color: "#0043D1" }}>
+          <Text style={{ fontSize: 13.5, fontWeight: "700", color: BRAND.primary }}>
             참여 요청 {count}건
           </Text>
           {/*

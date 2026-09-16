@@ -110,7 +110,7 @@ export function NotificationList({
                 글자 시작점이 흔들리지 않게 한다.
               */}
               <View className="w-4 pt-1.5">
-                {unread ? <View className="h-2 w-2 rounded-full bg-red-500" /> : null}
+                {unread ? <View className="h-2 w-2 rounded-full bg-brand" /> : null}
               </View>
 
               <View className="flex-1">

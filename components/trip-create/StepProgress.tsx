@@ -20,7 +20,7 @@ export function StepProgress({ current }: Props) {
           const done = step <= current;
           return (
             <View key={label} className="flex-1">
-              <View className={`h-1 rounded-full ${done ? 'bg-blue-600' : 'bg-gray-200'}`} />
+              <View className={`h-1 rounded-full ${done ? 'bg-brand' : 'bg-gray-200'}`} />
             </View>
           );
         })}
