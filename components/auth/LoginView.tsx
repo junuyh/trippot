@@ -26,6 +26,14 @@ type Props = {
    */
   devPreviewUsers: readonly { userId: string; name: string }[];
   onPressDevPreview: (userId: string) => void;
+  /**
+   * [개발용] 신규 사용자 홈(여행 0개)으로 들어가는 통로. (2026-09-16 · HOME-01 담당)
+   *
+   * ⚠️ seed 사용자 넷은 모두 여행이 있어서, 여행이 하나도 없는 사람의 홈을
+   *    볼 방법이 없었다. 이 버튼은 **화면만** 그렇게 그린다. DB 에는 쓰지 않는다.
+   * ⚠️ 넘기지 않으면 칩이 그려지지 않는다. showDevPreview 와 함께 사라진다.
+   */
+  onPressDevPreviewNewUser?: () => void;
 };
 
 /** 카카오 브랜드 색. 카카오가 지정한 값이라 pot 토큰을 쓰지 않는다. */
@@ -54,6 +62,7 @@ export function LoginView({
   showDevPreview,
   devPreviewUsers,
   onPressDevPreview,
+  onPressDevPreviewNewUser,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -230,6 +239,23 @@ export function LoginView({
                 </Text>
               ))}
             </View>
+
+            {/*
+              [개발용] 여행이 하나도 없는 사람의 홈. 위 이름 칩과 뜻이 달라
+              한 줄 아래에 따로 둔다 — 사람을 고르는 것이 아니라 화면 상태를 고른다.
+            */}
+            {onPressDevPreviewNewUser ? (
+              <Text
+                accessibilityRole="button"
+                accessibilityLabel="새 유저 홈으로 둘러보기"
+                onPress={onPressDevPreviewNewUser}
+                suppressHighlighting
+                className="rounded-full border border-dashed border-pot-line px-3 py-1.5 text-pot-mute"
+                style={{ fontSize: 12, lineHeight: 16 }}
+              >
+                새 유저 홈 (여행 0개)
+              </Text>
+            ) : null}
           </View>
         ) : null}
       </View>

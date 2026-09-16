@@ -59,6 +59,15 @@ export type MyTripItem = {
    */
   left?: boolean;
   /**
+   * 취소된 여행을 지금 되돌릴 수 있는가. (POL-CXL-030 · 72시간) 2026-09-16
+   *
+   * ⚠️ 취소된 여행 탭에서만 채운다. 다른 탭 · GROUP-02 에서는 undefined 라 버튼이 없다.
+   * ⚠️ 72시간이 지나면 false. 되돌리기 수단이 없다. (POL-CXL-031)
+   */
+  restorable?: boolean;
+  /** 되돌리기 남은 시간. '2일 7시간'. restorable 일 때만 값이 있다. */
+  restoreRemainingLabel?: string | null;
+  /**
    * 여행 단계. 지난 여행 배지에 '정산 대기 중' · '지출 입력 전' 처럼 쓴다.
    *
    * ⚠️ 여행 홈(TRIP-HOME-02) 배지와 같은 값이다. status 만으로는 ENDED 가

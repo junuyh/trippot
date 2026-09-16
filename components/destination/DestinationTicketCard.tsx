@@ -2,11 +2,11 @@
 // 여행지 티켓 카드 — DEST-01 머리 (2026-09-11 시안 반영)
 //
 //   ┃┌──────────────────────────────────────────┐┃
-//   ┃│ TRIPPOT              ┌─────────────────┐ │┃
-//   ┃│ TOKYO                │      사진       │ │┃
-//   ┃│ JAPAN 🇯🇵              │            [JP] │ │┃
-//   ┃│ ──────────────────   └─────────────────┘ │┃
-//   ●│ SEOUL / ICN  ✈ ┄┄┄┄┄┄┄┄┄┄┄┄  NRT       │●   ← ● 티켓 노치
+//   ┃│ TRIPPOT                                  │┃
+//   ┃│ TOKYO                                    │┃
+//   ┃│ JAPAN 🇯🇵                                  │┃
+//   ┃│ ─────────────────────────────────────────│┃
+//   ●│ SEOUL / ICN  ✈ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  NRT  │●   ← ● 티켓 노치
 //   ┃│ ─────────────────────────────────────────│┃
 //   ┃│ 여행 기간  │ 추천 시기 │ 여행 스타일        │┃
 //   ┃│ 3박 4일    │ 봄, 가을  │ 도시·쇼핑·미식     │┃
@@ -15,8 +15,13 @@
 //   ┗└──────────────────────────────────────────┘┛
 //    ↑ 국기 첫 번째 색                국기 두 번째 색 ↑
 //
-// ⚠️ **국가가 바뀌어도 이 구조는 그대로다.** 바뀌는 것은 사진·도시명·국가명·
+// ⚠️ **국가가 바뀌어도 이 구조는 그대로다.** 바뀌는 것은 도시명·국가명·
 //    국기·공항 코드, 그리고 좌우 띠 색뿐이다.
+//
+// ⚠️ 2026-09-16 오른쪽 사진 칸을 뺐다. 사진 위에 얹혀 있던 국가 코드 배지(JP)도
+//    함께 빠졌다. 어느 나라 티켓인지는 국가명 · 국기 배지 · 좌우 띠가 말한다.
+//    destination.photo 는 화면 파일이 계속 넘기지만 이 카드는 쓰지 않는다.
+//    되살리려면 git 이력에서 '사진' 블록을 가져온다.
 //
 // ⚠️ **좌우 띠는 여행 준비 홈의 방식을 그대로 따른다.** (2026-09-11)
 //    components/trip-home/BaggageTagCard 가 좌우 컬러 라인에 국기 두 색
@@ -38,7 +43,7 @@
 
 // ============================================================================
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 
 import { INK, SUBTLE } from './tokens';
@@ -166,9 +171,9 @@ export function DestinationTicketCard({ destination }: Props) {
       <View style={{ width: SIDE, backgroundColor: destination.theme.stripe[0] }} />
 
       <View style={{ flex: 1, paddingHorizontal: PAD, paddingTop: PAD, paddingBottom: 12 }}>
-        {/* ── 위: 도시 정보 + 사진 ────────────────────────────────────────── */}
+        {/* ── 위: 도시 정보 ─────────────────────────────────────────────── */}
         <View className="flex-row">
-          <View style={{ flex: 1, paddingRight: 10 }}>
+          <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 2, color: INK }}>
               TRIPPOT
             </Text>
@@ -238,49 +243,6 @@ export function DestinationTicketCard({ destination }: Props) {
               />
               <Text style={{ fontSize: 13.5, fontWeight: '800', letterSpacing: 0.2, color: INK }}>
                 {destination.airportCode}
-              </Text>
-            </View>
-          </View>
-
-          {/* 사진 */}
-          <View
-            style={{
-              width: '43%',
-              aspectRatio: 1.12,
-              borderRadius: 10,
-              overflow: 'hidden',
-              backgroundColor: destination.theme.primarySoft,
-            }}
-          >
-            {destination.photo ? (
-              <Image
-                source={{ uri: destination.photo }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
-                accessibilityRole="image"
-                accessibilityLabel={`${destination.nameKo} 대표 사진`}
-              />
-            ) : null}
-
-            {/* ⚠️ 사진 위 'Good Trip!' 손글씨를 뺐다. (2026-09-11)
-                사진을 가리기만 하고 알려주는 것이 없었다. 같은 인사는 카드
-                아래 'GOOD TRIP ALWAYS' 가 이미 하고 있어 두 번 말하는 셈이었다. */}
-
-            {/* 국가 코드 배지. 딥네이비 — 나라가 바뀌어도 같은 색이다. */}
-            <View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                right: 7,
-                top: 7,
-                backgroundColor: INK,
-                borderRadius: 6,
-                paddingHorizontal: 6,
-                paddingVertical: 3,
-              }}
-            >
-              <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: '#FFFFFF' }}>
-                {destination.theme.code}
               </Text>
             </View>
           </View>

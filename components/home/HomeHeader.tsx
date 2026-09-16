@@ -14,8 +14,14 @@
 // ⚠️ 로고는 가로가 더 길다(1236:1007 ≈ 1.23:1). 정사각으로 두면 눌려 보이므로
 //    높이를 글자에 맞추고 너비를 비율로 준다. 원본 여백은 잘라내고 넣었다.
 //
-// ⚠️ 상단바에는 아이콘을 두지 않는다. 마이페이지는 하단 탭으로 가고,
-//    알림은 갈 화면이 아직 없다. (docs/04_화면목록_v3.md 에 알림 화면 없음)
+// ⚠️ 2026-09-15 오른쪽에 알림 버튼을 달았다. 받은 알림 목록(/me/notifications)으로 간다.
+//    전에는 갈 화면이 없어 비워 뒀는데, 마이페이지 헤더 🔔 가 쓰는 알림함이 생겼다.
+//    마이페이지 아이콘은 여전히 두지 않는다. 하단 탭으로 간다.
+//
+// ⚠️ 모양은 components/mypage/NotificationBellButton 과 같다(크기·색·눌림).
+//    그 컴포넌트를 그대로 쓰지 않은 것은 기본 헤더용 오른쪽 여백(mr-2)이 붙어 있어서다.
+//    이 상단바는 px-4 로 이미 여백이 있어 벨만 안쪽으로 밀려 로고와 좌우가 어긋난다.
+//    다른 담당자 파일이라 여백을 고치지 않았다. (CLAUDE.md 13장)
 //
 // ⚠️ 2026-09-03 '여행 만들기' 버튼을 뺐다.
 //    인사말과 같은 줄에 끼어 있어서 인사말이 폭을 다 먹고 남은 자리에 밀려 들어갔다.
@@ -23,7 +29,8 @@
 //    작고 답답해 보여 누르기 싫다는 평을 받았다.
 //    새 여행 만들기는 홈 맨 아래 CreateTripCard 가 맡는다. (docs/09_IA_v2.md §1-4)
 //    여행이 하나도 없을 때는 OngoingTripCarousel 의 빈 상태가 같은 곳으로 보낸다.
-import { Image, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Image, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = {
@@ -36,9 +43,15 @@ type Props = {
   userName: string | null;
   /** 가장 가까운 여행까지 남은 일수. 위와 같은 이유로 지금은 쓰지 않는다. */
   daysToNextTrip: number | null;
+  /** 알림 버튼을 눌렀을 때. 받은 알림 목록으로 보낸다. */
+  onPressNotifications: () => void;
 };
 
-export function HomeHeader({ userName: _userName, daysToNextTrip: _daysToNextTrip }: Props) {
+export function HomeHeader({
+  userName: _userName,
+  daysToNextTrip: _daysToNextTrip,
+  onPressNotifications,
+}: Props) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -57,6 +70,15 @@ export function HomeHeader({ userName: _userName, daysToNextTrip: _daysToNextTri
         >
           TripPot
         </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="알림"
+          hitSlop={8}
+          onPress={onPressNotifications}
+          className="h-9 w-9 items-center justify-center rounded-full active:bg-pot-visual"
+        >
+          <Ionicons name="notifications-outline" size={24} color="#111827" />
+        </Pressable>
       </View>
 
       {/*

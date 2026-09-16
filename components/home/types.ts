@@ -233,3 +233,19 @@ export type DiscoverDestination = {
   postCount: number;
   theme: CountryTheme;
 };
+
+/**
+ * 링크를 열었지만 아직 답하지 않은 여행 초대. 홈 모달과 상시 배너가 쓴다. (2026-09-15)
+ *
+ * ⚠️ 승인 전 공개 범위만 담는다. (docs/10_여행초대정책_v2.md §11)
+ *    예산 · 금액 · 계좌 · 멤버 목록을 넣지 않는다.
+ */
+export type HomeInvite = {
+  /** 초대 링크의 token. 참여 요청 · 거절을 가를 때 쓴다. */
+  token: string;
+  /** 초대한 사람 이름. 서버가 모르면 null. */
+  inviterName: string | null;
+  destination: string | null;
+  /** '10.02 – 10.05'. 날짜가 없으면 null. */
+  periodLabel: string | null;
+};
