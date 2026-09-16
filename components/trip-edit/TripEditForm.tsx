@@ -300,7 +300,7 @@ export function TripEditForm({
               }}
             >
               {canInvite
-                ? "초대 링크를 보내면 상대가 참가를 요청하고,\n여행장이 수락하면 함께해요.\n링크는 7일간 쓸 수 있어요."
+                ? "초대 링크를 받은 사람이 수락하면,\n여행장이 확인 후 승인할 수 있어요.\n링크는 7일간 쓸 수 있어요."
                 : `인원 ${headcount}명이 모두 참여 중이에요.\n위에서 인원을 늘리면 초대할 수 있어요.`}
             </Text>
             <InviteArt width={112} height={90} muted={!canInvite} style={{ marginTop: -8 }} />
@@ -425,13 +425,13 @@ export function TripEditForm({
           {joinRequests.length > 0 ? (
             <View style={{ marginTop: 10, gap: 6 }}>
               <Text style={{ fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.3 }}>
-                참여 요청 {joinRequests.length}건
+                승인 대기 {joinRequests.length}건
               </Text>
               {joinRequests.map((request) => (
                 <Pressable
                   key={request.requestId}
                   accessibilityRole="button"
-                  accessibilityLabel={`${request.name}님의 참여 요청 보기`}
+                  accessibilityLabel={`${request.name}님의 초대 수락 보기`}
                   onPress={() => onPressJoinRequest(request)}
                   className="flex-row items-center active:opacity-70"
                   style={{
@@ -458,7 +458,7 @@ export function TripEditForm({
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "800", color: INK }}>
-                      {request.name}님이 참여를 요청했어요
+                      {request.name}님이 초대를 수락했어요
                     </Text>
                     <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
                       {request.needsNewGroup

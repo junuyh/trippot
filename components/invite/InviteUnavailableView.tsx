@@ -45,8 +45,8 @@ const COPY: Record<InviteFailReason, Copy> = {
   // 같은 invite 에서 거절된 사람. 다른 사람·새 링크에는 영향이 없다. (docs/12 §4)
   ALREADY_REJECTED: {
     icon: "lock-closed-outline",
-    title: "이 초대에서는 다시 요청할 수 없어요",
-    description: "새 초대 링크를 받으면 다시 참여 요청을 보낼 수 있어요.",
+    title: "이 초대에는 다시 응답할 수 없어요",
+    description: "새 초대 링크를 받으면 다시 수락할 수 있어요.",
   },
   NOT_FOUND: {
     icon: "link-outline",

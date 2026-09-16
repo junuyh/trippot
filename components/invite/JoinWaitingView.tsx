@@ -6,7 +6,7 @@
 //
 // ⚠️ 여기서도 여행지 · 일정까지만 보여준다. 아직 수락 전이다. (POL-INV-021)
 //
-// ⚠️ '요청 취소하기' 를 반드시 둔다. 취소할 길이 없으면 잘못 누른 사람이
+// ⚠️ '수락 취소하기' 를 반드시 둔다. 취소할 길이 없으면 잘못 누른 사람이
 //    영원히 대기 상태로 남고, 여행장의 요청 목록에도 계속 뜬다.
 //
 // 2026-09-16 · visual 만 바꿨다 (InviteShell · 저금통 그림 제거). 문구 · 버튼 · 정보는 그대로다.
@@ -50,7 +50,7 @@ export function JoinWaitingView({
               accessibilityRole="button"
             >
               <Text className="text-base font-semibold" style={{ color: INVITE_THEME.ink }}>
-                요청 취소하기
+                수락 취소하기
               </Text>
             </View>
           ) : null}
@@ -88,7 +88,7 @@ export function JoinWaitingView({
             textAlign: "center",
           }}
         >
-          여행 참여 요청을 보냈어요
+          초대를 수락했어요
         </Text>
 
         <Text
@@ -100,7 +100,7 @@ export function JoinWaitingView({
             textAlign: "center",
           }}
         >
-          여행장이 확인하고 있어요.{"\n"}수락되면 여행 준비를 함께할 수 있어요.
+          여행장이 확인하고 있어요.{"\n"}승인되면 여행 준비를 함께할 수 있어요.
         </Text>
       </View>
     </InviteShell>

@@ -176,7 +176,7 @@ export function InviteFlowScreen({
       } else if (code === TRIP_JOIN_ERROR.INVITE_NOT_VALID || code === TRIP_JOIN_ERROR.NOT_FOUND) {
         void load();
       } else {
-        Alert.alert('참여 요청을 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
+        Alert.alert('초대 수락을 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
       }
     } finally {
       setRequesting(false);

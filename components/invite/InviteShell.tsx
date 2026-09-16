@@ -10,8 +10,10 @@
 //        children  (상태별 내용)
 //        footer    (CTA — 내용 바로 아래, 정해진 간격)
 //
-// 높이 원칙: 초대장은 **내용이 정한다.** 카드에 flex:1 · minHeight · spacer 를 두지 않는다.
-//   내용이 짧으면(ACTIVE) 짧고, 길면(NONE) 길다. 남는 화면은 보라 배경이다.
+// 높이 원칙: 초대장은 **내용이 정하되, 상태가 바뀌어도 높이가 줄지 않는다.** (2026-09-17)
+//   기준은 가장 긴 상태(INV-02 NONE · "초대 수락하기")의 실제 layout 높이 = CARD_MIN_HEIGHT.
+//   짧은 상태(승인 대기 · ACTIVE)는 같은 높이의 카드 안에서 내용을 세로 가운데에 둔다.
+//   내용이 그보다 길어지면(작은 기기 · 인원 초과 안내) 그만큼 자란다 — 고정 height 가 아니라 minHeight.
 // 위치 원칙: 그렇게 정해진 카드를 **Header 아래 보라 viewport 의 세로 가운데**에 둔다 —
 //   바깥 ScrollView contentContainer 의 flexGrow:1 + justifyContent:center 가 남는 공간만 나눈다.
 //   카드가 viewport 보다 길어지면 그때만 스크롤한다. 고정 height 없음 → 잘리지 않는다.
@@ -37,6 +39,13 @@ const CARD_RADIUS = 2;
 const CARD_WIDTH = '88%';
 /** 초대장 안쪽 좌우 여백. */
 const INNER_H = 24;
+/**
+ * 모든 상태가 공유하는 초대장 최소 높이. (2026-09-17)
+ * INV-02 NONE 상태의 실제 onLayout 값이다 — ACTIVE 상태 실측 556.67 (iPhone 17 · 카드 폭 354)
+ * + 안내문 한 줄(lineHeight 20)만큼 긴 NONE 상태 = 576.67 → 올림. 픽셀 추측값이 아니다.
+ * 상태 전환(초대 수락하기 ↔ 승인 대기)에서 종이 높이가 튀지 않게 한다.
+ */
+const CARD_MIN_HEIGHT = 577;
 
 /** 배경색 원. 중심을 카드 모서리에 맞춰 1/4 만 카드 위에 걸친다 → concave quarter-circle. */
 function Notch({ top, left }: { top?: boolean; left?: boolean }) {
@@ -80,6 +89,7 @@ export function InviteShell({ children, footer }: Props) {
       <View
         style={{
           width: CARD_WIDTH,
+          minHeight: CARD_MIN_HEIGHT,
           backgroundColor: INVITE_THEME.card,
           borderRadius: CARD_RADIUS,
           paddingHorizontal: INNER_H,
@@ -155,7 +165,8 @@ export function InviteShell({ children, footer }: Props) {
           />
         </View>
 
-        {children}
+        {/* 상태별 내용. 카드가 minHeight 보다 짧은 상태면 남는 공간의 가운데에 온다. */}
+        <View style={{ flexGrow: 1, justifyContent: 'center' }}>{children}</View>
 
         {/* CTA — 내용 바로 아래 일정한 간격. spacer 로 밀지 않는다. */}
         <View style={{ marginTop: 30 }}>{footer}</View>

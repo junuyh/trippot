@@ -134,7 +134,7 @@ export function TripMemberListView({
         {/* 여행장만 — 참여 요청 */}
         {isLeaderView && pendingRequests.length > 0 ? (
           <>
-            <SectionTitle>참여 요청 {pendingRequests.length}건</SectionTitle>
+            <SectionTitle>승인 대기 {pendingRequests.length}건</SectionTitle>
             <View className="overflow-hidden rounded-2xl bg-white">
               {pendingRequests.map((request, index) => (
                 <View
@@ -159,7 +159,7 @@ export function TripMemberListView({
                   </View>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${request.name} 참여 요청 보기`}
+                    accessibilityLabel={`${request.name} 초대 수락 보기`}
                     onPress={() => onOpenRequest(request.requestId)}
                     className="rounded-lg bg-brand px-3 py-2 active:bg-brand-pressed"
                   >

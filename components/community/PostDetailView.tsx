@@ -274,7 +274,7 @@ export function PostDetailView({
           <Ionicons
             name={post.bookmarkedByMe ? 'bookmark' : 'bookmark-outline'}
             size={21}
-            color="#111827"
+            color={BRAND.primary}
           />
         </Pressable>
       </View>
