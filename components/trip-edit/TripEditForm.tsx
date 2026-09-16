@@ -35,6 +35,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-nati
 import { DateRangeCalendar, HeadcountStepper } from "@/components/trip-create";
 import { Button } from "@/components/ui";
 import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
+import { InviteArt } from "./inviteArt";
 import type { JoinRequestItem } from "@/components/invite";
 
 /** 멤버 한 줄에 필요한 최소 모양. Trip 전체를 요구하지 않는다 */
@@ -44,6 +45,8 @@ export type TripMemberChip = {
   isLeader: boolean;
 };
 
+/** TripPot 보라. components/home/palette.ts HOME_ACCENT 와 같은 값 */
+const ACCENT = "#6C5CE7";
 const INK = "#111827";
 const MUTED = "#7f8998";
 const FAINT = "#a8afb9";
@@ -280,6 +283,29 @@ export function TripEditForm({
              (2026-09-16 다빈) */}
         <Section eyebrow="INVITE" title="여행 멤버">
           {/*
+            ⚠️ 설명 옆에 편지 그림을 둔다. 글자만 있으면 카드가 설정 목록처럼
+               읽혀서 초대가 '할 수 있는 일' 로 안 보인다. (2026-09-16 다빈)
+            ⚠️ 그림은 꺼졌을 때 함께 채도가 빠진다. 버튼만 회색이면 카드가
+               반만 쉬는 것처럼 어정쩡하다.
+          */}
+          <View className="flex-row items-start" style={{ gap: 4 }}>
+            <Text
+              style={{
+                flex: 1,
+                marginTop: 2,
+                fontSize: 12.5,
+                lineHeight: 20,
+                color: MUTED,
+              }}
+            >
+              {canInvite
+                ? "초대 링크를 보내면 상대가 참가를 요청하고,\n여행장이 수락하면 함께해요.\n링크는 7일간 쓸 수 있어요."
+                : `인원 ${headcount}명이 모두 참여 중이에요.\n위에서 인원을 늘리면 초대할 수 있어요.`}
+            </Text>
+            <InviteArt width={112} height={90} muted={!canInvite} style={{ marginTop: -8 }} />
+          </View>
+
+          {/*
             ⚠️ 눌리는 버튼으로 보이게 한다. 점선 카드였을 때는 장식으로 읽혀
                있는 줄도 몰랐다. 켜짐·꺼짐이 색으로 바로 갈린다.
             ⚠️ 꺼지는 조건은 **빈자리 없음** 하나다. 인원을 늘리면 켜진다.
@@ -292,42 +318,55 @@ export function TripEditForm({
             accessibilityState={{ disabled: inviteDisabled }}
             disabled={inviteDisabled}
             onPress={onInvite}
-            className={`flex-row items-center justify-center ${
-              inviteDisabled ? "" : "active:opacity-80"
-            }`}
+            className={`flex-row items-center ${inviteDisabled ? "" : "active:opacity-85"}`}
             style={{
-              gap: 8,
-              height: 52,
-              borderRadius: 14,
-              backgroundColor: canInvite ? "#1B64F2" : "#eef0f3",
+              marginTop: 6,
+              height: 56,
+              borderRadius: 16,
+              paddingLeft: 18,
+              paddingRight: 8,
+              backgroundColor: canInvite ? ACCENT : "#eef0f3",
             }}
           >
-            {inviting ? (
-              <ActivityIndicator size="small" color={canInvite ? "#fff" : MUTED} />
-            ) : (
-              <Ionicons
-                name="person-add-outline"
-                size={17}
-                color={canInvite ? "#fff" : "#9aa3ae"}
-              />
-            )}
-            <Text
+            <View className="flex-1 flex-row items-center justify-center" style={{ gap: 8 }}>
+              {inviting ? (
+                <ActivityIndicator size="small" color={canInvite ? "#fff" : MUTED} />
+              ) : (
+                <Ionicons
+                  name="person-add-outline"
+                  size={17}
+                  color={canInvite ? "#fff" : "#9aa3ae"}
+                />
+              )}
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "800",
+                  color: canInvite ? "#fff" : "#9aa3ae",
+                }}
+              >
+                여행 멤버 초대하기
+              </Text>
+            </View>
+
+            {/* 오른쪽 원형 화살표 — 이 버튼이 어디로 데려간다는 신호 */}
+            <View
               style={{
-                fontSize: 15,
-                fontWeight: "800",
-                color: canInvite ? "#fff" : "#9aa3ae",
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: canInvite ? "rgba(255,255,255,0.22)" : "#e4e7ea",
               }}
             >
-              여행 멤버 초대하기
-            </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={canInvite ? "#fff" : "#9aa3ae"}
+              />
+            </View>
           </Pressable>
-
-          {/* 왜 켜졌는지 · 왜 꺼졌는지. 꺼졌으면 켜는 법까지 적는다 */}
-          <Text style={{ marginTop: 10, fontSize: 11.5, lineHeight: 17, color: MUTED }}>
-            {canInvite
-              ? "초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요."
-              : `인원 ${headcount}명이 모두 참여 중이에요. 위에서 인원을 늘리면 초대할 수 있어요.`}
-          </Text>
 
           {/*
             지금 함께하는 사람. 숫자만 보여주면 "3명 참여 중" 이 누구인지 모른다.
