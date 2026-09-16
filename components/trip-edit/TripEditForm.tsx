@@ -462,7 +462,7 @@ export function TripEditForm({
                     </Text>
                     <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
                       {request.needsNewGroup
-                        ? "수락하면 새 모임이 만들어져요 · 눌러서 확인"
+                        ? "승인하면 새 모임이 만들어져요 · 눌러서 확인"
                         : "눌러서 수락하거나 거절해요"}
                     </Text>
                   </View>

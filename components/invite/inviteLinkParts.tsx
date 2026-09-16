@@ -52,7 +52,7 @@ export function InviteLinkBox({
              다음 줄로 넘어간다. (2026-09-16 다빈) */}
       <Text style={{ fontSize: 11.5, lineHeight: 18, color: "#8B94A2" }}>
         링크는 7일간 쓸 수 있어요{"\n"}
-        {headcount}명 예정이라 그 인원까지만 수락돼요
+        {headcount}명 예정이라 그 인원까지만 승인돼요
       </Text>
     </View>
   );

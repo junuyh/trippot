@@ -121,7 +121,7 @@ export function InviteLinkSheet({
         <View style={{ gap: 8 }}>
           {candidates.length === 0 ? (
             <Text style={{ fontSize: 12.5, lineHeight: 19, color: "#8B94A2" }}>
-              고를 수 있는 사람이 없어요. 아래 링크를 복사해 보내면 누구나 참여를 요청할 수 있어요.
+              고를 수 있는 사람이 없어요. 아래 링크를 복사해 보내면 누구나 초대를 수락할 수 있어요.
             </Text>
           ) : null}
 
