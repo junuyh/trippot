@@ -1497,6 +1497,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _notify_trip_members: {
+        Args: {
+          p_body: string
+          p_data?: Json
+          p_exclude: string
+          p_exclude2?: string
+          p_title: string
+          p_trip_id: string
+          p_type: string
+        }
+        Returns: undefined
+      }
       _trip_cancel_close: {
         Args: {
           p_note: string

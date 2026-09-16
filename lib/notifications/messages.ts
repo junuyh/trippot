@@ -104,6 +104,10 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
     title: '멤버가 여행에서 나갔어요',
     body: `${tripName}의 멤버 한 명이 나갔어요.`,
   }),
+  // OWNER_DELEGATED 는 받는 사람에 따라 문구가 갈린다.
+  // 아래는 **새 여행장용**. 나머지 멤버용은 DB 함수에만 있다:
+  //   제목: 여행장이 바뀌었어요
+  //   본문: 이제 ○○님이 {여행}의 여행장이에요.
   [NOTIFICATION_TYPE.OWNER_DELEGATED]: (tripName) => ({
     title: '여행장이 되었어요',
     body: `${tripName}의 여행장을 맡게 됐어요.`,
@@ -115,6 +119,10 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
     title: '여행 취소 요청이 왔어요',
     body: `${tripName}을 취소할지 정해 주세요.`,
   }),
+  // ⚠️ 실제 본문에는 **숫자가 들어간다.** 빌더는 tripLabel·personName 만 받아서
+  //    여기서는 못 만든다. 갈래 인자를 더하지 않기로 했다 (앱은 이 빌더로 알림을
+  //    만들지 않는다). DB 함수의 실제 문구:
+  //      본문: {여행} 취소에 3명 중 2명이 동의했어요.
   [NOTIFICATION_TYPE.CANCEL_VOTE_AGREED]: (tripName) => ({
     title: '취소에 동의한 사람이 있어요',
     body: `${tripName} 취소 요청에 동의가 하나 늘었어요.`,
@@ -127,6 +135,11 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
     title: '취소 요청 기한이 지났어요',
     body: `${tripName} 취소 요청이 사라졌어요. 여행은 그대로예요.`,
   }),
+  // CANCEL_WITHDRAWN 은 철회 사유에 따라 문구가 갈린다.
+  // 아래는 **요청자가 직접 거둔 경우**. 요청자가 여행에서 나가 자동 철회된
+  // 경우의 문구는 DB 함수에만 있다:
+  //   제목: 취소 요청이 사라졌어요
+  //   본문: {여행} 취소를 요청한 사람이 나가서 요청이 사라졌어요.
   [NOTIFICATION_TYPE.CANCEL_WITHDRAWN]: (tripName) => ({
     title: '취소 요청이 철회됐어요',
     body: `${tripName} 취소 요청을 요청한 사람이 거뒀어요.`,
@@ -136,8 +149,8 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
     body: `${tripName}이 모두의 동의로 취소됐어요. 72시간 안에는 되돌릴 수 있어요.`,
   }),
   [NOTIFICATION_TYPE.CANCEL_RESTORED]: (tripName) => ({
-    title: '여행이 되살아났어요',
-    body: `${tripName} 취소가 되돌려졌어요.`,
+    title: '여행을 다시 준비해요',
+    body: `${tripName} 취소를 되돌렸어요.`,
   }),
 };
 
