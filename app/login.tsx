@@ -24,6 +24,8 @@ import { LoginView } from '@/components/auth/LoginView';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { DEV_PREVIEW_USERS } from '@/lib/constants/devUser';
 import {
+  EMAIL_CODE_MAX,
+  EMAIL_CODE_MIN,
   EMAIL_PASSWORD_MIN,
   emailAuthErrorMessage,
   isValidEmail,
@@ -98,8 +100,10 @@ export default function ScreenLogin() {
   /** 입력 검증. 통과하면 true. 서버에 보내기 전에 여기서 먼저 막는다. */
   function validate(mode: EmailAuthMode): boolean {
     if (mode === 'verify') {
-      const ok = code.trim().length === 6;
-      setFieldErrors({ code: ok ? null : '6자리 숫자를 입력해 주세요.' });
+      // ⚠️ 자리수를 앱에서 단정하지 않는다. 대시보드 설정에 따라 6~10 자리다.
+      const length = code.trim().length;
+      const ok = length >= EMAIL_CODE_MIN && length <= EMAIL_CODE_MAX;
+      setFieldErrors({ code: ok ? null : '메일로 받은 숫자를 그대로 입력해 주세요.' });
       return ok;
     }
 

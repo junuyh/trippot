@@ -23,8 +23,15 @@ import { supabase } from '@/lib/supabase/client';
 
 /** 비밀번호 최소 길이. 서버는 6자까지 받지만 앱은 8자부터 받는다. */
 export const EMAIL_PASSWORD_MIN = 8;
-/** 인증 코드 자리수. Supabase 기본값이다. */
-export const EMAIL_CODE_LENGTH = 6;
+/**
+ * 인증 코드 자리수.
+ *
+ * ⚠️ **대시보드 설정값(Authentication → Sessions/Email OTP length)에 따라 달라진다.**
+ *    이 프로젝트는 8자리다(2026-09-16 확인). 6으로 고정했다가 8자리 코드를 못 넣는
+ *    일이 있었다. 범위로 받아 두고, 정확한 판정은 서버(verifyOtp)에 맡긴다.
+ */
+export const EMAIL_CODE_MIN = 6;
+export const EMAIL_CODE_MAX = 10;
 
 export type EmailAuthResult = 'signedIn' | 'needsVerification';
 

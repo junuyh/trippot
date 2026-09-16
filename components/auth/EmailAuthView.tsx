@@ -21,6 +21,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Input } from '@/components/ui';
+import { EMAIL_CODE_MAX } from '@/lib/auth/email';
 
 export type EmailAuthMode = 'signIn' | 'signUp' | 'verify';
 
@@ -111,8 +112,8 @@ export function EmailAuthView({
         </Text>
         {mode === 'verify' ? (
           <Text className="mt-2 text-pot-mute" style={{ fontSize: 13.5, lineHeight: 20 }}>
-            {email.trim()} 로 보낸 {''}
-            6자리 코드를 입력하면 가입이 끝나요. 메일이 안 보이면 스팸함도 확인해 주세요.
+            {email.trim()} 로 보낸 인증 코드를 입력하면 가입이 끝나요.
+            메일이 안 보이면 스팸함·프로모션함도 확인해 주세요.
           </Text>
         ) : null}
 
@@ -125,8 +126,8 @@ export function EmailAuthView({
               keyboardType="number-pad"
               textContentType="oneTimeCode"
               autoComplete="one-time-code"
-              maxLength={6}
-              placeholder="123456"
+              maxLength={EMAIL_CODE_MAX}
+              placeholder="메일로 받은 숫자"
               error={errors.code}
               editable={!loading}
             />
