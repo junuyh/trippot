@@ -35,8 +35,8 @@ export function MenuRow({ label, onPress, isLast = false }: Props) {
       className="active:bg-pot-visual"
     >
       <View
-        className="flex-row items-center py-3.5"
-        style={isLast ? undefined : { borderBottomWidth: 1, borderBottomColor: '#F1F3F6' }}
+        className="flex-row items-center py-4"
+        style={isLast ? undefined : { borderBottomWidth: 1, borderBottomColor: '#E5E8EC' }}
       >
         <Text
           numberOfLines={1}
@@ -45,7 +45,7 @@ export function MenuRow({ label, onPress, isLast = false }: Props) {
         >
           {label}
         </Text>
-        <Ionicons name="chevron-forward" size={13} color="#C3C9D2" />
+        <Ionicons name="chevron-forward" size={14} color="#B6BCC6" />
       </View>
     </Pressable>
   );

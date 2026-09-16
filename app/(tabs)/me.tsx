@@ -391,7 +391,7 @@ export default function ScreenMY01() {
       {header}
 
       <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
-      {/* ── 상단: 여권 영역 (프로필 · 내 여행) — 화면 폭 전체에 깔린다 ──── */}
+      {/* ── 상단: 여권 영역 (프로필 · 내 여행) — 흰 바탕 위에 놓인 여권 한 장(카드) ──── */}
       <TravelPassportPanel
         profile={profile}
         pickedImageUri={pickedImageUri}
@@ -402,13 +402,15 @@ export default function ScreenMY01() {
         onPressPast={handlePressPastTrips}
       />
 
-      {/* ── 하단: 메뉴 · action ───────────────────────────────────────── */}
-      <View className="px-4 pt-7">
+      {/* ── 하단: 메뉴 · action ───────────────────────────────────────────
+          가로 여백 18 = 여행준비홈 계열(페이지 14 + 섹션 안쪽 4 · app/trips/[tripId]/index.tsx)과
+          같은 content grid. 제목 · 메뉴 글자 · chevron 이 그 화면들과 같은 선에 선다. (2026-09-17) */}
+      <View className="pt-7" style={{ paddingHorizontal: 18 }}>
         <MenuSection title="내 커뮤니티 활동">
           <MenuRow label="작성한 게시글" onPress={handlePressMyPosts} />
           <MenuRow label="작성한 댓글" onPress={handlePressMyComments} />
-          <MenuRow label="좋아요" onPress={handlePressMyLikes} />
-          <MenuRow label="저장된 게시물" onPress={handlePressMyBookmarks} isLast />
+          <MenuRow label="저장된 게시물" onPress={handlePressMyBookmarks} />
+          <MenuRow label="좋아요" onPress={handlePressMyLikes} isLast />
         </MenuSection>
 
         <View className="mt-7">

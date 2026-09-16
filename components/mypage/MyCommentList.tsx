@@ -49,8 +49,10 @@ export function MyCommentList({ comments, onPressComment, onDeleteComment }: Pro
                 accessibilityRole="button"
                 accessibilityLabel={item.content}
                 onPress={() => onPressComment(item.postId)}
-                className="flex-row items-center bg-white px-3.5 py-3.5 active:opacity-90"
+                className="flex-row items-center bg-white px-3.5 py-3.5 active:bg-pot-visual"
                 style={{
+                  borderWidth: 1,
+                  borderColor: '#E5E8EC',
                   shadowColor: '#111827',
                   shadowOpacity: 0.05,
                   shadowRadius: 12,

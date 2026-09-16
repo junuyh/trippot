@@ -53,7 +53,22 @@ export function TravelPassportPanel({
   onPressPast,
 }: Props) {
   return (
-    <View className="overflow-hidden px-4 pb-4 pt-4" style={{ backgroundColor: PASSPORT.paper }}>
+    // 여권 한 장이 흰 화면 위에 놓인 느낌 — 둥근 모서리 · 옅은 테두리 · 아주 약한 그림자. (2026-09-17)
+    // 바깥 View 가 그림자를, 안쪽 View 가 모서리 clip(워터마크·MRZ)을 맡는다. overflow hidden 은 그림자를 자른다.
+    <View
+      className="mx-4 mt-4 rounded-2xl"
+      style={{
+        shadowColor: '#111827',
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
+      }}
+    >
+    <View
+      className="overflow-hidden rounded-2xl px-4 pb-4 pt-4"
+      style={{ backgroundColor: PASSPORT.paper, borderWidth: 1, borderColor: PASSPORT.rule }}
+    >
       {/* 맨 윗줄. 왼쪽 끝 제목 · 오른쪽 끝 로고. 여권 페이지의 머리다.
           ⚠️ 제목은 이 영역의 메인 타이틀이다. 라벨 크기가 아니라 제목 크기(16 / 800). */}
       <View className="flex-row items-center justify-between">
@@ -118,6 +133,7 @@ export function TravelPassportPanel({
           </Text>
         ))}
       </View>
+    </View>
     </View>
   );
 }

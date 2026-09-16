@@ -17,9 +17,8 @@ type Props = {
  *    그 위에 흰 카드를 얹으면 경계가 보이지 않으면서 그림자만 남는다.
  *    구분은 divider 가 한다. (MenuRow)
  *
- * 제목 아래 굵은 가로선(2px)을 긋는다. (2026-09-13)
- *    색은 위 여권의 MY TRAVEL PASSPORT 와 같은 진한 보라(PASSPORT.accent)라
- *    여권 영역과 아래 메뉴가 한 화면으로 이어진다. 아이콘은 두지 않는다.
+ * 제목 아래 굵은 보라 장식선은 뺐다. (2026-09-17 MY 최종) 대신 목록의 위·아래에
+ *    hairline(pot-line) 을 둬 "눌리는 목록 한 덩어리" 로 읽히게 한다. 카드로 띄우지 않는다.
  */
 export function MenuSection({ title, children }: Props) {
   return (
@@ -36,9 +35,12 @@ export function MenuSection({ title, children }: Props) {
       >
         {title}
       </Text>
-      <View className="mb-1 mt-2" style={{ height: 2, backgroundColor: PASSPORT.accent }} />
-
-      <View>{children}</View>
+      <View
+        className="mt-3"
+        style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#E5E8EC' }}
+      >
+        {children}
+      </View>
     </View>
   );
 }
