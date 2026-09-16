@@ -32,7 +32,7 @@ const OPTIONS: {
   {
     value: COMPANION_TYPE.NEW_GROUP,
     label: '새 모임을 만들어요',
-    description: '모임 이름과 함께 갈 사람을 정해요',
+    description: '모임 이름만 정하면 돼요',
     icon: 'add-circle-outline',
   },
 ];

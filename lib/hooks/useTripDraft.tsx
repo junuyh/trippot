@@ -37,11 +37,6 @@ export type TripDraft = {
   /** 신규 모임을 골랐을 때만 채워진다. 모임 생성은 TRIP-03 에서 한다 */
   newGroupName: string | null;
   /**
-   * 동행자 이름. trip_members.display_name 으로 저장한다.
-   * 본인은 포함하지 않는다. (docs/README.md §5 #15)
-   */
-  companionNames: string[];
-  /**
    * 과거 데이터 반영 여부. 물어보지 않았으면 null.
    * 물어보는 경우(pastTripCount > 0)의 기본값은 true 다. 토글이 켜진 채로 뜬다.
    */
@@ -97,7 +92,6 @@ const INITIAL_DRAFT: TripDraft = {
   groupId: null,
   groupName: null,
   newGroupName: null,
-  companionNames: [],
   applyPastData: null,
   pastDataInteracted: false,
   pastTripCount: 0,

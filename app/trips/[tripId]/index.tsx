@@ -15,6 +15,7 @@
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
+import { useIsFocused } from "@react-navigation/native";
 import {
   Stack,
   router,
@@ -80,10 +81,13 @@ import {
   FUND_SOURCE_TYPE,
   SETTLEMENT_TRIGGER,
   TRANSACTION_TYPE,
+  TRIP_OWNER_TYPE,
   TRIP_STATUS,
   type CategoryCode,
   type TripStatus,
 } from "@/lib/constants/status";
+import { markInviteNudgeShown, wasInviteNudgeShown } from "@/lib/invite/inviteNudge";
+import { useTripInvite } from "@/lib/hooks/useTripInvite";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
@@ -159,7 +163,7 @@ import {
 } from "@/components/cancel";
 import { LeaveDoneView, LeaveTripFlow } from "@/components/members";
 import { useLeaveTrip } from "@/lib/hooks/useLeaveTrip";
-import { JoinRequestBanner } from "@/components/invite";
+import { InviteLinkSheet, InviteNudgeModal, JoinRequestBanner } from "@/components/invite";
 import { getTripJoinRequests } from "@/lib/supabase/queries/tripJoinRequests";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
@@ -735,6 +739,72 @@ export default function ScreenTripHome() {
       trigger: SETTLEMENT_TRIGGER.AUTO,
     });
   }, [data]);
+
+  /**
+   * 초대 권유 모달. 여행을 만들고 여행 홈에 **처음** 들어왔을 때 한 번 뜬다.
+   *
+   * ⚠️ 여행 만들기에서 동행자 이름을 미리 받지 않게 되면서(2026-09-16) 새 여행에는
+   *    나 혼자만 있다. 초대 진입점이 '여행 정보 수정' 맨 아래 하나뿐이라
+   *    그냥 두면 사용자가 초대하는 길을 못 찾는다.
+   *
+   * ⚠️ '처음' 을 서버에 기록하지 않는다. 기기에 남긴다. (lib/invite/inviteNudge)
+   *    useScreenView 로 대신하지 않는다 — 분석용이고 __DEV__ 에서는 저장도 안 한다.
+   *
+   * ⚠️ 뜨는 조건을 좁게 잡는다. 하나라도 어긋나면 안 띄운다.
+   *      · 내가 이 여행의 참여자
+   *      · 아직 **나 혼자** (가입 멤버 1명) — 누가 들어왔으면 권할 이유가 없다
+   *      · 개인 여행이 아님 — 혼자 가는 여행에 초대는 말이 안 된다
+   *      · 준비 중(PLANNING) — 취소·종료된 여행에 초대를 권하지 않는다
+   */
+  /**
+   * 초대 배선은 '여행 정보 수정' 과 **같은 훅**을 쓴다. 버튼 이름도 하는 일도
+   * 같아야 해서다. (2026-09-16 다빈)
+   */
+  const invite = useTripInvite({
+    tripId: data?.trip.id ?? null,
+    destination: data?.trip.destination ?? null,
+    periodLabel: null,
+  });
+
+  /**
+   * ⚠️ 이 화면이 **지금 보이는 화면인지** 본다. react-native 의 Modal 은 네비게이션
+   *    포커스와 무관하게 언제나 최상단에 그려진다. 그래서 여행 홈이 스택에 남아
+   *    있는 채로 다른 화면으로 가면, 거기 위에 이 모달이 떠 버린다.
+   *    (2026-09-16 · 여행 만들기 화면 위에 남의 여행 이름으로 뜬 것을 확인)
+   */
+  const isFocused = useIsFocused();
+  const [inviteNudgeOpen, setInviteNudgeOpen] = useState(false);
+  const inviteNudgeRef = useRef(false);
+
+  useEffect(() => {
+    if (!data || !userId || inviteNudgeRef.current) return;
+    if (data.trip.status !== TRIP_STATUS.PLANNING) return;
+    if (data.trip.owner_type === TRIP_OWNER_TYPE.PERSONAL) return;
+    if (!data.members.some((m) => m.user_id === userId)) return;
+    if (data.members.filter((m) => m.user_id !== null).length !== 1) return;
+
+    // ⚠️ ref 를 먼저 세운다. 아래 await 사이에 effect 가 다시 돌면 두 번 뜬다.
+    inviteNudgeRef.current = true;
+    const tripId = data.trip.id;
+    void (async () => {
+      if (await wasInviteNudgeShown(userId, tripId)) return;
+
+      /**
+       * ⚠️ 링크를 **먼저** 만든다. 모달이 링크를 그대로 보여주기 때문이다.
+       * ⚠️ 실패하면 모달을 띄우지 않고 **표시도 남기지 않는다.** 다음에 다시 권한다.
+       *    (전에는 띄우기 전에 표시해서, 한 번 실패하면 영영 못 권했다)
+       */
+      const url = await invite.prepareLink();
+      if (url === null) return;
+
+      await markInviteNudgeShown(userId, tripId);
+      setInviteNudgeOpen(true);
+    })();
+  }, [data, invite, userId]);
+
+
+
+
 
   useScreenView(
     SCREENS.TRIP_HOME,
@@ -1796,6 +1866,36 @@ export default function ScreenTripHome() {
             onOpen={() => router.push(`/trips/${trip.id}/edit`)}
           />
         </View>
+      ) : null}
+
+      {/* 여행을 만들고 처음 들어왔을 때 한 번. 조건은 위 effect 가 정한다 */}
+      {/* 링크는 위 effect 가 미리 만들어 둔다. 모달 안에서 바로 복사·보내기 한다 */}
+      {invite.link ? (
+        <InviteNudgeModal
+          visible={inviteNudgeOpen && isFocused}
+          tripLabel={trip.destination ? `${trip.destination} 여행` : "이 여행"}
+          inviteUrl={invite.link}
+          headcount={trip.headcount}
+          copied={invite.copied}
+          onCopyLink={() => void invite.copy()}
+          onSend={() => void invite.share()}
+          onClose={() => setInviteNudgeOpen(false)}
+        />
+      ) : null}
+
+      {/* 초대 링크 공유. '여행 정보 수정' 이 여는 것과 **같은 시트**다 */}
+      {invite.link ? (
+        <InviteLinkSheet
+          visible={invite.open}
+          onClose={invite.close}
+          destination={trip.destination ?? "여행"}
+          inviteUrl={invite.link}
+          onCopyLink={() => void invite.copy()}
+          copied={invite.copied}
+          headcount={trip.headcount}
+          onShareKakao={() => void invite.share()}
+          sending={false}
+        />
       ) : null}
 
       {/*

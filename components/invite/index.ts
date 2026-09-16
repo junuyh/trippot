@@ -5,6 +5,7 @@
 export { BranchNotice, InviteLinkSheet } from './InviteLinkSheet';
 export { InviteFlowScreen } from './InviteFlowScreen';
 export { InviteLandingView } from './InviteLandingView';
+export { InviteNudgeModal } from './InviteNudgeModal';
 export { InviteUnavailableView } from './InviteUnavailableView';
 export { JoinRequestBanner } from './JoinRequestBanner';
 export { JoinRequestSheet } from './JoinRequestSheet';
