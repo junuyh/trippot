@@ -68,6 +68,12 @@ export type MyTripItem = {
   /** 되돌리기 남은 시간. '2일 7시간'. restorable 일 때만 값이 있다. */
   restoreRemainingLabel?: string | null;
   /**
+   * 되돌리기 마감 시각. '9월 18일 15:40'. restorable 일 때만 값이 있다.
+   * ⚠️ 남은 시간('2일 7시간')보다 마감 시각이 낫다. 목록을 띄워 둔 채 시간이 흘러도
+   *    틀린 말이 되지 않는다. (2026-09-16)
+   */
+  restoreDeadlineLabel?: string | null;
+  /**
    * 여행 단계. 지난 여행 배지에 '정산 대기 중' · '지출 입력 전' 처럼 쓴다.
    *
    * ⚠️ 여행 홈(TRIP-HOME-02) 배지와 같은 값이다. status 만으로는 ENDED 가
