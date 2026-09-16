@@ -10,10 +10,12 @@ type Props = {
   trips: MyTripItem[];
   filter: MyTripFilter;
   onChangeFilter: (filter: MyTripFilter) => void;
+  /**
+   * 카드를 눌렀을 때. 되돌릴 수 있는 취소 여행도 여기로 온다 —
+   * 화면 파일이 여행 홈 대신 되돌리기 확인 시트를 연다. (2026-09-16)
+   */
   onPressTrip: (tripId: string) => void;
   onPressCreateTrip: () => void;
-  /** 취소된 여행 카드의 '되돌리기'. 화면 파일이 CXL-05 확인 시트를 연다. */
-  onRestoreTrip: (tripId: string) => void;
   /** 되돌리기 준비(내역 조회) 중인 여행. 없으면 null. */
   preparingRestoreTripId: string | null;
 };
@@ -44,7 +46,6 @@ export function MyTripListView({
   onChangeFilter,
   onPressTrip,
   onPressCreateTrip,
-  onRestoreTrip,
   preparingRestoreTripId,
 }: Props) {
   return (
@@ -80,7 +81,6 @@ export function MyTripListView({
                 key={trip.tripId}
                 trip={trip}
                 onPress={onPressTrip}
-                onRestore={onRestoreTrip}
                 restoreLoading={preparingRestoreTripId === trip.tripId}
               />
             ))}
