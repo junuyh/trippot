@@ -73,7 +73,7 @@ export function LeaveCancelsTripSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 10 }}>
+      <View style={{ paddingBottom: 8, gap: 10 }}>
         <BranchNotice
           tone="warn"
           /*

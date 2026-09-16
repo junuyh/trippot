@@ -268,14 +268,17 @@ export function useLeaveTrip(options: Options = {}) {
       if (!ctx || busy) return;
 
       /**
-       * ⚠️⚠️ 위임 경로는 '모임에서도 나갈지' 를 **묻지 않는다.** ⚠️⚠️
-       *    MEM-01 의 needsDelegate 갈래는 그 선택지를 그리지 않고 바로 MEM-02
-       *    로 넘어간다. 그래서 alsoLeaveGroup 이 null 로 남는데, 두 경로에
-       *    같은 가드를 걸었더니 **'넘기고 나가기' 를 눌러도 아무 일이 없었다.**
-       *    (2026-09-14 시뮬레이터에서 확인 · 훅으로 합치며 생긴 회귀)
-       *    위임은 여행만 나간다. 모임에는 남는다.
+       * ⚠️⚠️ 위임 경로에서도 '모임에서도 나갈지' 를 **묻는다.** ⚠️⚠️
+       *    한동안 false 로 고정했었다. 그런데 이 앱에서 **모임을 나가는 통로가
+       *    나가기 시트뿐이다** — 모임 상세에도 마이페이지에도 모임 나가기가
+       *    없다. 고정해 두면 여행장이 위임하고 나가는 순간 모임에서 나갈
+       *    방법이 영영 사라진다. (2026-09-15 다빈 지적)
+       *    선택지는 MEM-02 가 그린다.
+       *
+       * ⚠️ 개인 여행에는 나갈 모임이 없다. 그때는 묻지 않고 false 로 둔다.
+       *    안 그러면 고를 수 없는 값을 기다리며 버튼이 영영 안 눌린다.
        */
-      const alsoLeave = delegateToUserId ? false : alsoLeaveGroup;
+      const alsoLeave = ctx.trip.group_id === null ? false : alsoLeaveGroup;
       if (alsoLeave === null) return;
       setBusy(true);
       setError(null);
@@ -360,7 +363,16 @@ export function useLeaveTrip(options: Options = {}) {
     setAlsoLeaveGroup,
     handleLeave,
     openDelegate: () => openSheetAfterClose('delegate'),
-    onInvite: () => ctx && onInvite?.(ctx.trip.id),
+    /**
+     * ⚠️ 시트를 **먼저 닫고** 이동한다. Modal 이 떠 있는 채로 router.push 를
+     *    하면 iOS 가 이동을 삼킨다. 아래 onCancelTrip 과 같은 이유다.
+     *    (2026-09-15 · CXL-01 의 구제 카드가 같은 이유로 안 눌렸다)
+     */
+    onInvite: () => {
+      const tripId = ctx?.trip.id;
+      setSheetState(null);
+      if (tripId) onInvite?.(tripId);
+    },
     onCancelTrip: () => {
       const tripId = ctx?.trip.id;
       setSheetState(null);

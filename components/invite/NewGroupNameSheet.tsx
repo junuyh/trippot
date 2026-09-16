@@ -68,7 +68,7 @@ export function NewGroupNameSheet({
         />
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         {/* 이동 도식 — 무엇이 어디로 가는지 그림으로 먼저 보여준다 */}
         <View className="rounded-xl bg-gray-100 p-3.5">
           <View className="flex-row items-center gap-2.5">

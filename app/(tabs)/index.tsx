@@ -100,7 +100,10 @@ import {
   type PostDestinationCount,
 } from '@/lib/supabase/queries/community';
 import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
-import { getTripsWithSummary, type TripWithSummary } from '@/lib/supabase/queries/trips';
+import {
+  getMyParticipatingTripsWithSummary,
+  type TripWithSummary,
+} from '@/lib/supabase/queries/trips';
 import { getUserProfile, type UserProfile } from '@/lib/supabase/queries/users';
 import { isTripOngoing } from '@/lib/trip/tripStatus';
 
@@ -277,7 +280,15 @@ export default function ScreenHOME01() {
       // 모임은 카드에 '개인 / 모임명' 을 쓰기 위해 조회한다. (docs/09_IA_v2.md §1-1, §1-2)
       // 모임 바로가기 섹션은 이번 개편에서 뺐다.
       const [nextTrips, nextGroups, nextProfile] = await Promise.all([
-        getTripsWithSummary(userId),
+        /**
+         * ⚠️ **참여 중인 여행만** 가져온다. getTripsWithSummary 는 모임 소속만
+         *    보고 여행 참여 여부를 안 봐서, 내가 나간 여행까지 홈에 떴다.
+         *    모임 상세는 '나간 여행' 배지로 구분해 주는데 홈에는 그 장치가
+         *    없어서 그냥 준비 중인 내 여행처럼 보였다. (2026-09-15)
+         * ⚠️ 개인 여행도 안전하다 — 여행을 만들 때 본인이 trip_members 에
+         *    ACTIVE 로 들어간다. (app/trips/new/budget-fund.tsx · seed 다낭)
+         */
+        getMyParticipatingTripsWithSummary(userId),
         getMyGroups(userId),
         getUserProfile(userId),
       ]);

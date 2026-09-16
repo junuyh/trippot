@@ -14,6 +14,8 @@ import { Pressable, Text, View } from "react-native";
 import { BranchNotice } from "@/components/invite";
 import { BottomSheet, Button } from "@/components/ui";
 
+import { LeaveChoice } from "./LeaveTripSheet";
+
 import type { TripMemberItem } from "./types";
 
 type Props = {
@@ -35,6 +37,22 @@ type Props = {
   /** 연결 계좌의 총 잔액. 없으면 null */
   fundBalanceLabel: string | null;
 
+  /**
+   * 모임 이름. 아래 선택지 문구에 쓴다. 개인 여행이면 null 이고 선택지를 안 그린다.
+   */
+  groupName: string | null;
+  /**
+   * 모임에서도 나갈지. null 이면 아직 안 골랐다.
+   *
+   * ⚠️⚠️ **위임 경로에도 반드시 묻는다.** ⚠️⚠️
+   *    한동안 위임은 '여행만 나간다' 로 고정돼 있었다. 그런데 이 앱에서
+   *    **모임을 나가는 통로가 나가기 시트뿐이다.** 모임 상세에도 마이페이지에도
+   *    모임 나가기가 없다. 그래서 여행장이 위임하고 나가면 모임에서 나갈
+   *    방법이 영영 사라졌다. (2026-09-15 다빈 지적)
+   */
+  alsoLeaveGroup: boolean | null;
+  onChangeAlsoLeaveGroup: (value: boolean) => void;
+
   onSubmit: () => void;
   submitting: boolean;
 };
@@ -47,6 +65,9 @@ export function DelegateLeaderSheet({
   selectedMemberId,
   onSelect,
   fundBalanceLabel,
+  groupName,
+  alsoLeaveGroup,
+  onChangeAlsoLeaveGroup,
   onSubmit,
   submitting,
 }: Props) {
@@ -71,14 +92,15 @@ export function DelegateLeaderSheet({
             label="넘기고 나가기"
             variant="danger"
             loading={submitting}
-            disabled={picked === null}
+            /* ⚠️ 모임 여행이면 모임 이탈까지 골라야 넘길 수 있다 */
+            disabled={picked === null || (groupName !== null && alsoLeaveGroup === null)}
             onPress={onSubmit}
           />
           <Button label="닫기" variant="ghost" disabled={submitting} onPress={onClose} />
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         <View style={{ gap: 8 }}>
           {candidates.map((member) => {
             const on = member.memberId === selectedMemberId;
@@ -111,6 +133,34 @@ export function DelegateLeaderSheet({
             );
           })}
         </View>
+
+        {/*
+          ⚠️ 모임 이탈은 **여기서만 물을 수 있다.** 이 앱에 모임 나가기 통로가
+             나가기 시트뿐이라, 위임 경로에서 빼면 여행장은 모임에서 나갈
+             방법이 없어진다. (2026-09-15 다빈 지적)
+          ⚠️ 개인 여행(groupName === null)에는 나갈 모임이 없어 그리지 않는다.
+        */}
+        {groupName !== null ? (
+          <View style={{ gap: 8 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#8B94A2" }}>
+              모임은 어떻게 할까요?
+            </Text>
+            <LeaveChoice
+              selected={alsoLeaveGroup === false}
+              disabled={submitting}
+              title="이 여행에서만 나가기"
+              body={`${groupName} 멤버로 남아서 다음 여행에 초대받을 수 있어요`}
+              onPress={() => onChangeAlsoLeaveGroup(false)}
+            />
+            <LeaveChoice
+              selected={alsoLeaveGroup === true}
+              disabled={submitting}
+              title="모임에서도 나가기"
+              body="다음 여행 초대를 받지 않아요"
+              onPress={() => onChangeAlsoLeaveGroup(true)}
+            />
+          </View>
+        ) : null}
 
         {picked ? (
           <BranchNotice

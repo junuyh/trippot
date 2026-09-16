@@ -14,6 +14,7 @@ import {
 import { supabase } from '@/lib/supabase/client';
 import type { Trip } from '@/lib/supabase/queries/trips';
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
+import { isTripOngoing } from '@/lib/trip/tripStatus';
 
 export type Group = Tables<'groups'>;
 export type GroupInsert = TablesInsert<'groups'>;
@@ -211,10 +212,17 @@ export async function getGroupTrips(groupId: string): Promise<GroupTrips> {
   const trips = data ?? [];
 
   return {
-    ongoing: trips.filter(
-      (trip) =>
-        trip.status === TRIP_STATUS.PLANNING || trip.status === TRIP_STATUS.TRAVELING,
-    ),
+    /**
+     * ⚠️⚠️ **CANCEL_PENDING 을 반드시 포함한다.** ⚠️⚠️
+     *    취소 요청 중인 여행도 준비 중인 여행이다. (POL-CXL-006) 한 명이
+     *    요청했다고 여행이 멈추지 않는다.
+     *
+     * ⚠️ 2026-09-14 에 화면 여덟 곳을 isTripBeforeDeparture 로 모았는데,
+     *    **쿼리 안의 이 필터를 놓쳤다.** 그래서 모임 상세는 이미 빠진 목록을
+     *    받았고, 취소 요청을 하면 여행이 어느 탭에도 안 보였다.
+     *    화면만 고치고 쿼리를 안 보면 이렇게 된다. (2026-09-15)
+     */
+    ongoing: trips.filter((trip) => isTripOngoing(trip.status)),
     past: trips.filter(
       (trip) => trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED,
     ),

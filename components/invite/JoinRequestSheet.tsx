@@ -93,7 +93,7 @@ export function JoinRequestSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         <View className="rounded-xl border border-gray-200 bg-white px-3.5 py-3">
           <Text style={{ fontSize: 14.5, fontWeight: "700", color: "#111827" }}>
             {request.name}
