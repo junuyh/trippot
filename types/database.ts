@@ -1623,6 +1623,7 @@ export type Database = {
         }[]
       }
       is_account_active: { Args: never; Returns: boolean }
+      is_group_member: { Args: { p_group_id: string }; Returns: boolean }
       leave_trip: {
         Args: { p_also_leave_group?: boolean; p_trip_id: string }
         Returns: string
