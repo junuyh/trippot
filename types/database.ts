@@ -1497,6 +1497,36 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _trip_cancel_close: {
+        Args: {
+          p_note: string
+          p_request_id: string
+          p_status: string
+          p_trip_id: string
+        }
+        Returns: undefined
+      }
+      _trip_cancel_confirm: {
+        Args: { p_request_id: string; p_trip_id: string }
+        Returns: undefined
+      }
+      _trip_cancel_fund_snapshot: { Args: { p_trip_id: string }; Returns: Json }
+      _trip_cancel_recheck_after_leave: {
+        Args: { p_left_user_id: string; p_trip_id: string }
+        Returns: string
+      }
+      _trip_cancel_tally: {
+        Args: { p_request_id: string }
+        Returns: Record<string, unknown>
+      }
+      _trip_leave_core: {
+        Args: {
+          p_also_leave_group: boolean
+          p_trip_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       accept_trip_join_request: {
         Args: { p_new_group_name?: string; p_request_id: string }
         Returns: {
@@ -1521,6 +1551,10 @@ export type Database = {
           status: string
         }[]
       }
+      cast_trip_cancel_vote: {
+        Args: { p_request_id: string; p_vote: string }
+        Returns: string
+      }
       create_notification: {
         Args: {
           p_body: string
@@ -1531,6 +1565,22 @@ export type Database = {
           p_user_id: string
         }
         Returns: undefined
+      }
+      delegate_and_leave: {
+        Args: {
+          p_also_leave_group?: boolean
+          p_to_user_id: string
+          p_trip_id: string
+        }
+        Returns: string
+      }
+      delegate_trip_leader: {
+        Args: { p_to_user_id: string; p_trip_id: string }
+        Returns: undefined
+      }
+      expire_trip_cancel_request: {
+        Args: { p_trip_id: string }
+        Returns: string
       }
       get_or_create_trip_invite: {
         Args: { p_trip_id: string }
@@ -1553,6 +1603,10 @@ export type Database = {
           status: string
           trip_owner_type: string
         }[]
+      }
+      leave_trip: {
+        Args: { p_also_leave_group?: boolean; p_trip_id: string }
+        Returns: string
       }
       notification_invite_access: {
         Args: { p_invite_id: string; p_uid: string }
@@ -1578,6 +1632,10 @@ export type Database = {
           request_id: string
           status: string
         }[]
+      }
+      request_trip_cancel: {
+        Args: { p_reason?: string; p_trip_id: string }
+        Returns: Json
       }
       request_trip_join: {
         Args: { p_token: string }
@@ -1624,6 +1682,11 @@ export type Database = {
           start_date: string
           trip_id: string
         }[]
+      }
+      restore_canceled_trip: { Args: { p_trip_id: string }; Returns: undefined }
+      withdraw_trip_cancel_request: {
+        Args: { p_request_id: string }
+        Returns: undefined
       }
     }
     Enums: {

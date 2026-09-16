@@ -118,7 +118,6 @@ import {
   getActiveCancelRequest,
   getChangesSinceCancel,
   getVoteProgress,
-  recheckAfterMemberLeft,
   requestCancel,
   restoreCanceledTrip,
   withdrawCancelRequest,
@@ -1155,12 +1154,12 @@ export default function ScreenTripHome() {
     if (busy || !userId) return;
     setBusy(true);
     try {
+      // ⚠️ 동의 대상 수·자금 스냅샷을 보내지 않는다. 서버가 직접 센다.
+      //    분모를 앱이 정하면 3명 여행이 한 명 동의로 취소된다.
+      //    (2026-09-16 · 보안 점검 필수 6)
       const result = await requestCancel({
         tripId: trip.id,
-        requestedBy: userId,
         reason: cancelReason,
-        voteTargetCount,
-        fundSnapshot: buildFundSnapshot(),
       });
       setSheet(null);
       await load();
@@ -1186,11 +1185,11 @@ export default function ScreenTripHome() {
       if (isCancelRequester) return;
       setBusy(true);
       try {
+        // ⚠️ 요청자 차단·집계·확정을 전부 서버가 한다. 아래 isCancelRequester
+        //    분기는 시트를 안 띄우기 위한 것이고, 실제 관문은 서버다.
         const result = await castCancelVote({
-          request: data.cancelRequest,
-          userId,
+          requestId: data.cancelRequest.id,
           vote,
-          fundSnapshot: buildFundSnapshot(),
         });
         setSheet(null);
         await load();
@@ -1222,7 +1221,7 @@ export default function ScreenTripHome() {
     if (busy || !data.cancelRequest) return;
     setBusy(true);
     try {
-      await withdrawCancelRequest(data.cancelRequest.id, trip.id);
+      await withdrawCancelRequest(data.cancelRequest.id);
       setProgressOpen(false);
       await load();
       Alert.alert("요청을 철회했어요", "여행은 그대로 준비할 수 있어요.");
