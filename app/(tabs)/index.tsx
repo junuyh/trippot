@@ -29,12 +29,21 @@
 // 이 파일은 데이터 조회·상태 관리·로그 기록만 한다.
 // 실제로 보이는 UI 는 components/home/ 에 있다. (CLAUDE.md 9장)
 //
+// 2026-09-15 답하지 않은 여행 초대를 맨 위에 띄운다. (모달 한 번 + 상시 배너)
+//   누구에게 뜨나 — 답할 때까지 남는다.
+//     · 로그인 전에 초대 링크를 열고 로그인 · 가입한 사람 (로그인 뒤 곧장 홈으로 온다 · app/_layout.tsx)
+//     · 이미 로그인한 채 초대 화면(/invite/:token)을 열고 참여 요청 없이 나간 사람
+//   초대 링크에는 받는 사람이 없어서 서버는 누구에게 온 초대인지 모른다.
+//   링크를 연 기기가 token 을 저장해 두고(lib/invite/pendingInvites),
+//   홈이 열릴 때마다 resolve_trip_invite 로 다시 확인한다.
+//
 // 헤더·탭 라벨 제목은 app/(tabs)/_layout.tsx 에서 정한다.
 // 여기서 <Stack.Screen options={{ title }} /> 을 쓰면 Tabs 스크린 옵션을 덮어써서
 // 하단 탭 라벨까지 바뀐다.
 // ============================================================================
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { Alert } from 'react-native';
 
 import {
   HomeEmpty,
@@ -45,11 +54,35 @@ import {
   type DiscoverDestination,
   type EndedTripCardData,
   type HomeEmptyVariant,
+  type HomeInvite,
+  type InvitePromptProps,
   type OngoingTripCardData,
 } from '@/components/home';
-import { daysUntil } from '@/components/home/format';
+import { daysUntil, formatTripDates } from '@/components/home/format';
+import type { TravelStyleTile } from '@/components/home';
 import { SCREENS } from '@/lib/analytics/events';
-import { useCurrentUserId } from '@/lib/auth/AuthProvider';
+import {
+  TRAVEL_STYLES,
+  currentMonthKst,
+  entriesByStyle,
+  exploreEntries,
+  seasonOfMonth,
+  splitBySeason,
+  toExploreCard,
+} from '@/lib/destination/explore';
+import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
+import {
+  getPendingInvites,
+  markInviteModalShown,
+  removePendingInvite,
+} from '@/lib/invite/pendingInvites';
+import { previewInviteState } from '@/lib/invite/previewInvite';
+import {
+  TRIP_JOIN_ERROR,
+  requestTripJoin,
+  resolveTripInvite,
+  tripJoinErrorCode,
+} from '@/lib/supabase/queries/tripJoinRequests';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { destinationPhoto } from '@/lib/constants/destinationPhoto';
 import { destinationEditorial } from '@/lib/constants/destinationEditorial';
@@ -99,6 +132,26 @@ const SUGGESTION_LIMIT = 8;
 const DISCOVER_LIMIT = 6;
 
 /**
+ * 기존 사용자 홈 '○월에 떠나기 좋은 해외여행지' 에 보여줄 여행지 수. (2026-09-16)
+ * 전체는 여행지 추천 화면(/destinations)이 맡는다. 홈이 여행지 목록이 되지 않게 추린다.
+ */
+const EXPLORE_LIMIT = 6;
+
+/**
+ * 여행지 추천 두 칸의 재료. 코드 상수만 읽으므로 모듈에서 한 번 만든다.
+ * ⚠️ 달(month)은 여기서 굳히지 않는다. 앱을 켜 둔 채 달이 바뀔 수 있어 렌더 때 본다.
+ */
+const EXPLORE_ENTRIES = exploreEntries();
+
+/** 스타일 타일. 걸리는 여행지가 0곳인 스타일은 빼서, 눌렀을 때 빈 목록이 나오지 않게 한다. */
+const STYLE_TILES: TravelStyleTile[] = TRAVEL_STYLES.map((style) => ({
+  key: style.key,
+  label: style.label,
+  icon: style.icon,
+  count: entriesByStyle(EXPLORE_ENTRIES, style.key).length,
+})).filter((tile) => tile.count > 0);
+
+/**
  * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-09 개편)
  *
  * 상수만 읽어 만드는 부분이다. 렌더마다 다시 계산할 이유가 없어 모듈에서
@@ -144,6 +197,30 @@ const HOME_SUGGESTION_BASE = (() => {
   return picked;
 })();
 
+/** 서버 my_state 중 아직 참여 요청을 보낼 수 있는 상태. 초대 화면(INV-02)과 같은 기준이다. */
+function isAnswerable(myState: string): boolean {
+  return myState === 'NONE' || myState === 'LEFT';
+}
+
+/** 초대 미리보기 → 홈 배너 · 모달 한 줄. 승인 전 공개 범위만 옮긴다. (docs/10_v2 §11) */
+function toHomeInvite(
+  token: string,
+  preview: {
+    inviterName: string | null;
+    destination: string | null;
+    startDate: string | null;
+    endDate: string | null;
+  },
+): HomeInvite {
+  const dates = formatTripDates(preview.startDate, preview.endDate);
+  return {
+    token,
+    inviterName: preview.inviterName,
+    destination: preview.destination,
+    periodLabel: preview.startDate && preview.endDate ? `${dates.start} – ${dates.end}` : null,
+  };
+}
+
 export default function ScreenHOME01() {
   // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
   // 미리보기 모드(__DEV__)에서는 시드 사용자다. (lib/auth/AuthProvider)
@@ -151,7 +228,27 @@ export default function ScreenHOME01() {
   useScreenView(SCREENS.HOME);
 
   const router = useRouter();
+
+  /**
+   * [개발용] 신규 사용자 홈 미리보기. `/?preview=empty` 로 연다. (2026-09-16)
+   *
+   * 여행이 하나도 없는 사람의 홈은 seed 사용자 넷 모두 여행이 있어서 볼 수 없었다.
+   * 이 값이 있으면 **조회 결과를 그대로 두고 화면만** 신규 사용자 홈으로 그린다.
+   * DB 에는 아무것도 쓰지 않는다.
+   *
+   * ⚠️ __DEV__ 에서만 동작한다. 배포 번들에서는 이 분기가 없다.
+   * ⚠️ 확인이 끝나면 이 상수와 아래 한 줄(emptyPreview 조건)을 지운다.
+   */
+  const params = useLocalSearchParams<{ preview?: string }>();
+  const emptyPreview = __DEV__ && params.preview === 'empty';
+  const { isPreview } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>('loading');
+  /** 답하지 않은 초대. 서버 확인을 통과한 것만 들어온다. */
+  const [invites, setInvites] = useState<HomeInvite[]>([]);
+  /** 지금 모달로 띄운 초대의 token. 닫으면 null. */
+  const [modalToken, setModalToken] = useState<string | null>(null);
+  /** 참여 요청을 보내는 중인 초대의 token. 중복 제출 방지. */
+  const [requestingToken, setRequestingToken] = useState<string | null>(null);
   const [trips, setTrips] = useState<TripWithSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -203,7 +300,9 @@ export default function ScreenHOME01() {
            범위를 넓혔다)
         ⚠️ 실패해도 홈 전체를 오류로 만들지 않는다 — 배지와 그 칸만 빠진다.
       */
-      if (!hasOngoing) {
+      // ⚠️ [개발용] 신규 사용자 홈 미리보기에서도 '여행자들은 이렇게 다녀왔어요' 를
+      //    보려면 글 수가 필요하다. (emptyPreview 주석 참조)
+      if (!hasOngoing || emptyPreview) {
         try {
           setPostCounts(await getPostDestinations());
         } catch {
@@ -216,18 +315,150 @@ export default function ScreenHOME01() {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, [userId]);
+  }, [userId, emptyPreview]);
 
   // ⚠️ useEffect 가 아니라 useFocusEffect 다. (2026-09-03)
   //    탭은 화면을 살려 두기 때문에(unmountOnBlur 없음) 한 번 만들어지면
   //    useEffect 가 다시 돌지 않는다. 그래서 여행을 만들고 홈으로 돌아와도
   //    새 여행이 목록에 없고, 결산을 끝내고 와도 지난 여행 금액이 그대로였다.
   //    모임·마이페이지·커뮤니티 탭과 같은 방식으로 맞춘다.
+  /**
+   * 기기에 남은 초대를 서버에 다시 확인한다.
+   *
+   * ⚠️ 홈 조회(load)와 따로 돈다. 초대 확인이 실패해도 홈이 오류가 되면 안 된다.
+   * ⚠️ 서버가 "이제 답할 수 없다" 고 한 초대만 지운다(만료 · 이미 참여 · 요청함 · 거절됨).
+   *    확인 자체가 실패하면(네트워크 등) 이번엔 안 보여주고 저장은 남긴다.
+   * ⚠️ 모달은 **한 초대에 한 번만** 띄운다. 그 뒤로는 배너로만 남는다.
+   */
+  const loadInvites = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const stored = await getPendingInvites(userId);
+      const checked = await Promise.all(
+        stored.map(async (row): Promise<HomeInvite | null> => {
+          // 개발용 미리보기에는 세션이 없어 RPC 가 막힌다. preview-* 토큰만 그린다.
+          // production 에는 __DEV__ 가 false 라 이 분기가 없다. (lib/invite/previewInvite)
+          if (__DEV__ && isPreview) {
+            const preview = previewInviteState(row.token);
+            if (preview?.kind !== 'VALID' || !isAnswerable(preview.myState)) return null;
+            return toHomeInvite(row.token, {
+              inviterName: preview.preview.ownerDisplayName,
+              destination: preview.preview.destination,
+              startDate: preview.preview.startDate,
+              endDate: preview.preview.endDate,
+            });
+          }
+
+          try {
+            const result = await resolveTripInvite(row.token);
+            if (result.invite_state !== 'VALID' || !isAnswerable(result.my_state)) {
+              await removePendingInvite(userId, row.token);
+              return null;
+            }
+            return toHomeInvite(row.token, {
+              inviterName: result.inviter_name,
+              destination: result.destination,
+              startDate: result.start_date,
+              endDate: result.end_date,
+            });
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      const next = checked.filter((invite): invite is HomeInvite => invite !== null);
+      setInvites(next);
+
+      const firstUnseen = stored.find(
+        (row) => row.modalShownAt === null && next.some((invite) => invite.token === row.token),
+      );
+      if (firstUnseen) {
+        setModalToken((current) => current ?? firstUnseen.token);
+        await markInviteModalShown(userId, firstUnseen.token);
+      }
+    } catch {
+      // 기기 저장소를 못 읽었다. 초대 칸만 비우고 홈은 그대로 둔다.
+      setInvites([]);
+    }
+  }, [userId, isPreview]);
+
   useFocusEffect(
     useCallback(() => {
       void load();
-    }, [load]),
+      void loadInvites();
+    }, [load, loadInvites]),
   );
+
+  /** 답이 끝난 초대를 화면과 기기에서 뺀다. */
+  function dismissInvite(token: string) {
+    setInvites((prev) => prev.filter((invite) => invite.token !== token));
+    setModalToken((current) => (current === token ? null : current));
+    if (userId) removePendingInvite(userId, token).catch(() => undefined);
+  }
+
+  /**
+   * 참여 요청하기. request_trip_join → PENDING. 여행장이 수락해야 참여가 확정된다.
+   *
+   * ⚠️ 이벤트를 찍지 않는다. events.ts 의 JOIN_REQUESTED 는 hours_since_invite 를 요구하는데
+   *    홈은 초대가 만들어진 시각을 모른다. 초대 화면(INV-02)도 아직 찍지 않아서
+   *    홈에서만 찍으면 요청 수가 절반만 잡힌다. (CLAUDE.md 8장)
+   */
+  async function handleRequestJoin(token: string) {
+    if (!userId || requestingToken) return;
+
+    // 미리보기 — 서버에 아무것도 쓰지 않고 결과만 흉내 낸다.
+    if (__DEV__ && isPreview) {
+      dismissInvite(token);
+      Alert.alert('참여 요청을 보냈어요', '여행장이 수락하면 여행에 함께할 수 있어요.');
+      return;
+    }
+
+    setRequestingToken(token);
+    try {
+      await requestTripJoin(token);
+      dismissInvite(token);
+      Alert.alert('참여 요청을 보냈어요', '여행장이 수락하면 여행에 함께할 수 있어요.');
+    } catch (error) {
+      const code = tripJoinErrorCode(error);
+      if (code === TRIP_JOIN_ERROR.ALREADY_MEMBER) {
+        dismissInvite(token);
+        Alert.alert('이미 함께하고 있는 여행이에요');
+        void load();
+      } else if (code === TRIP_JOIN_ERROR.REJECTED_FOR_INVITE) {
+        // ⚠️ 거절 사유를 말하지 않는다. (POL-INV-051)
+        dismissInvite(token);
+        Alert.alert('이 초대로는 참여 요청을 보낼 수 없어요');
+      } else if (code === TRIP_JOIN_ERROR.INVITE_NOT_VALID || code === TRIP_JOIN_ERROR.NOT_FOUND) {
+        dismissInvite(token);
+        Alert.alert('초대 링크가 만료됐어요', '초대한 사람에게 새 링크를 받아 주세요.');
+      } else {
+        // 일시적인 실패일 수 있다. 초대는 남겨 두고 다시 누를 수 있게 한다.
+        Alert.alert('참여 요청을 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
+      }
+    } finally {
+      setRequestingToken(null);
+    }
+  }
+
+  /**
+   * 거절하기. **이 기기에서 초대를 지우는 것뿐이다.** 서버에 보내지 않는다.
+   * 받는 사람이 초대를 거절하는 서버 기능은 정책에 없다. 여행장에게도 알리지 않는다.
+   * 같은 링크를 다시 열면 다시 뜬다.
+   */
+  function handleDeclineInvite(token: string) {
+    if (requestingToken) return;
+    dismissInvite(token);
+  }
+
+  const invitePrompt: InvitePromptProps = {
+    invites,
+    modalInvite: invites.find((invite) => invite.token === modalToken) ?? null,
+    requestingToken,
+    onRequestJoin: (token) => void handleRequestJoin(token),
+    onDecline: handleDeclineInvite,
+    onCloseModal: () => setModalToken(null),
+  };
 
   function handlePressTrip(tripId: string) {
     // 진행/종료 모두 같은 라우트다. 도착 화면이 trip.status 로 분기한다. (docs/04_v3 §5)
@@ -270,6 +501,17 @@ export default function ScreenHOME01() {
     // 홈에서도 track() 하면 trip_create_started 가 두 번 쌓여 퍼널이 부풀려진다.
     // (docs/README.md §5 17번 — HOME-01 담당자가 param 을 붙여달라는 요청)
     router.push(`/trips/new/owner?entryPoint=${entryPoint}`);
+  }
+
+  /**
+   * 상단바 알림 버튼. 받은 알림 목록으로 보낸다. (2026-09-15)
+   *
+   * ⚠️ 마이페이지 헤더 🔔 와 같은 화면이다. 알림 설정(/me/settings/notifications)이 아니다.
+   * ⚠️ 이벤트를 찍지 않는다. events.ts 에 알림함 진입 이벤트가 없고,
+   *    새 이벤트를 임의로 만들지 않는다. (CLAUDE.md 8장)
+   */
+  function handlePressNotifications() {
+    router.push('/me/notifications');
   }
 
   if (loadState === 'loading') {
@@ -386,7 +628,7 @@ export default function ScreenHOME01() {
   // 여행이 하나도 없으면 신규 사용자 홈을 보여준다.
   // 기존 홈의 두 칸(보딩패스 슬라이드 · 러기지 태그 목록)을 그대로 쓰고
   // 내용만 '추천 여행지' 와 '여행자들은 이렇게 다녀왔어요' 로 바꾼 화면이다.
-  if (trips.length === 0) {
+  if (trips.length === 0 || emptyPreview) {
     /**
      * '여행자들은 이렇게 다녀왔어요' 목록.
      *
@@ -424,24 +666,42 @@ export default function ScreenHOME01() {
         // 받게 되면 그때 붙인다. (components/home/DestinationSuggestCard 주석)
         onPressSuggestion={handlePressDestination}
         onPressDiscovery={handlePressDiscovery}
+        onPressNotifications={handlePressNotifications}
+        invitePrompt={invitePrompt}
       />
     );
   }
 
+  // ── 1-3 · 1-4. 여행지 추천 (2026-09-16) ────────────────────────────────
+  // ⚠️ 이벤트를 찍지 않는다. 여행지 추천 · 상세 화면 모두 SCREENS 상수가 없고,
+  //    새 이벤트를 임의로 만들지 않는다. (CLAUDE.md 8장)
+  const exploreMonth = currentMonthKst();
+  const exploreItems = splitBySeason(EXPLORE_ENTRIES, seasonOfMonth(exploreMonth))
+    .now.slice(0, EXPLORE_LIMIT)
+    .map(toExploreCard);
+
   return (
     <HomeView
+      exploreMonthLabel={`${exploreMonth}월`}
+      exploreItems={exploreItems}
+      styleTiles={STYLE_TILES}
+      onPressExploreDestination={handlePressDestination}
+      onPressExploreAll={() => router.push('/destinations')}
+      onPressStyle={(key) =>
+        router.push(`/destinations?tab=style&style=${encodeURIComponent(key)}`)
+      }
+      onPressAllStyles={() => router.push('/destinations?tab=style')}
       userName={profile?.name ?? null}
       daysToNextTrip={daysUntil(nearest?.startDate ?? null)}
       ongoingTrips={ongoingTrips}
       emptyVariant={emptyVariant}
-      // 준비 중인 여행이 하나도 없으면 그 자리에 추천 여행지가 들어간다.
-      suggestions={suggestions}
-      onPressSuggestion={handlePressDestination}
       pastTrips={pastTrips.slice(0, HOME_PAST_TRIP_LIMIT)}
       onPressTrip={handlePressTrip}
       onPressSettle={handlePressSettle}
       onPressCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.HOME)}
       onPressAllPastTrips={() => router.push('/me/trips')}
+      onPressNotifications={handlePressNotifications}
+      invitePrompt={invitePrompt}
     />
   );
 }

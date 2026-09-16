@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from '@/components/home/format';
 import { HOME_TRACK } from '@/components/home/palette';
@@ -25,6 +25,15 @@ type Props = {
    *    (2026-09-09) **기본값을 바꾸지 않는다.**
    */
   showGroupName?: boolean;
+  /**
+   * 취소된 여행 카드의 '되돌리기'. (MY-02 · 2026-09-16)
+   *
+   * ⚠️ 넘기지 않으면 버튼이 없다. GROUP-02 는 넘기지 않으므로 그대로다.
+   * ⚠️ 누르면 바로 되돌리지 않는다. 화면 파일이 CXL-05 확인 시트를 연다. (POL-CXL-036)
+   */
+  onRestore?: (tripId: string) => void;
+  /** 되돌리기 확인 시트에 필요한 내역을 불러오는 중. 버튼에 스피너를 띄우고 막는다. */
+  restoreLoading?: boolean;
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
@@ -50,7 +59,13 @@ const MUTED = '#B6BCC6';
  * 진행 중이면 준비율까지, 지난 여행이면 최종 여행비까지 보여준다.
  * 카드 모양·색 규칙은 홈의 가로 카드를 그대로 따른다.
  */
-export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
+export function MyTripCard({
+  trip,
+  onPress,
+  showGroupName = true,
+  onRestore,
+  restoreLoading = false,
+}: Props) {
   const past = trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED;
   // 취소된 여행과 나간 여행만 색을 뺀다. 지난 여행은 국가색을 그대로 쓴다.
   const dimmed = trip.status === TRIP_STATUS.CANCELED || trip.left === true;
@@ -149,6 +164,44 @@ export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
              내 몫이 아니다. 그대로 두면 '— / —원' 과 빈 진행률 막대가 남아
              무언가 불러오지 못한 것처럼 보인다.
         */}
+        {/*
+          취소된 여행의 되돌리기. (2026-09-16)
+          ⚠️ 나간 여행은 제외한다. 내가 나간 여행을 내가 되살리지 않는다.
+          ⚠️ 72시간이 지났으면 버튼 대신 안내만 둔다. 되돌리기 수단이 없다. (POL-CXL-031)
+        */}
+        {onRestore && trip.status === TRIP_STATUS.CANCELED && !trip.left ? (
+          trip.restorable ? (
+            <View className="mt-2.5 flex-row items-center justify-between">
+              <Text className="flex-1 text-pot-faint" style={{ fontSize: 11 }} numberOfLines={1}>
+                {trip.restoreRemainingLabel
+                  ? `${trip.restoreRemainingLabel} 안에 되돌릴 수 있어요`
+                  : '되돌릴 수 있어요'}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${destination} 여행 되돌리기`}
+                accessibilityState={{ disabled: restoreLoading, busy: restoreLoading }}
+                disabled={restoreLoading}
+                hitSlop={6}
+                onPress={() => onRestore(trip.tripId)}
+                className="ml-3 h-8 min-w-[76px] items-center justify-center rounded-full bg-pot-ink px-3.5 active:opacity-80"
+              >
+                {restoreLoading ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text className="font-bold text-white" style={{ fontSize: 12 }}>
+                    되돌리기
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          ) : (
+            <Text className="mt-2.5 text-pot-faint" style={{ fontSize: 11 }}>
+              되돌릴 수 있는 기간(3일)이 지났어요
+            </Text>
+          )
+        ) : null}
+
         {dimmed ? null : past ? (
           <View className="mt-2.5 flex-row items-end justify-between">
             <Text className="text-pot-faint" style={{ fontSize: 10.5 }}>

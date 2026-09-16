@@ -24,6 +24,12 @@
 //
 // ⚠️ useScreenView 를 부르지 않는다. SCREENS 에 이 화면 상수가 없고 events.ts 는
 //    공유 파일이라 임의로 추가하지 않는다. (CLAUDE.md 8장)
+//
+// ⚠️ 2026-09-15 답하지 않은 초대를 기기에 남긴다. (HOME-01 담당 · 한나 확인)
+//    참여 요청할 수 있는 초대(NONE · LEFT)면 token 을 저장하고, 요청을 보냈거나
+//    '괜찮아요' 를 눌렀거나 더 이상 답할 수 없는 상태면 지운다.
+//    요청하지 않고 뒤로 나가면 홈이 모달과 상시 배너로 다시 알린다. (lib/invite/pendingInvites)
+//    화면 흐름 · 문구는 바꾸지 않았다.
 // ============================================================================
 import { format, parseISO } from 'date-fns';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -39,6 +45,7 @@ import {
 } from '@/components/invite';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
+import { removePendingInvite, savePendingInvite } from '@/lib/invite/pendingInvites';
 import { previewInviteState } from '@/lib/invite/previewInvite';
 import {
   TRIP_JOIN_ERROR,
@@ -100,6 +107,27 @@ export default function ScreenInvite() {
   /** resolve 가 준 여행 id. '여행으로 가기' 에만 쓴다. 미리보기에는 없다. */
   const [tripId, setTripId] = useState<string | null>(null);
 
+  /**
+   * 홈이 다시 알려줄 초대를 기기에 맞춘다. (lib/invite/pendingInvites)
+   *   참여 요청할 수 있음(NONE · LEFT)  → 저장
+   *   이미 답했거나 답할 수 없음         → 삭제
+   *   확인 실패 · 확인 중                → 그대로 둔다. 일시적인 실패로 초대를 잃지 않는다.
+   * 저장 실패는 화면에 알리지 않는다. 이 화면의 흐름과 무관한 보조 기능이다.
+   */
+  const syncPendingInvite = useCallback(
+    (next: InviteRouteState) => {
+      if (!userId || !token) return;
+      if (next.kind === 'LOADING' || next.kind === 'ERROR' || next.kind === 'NOT_CONNECTED') return;
+      const answerable =
+        next.kind === 'VALID' && (next.myState === 'NONE' || next.myState === 'LEFT');
+      const task = answerable
+        ? savePendingInvite(userId, token)
+        : removePendingInvite(userId, token);
+      task.catch(() => undefined);
+    },
+    [userId, token],
+  );
+
   const load = useCallback(async () => {
     if (!token) {
       setState({ kind: 'NOT_FOUND' });
@@ -110,20 +138,24 @@ export default function ScreenInvite() {
     // 미리보기에는 세션이 없어 RPC 가 AUTH_REQUIRED 를 내므로 preview-* 토큰만 그린다.
     if (__DEV__ && isPreview) {
       const preview = previewInviteState(token);
-      setState(preview ?? { kind: 'NOT_CONNECTED' });
+      const next = preview ?? { kind: 'NOT_CONNECTED' as const };
+      setState(next);
+      syncPendingInvite(next);
       return;
     }
 
     setState({ kind: 'LOADING' });
     try {
       const row = await resolveTripInvite(token);
+      const next = toRouteState(row);
       setTripId(row.trip_id ?? null);
-      setState(toRouteState(row));
+      setState(next);
+      syncPendingInvite(next);
     } catch {
       // 네트워크 · 세션 없음 등. 예외 객체를 화면에 그대로 내보내지 않는다.
       setState({ kind: 'ERROR' });
     }
-  }, [token, isPreview]);
+  }, [token, isPreview, syncPendingInvite]);
 
   useEffect(() => {
     void load();
@@ -143,20 +175,28 @@ export default function ScreenInvite() {
 
     // 미리보기 — 서버에 아무것도 쓰지 않고 화면 전환만 흉내 낸다.
     if (__DEV__ && isPreview) {
-      setState({ ...state, myState: 'PENDING', myRequestId: 'preview' });
+      const next = { ...state, myState: 'PENDING' as const, myRequestId: 'preview' };
+      setState(next);
+      syncPendingInvite(next);
       return;
     }
 
     setRequesting(true);
     try {
       const row = await requestTripJoin(token);
-      setState({ ...state, myState: 'PENDING', myRequestId: row.request_id });
+      const next = { ...state, myState: 'PENDING' as const, myRequestId: row.request_id };
+      setState(next);
+      syncPendingInvite(next);
     } catch (error) {
       const code = tripJoinErrorCode(error);
       if (code === TRIP_JOIN_ERROR.ALREADY_MEMBER) {
-        setState({ ...state, myState: 'ACTIVE', myRequestId: null });
+        const next = { ...state, myState: 'ACTIVE' as const, myRequestId: null };
+        setState(next);
+        syncPendingInvite(next);
       } else if (code === TRIP_JOIN_ERROR.REJECTED_FOR_INVITE) {
-        setState({ ...state, myState: 'REJECTED', myRequestId: null });
+        const next = { ...state, myState: 'REJECTED' as const, myRequestId: null };
+        setState(next);
+        syncPendingInvite(next);
       } else if (code === TRIP_JOIN_ERROR.INVITE_NOT_VALID || code === TRIP_JOIN_ERROR.NOT_FOUND) {
         void load();
       } else {
@@ -165,7 +205,13 @@ export default function ScreenInvite() {
     } finally {
       setRequesting(false);
     }
-  }, [state, requesting, isPreview, token, load]);
+  }, [state, requesting, isPreview, token, load, syncPendingInvite]);
+
+  /** '괜찮아요'. 답을 한 것이라 홈이 다시 알리지 않게 지우고 홈으로 간다. */
+  const handleDecline = useCallback(() => {
+    if (userId && token) removePendingInvite(userId, token).catch(() => undefined);
+    router.replace('/');
+  }, [userId, token]);
 
   const periodLabel = useMemo(
     () =>
@@ -256,7 +302,7 @@ export default function ScreenInvite() {
         signedIn={userId !== null}
         myState={state.myState}
         onRequestJoin={handleRequestJoin}
-        onDecline={goHome}
+        onDecline={handleDecline}
         // 이미 참여 중이면 여행 홈으로. 미리보기에서는 실제 trip id 가 없어 홈으로 보낸다.
         onGoToTrip={tripId ? () => router.replace(`/trips/${tripId}`) : goHome}
         requesting={requesting}
