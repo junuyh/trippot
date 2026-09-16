@@ -106,6 +106,7 @@ export function AccountView({
           <View className="mt-3">
             <Button
               label="저장"
+              variant="brand"
               disabled={!canSaveName}
               loading={savingName}
               onPress={onPressSaveName}
@@ -150,6 +151,7 @@ export function AccountView({
           <View className="mt-3">
             <Button
               label="저장"
+              variant="brand"
               disabled={!canSaveEnglishName}
               loading={savingEnglishName}
               onPress={onPressSaveEnglishName}

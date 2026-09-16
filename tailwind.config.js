@@ -23,6 +23,14 @@ module.exports = {
           dash: '#CBD0D6',   // 절취선
           visual: '#F5F7FA', // 티켓 윗칸 바탕
         },
+        // ── TripPot 브랜드 컬러 (확정 · 2026-09-16) ────────────────────────
+        // lib/constants/brandColor.ts 의 BRAND 와 같은 값. 일반 화면의 CTA · 선택 상태에만 쓴다.
+        // 국가 테마(theme.primary)를 대체하지 않는다.
+        brand: {
+          DEFAULT: '#64139E', // Brand Primary
+          pressed: '#521080', // Primary Pressed — 눌린 상태만
+          soft: '#F6F0FA',    // Primary Soft — 선택된 탭·칩 배경
+        },
       },
     },
   },

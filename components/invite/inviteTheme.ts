@@ -1,15 +1,14 @@
 // ============================================================================
 // 초대 화면 색 — 한 곳. (2026-09-16 · 초대 플로우 공통 visual)
 //
-// 최종 브랜드 보라색 hex 는 아직 확정 전이다. 그때까지 MY 여권의 진한 보라(PASSPORT.accent)를
-// 임시 기준으로 **재사용**한다. 확정되면 여기 primary 한 줄만 바꾼다 — 초대 화면의 배경 · 로고 ·
+// 브랜드 보라(BRAND.primary · #64139E)를 그대로 쓴다. (2026-09-16 확정) 초대 화면의 배경 · 로고 ·
 // 주 버튼 · 강조색이 전부 이 값을 본다. component 안에 hex 를 직접 적지 않는다.
 // ============================================================================
-import { PASSPORT } from '@/components/mypage/passport';
+import { BRAND } from '@/lib/constants/brandColor';
 
 export const INVITE_THEME = {
   /** Header 아래 배경 · 로고 · 주 CTA · 강조. 단색 — gradient · 무늬 없음 */
-  primary: PASSPORT.accent,
+  primary: BRAND.primary,
   /** primary 위의 글자 · 아이콘 */
   onPrimary: '#FFFFFF',
   /**

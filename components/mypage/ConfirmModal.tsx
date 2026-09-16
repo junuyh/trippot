@@ -123,7 +123,7 @@ export function ConfirmModal({
                   )}
                 </Pressable>
               ) : (
-                <Button label={confirmLabel} loading={busy} onPress={onConfirm} />
+                <Button label={confirmLabel} variant="brand" loading={busy} onPress={onConfirm} />
               )}
             </View>
           </View>
