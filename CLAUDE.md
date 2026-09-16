@@ -476,3 +476,27 @@ eas build -p android --profile preview    (사람이 직접 실행 — Claude Co
   POST https://api.supabase.com/v1/projects/pzwabphxitubsioyhgkk/database/query
   User-Agent 헤더 필수 (없으면 Cloudflare 403 · error code 1010)
 - 토큰이 없으면 SQL Editor 에서 돌릴 SELECT 문을 나에게 준다
+
+---
+
+## 19. 브랜드 자산 — 로고는 두 곳에 있다
+
+앱 로고와 메일 로고는 **따로 산다.** 한쪽만 바꾸면 다른 쪽에 옛 로고가 계속 나간다.
+
+| 어디 | 파일 | 쓰는 곳 |
+|---|---|---|
+| 앱 | `assets/logo.png` | 홈 상단바 · 로그인 화면 |
+| 메일 | Storage 공개 버킷 `brand-assets/trippot-logo.png` | 이메일 인증 메일 (Supabase Auth · Brevo SMTP) |
+
+**로고를 바꾸면 두 곳을 함께 바꾼다.** 메일 쪽은 같은 이름으로 덮어쓴다. 템플릿은 고치지 않아도 된다.
+
+```bash
+npx supabase storage cp assets/logo.png ss:///brand-assets/trippot-logo.png --experimental
+```
+
+- 메일 이미지는 공개 주소가 있어야 해서 버킷에 둔다. Gmail 등은 메일 안의 base64 이미지를 막는다.
+- 메일 앱이 이미지를 캐시해서 새 로고가 보이기까지 시간이 걸릴 수 있다.
+- 인증 메일 원본은 `supabase/templates/confirm-signup.html` 이다. 실제 적용은 대시보드
+  (Authentication → Emails → Confirm sign up)에서 한다. 이 파일을 고쳤으면 대시보드에도 붙여 넣는다.
+- 운영 DB 로 옮길 때는 버킷·파일을 다시 만들고, 템플릿 안 이미지 주소의 프로젝트 ref 도 바꾼다.
+- 버킷 정의: `supabase/migrations/20260916000006_brand_assets_storage.sql`
