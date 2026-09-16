@@ -36,6 +36,7 @@
 | **`12_여행초대_승인_RPC계약_v1.md`** ← 기준 | **DB 담당 구현 계약 · 팀 확정(2026-09-13).** 수신자 초대 확인 · 참가 요청 · 취소 · 대기 목록 · 승인(CASE A/B/C/D · **새 모임 = target 여행 ACTIVE 참여자 + 요청자** · PERSONAL→GROUP · headcount 재검사 · 원자적) · 거절 — 6개 서버 함수의 auth · 검사 · 쓰기 · 반환 · 멱등 · race. REJECTED 는 (invite, user) 단위 · `pending_group_name` 미사용 · `leader_user_id` 선행 조건. §13 에 10_v2·11_v1 과의 차이(이 문서 우선) | 346 |
 | **`13_퍼널정의서_v1.md`** ← 기준 | **지금 코드에 심어진 이벤트(35개)로 그릴 수 있는 퍼널 6종.** 단계·이벤트·쪼개 볼 값, 못 그리는 퍼널 5종과 그 이유, 테스트 빌드 전 제안 2개. 요약은 이 README §6 | 165 |
 | **`14_알림센터_v1.md`** ← 기준 | **알림센터(Notification Center) 정책 · 팀 확정(2026-09-16).** 알림 SoT = `public.notifications` · 생성은 SECURITY DEFINER RPC 안(10_v2 §14 · 12 §9 의 Edge Function 안을 대체) · Push 는 전달 채널일 뿐 · 카테고리 필터(초대·참여 / 멤버·권한 / 여행 취소) · 1차 4종(`INVITE_RECEIVED` 신설 · `JOIN_*`) · 상세 화면 + 현재 상태 기반 CTA · Banner ≠ 읽음 · 365일(1년) 조회 + 30건 cursor · 730일 retention cron · raw token 미저장 · RLS 목표 | 170 |
+| **`15_회원탈퇴정책_v1.md`** ← 기준 | **회원탈퇴 정책 · 팀 확정(2026-09-17).** 30일 유예(PENDING_WITHDRAWAL) · 30일 내 취소 · 로그인 자동 복구 금지 · 여행장은 위임 후 탈퇴 · 공동 여행 기록/금액/정산 불변 · users hard delete 금지(tombstone) · 최종 탈퇴 = 권한 제거 + 식별정보 비식별화 + auth 삭제 · 이후 같은 카카오 계정은 신규 회원 · 서버 함수 3종 + cron | — |
 
 `05_v6`, `06_v3`, `09` 는 크다. 통째로 읽지 말고 해당 절만 읽는다.
 특히 `06_v3` 는 로깅 작업이 아니면 열지 않는다.

@@ -20,11 +20,16 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Alert } from 'react-native';
 
 import { signOut as supabaseSignOut } from '@/lib/auth/kakao';
 import { DEV_USER_ID } from '@/lib/constants/devUser';
 import { supabase } from '@/lib/supabase/client';
-import { ensureUserProfile } from '@/lib/supabase/queries/users';
+import {
+  type AccountState,
+  ensureUserProfile,
+  getAccountState,
+} from '@/lib/supabase/queries/users';
 
 /**
  * 세 가지뿐이다.
@@ -39,6 +44,15 @@ type AuthValue = {
   session: Session | null;
   /** 로그인한 사용자의 id. 없으면 null. */
   userId: string | null;
+  /**
+   * 계정 상태. (회원탈퇴 30일 유예 · 2026-09-17)
+   * 실제 세션이 있을 때만 읽는다. 읽는 동안은 status 가 'loading' 이라 화면이 먼저 뜨지 않는다.
+   * PENDING_WITHDRAWAL 이면 루트 가드가 홈 대신 /withdrawal-pending 으로 보낸다.
+   * 미리보기 · 로그아웃 상태에서는 null.
+   */
+  accountState: AccountState | null;
+  /** 계정 상태를 다시 읽는다. 탈퇴 취소 뒤에 부른다. */
+  refreshAccountState: () => Promise<void>;
   /**
    * 개발용 미리보기 상태. (__DEV__ 전용)
    *
@@ -71,6 +85,8 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  /** 세션 사용자의 계정 상태. 세션이 바뀌면 다시 읽는다. null = 아직 모름 · 세션 없음 */
+  const [accountState, setAccountState] = useState<AccountState | null>(null);
   /**
    * 개발용 미리보기.
    *
@@ -121,16 +137,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       //    TOKEN_REFRESHED 까지 넓히지 않는다. 토큰 갱신은 수시로 일어나고,
       //    그때마다 SELECT 를 한 번씩 더 하는 값어치가 없다.
       //
-      // ⚠️ 다만 두 이벤트가 같은 뜻은 아니다. **탈퇴한 계정을 되살리는 것은
-      //    SIGNED_IN 일 때뿐이다.** (allowRevive)
-      //      SIGNED_IN        사용자가 직접 다시 로그인했다 = 재가입 의사
-      //      INITIAL_SESSION  저장된 세션이 복원됐을 뿐이다
-      //    구분하지 않으면, 탈퇴 직후 로그아웃이 실패해 세션만 남은 사용자가
-      //    앱을 다시 켰다는 이유만으로 탈퇴가 취소된다.
+      // ⚠️ 탈퇴 대기 · 탈퇴 완료 행은 **어느 이벤트로도 되살리지 않는다.** (30일 유예 정책 · 2026-09-17)
+      //    되살리는 길은 사용자가 /withdrawal-pending 에서 직접 누르는 [탈퇴 취소] 뿐이다.
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && next?.user) {
-        void ensureUserProfile(next.user, {
-          allowRevive: event === 'SIGNED_IN',
-        }).catch(() => {});
+        void ensureUserProfile(next.user).catch(() => {});
       }
     });
 
@@ -160,6 +170,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPreviewUserId(null);
   }, []);
 
+  /**
+   * 세션 사용자의 계정 상태를 읽는다. (회원탈퇴 30일 유예)
+   *
+   * ⚠️ 최종 탈퇴(WITHDRAWN)된 계정에 세션이 남아 있으면 — 서버가 auth 계정을 지우지 못한
+   *    드문 경우 — 여기서 세션을 끊는다. 되살리지 않는다.
+   * ⚠️ 읽기에 실패하면 ACTIVE 로 본다. 네트워크 문제로 정상 사용자를 막지 않기 위해서다.
+   */
+  const sessionUserId = session?.user.id ?? null;
+  const refreshAccountState = useCallback(async () => {
+    if (!sessionUserId) {
+      setAccountState(null);
+      return;
+    }
+    try {
+      const state = await getAccountState(sessionUserId);
+      if (state.kind === 'WITHDRAWN') {
+        Alert.alert('탈퇴가 완료된 계정이에요', '다시 이용하려면 새로 가입해 주세요.');
+        await supabaseSignOut().catch(() => undefined);
+        setAccountState(null);
+        return;
+      }
+      setAccountState(state);
+    } catch {
+      setAccountState({ kind: 'ACTIVE' });
+    }
+  }, [sessionUserId]);
+
+  useEffect(() => {
+    setAccountState(null);
+    void refreshAccountState();
+  }, [refreshAccountState]);
+
   const signOut = useCallback(async () => {
     // 미리보기는 세션이 없다. supabase.auth.signOut() 을 부를 이유가 없다.
     if (previewUserId) {
@@ -171,18 +213,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthValue>(
     () => ({
-      status: !ready ? 'loading' : session ? 'signedIn' : 'signedOut',
+      // 세션이 있어도 계정 상태를 아직 모르면 loading — 탈퇴 대기 계정에 홈이 먼저 뜨지 않게.
+      status: !ready ? 'loading' : session ? (accountState ? 'signedIn' : 'loading') : 'signedOut',
       session,
       // ⚠️ 세션이 없다고 자동으로 DEV_USER_ID 를 주지 않는다. 사용자가 직접
       //    미리보기를 켠 경우에만 준다. 자동 fallback 은 미로그인 상태에서
       //    seed 사용자의 여행·모임이 자기 것처럼 보이게 만든다.
       userId: session?.user.id ?? previewUserId,
       isPreview: previewUserId !== null,
+      accountState,
+      refreshAccountState,
       enterPreview,
       exitPreview,
       signOut,
     }),
-    [ready, session, previewUserId, enterPreview, exitPreview, signOut],
+    [ready, session, previewUserId, accountState, refreshAccountState, enterPreview, exitPreview, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
