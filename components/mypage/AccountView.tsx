@@ -70,7 +70,7 @@ export function AccountView({
   onPressWithdraw,
 }: Props) {
   return (
-    <View className="px-4">
+    <View style={{ paddingHorizontal: 18 }}>
       <View className="mt-7">
         <Text
           className="text-pot-ink"

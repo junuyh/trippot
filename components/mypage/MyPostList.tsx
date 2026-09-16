@@ -5,6 +5,7 @@ import { POST_TYPE_DISPLAY_LABEL } from '@/components/community/label';
 import type { MyPostListItem } from '@/lib/supabase/queries/community';
 
 import { SwipeToAction } from './SwipeToAction';
+import { MY_PAGE_BG } from './passport';
 import { formatNotifiedAt } from './format';
 
 /**
@@ -48,8 +49,10 @@ type Props = {
 export function MyPostList({ posts, onPressPost, swipeAction }: Props) {
   return (
     <FlatList
-      className="flex-1 bg-pot-visual"
-      contentContainerClassName="px-4 pb-16 pt-4"
+      className="flex-1"
+      style={{ backgroundColor: MY_PAGE_BG }}
+      contentContainerClassName="pb-16 pt-4"
+      contentContainerStyle={{ paddingHorizontal: 18 }}
       data={posts}
       keyExtractor={(item) => item.postId}
       ItemSeparatorComponent={() => <View className="h-2.5" />}
