@@ -293,8 +293,10 @@ export const NOTIFICATION_TYPE = {
 
   // ── 초대 · 멤버 (INV/MEM) ─────────────────────────────────────────────
   // 2026-09-10 · 이슈 #73 확정본. 발송 코드는 아직 없다. 값을 먼저 연다.
-  /** 초대 링크 발송 → 초대받은 사람 */
+  /** 초대 링크 발송 → 초대받은 사람. ⚠️ multi-use 링크라 발송 시점에 수신자를 모른다 — 미사용 (docs/14 §3) */
   INVITE_SENT: "INVITE_SENT",
+  /** 로그인한 사용자가 유효한 초대 링크를 처음 열었을 때 → 그 사람 (docs/14 §3-1 · 2026-09-16 · migration 20260916000001) */
+  INVITE_RECEIVED: "INVITE_RECEIVED",
   /** 참여 요청 도착 → 여행장 */
   JOIN_REQUESTED: "JOIN_REQUESTED",
   /** 수락됨 → 요청자 */

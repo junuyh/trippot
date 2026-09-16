@@ -56,9 +56,20 @@ export type MyTripCounts = {
 export type NotificationListItem = {
   source: 'db' | 'push';
   id: string;
+  /** DB 알림의 type. 기기 보관 알림(push)은 type 이 없다 → null. 목록은 type 을 그리지 않는다. */
+  type: string | null;
   title: string;
   body: string | null;
   /** ISO. 정렬 기준. */
   createdAt: string;
   readAt: string | null;
+};
+
+/** 알림 상세 화면에 넘기는 값. 상태·CTA 는 화면 파일이 resolver 로 계산해 넣는다. */
+export type NotificationDetailItem = NotificationListItem & {
+  /** 관련 여행 한 줄. 예: '도쿄 여행 · 10.2–10.5'. 없으면 안 그린다. */
+  tripLabel: string | null;
+  /** 지금 상태. 예: '승인 대기'. */
+  statusLabel: string | null;
+  cta: { label: string; href: string } | null;
 };

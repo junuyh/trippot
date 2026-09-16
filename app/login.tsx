@@ -16,7 +16,7 @@
 //    events.ts 는 공유 파일이라 임의로 상수를 추가하지 않는다. (CLAUDE.md 8장)
 //    같은 이유로 login_completed 도 아직 쏘지 않는다. (docs/13_퍼널정의서_v1 §5)
 // ============================================================================
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 
 import { EmailAuthView, type EmailAuthMode } from '@/components/auth/EmailAuthView';
@@ -39,6 +39,10 @@ import { signInWithKakao } from '@/lib/auth/kakao';
 
 export default function ScreenLogin() {
   const router = useRouter();
+  // 초대 링크에서 왔는가. 가드가 /login?next=/invite/:token 으로 보낸다. (app/_layout.tsx)
+  // next 를 여기서 소비하지 않는다 — 복귀는 가드가 한다. 문구만 바꾼다. (docs/14 · 2026-09-16)
+  const { next } = useLocalSearchParams<{ next?: string }>();
+  const inviteContext = typeof next === 'string' && next.startsWith('/invite/');
   const { enterPreview } = useAuth();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -231,6 +235,7 @@ export default function ScreenLogin() {
         onPressKakao={() => void handleSocial(signInWithKakao)}
         onPressGoogle={() => void handleSocial(signInWithGoogle)}
         onPressEmail={() => openEmail('signIn')}
+        inviteContext={inviteContext}
         onPressTerms={() => router.push('/me/settings/terms')}
         onPressPrivacy={() => router.push('/me/settings/privacy')}
         // ⚠️ __DEV__ 는 production 번들에서 false 로 굳는다. 그래서 개발용
