@@ -94,53 +94,39 @@ export function InviteNudgeModal({
                    자리가 둘인데 그림이 다르면 다른 기능으로 읽힌다. (2026-09-16) */}
             <InviteArt width={150} height={120} style={{ marginTop: -6 }} />
 
-            <Text
-              style={{
-                marginTop: 14,
-                fontSize: 20,
-                fontWeight: "800",
-                lineHeight: 27,
-                color: "#111827",
-                textAlign: "center",
-              }}
-            >
+            {/* ⚠️ 크기·색은 components/home/InviteModal 과 맞춘다. 같은 앱에서
+                   같은 성격의 모달이 다르게 생기지 않게. (2026-09-16 다빈) */}
+            <Text className="mt-4 text-center text-lg font-bold text-pot-ink">
               함께 갈 사람을{"\n"}초대해 볼까요?
             </Text>
-
-            <Text
-              style={{
-                marginTop: 10,
-                fontSize: 13.5,
-                lineHeight: 22,
-                color: "#4B5563",
-                textAlign: "center",
-              }}
-            >
+            <Text className="mt-1.5 text-center text-sm leading-5 text-pot-mute">
               링크를 보내면 상대가 참여를 요청하고,{"\n"}
               회원님이 수락하면 같이 준비해요.
             </Text>
 
-            {/* 여행 이름과 기한은 한 덩어리로 묶어 칩에 넣는다. 본문과 같은 회색
-                글줄로 흘리면 읽히지 않고 지나간다 */}
-            <View
-              className="flex-row items-center"
-              style={{
-                marginTop: 14,
-                gap: 6,
-                borderRadius: 999,
-                backgroundColor: "#f1f3f7",
-                paddingHorizontal: 13,
-                paddingVertical: 8,
-              }}
-            >
-              <Ionicons name="calendar-outline" size={13} color="#6b7684" />
-              <Text style={{ fontSize: 12, color: "#4B5563" }}>
-                {tripLabel} · 링크는 7일간 쓸 수 있어요
-              </Text>
+            {/*
+              ⚠️ 상황 설명은 회색 박스 하나에 모은다. InviteModal 이 초대한 사람·
+                 여행지·날짜를 같은 방식으로 담는다.
+              ⚠️ 버튼 **아래에는 아무것도 두지 않는다.** 행동을 고르고 난 자리에
+                 글이 더 있으면 다 읽고도 끝난 느낌이 안 난다. (2026-09-16 다빈)
+            */}
+            <View className="mt-5 w-full rounded-2xl bg-pot-visual px-4 py-3.5">
+              <View className="flex-row items-center" style={{ gap: 6 }}>
+                <Ionicons name="calendar-outline" size={13} color="#747B88" />
+                <Text className="flex-1 text-[12.5px] text-pot-mute">
+                  {tripLabel} · 링크는 7일간 쓸 수 있어요
+                </Text>
+              </View>
+              <View className="mt-2 flex-row items-center" style={{ gap: 6 }}>
+                <Ionicons name="create-outline" size={13} color="#747B88" />
+                <Text className="flex-1 text-[12.5px] text-pot-mute">
+                  여행 정보 수정에서 언제든 초대할 수 있어요
+                </Text>
+              </View>
             </View>
           </View>
 
-          <View style={{ marginTop: 22, gap: 6 }}>
+          <View className="mt-5" style={{ gap: 6 }}>
             <Button
               label={copied ? "복사했어요" : "초대 링크 복사"}
               loading={copying}
@@ -149,18 +135,6 @@ export function InviteNudgeModal({
             <Button label="나중에 할게요" variant="ghost" disabled={copying} onPress={onClose} />
           </View>
 
-          {/* 닫아도 길이 남는다는 것을 알린다. 안 알리면 지금 안 하면 못 하는 줄 안다 */}
-          <Text
-            style={{
-              marginTop: 8,
-              fontSize: 11.5,
-              lineHeight: 18,
-              color: "#8B94A2",
-              textAlign: "center",
-            }}
-          >
-            여행 정보 수정에서 언제든 초대할 수 있어요.
-          </Text>
         </Pressable>
       </Pressable>
     </Modal>
