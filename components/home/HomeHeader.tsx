@@ -65,7 +65,7 @@ export function HomeHeader({
           accessibilityLabel="TripPot"
         />
         <Text
-          className="ml-2 flex-1 text-pot-ink"
+          className="ml-2 flex-1 text-brand"
           style={{ fontSize: 18, fontWeight: '700', letterSpacing: -0.4 }}
         >
           TripPot

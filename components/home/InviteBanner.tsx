@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import { BRAND } from '@/lib/constants/brandColor';
+
 import type { HomeInvite } from './types';
 
 type Props = {
@@ -35,7 +37,7 @@ export function InviteBanner({ invite, requesting, onRequestJoin, onDecline }: P
       accessibilityRole="summary"
     >
       <View className="flex-row items-start">
-        <Ionicons name="mail-unread-outline" size={20} color="#111827" style={{ marginTop: 1 }} />
+        <Ionicons name="mail-unread-outline" size={20} color={BRAND.primary} style={{ marginTop: 1 }} />
         <View className="ml-2.5 flex-1">
           <Text className="text-[15px] font-semibold leading-5 text-pot-ink">
             {inviter} {destination} 여행에 초대했어요

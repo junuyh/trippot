@@ -24,5 +24,7 @@ export default function ScreenInviteById() {
   const resolve = useCallback(() => resolveTripInviteById(inviteId), [inviteId]);
   const request = useCallback(() => requestTripJoinByInvite(inviteId), [inviteId]);
 
-  return <InviteFlowScreen resolve={resolve} request={request} missing={!inviteId} />;
+  return (
+    <InviteFlowScreen resolve={resolve} request={request} missing={!inviteId} inviteId={inviteId} />
+  );
 }

@@ -25,6 +25,7 @@ import {
   type RequestTripJoinRow,
   type ResolveTripInviteRow,
 } from '@/lib/supabase/queries/tripJoinRequests';
+import { markInviteNotificationsAsRead } from '@/lib/supabase/queries/notifications';
 
 import { InviteLandingView } from './InviteLandingView';
 import { InviteUnavailableView } from './InviteUnavailableView';
@@ -40,6 +41,8 @@ type Props = {
   previewToken?: string;
   /** 식별자가 아예 없을 때(잘못된 링크). NOT_FOUND 로 그린다. */
   missing?: boolean;
+  /** inviteId 판(/invite/by/:inviteId)만 넘긴다. INVITE_RECEIVED 읽음 처리를 정확한 행으로 좁히는 데 쓴다. */
+  inviteId?: string;
   /**
    * 확인 결과 · 요청 뒤 상태가 정해질 때마다 알린다. (2026-09-16 · PR #111 pending invite)
    * token 판이 기기 보관(lib/invite/pendingInvites)을 맞추는 데 쓴다. 화면 흐름과 무관하다.
@@ -94,6 +97,7 @@ export function InviteFlowScreen({
   request,
   previewToken,
   missing = false,
+  inviteId,
   onStateChange,
 }: Props) {
   const { isPreview, status } = useAuth();
@@ -127,11 +131,16 @@ export function InviteFlowScreen({
       setTripId(row.trip_id ?? null);
       setState(next);
       onStateChange?.(next);
+      // 초대 내용을 실제로 봤다 — 같은 초대의 INVITE_RECEIVED 알림을 읽음으로. (읽음 정책 2026-09-17)
+      // 화면 흐름과 분리한다: 실패해도 초대 화면은 그대로다. 미리보기(isPreview)는 위에서 이미 갈라졌다.
+      if (userId && row.invite_state === 'VALID') {
+        markInviteNotificationsAsRead(userId, { inviteId, tripId: row.trip_id }).catch(() => undefined);
+      }
     } catch {
       // 네트워크 · 세션 없음 등. 예외 객체를 화면에 그대로 내보내지 않는다.
       setState({ kind: 'ERROR' });
     }
-  }, [missing, isPreview, previewToken, resolve, onStateChange]);
+  }, [missing, isPreview, previewToken, resolve, onStateChange, userId, inviteId]);
 
   useEffect(() => {
     void load();
