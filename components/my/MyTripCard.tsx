@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from '@/components/home/format';
-import { HOME_TRACK } from '@/components/home/palette';
+import { HOME_ACCENT, HOME_TRACK } from '@/components/home/palette';
 import { TRIP_STATUS, TRIP_STATUS_LABEL } from '@/lib/constants/status';
 import { TRIP_STAGE, TRIP_STAGE_LABEL } from '@/lib/trip/stage';
 
@@ -26,6 +26,15 @@ type Props = {
    *    (2026-09-09) **기본값을 바꾸지 않는다.**
    */
   showGroupName?: boolean;
+  /**
+   * 되돌리기 확인 시트에 필요한 내역을 불러오는 중. 카드에 스피너를 띄운다.
+   *
+   * ⚠️ 되돌리기는 **버튼이 아니라 카드 자체를 눌러서** 한다. (2026-09-16 · MY-02)
+   *    되돌릴 수 있는 취소 여행을 누르면 화면 파일이 여행 홈 대신 CXL-05 확인
+   *    시트를 연다. 카드 안에 버튼을 따로 두면 카드 누르기(여행 홈)와 버튼
+   *    누르기(되돌리기)가 한 장 안에서 다른 일을 해서 헷갈렸다.
+   */
+  restoreLoading?: boolean;
 };
 
 const NUM = { fontVariant: ['tabular-nums' as const] };
@@ -47,6 +56,12 @@ const MUTED = '#B6BCC6';
 /** 여행 종료(DONE) 배지. 여행 홈 배지와 같은 값이다. */
 const DONE_SOFT = '#eef8f2';
 const DONE_INK = '#1c6f4f';
+/**
+ * 되돌리기 가능 배지. 취소됨(회색)과 구분되게 앱 강조색(HOME_ACCENT)을 쓴다.
+ * ⚠️ 노랑·주황을 쓰지 않는다. 경고로 읽혀서 "문제가 있다" 는 인상을 준다. (2026-09-16)
+ */
+const RESTORABLE_SOFT = '#EFEDFD';
+const RESTORABLE_INK = HOME_ACCENT;
 
 /**
  * MY-02 목록의 여행 한 장.
@@ -54,7 +69,12 @@ const DONE_INK = '#1c6f4f';
  * 진행 중이면 준비율까지, 지난 여행이면 최종 여행비까지 보여준다.
  * 카드 모양·색 규칙은 홈의 가로 카드를 그대로 따른다.
  */
-export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
+export function MyTripCard({
+  trip,
+  onPress,
+  showGroupName = true,
+  restoreLoading = false,
+}: Props) {
   const past = trip.status === TRIP_STATUS.ENDED || trip.status === TRIP_STATUS.SETTLED;
   // 취소된 여행과 나간 여행만 색을 뺀다. 지난 여행은 국가색을 그대로 쓴다.
   const dimmed = trip.status === TRIP_STATUS.CANCELED || trip.left === true;
@@ -65,13 +85,24 @@ export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
   const dates = formatTripDates(trip.startDate, trip.endDate);
   const nights = formatNights(trip.startDate, trip.endDate);
   const rate = calcReadyRatePercent(trip.currentAmount, trip.targetAmount);
+  /**
+   * 되돌릴 수 있는 취소 여행인가.
+   * ⚠️ restorable 은 MY '취소됨' 탭에서만 채운다. GROUP-02 에서는 undefined 라
+   *    이 카드들이 예전처럼 '취소됨' 으로만 보인다.
+   */
+  const restorable =
+    trip.status === TRIP_STATUS.CANCELED && !trip.left && trip.restorable === true;
 
   return (
     <Pressable
       // 누를 수 없는 카드는 버튼이 아니다. 스크린리더도 정보로 읽는다.
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={
-        onPress ? `${destination} 여행 홈으로 이동` : destination
+        !onPress
+          ? destination
+          : restorable
+            ? `${destination} 여행 되돌리기`
+            : `${destination} 여행 홈으로 이동`
       }
       disabled={onPress === null}
       onPress={onPress ? () => onPress(trip.tripId) : undefined}
@@ -103,7 +134,18 @@ export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
                아래로 내려가면 출발일이 남아 있는 한 D-Day 배지가 붙어서,
                이미 끝난 여행에 '출발까지 12일' 이 뜬다.
           */}
-          {dimmed ? (
+          {restorable ? (
+            /*
+              되돌리기 가능한 취소 여행. (2026-09-16)
+              ⚠️ '취소됨' 과 색을 다르게 둔다. 같은 회색이면 되살릴 수 있는 여행인지
+                 카드를 눌러 보기 전까지 알 수 없다.
+            */
+            <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: RESTORABLE_SOFT }}>
+              <Text className="font-black" style={{ fontSize: 10, color: RESTORABLE_INK }}>
+                되돌리기 가능
+              </Text>
+            </View>
+          ) : dimmed ? (
             <View className="rounded-full bg-pot-visual px-2 py-0.5">
               <Text className="font-bold text-pot-mute" style={{ fontSize: 10 }}>
                 {trip.left ? '나간 여행' : TRIP_STATUS_LABEL.CANCELED}
@@ -170,6 +212,30 @@ export function MyTripCard({ trip, onPress, showGroupName = true }: Props) {
              내 몫이 아니다. 그대로 두면 '— / —원' 과 빈 진행률 막대가 남아
              무언가 불러오지 못한 것처럼 보인다.
         */}
+        {/*
+          취소된 여행의 되돌리기 안내. (2026-09-16)
+          ⚠️ 버튼도 '눌러서 되돌리기' 안내도 두지 않는다. 카드를 누르면 확인 팝업이
+             뜨고, 거기서 되돌릴지 묻는다. 여기는 "언제까지" 만 말한다. (2026-09-16)
+          ⚠️ 나간 여행은 제외한다. 내가 나간 여행을 내가 되살리지 않는다.
+          ⚠️ restorable 이 undefined 면(GROUP-02) 아무것도 그리지 않는다.
+        */}
+        {trip.status === TRIP_STATUS.CANCELED && !trip.left && trip.restorable !== undefined ? (
+          restorable ? (
+            <View className="mt-2.5 flex-row items-center justify-between">
+              <Text className="flex-1 text-pot-mute" style={{ fontSize: 11 }} numberOfLines={1}>
+                {trip.restoreDeadlineLabel
+                  ? `${trip.restoreDeadlineLabel}까지 되돌릴 수 있어요`
+                  : '되돌릴 수 있어요'}
+              </Text>
+              {restoreLoading ? <ActivityIndicator size="small" color={RESTORABLE_INK} /> : null}
+            </View>
+          ) : (
+            <Text className="mt-2.5 text-pot-faint" style={{ fontSize: 11 }}>
+              되돌릴 수 있는 기간(3일)이 지났어요
+            </Text>
+          )
+        ) : null}
+
         {dimmed ? null : past ? (
           <View className="mt-2.5 flex-row items-end justify-between">
             <Text className="text-pot-faint" style={{ fontSize: 10.5 }}>

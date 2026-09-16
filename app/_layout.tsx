@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
+import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HeaderBackButton, Loading } from '@/components/ui';
 import { initAnalytics } from '@/lib/analytics/track';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthProvider';
+import { NotificationBannerObserver } from '@/lib/notifications/NotificationBannerObserver';
 import { PushInboxObserver } from '@/lib/notifications/PushInboxObserver';
 
 import '../global.css';
@@ -29,7 +30,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { status, isPreview } = useAuth();
   const segments = useSegments();
   const pathname = usePathname();
-  const params = useLocalSearchParams<{ next?: string }>();
+  // ⚠️ useGlobalSearchParams 다. 루트 레이아웃의 useLocalSearchParams 는 leaf(/login)의 ?next 를
+  //    보지 못해 next 복귀가 한 번도 동작하지 않았다. (2026-09-16 2계정 E2E T1 로 확인)
+  const params = useGlobalSearchParams<{ next?: string }>();
   const router = useRouter();
 
   const onLoginScreen = segments[0] === PUBLIC_SEGMENT;
@@ -68,6 +71,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       //    '//' 를 함께 막아야 내부 경로만 남는다.
       const next = typeof params.next === 'string' ? params.next : null;
       const isInternalPath = next !== null && next.startsWith('/') && !next.startsWith('//');
+
+      // ⚠️ 초대 링크로 들어와 로그인한 사람은 **원래 /invite/:token 으로 바로 돌아간다.**
+      //    (확정 정책 · docs/14 · 2026-09-16) 홈을 거쳐 다시 안내하는 흐름(PR #111)은 쓰지 않는다.
+      //    "답하지 않은 초대" 홈 배너·모달은 초대 화면이 token 을 기기에 남기는 것으로
+      //    그대로 동작한다. (app/invite/[token].tsx syncPendingInvite → lib/invite/pendingInvites)
       router.replace(isInternalPath ? (next as never) : '/');
     }
   }, [status, canEnter, onLoginScreen, pathname, params.next, router]);
@@ -127,6 +135,8 @@ export default function RootLayout() {
         <AuthGate>
           <RootStack />
         </AuthGate>
+        {/* 새 DB 알림의 In-app Banner. 화면 위에 겹쳐 그린다. 마운트 1회. (lib/notifications) */}
+        <NotificationBannerObserver />
       </AuthProvider>
     </GestureHandlerRootView>
   );

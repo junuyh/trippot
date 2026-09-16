@@ -35,7 +35,15 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "영수증·프로필·커뮤니티 사진을 올리기 위해 사진 접근이 필요해요.",
+          "cameraPermission": "영수증을 촬영하기 위해 카메라 접근이 필요해요.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "scheme": "trippot"
   }

@@ -118,7 +118,6 @@ import {
   getActiveCancelRequest,
   getChangesSinceCancel,
   getVoteProgress,
-  recheckAfterMemberLeft,
   requestCancel,
   restoreCanceledTrip,
   withdrawCancelRequest,
@@ -160,6 +159,8 @@ import {
 } from "@/components/cancel";
 import { LeaveDoneView, LeaveTripFlow } from "@/components/members";
 import { useLeaveTrip } from "@/lib/hooks/useLeaveTrip";
+import { JoinRequestBanner } from "@/components/invite";
+import { getTripJoinRequests } from "@/lib/supabase/queries/tripJoinRequests";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
@@ -230,6 +231,14 @@ type TripHomeData = {
   voteProgress: VoteProgress | null;
   /** 참여 중인 여행 멤버. 나가기 판정에 쓴다 */
   members: TripMemberWithName[];
+
+  /**
+   * 수락을 기다리는 참여 요청. **여행장일 때만** 채운다.
+   *
+   * ⚠️ 수락·거절은 여기서 하지 않는다. 배너를 눌러 여행 정보 수정으로 간다.
+   *    그 화면에 목록과 수락·거절이 이미 다 있다. (2026-09-15)
+   */
+  joinRequests: { requestId: string; name: string }[];
 
   /**
    * 취소가 확정된 뒤에 들어온 거래 **전부**. 취소된 여행에서만 채운다.
@@ -342,12 +351,39 @@ export default function ScreenTripHome() {
    * ⚠️ 멱등이어야 한다. onDismiss 와 Android 대비 타이머가 둘 다 부를 수 있다.
    *    ref 를 먼저 비워서 두 번째 호출은 아무것도 하지 않는다.
    */
+  /**
+   * 시트가 다 내려간 뒤 실행할 일. **화면 이동이 여기 들어온다.**
+   *
+   * ⚠️ Modal 이 떠 있는 채로 router.push 를 하면 iOS 가 이동을 삼킨다.
+   *    CXL-01 의 '일정이 안 맞나요? / 인원이 바뀌었나요?' 가 그래서 안 눌렸다.
+   *    (2026-09-15 다빈 확인)
+   */
+  const pendingActionRef = useRef<(() => void) | null>(null);
+
   const flushPendingSheet = useCallback(() => {
     const next = pendingSheetRef.current;
-    if (!next) return;
+    const action = pendingActionRef.current;
+    if (!next && !action) return;
     pendingSheetRef.current = null;
-    setSheet(next);
+    pendingActionRef.current = null;
+    if (next) setSheet(next);
+    action?.();
   }, []);
+
+  /**
+   * 시트를 닫고, **완전히 내려간 뒤** 무언가를 한다. 주로 화면 이동이다.
+   *
+   * ⚠️ 시트를 그대로 두고 router.push 하면 iOS 가 막는다. 돌아왔을 때 시트가
+   *    그대로 남아 있기도 한다. 위 openSheetAfterClose 와 같은 원리다.
+   */
+  const closeSheetThen = useCallback(
+    (action: () => void) => {
+      pendingActionRef.current = action;
+      setSheet(null);
+      if (Platform.OS !== "ios") setTimeout(flushPendingSheet, SHEET_SWAP_MS);
+    },
+    [flushPendingSheet],
+  );
 
   /**
    * 열려 있는 시트를 닫고, **완전히 내려간 뒤** 다음 시트를 연다.
@@ -495,6 +531,24 @@ export default function ScreenTripHome() {
           : Promise.resolve([] as Transaction[]),
       ]);
 
+      /**
+       * 참여 요청. **여행장만** 읽는다. 수락·거절이 여행장 전용이라
+       * 다른 멤버에게는 보여 줄 이유가 없다. (canDecideJoinRequest)
+       *
+       * ⚠️ 실패해도 화면은 떠야 한다. 배너가 없을 뿐이지 여행 준비는 그대로다.
+       *    RPC 가 아직 안 붙은 환경도 있어서 조용히 빈 배열로 둔다.
+       */
+      const joinRequests =
+        trip.leader_user_id && trip.leader_user_id === userId
+          ? await getTripJoinRequests(trip.id)
+              .then((rows) =>
+                rows
+                  .filter((row) => row.status === "PENDING")
+                  .map((row) => ({ requestId: row.request_id, name: row.requester_name })),
+              )
+              .catch(() => [])
+          : [];
+
       setData({
         trip,
         budget,
@@ -507,6 +561,7 @@ export default function ScreenTripHome() {
         cancelRequest,
         voteProgress,
         members: tripMembers,
+        joinRequests,
         cancelChanges,
       });
 
@@ -1155,12 +1210,12 @@ export default function ScreenTripHome() {
     if (busy || !userId) return;
     setBusy(true);
     try {
+      // ⚠️ 동의 대상 수·자금 스냅샷을 보내지 않는다. 서버가 직접 센다.
+      //    분모를 앱이 정하면 3명 여행이 한 명 동의로 취소된다.
+      //    (2026-09-16 · 보안 점검 필수 6)
       const result = await requestCancel({
         tripId: trip.id,
-        requestedBy: userId,
         reason: cancelReason,
-        voteTargetCount,
-        fundSnapshot: buildFundSnapshot(),
       });
       setSheet(null);
       await load();
@@ -1186,11 +1241,11 @@ export default function ScreenTripHome() {
       if (isCancelRequester) return;
       setBusy(true);
       try {
+        // ⚠️ 요청자 차단·집계·확정을 전부 서버가 한다. 아래 isCancelRequester
+        //    분기는 시트를 안 띄우기 위한 것이고, 실제 관문은 서버다.
         const result = await castCancelVote({
-          request: data.cancelRequest,
-          userId,
+          requestId: data.cancelRequest.id,
           vote,
-          fundSnapshot: buildFundSnapshot(),
         });
         setSheet(null);
         await load();
@@ -1222,7 +1277,7 @@ export default function ScreenTripHome() {
     if (busy || !data.cancelRequest) return;
     setBusy(true);
     try {
-      await withdrawCancelRequest(data.cancelRequest.id, trip.id);
+      await withdrawCancelRequest(data.cancelRequest.id);
       setProgressOpen(false);
       await load();
       Alert.alert("요청을 철회했어요", "여행은 그대로 준비할 수 있어요.");
@@ -1584,7 +1639,17 @@ export default function ScreenTripHome() {
         onClose={() => setSettingsOpen(false)}
         destination={trip.destination ?? "여행"}
         groupName={data.groupName}
-        onEdit={() => router.push(`/trips/${trip.id}/edit`)}
+        /*
+          ⚠️ 설정 시트를 **먼저 닫고** 이동한다. 띄워 둔 채로 밀면 돌아왔을 때
+             시트가 그대로 남아 있고, iOS 에서는 이동 자체가 씹히기도 한다.
+             CXL-01 의 구제 카드가 같은 이유로 안 눌렸다. (2026-09-15)
+          ⚠️ 이 시트는 BottomSheet 가 아니라 자체 Modal(animationType="fade")
+             이라 visible=false 면 바로 내려간다. closeSheetThen 이 필요 없다.
+        */
+        onEdit={() => {
+          setSettingsOpen(false);
+          router.push(`/trips/${trip.id}/edit`);
+        }}
         /* 나가기는 훅이 맡는다. 누른 시점에 멤버·취소 요청을 직접 읽는다 */
         onLeave={() => {
           setSettingsOpen(false);
@@ -1627,8 +1692,13 @@ export default function ScreenTripHome() {
         voteTargetCount={voteTargetCount}
         reason={cancelReason}
         onToggleReason={(code) => setCancelReason((prev) => (prev === code ? null : code))}
-        onEditDates={() => router.push(`/trips/${trip.id}/edit`)}
-        onEditHeadcount={() => router.push(`/trips/${trip.id}/edit`)}
+        /*
+          ⚠️ 시트를 닫고 이동한다. 그대로 두고 밀면 iOS 가 이동을 삼킨다.
+             취소하지 않아도 되는 길을 보여주는 카드라, 안 눌리면 취소로
+             떠밀리는 셈이 된다. (2026-09-15)
+        */
+        onEditDates={() => closeSheetThen(() => router.push(`/trips/${trip.id}/edit`))}
+        onEditHeadcount={() => closeSheetThen(() => router.push(`/trips/${trip.id}/edit`))}
         onSubmit={() => openSheetAfterClose("cancelConfirm")}
         submitting={busy}
       />
@@ -1709,6 +1779,25 @@ export default function ScreenTripHome() {
            끝난 여행 화면에서 `JP` 는 이미 아는 정보고,
            '정산 전' 인지 '정산 완료' 인지가 다음 행동을 정한다.
       */}
+      {/*
+        ── 참여 요청 대기 배너 ──
+        ⚠️ 여행장에게만 그린다. load() 가 여행장일 때만 채우므로 여기서는
+           비었는지만 본다.
+        ⚠️ 취소 배너보다 **위**에 둔다. 취소는 여행 전체가 걸린 일이라 더
+           무겁지만, 참여 요청은 상대가 기다리고 있어 시간이 걸린다.
+           둘 다 뜨는 경우는 드물다.
+      */}
+      {data.joinRequests.length > 0 ? (
+        <View className="px-1 pb-3 pt-1">
+          <JoinRequestBanner
+            count={data.joinRequests.length}
+            firstName={data.joinRequests[0].name}
+            /* 수락·거절은 저기에 있다. 여기에 또 만들지 않는다 */
+            onOpen={() => router.push(`/trips/${trip.id}/edit`)}
+          />
+        </View>
+      ) : null}
+
       {/*
         ── TRIP-HOME-04 취소 요청 중 배너 ──
         ⚠️ **여행 홈 전체 기능은 그대로 돈다.** CANCEL_PENDING 은 읽기 전용이

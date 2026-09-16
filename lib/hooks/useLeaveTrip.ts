@@ -24,15 +24,12 @@ import { Platform } from 'react-native';
 
 import type { LeaveMode, TripMemberItem } from '@/components/members';
 import { FUND_SOURCE_TYPE } from '@/lib/constants/status';
-import { buildCancelFundSnapshot, resolveVoteOutcome } from '@/lib/trip/cancelPolicy';
+import { resolveVoteOutcome } from '@/lib/trip/cancelPolicy';
 import { canLeaveTrip, leaveModeOf } from '@/lib/trip/tripLeader';
-import { getBudgetByTripId, getBudgetCategories } from '@/lib/supabase/queries/budgets';
 import { getTravelFund } from '@/lib/supabase/queries/funds';
-import { getFundTotals } from '@/lib/supabase/queries/transactions';
 import {
   getActiveCancelRequest,
   getVoteProgress,
-  recheckAfterMemberLeft,
   type CanceledFundSnapshot,
 } from '@/lib/supabase/queries/tripCancel';
 import {
@@ -99,7 +96,6 @@ export function useLeaveTrip(options: Options = {}) {
     delegateCandidates: TripMemberItem[];
     otherActiveCount: number;
     fundBalanceLabel: string | null;
-    fundSnapshot: CanceledFundSnapshot;
     /** 나가면 그 순간 취소가 확정되는가 (POL-MEM-015) */
     leaveCancelsTrip: boolean;
     /** MEM-04 가 이름을 부를, 이미 동의한 사람들 */
@@ -154,13 +150,15 @@ export function useLeaveTrip(options: Options = {}) {
         const trip = await getTripById(tripId);
         if (!trip) throw new Error('NOT_FOUND');
 
-        const [members, budget, fund, totals] = await Promise.all([
+        /**
+         * ⚠️ 예산·거래·카테고리를 더 읽지 않는다. 취소 자금 스냅샷을 만들 때만
+         *    쓰던 값인데, 이제 서버가 확정 시점에 직접 계산한다.
+         *    (2026-09-16 · 보안 점검 필수 6) 나가기 시트는 잔액 한 줄만 쓴다.
+         */
+        const [members, fund] = await Promise.all([
           listActiveTripMembers(tripId),
-          getBudgetByTripId(tripId),
           getTravelFund(tripId),
-          getFundTotals(tripId),
         ]);
-        const categories = budget ? await getBudgetCategories(budget.id) : [];
 
         const items: TripMemberItem[] = members.map((m) => ({
           memberId: m.id,
@@ -174,15 +172,6 @@ export function useLeaveTrip(options: Options = {}) {
          *    여행장이 될 수 없고, 그 사람만 남은 여행은 아무도 손댈 수 없다.
          */
         const others = items.filter((m) => m.userId !== null && m.userId !== userId);
-
-        const fundSnapshot = buildCancelFundSnapshot({
-          isAccountFund: fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT,
-          currentAmount: fund?.current_amount ?? 0,
-          depositTotal: totals.depositTotal,
-          actualSpent: categories.reduce((sum, c) => sum + c.actual_amount, 0),
-          goalAmount: budget?.target_amount ?? 0,
-          headcount: trip.headcount,
-        });
 
         /**
          * 취소 동의 중인가. 나가면 바로 확정되는지까지 본다. (POL-MEM-015)
@@ -225,7 +214,6 @@ export function useLeaveTrip(options: Options = {}) {
             fund && fund.current_amount > 0
               ? `${fund.current_amount.toLocaleString('ko-KR')}원`
               : null,
-          fundSnapshot,
           leaveCancelsTrip,
           agreedNames,
         });
@@ -280,47 +268,40 @@ export function useLeaveTrip(options: Options = {}) {
       if (!ctx || busy) return;
 
       /**
-       * ⚠️⚠️ 위임 경로는 '모임에서도 나갈지' 를 **묻지 않는다.** ⚠️⚠️
-       *    MEM-01 의 needsDelegate 갈래는 그 선택지를 그리지 않고 바로 MEM-02
-       *    로 넘어간다. 그래서 alsoLeaveGroup 이 null 로 남는데, 두 경로에
-       *    같은 가드를 걸었더니 **'넘기고 나가기' 를 눌러도 아무 일이 없었다.**
-       *    (2026-09-14 시뮬레이터에서 확인 · 훅으로 합치며 생긴 회귀)
-       *    위임은 여행만 나간다. 모임에는 남는다.
+       * ⚠️⚠️ 위임 경로에서도 '모임에서도 나갈지' 를 **묻는다.** ⚠️⚠️
+       *    한동안 false 로 고정했었다. 그런데 이 앱에서 **모임을 나가는 통로가
+       *    나가기 시트뿐이다** — 모임 상세에도 마이페이지에도 모임 나가기가
+       *    없다. 고정해 두면 여행장이 위임하고 나가는 순간 모임에서 나갈
+       *    방법이 영영 사라진다. (2026-09-15 다빈 지적)
+       *    선택지는 MEM-02 가 그린다.
+       *
+       * ⚠️ 개인 여행에는 나갈 모임이 없다. 그때는 묻지 않고 false 로 둔다.
+       *    안 그러면 고를 수 없는 값을 기다리며 버튼이 영영 안 눌린다.
        */
-      const alsoLeave = delegateToUserId ? false : alsoLeaveGroup;
+      const alsoLeave = ctx.trip.group_id === null ? false : alsoLeaveGroup;
       if (alsoLeave === null) return;
       setBusy(true);
       setError(null);
       try {
-        if (delegateToUserId) {
-          await delegateAndLeave({
-            tripId: ctx.trip.id,
-            fromUserId: ctx.userId,
-            toUserId: delegateToUserId,
-            alsoLeaveGroup: alsoLeave,
-            groupId: ctx.trip.group_id,
-          });
-        } else {
-          await leaveTrip({
-            tripId: ctx.trip.id,
-            userId: ctx.userId,
-            alsoLeaveGroup: alsoLeave,
-            groupId: ctx.trip.group_id,
-          });
-        }
-
         /**
-         * ⚠️ 결과를 **DB 를 다시 읽어서** 정한다. 위 leaveCancelsTrip 은 시트를
-         *    열 때 계산한 값이라, 그 사이 다른 사람이 동의하거나 반대했으면
-         *    틀린다. 경고를 띄울지 정할 때만 쓰고 결과 표시에는 쓰지 않는다.
-         * ⚠️ 실패해도 나가기는 이미 끝났다. 평범한 나가기로 보여준다.
+         * ⚠️ 취소 재판정 결과가 **나가기와 같은 응답으로** 돌아온다.
+         *    서버가 나가기와 한 트랜잭션 안에서 다시 센다. 위 leaveCancelsTrip 은
+         *    시트를 열 때 계산한 값이라 그 사이 누가 동의·반대했으면 틀린다.
+         *    경고를 띄울지 정할 때만 쓰고 결과 표시에는 쓰지 않는다.
+         * ⚠️ 예전에는 나가기 뒤에 recheckAfterMemberLeft() 를 따로 불렀다.
+         *    부르는 걸 잊으면 이미 전원이 동의했는데도 요청이 대기로 남았다.
+         *    (2026-09-16 · 보안 점검 필수 6)
          */
-        const outcome = await recheckAfterMemberLeft({
-          tripId: ctx.trip.id,
-          tripStartDate: ctx.trip.start_date,
-          leftUserId: ctx.userId,
-          fundSnapshot: ctx.fundSnapshot,
-        }).catch(() => 'NONE' as const);
+        const outcome = delegateToUserId
+          ? await delegateAndLeave({
+              tripId: ctx.trip.id,
+              toUserId: delegateToUserId,
+              alsoLeaveGroup: alsoLeave,
+            })
+          : await leaveTrip({
+              tripId: ctx.trip.id,
+              alsoLeaveGroup: alsoLeave,
+            });
 
         setSheetState(null);
         setDone(
@@ -382,7 +363,16 @@ export function useLeaveTrip(options: Options = {}) {
     setAlsoLeaveGroup,
     handleLeave,
     openDelegate: () => openSheetAfterClose('delegate'),
-    onInvite: () => ctx && onInvite?.(ctx.trip.id),
+    /**
+     * ⚠️ 시트를 **먼저 닫고** 이동한다. Modal 이 떠 있는 채로 router.push 를
+     *    하면 iOS 가 이동을 삼킨다. 아래 onCancelTrip 과 같은 이유다.
+     *    (2026-09-15 · CXL-01 의 구제 카드가 같은 이유로 안 눌렸다)
+     */
+    onInvite: () => {
+      const tripId = ctx?.trip.id;
+      setSheetState(null);
+      if (tripId) onInvite?.(tripId);
+    },
     onCancelTrip: () => {
       const tripId = ctx?.trip.id;
       setSheetState(null);

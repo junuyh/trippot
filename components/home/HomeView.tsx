@@ -1,12 +1,15 @@
 import { ScrollView, View } from 'react-native';
 
 import { CreateTripFab } from './CreateTripFab';
-import { DestinationSuggestSection } from './DestinationSuggestSection';
 import { HomeHeader } from './HomeHeader';
+import type { ExploreCardData } from '@/components/explore';
+
+import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
+import { NowDestinationSection } from './NowDestinationSection';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
 import { PastTripSection } from './PastTripSection';
+import { TravelStyleSection, type TravelStyleTile } from './TravelStyleSection';
 import type {
-  DestinationSuggestion,
   EndedTripCardData,
   HomeEmptyVariant,
   OngoingTripCardData,
@@ -23,13 +26,11 @@ type Props = {
   /** 진행 중 여행이 하나도 없을 때 문구를 고르는 값. (docs/03 REQ-HOME-002) */
   emptyVariant: HomeEmptyVariant;
 
-  /**
-   * 추천 여행지. **준비 중인 여행이 하나도 없을 때** 그 자리에 들어간다.
-   * 상수 조회는 화면 파일이 하고 결과만 받는다.
+  /*
+   * ⚠️ 2026-09-16 추천 여행지(suggestions · onPressSuggestion)를 뺐다.
+   *    준비 중인 여행이 없을 때 그 자리를 채우던 값인데, 이제 그 자리는 빈 카드가
+   *    맡는다. 신규 사용자 홈(HomeEmpty)은 그대로 이 값을 쓴다.
    */
-  suggestions: DestinationSuggestion[];
-  /** 추천 여행지 카드를 눌렀을 때. 목적지 코드를 넘긴다. */
-  onPressSuggestion: (code: string) => void;
 
   /** 홈에 보여줄 지난 여행. 최근 몇 개만이다. 전체는 MY-02. */
   pastTrips: EndedTripCardData[];
@@ -39,6 +40,22 @@ type Props = {
   onPressSettle: (tripId: string) => void;
   onPressCreateTrip: () => void;
   onPressAllPastTrips: () => void;
+  /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
+  onPressNotifications: () => void;
+  /** 답하지 않은 여행 초대. 준비 중인 여행 위 배너와 모달. (InvitePrompt) */
+  invitePrompt: InvitePromptProps;
+
+  /** 지난 여행 아래 '○월에 떠나기 좋은 해외여행지'. '9월'. */
+  exploreMonthLabel: string;
+  exploreItems: ExploreCardData[];
+  /** 맨 아래 '여행 스타일로 떠나보기' 타일. */
+  styleTiles: TravelStyleTile[];
+  /** 여행지 카드를 눌렀을 때. 여행지 상세로 보낸다. */
+  onPressExploreDestination: (code: string) => void;
+  /** '전체 보기'. 여행지 추천 화면으로 보낸다. */
+  onPressExploreAll: () => void;
+  onPressStyle: (key: string) => void;
+  onPressAllStyles: () => void;
 };
 
 /**
@@ -82,20 +99,31 @@ export function HomeView({
   daysToNextTrip,
   ongoingTrips,
   emptyVariant,
-  suggestions,
-  onPressSuggestion,
   pastTrips,
   onPressTrip,
   onPressSettle,
   onPressCreateTrip,
   onPressAllPastTrips,
+  onPressNotifications,
+  invitePrompt,
+  exploreMonthLabel,
+  exploreItems,
+  styleTiles,
+  onPressExploreDestination,
+  onPressExploreAll,
+  onPressStyle,
+  onPressAllStyles,
 }: Props) {
   const { expanded, onScroll } = useFabExpand();
 
   return (
     <View className="flex-1 bg-white">
       {/* 상단바에는 만들기 버튼이 없다. 이유는 HomeHeader 주석 참조. */}
-      <HomeHeader userName={userName} daysToNextTrip={daysToNextTrip} />
+      <HomeHeader
+        userName={userName}
+        daysToNextTrip={daysToNextTrip}
+        onPressNotifications={onPressNotifications}
+      />
 
       {/* 아래 여백은 탭바(58~84)만이 아니라 떠 있는 버튼까지 덮을 만큼 준다.
           그러지 않으면 끝까지 내렸을 때 마지막 카드가 버튼에 가린다. */}
@@ -105,30 +133,26 @@ export function HomeView({
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
-        {/*
-          ⚠️ **준비 중인 여행이 없으면 그 자리에 추천 여행지를 놓는다.** (2026-09-11)
-             전에는 점선 테두리 빈 카드에 '준비 중인 여행이 없어요' 만 떴다.
-             맞는 말이지만 **없다는 사실만 알리고 끝나서**, 다음에 무엇을 할지는
-             사용자가 알아서 찾아야 했다. 여행이 하나도 없는 사람에게 추천
-             여행지를 보여주기로 한 것과 같은 이유다. (HomeStates 의 HomeEmpty)
+        {/* 답하지 않은 초대는 준비 중인 여행보다 위다. 답할 때까지 남는다. */}
+        <InvitePrompt {...invitePrompt} />
 
-          ⚠️ **지난 여행은 그대로 남긴다.** 이 자리만 바꾼다.
-             홈에서 종료 여행을 보여주는 것은 REQ-HOME-001(Must)이라, 아래
-             칸까지 추천으로 덮으면 요구사항을 못 채운다.
+        {/*
+          ⚠️ **준비 중인 여행이 없으면 그 사실을 그대로 말한다.** (2026-09-16 되돌림)
+             9/11 에는 이 자리에 추천 여행지 배너를 놓았었다. "없다" 만 알리고
+             끝나지 않게 하려던 것인데, 그러면 **내 여행 선반이 있어야 할 자리에
+             추천이 들어와** 홈이 무엇을 보여주는 화면인지 흐려졌다.
+             지금은 추천을 지난 여행 아래 두 칸(지금 떠나기 좋은 해외여행지 ·
+             여행 스타일로 떠나보기)이 맡으므로, 이 자리는 비었다는 사실과
+             '새 여행 만들기' 로 가는 길만 보여주면 된다.
+             빈 카드 문구는 OngoingTripCarousel 의 EmptyCard 가 emptyVariant
+             (first · return)로 가른다.
         */}
-        {ongoingTrips.length === 0 && suggestions.length > 0 ? (
-          <DestinationSuggestSection
-            suggestions={suggestions}
-            onPressSuggestion={onPressSuggestion}
-          />
-        ) : (
-          <OngoingTripCarousel
-            trips={ongoingTrips}
-            emptyVariant={emptyVariant}
-            onPressTrip={onPressTrip}
-            onPressCreateTrip={onPressCreateTrip}
-          />
-        )}
+        <OngoingTripCarousel
+          trips={ongoingTrips}
+          emptyVariant={emptyVariant}
+          onPressTrip={onPressTrip}
+          onPressCreateTrip={onPressCreateTrip}
+        />
 
         <View className="mt-7">
           <PastTripSection
@@ -136,6 +160,29 @@ export function HomeView({
             onPressTrip={onPressTrip}
             onPressSettle={onPressSettle}
             onPressSeeAll={onPressAllPastTrips}
+          />
+        </View>
+
+        {/*
+          2026-09-16 지난 여행 아래에 여행지 추천 두 칸을 넣었다. (시안 01)
+          ⚠️ 내 여행(준비 중 · 지난 여행)이 먼저고 추천은 그 아래다.
+          ⚠️ 준비 중인 여행이 없어도 이 칸은 자리를 옮기지 않는다. 위쪽 빈 카드가
+             "없다 · 만들어보세요" 를 말하고, 추천은 언제나 여기서 한다.
+        */}
+        <View className="mt-7">
+          <NowDestinationSection
+            monthLabel={exploreMonthLabel}
+            items={exploreItems}
+            onPressDestination={onPressExploreDestination}
+            onPressSeeAll={onPressExploreAll}
+          />
+        </View>
+
+        <View className="mt-7">
+          <TravelStyleSection
+            tiles={styleTiles}
+            onPressStyle={onPressStyle}
+            onPressSeeAll={onPressAllStyles}
           />
         </View>
       </ScrollView>

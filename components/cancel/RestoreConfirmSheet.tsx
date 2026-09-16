@@ -87,7 +87,7 @@ export function RestoreConfirmSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         {has ? (
           <View className="overflow-hidden rounded-xl border border-gray-200">
             {shown.map((change, index) => (

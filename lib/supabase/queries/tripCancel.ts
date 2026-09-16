@@ -95,7 +95,11 @@ export async function getActiveCancelRequest(
   if (!expiry.expired) return data;
 
   // 만료됐으면 닫고 없는 것으로 본다. 여행 상태도 되돌린다.
-  await expireCancelRequest(data.id, tripId, expiry.note ?? 'EXPIRED_TIME');
+  //
+  // ⚠️ 닫는 일은 서버가 한다. 만료 판정을 앱에서도 하는 건 네트워크를 아끼기
+  //    위해서다 — 만료가 아니면 아예 부르지 않는다. 실제 판정과 쓰기는 서버가
+  //    다시 한다. (expire_trip_cancel_request)
+  await expireCancelRequest(tripId);
   return null;
 }
 
@@ -203,62 +207,20 @@ export type RequestCancelResult =
  */
 export async function requestCancel(input: {
   tripId: string;
-  requestedBy: string;
   reason: string | null;
-  /** 동의 대상 수. 0이면 바로 확정한다 */
-  voteTargetCount: number;
-  /** 확정 시 저장할 자금 스냅샷 */
-  fundSnapshot: CanceledFundSnapshot;
 }): Promise<RequestCancelResult> {
-  // 이미 대기 중인 요청이 있으면 그것을 쓴다
-  const { data: existing, error: findError } = await supabase
-    .from('trip_cancel_requests')
-    .select('*')
-    .eq('trip_id', input.tripId)
-    .eq('status', CANCEL_REQUEST_STATUS.PENDING)
-    .maybeSingle();
-  if (findError) throw findError;
-  if (existing) return { outcome: 'PENDING', requestId: existing.id };
+  const { data, error } = await supabase.rpc('request_trip_cancel', {
+    p_trip_id: input.tripId,
+    p_reason: input.reason ?? undefined,
+  });
+  if (error) throw error;
 
-  const expiresAt = new Date(Date.now() + EXPIRE_DAYS * 86_400_000).toISOString();
-
-  const { data: created, error: insertError } = await supabase
-    .from('trip_cancel_requests')
-    .insert({
-      trip_id: input.tripId,
-      requested_by: input.requestedBy,
-      reason: input.reason,
-      expires_at: expiresAt,
-    })
-    .select()
-    .single();
-  if (insertError) throw insertError;
-
-  // 동의할 사람이 없으면 절차를 건너뛴다 (개인 여행)
-  if (input.voteTargetCount === 0) {
-    await confirmCancel({
-      tripId: input.tripId,
-      requestId: created.id,
-      canceledBy: input.requestedBy,
-      reason: input.reason,
-      fundSnapshot: input.fundSnapshot,
-    });
-    return { outcome: 'CANCELED' };
-  }
-
-  const { error: statusError } = await supabase
-    .from('trips')
-    .update({ status: TRIP_STATUS.CANCEL_PENDING })
-    .eq('id', input.tripId);
-
-  if (statusError) {
-    // 보상 삭제. 요청만 남으면 화면이 배너를 못 띄운 채 요청이 떠돈다.
-    await supabase.from('trip_cancel_requests').delete().eq('id', created.id);
-    throw statusError;
-  }
+  const result = data as { outcome: 'PENDING' | 'CANCELED'; request_id: string };
 
   // TODO: notify CANCEL_REQUESTED → 동의 대상 전원 (사유는 푸시 본문에 넣지 않는다)
-  return { outcome: 'PENDING', requestId: created.id };
+  return result.outcome === 'CANCELED'
+    ? { outcome: 'CANCELED' }
+    : { outcome: 'PENDING', requestId: result.request_id };
 }
 
 // ── 투표 ────────────────────────────────────────────────────────────────────
@@ -281,245 +243,90 @@ export type VoteResult = { outcome: 'PENDING' | 'APPROVED' | 'REJECTED' };
  *    화면에서도 막지만 여기서 한 번 더 막는다. 판정을 뚫는 경로를 남기지 않는다.
  */
 export async function castCancelVote(input: {
-  request: CancelRequest;
-  userId: string;
+  requestId: string;
   vote: VoteValue;
-  /** 확정될 경우 저장할 자금 스냅샷 */
-  fundSnapshot: CanceledFundSnapshot;
 }): Promise<VoteResult> {
-  if (input.userId === input.request.requested_by) {
-    throw new Error('REQUESTER_CANNOT_VOTE');
-  }
-
-  const { error: insertError } = await supabase.from('trip_cancel_votes').insert({
-    request_id: input.request.id,
-    user_id: input.userId,
-    vote: input.vote,
+  const { data, error } = await supabase.rpc('cast_trip_cancel_vote', {
+    p_request_id: input.requestId,
+    p_vote: input.vote,
   });
-  if (insertError) throw insertError;
+  if (error) throw error;
 
-  if (input.vote === 'DISAGREE') {
-    await rejectCancelRequest(input.request.id, input.request.trip_id);
-    return { outcome: 'REJECTED' };
-  }
-
-  const progress = await getVoteProgress(input.request);
-  const outcome = resolveVoteOutcome({
-    targetCount: progress.targetCount,
-    agreedCount: progress.agreedCount,
-    hasDisagree: progress.hasDisagree,
-  });
-
-  if (outcome === 'approved') {
-    await confirmCancel({
-      tripId: input.request.trip_id,
-      requestId: input.request.id,
-      canceledBy: input.request.requested_by,
-      reason: input.request.reason,
-      fundSnapshot: input.fundSnapshot,
-    });
-    return { outcome: 'APPROVED' };
-  }
-
-  // TODO: notify CANCEL_VOTE_AGREED → 요청자
-  return { outcome: 'PENDING' };
+  // TODO: notify — APPROVED 면 CANCEL_CONFIRMED → 전원
+  //                REJECTED 면 CANCEL_REJECTED → 전원
+  //                PENDING  이면 CANCEL_VOTE_AGREED → 요청자
+  return { outcome: (data ?? 'PENDING') as VoteResult['outcome'] };
 }
 
 // ── 폐기 ────────────────────────────────────────────────────────────────────
 
 /**
- * 요청을 닫고 여행 상태를 되돌린다. 반대·만료·철회가 공통으로 쓴다.
+ * 만료로 폐기. getActiveCancelRequest 가 조회 시점에 부른다.
  *
- * ⚠️ 원래 상태로 **저장값을 꺼내 쓰지 않는다.** 날짜로 다시 계산한다.
- *    (POL-CXL-032 와 같은 원칙) 그래서 여기서는 PLANNING 으로 두고,
- *    여행 홈이 closeTripIfEnded() 로 날짜에 맞게 올린다.
+ * ⚠️ 만료가 아니면 서버가 아무 일도 하지 않는다 (멱등). 여러 화면이 동시에
+ *    불러도 안전하다.
  */
-async function closeRequest(
-  requestId: string,
-  tripId: string,
-  status: string,
-  note: string,
-): Promise<void> {
-  const { error } = await supabase
-    .from('trip_cancel_requests')
-    .update({ status, resolved_at: new Date().toISOString(), resolved_note: note })
-    .eq('id', requestId);
+export async function expireCancelRequest(tripId: string): Promise<void> {
+  const { error } = await supabase.rpc('expire_trip_cancel_request', {
+    p_trip_id: tripId,
+  });
   if (error) throw error;
 
-  const { error: statusError } = await supabase
-    .from('trips')
-    .update({ status: TRIP_STATUS.PLANNING })
-    .eq('id', tripId)
-    .eq('status', TRIP_STATUS.CANCEL_PENDING);
-  if (statusError) throw statusError;
-}
-
-/** 한 명이 반대해 폐기 (POL-CXL-062) */
-export async function rejectCancelRequest(requestId: string, tripId: string): Promise<void> {
-  await closeRequest(requestId, tripId, CANCEL_REQUEST_STATUS.REJECTED, 'DISAGREED');
-  // TODO: notify CANCEL_REJECTED → 전원
-}
-
-/** 만료로 폐기. getActiveCancelRequest 가 조회 시점에 부른다 */
-export async function expireCancelRequest(
-  requestId: string,
-  tripId: string,
-  note: 'EXPIRED_TIME' | 'DEPARTURE_REACHED',
-): Promise<void> {
-  await closeRequest(requestId, tripId, CANCEL_REQUEST_STATUS.EXPIRED, note);
   // TODO: notify CANCEL_EXPIRED → 전원
 }
 
-/** 요청자가 철회 (POL-CXL-065) */
-export async function withdrawCancelRequest(
-  requestId: string,
-  tripId: string,
-): Promise<void> {
-  await closeRequest(requestId, tripId, CANCEL_REQUEST_STATUS.WITHDRAWN, 'WITHDRAWN');
+/**
+ * 요청자가 철회 (POL-CXL-065)
+ *
+ * ⚠️ 서버가 요청자 본인인지 검사한다. 남의 요청은 철회할 수 없다.
+ * ⚠️ 이미 닫힌 요청이면 아무 일도 하지 않는다 (멱등).
+ */
+export async function withdrawCancelRequest(requestId: string): Promise<void> {
+  const { error } = await supabase.rpc('withdraw_trip_cancel_request', {
+    p_request_id: requestId,
+  });
+  if (error) throw error;
+
   // TODO: notify CANCEL_WITHDRAWN → 전원
 }
 
-// ── 확정 · 되돌리기 ─────────────────────────────────────────────────────────
-
-/**
- * 취소 확정.
- *
- * ⚠️ 순서를 지킬 것.
- *    1. trips 를 CANCELED 로 (canceled_at · canceled_by · reason · 스냅샷 함께)
- *    2. 요청을 APPROVED 로
- *    반대로 하면 요청은 승인됐는데 여행이 그대로인 상태가 생긴다. 그러면
- *    화면이 "취소됨" 을 못 보여주고 사용자는 취소가 안 된 줄 안다.
- *
- * ⚠️ 스냅샷은 **이 시점에 확정한다.** 조회 때마다 다시 계산하지 않는다.
- *    (POL-CXL-011) 취소 후 계좌 거래가 계속 들어와도 기록은 안 바뀐다.
- *
- * ⚠️ 멱등 — 이미 CANCELED 면 아무것도 하지 않는다.
- */
-export async function confirmCancel(input: {
-  tripId: string;
-  requestId: string;
-  canceledBy: string;
-  reason: string | null;
-  fundSnapshot: CanceledFundSnapshot;
-}): Promise<void> {
-  const { data: trip, error: readError } = await supabase
-    .from('trips')
-    .select('status')
-    .eq('id', input.tripId)
-    .maybeSingle();
-  if (readError) throw readError;
-  if (trip?.status === TRIP_STATUS.CANCELED) return;
-
-  const { error } = await supabase
-    .from('trips')
-    .update({
-      status: TRIP_STATUS.CANCELED,
-      canceled_at: new Date().toISOString(),
-      canceled_by: input.canceledBy,
-      cancel_reason: input.reason,
-      canceled_fund_snapshot_json: input.fundSnapshot as unknown as Json,
-    })
-    .eq('id', input.tripId);
-  if (error) throw error;
-
-  const { error: requestError } = await supabase
-    .from('trip_cancel_requests')
-    .update({
-      status: CANCEL_REQUEST_STATUS.APPROVED,
-      resolved_at: new Date().toISOString(),
-      resolved_note: 'ALL_AGREED',
-    })
-    .eq('id', input.requestId);
-  if (requestError) throw requestError;
-
-  // TODO: notify CANCEL_CONFIRMED → 전원
-}
+// ── 되돌리기 ────────────────────────────────────────────────────────────────
 
 /**
  * 되돌리기. (POL-CXL-032 · 033 · 037 · 038)
  *
- * ⚠️ 상태를 **저장값에서 꺼내지 않는다.** PLANNING 으로 두고 날짜로 다시
- *    계산하게 한다. 여행 홈의 closeTripIfEnded() 가 그 일을 한다.
- *    저장해 둔 status_before_cancel 을 쓰면 그 사이 날짜가 지나간 여행이
- *    PLANNING 으로 되살아난다.
+ * 서버(restore_canceled_trip)가 검사한다 — ACTIVE 멤버인지, CANCELED 인지,
+ * 취소 후 72시간 이내인지.
+ *
+ * ⚠️ 상태를 저장값에서 꺼내지 않는다. PLANNING 으로 두고 날짜로 다시 계산하게
+ *    한다. 여행 홈의 closeTripIfEnded() 가 그 일을 한다.
  *
  * ⚠️ canceled_* 를 전부 비운다. canceled_at 이 남으면 72시간 계산이 어긋난다.
  *
- * ⚠️ 취소 중 계좌 변동은 **전량 반영된다.** 거래를 지우거나 고르지 않는다.
- *    (POL-CXL-033) 거래는 그대로 있었으므로 여기서 할 일이 없다.
+ * ⚠️ 취소 중 계좌 변동은 전량 반영된다. 거래를 지우거나 고르지 않는다.
  *
  * ⚠️ 동의를 받지 않는다. 원래 상태로 돌아가는 것이라 새 결정이 아니다.
  */
 export async function restoreCanceledTrip(tripId: string): Promise<void> {
-  const { error } = await supabase
-    .from('trips')
-    .update({
-      status: TRIP_STATUS.PLANNING,
-      canceled_at: null,
-      canceled_by: null,
-      cancel_reason: null,
-      canceled_fund_snapshot_json: null,
-    })
-    .eq('id', tripId)
-    .eq('status', TRIP_STATUS.CANCELED);
+  const { error } = await supabase.rpc('restore_canceled_trip', {
+    p_trip_id: tripId,
+  });
   if (error) throw error;
 
   // TODO: notify CANCEL_RESTORED → 전원
 }
 
 /**
- * 멤버가 나갔을 때 동의를 다시 판정한다. (POL-CXL-068 · POL-MEM-014 · 016)
+ * 나간 뒤 취소 요청이 어떻게 됐는지.
  *
- * ⚠️ **나감으로 남은 인원이 전원 동의 상태가 되면 그 순간 취소가 확정된다.**
- *    leaveTrip() 을 부른 화면이 반드시 이어서 부른다. 안 부르면 이미 전원이
- *    동의했는데도 요청이 계속 대기로 남는다.
+ * ⚠️ 재판정은 **서버가 나가기와 같은 트랜잭션에서** 한다.
+ *    (leave_trip · delegate_and_leave 의 반환값)
+ *    예전에는 화면이 recheckAfterMemberLeft() 를 이어서 불렀는데, 빠뜨리면
+ *    이미 전원이 동의했는데도 요청이 대기로 남았다. 부르는 것을 잊을 수 있는
+ *    구조 자체를 없앴다. (2026-09-16 · 보안 점검 필수 6)
  *
- * ⚠️ **요청자 본인이 나가면 요청을 철회한다.** (POL-MEM-016) 요청한 사람이
- *    없어졌는데 남은 사람들에게 계속 동의를 물으면, 아무도 원하지 않는 취소가
- *    진행된다. 화면상으로는 평범한 나가기와 같아서 따로 알리지 않는다.
- *
- * @param leftUserId 방금 나간 사람. 요청자 판정에 쓴다
- * @returns 나간 뒤의 요청 상태. 화면이 MEM-03 의 갈래를 정하는 데 쓴다
+ * 규칙은 그대로다.
+ *   · 요청자 본인이 나가면 요청을 철회한다 (POL-MEM-016)
+ *   · 남은 인원이 전원 동의 상태가 되면 그 순간 확정된다 (POL-CXL-068)
  */
 export type AfterLeaveOutcome = 'NONE' | 'PENDING' | 'CANCELED' | 'REJECTED' | 'WITHDRAWN';
-
-export async function recheckAfterMemberLeft(input: {
-  tripId: string;
-  tripStartDate: string | null;
-  leftUserId: string;
-  fundSnapshot: CanceledFundSnapshot;
-}): Promise<AfterLeaveOutcome> {
-  const request = await getActiveCancelRequest(input.tripId, input.tripStartDate);
-  if (!request) return 'NONE';
-
-  // 요청자가 나갔다. 남은 사람에게 물을 이유가 없다 (POL-MEM-016)
-  if (request.requested_by === input.leftUserId) {
-    await withdrawCancelRequest(request.id, input.tripId);
-    return 'WITHDRAWN';
-  }
-
-  const progress = await getVoteProgress(request);
-  const outcome = resolveVoteOutcome({
-    targetCount: progress.targetCount,
-    agreedCount: progress.agreedCount,
-    hasDisagree: progress.hasDisagree,
-  });
-
-  if (outcome === 'approved') {
-    await confirmCancel({
-      tripId: input.tripId,
-      requestId: request.id,
-      canceledBy: request.requested_by,
-      reason: request.reason,
-      fundSnapshot: input.fundSnapshot,
-    });
-    return 'CANCELED';
-  }
-
-  if (outcome === 'rejected') {
-    await rejectCancelRequest(request.id, input.tripId);
-    return 'REJECTED';
-  }
-
-  return 'PENDING';
-}
