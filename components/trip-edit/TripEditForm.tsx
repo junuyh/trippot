@@ -1,7 +1,8 @@
 // ============================================================================
 // 여행 기본 정보 수정 폼 (TRIP-HOME-01 → /trips/:tripId/edit)
 //
-// 일정 · 인원을 고친다. 모임은 보여주기만 한다. 모임 아래에 '여행 멤버 초대하기' 가 있다.
+// 일정 · 인원을 고친다. 모임은 보여주기만 한다.
+// 순서는 여행 홈 티켓과 맞춘다 — 일정 → 인원 → 초대 → 모임. (2026-09-16 다빈)
 //
 // ⚠️ 모임은 고르는 목록이 아니라 **읽기 전용 한 줄**이다. (2026-09-15)
 //    바꾸지 못하는데 라디오를 그리면 눌러 보고 헷갈린다. 왜 못 바꾸는지는
@@ -23,8 +24,7 @@
 //    말없이 안 바뀌면 사용자는 바뀐 줄 알고 예산을 다시 확인하지 않는다.
 //
 // ⚠️ 초대 버튼은 저장과 다른 일이다. 초대는 지금 고르고 있는 모임 기준이고,
-//    저장하지 않은 일정·인원은 초대 문구에 안 들어간다. 그래서 모임 카드 안에
-//    두고, 저장은 맨 아래 따로 둔다.
+//    저장하지 않은 일정은 초대 문구에 안 들어간다. 저장은 하단에 고정한다.
 //
 // supabase / track 을 직접 부르지 않는다. 화면이 부른다. (CLAUDE.md 9장)
 // ============================================================================
@@ -204,10 +204,10 @@ export function TripEditForm({
             <Text
               numberOfLines={1}
               style={{
-                marginTop: 10,
+                marginTop: 8,
                 fontFamily,
-                fontSize: 44,
-                lineHeight: 46,
+                fontSize: 34,
+                lineHeight: 36,
                 letterSpacing: 0.5,
                 color: INK,
               }}
@@ -227,8 +227,8 @@ export function TripEditForm({
           </Text>
           <View
             style={{
-              marginTop: 12,
-              paddingTop: 12,
+              marginTop: 10,
+              paddingTop: 10,
               borderTopWidth: 1,
               borderStyle: "dashed",
               borderColor: "#cfd5dc",
@@ -241,45 +241,37 @@ export function TripEditForm({
           </View>
         </View>
 
+        {/* ── 일정 ───────────────────────────────────────────────────── */}
+        <Section eyebrow="SCHEDULE" title="여행 일정">
+          <DateRangeCalendar
+            startDate={startDate}
+            endDate={endDate}
+            onChange={onChangeDates}
+            // 이미 시작한 여행의 시작일을 고치는 일이 있다. 과거를 막지 않는다.
+            disablePast={false}
+          />
+          <Text style={{ fontSize: 11, lineHeight: 17, color: FAINT }}>
+            일정을 바꿔도 이미 정한 예산 금액은 그대로예요. 필요하면 전체 예산에서
+            직접 고쳐 주세요.
+          </Text>
+        </Section>
+
         {/* ── 인원 ───────────────────────────────────────────────────── */}
         <Section eyebrow="TRAVELERS" title="인원">
           <HeadcountStepper value={headcount} onChange={onChangeHeadcount} />
         </Section>
 
-        {/* ── 모임 + 초대 ────────────────────────────────────────────── */}
-        <Section eyebrow="GROUP" title="모임">
-          <View
-            accessible
-            accessibilityLabel={`모임 ${groupLabel}. 이 화면에서는 바꿀 수 없어요`}
-            className="flex-row items-center"
-            style={{
-              gap: 12,
-              borderRadius: 14,
-              backgroundColor: "#f7f8fa",
-              paddingHorizontal: 14,
-              paddingVertical: 13,
-            }}
-          >
-            <Ionicons
-              name={isGroupTrip ? "people-outline" : "person-outline"}
-              size={16}
-              color={INK}
-            />
-            <View style={{ flex: 1 }}>
-              <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "700", color: INK }}>
-                {groupLabel}
-              </Text>
-              <Text style={{ marginTop: 3, fontSize: 11, color: MUTED }}>
-                여행을 만든 뒤에는 모임을 바꿀 수 없어요
-              </Text>
-            </View>
-            <Ionicons name="lock-closed-outline" size={14} color={FAINT} />
-          </View>
-
+        {/* ── 초대 ───────────────────────────────────────────────────
+             인원 바로 아래에 둔다. 빈자리를 늘려야 초대가 켜지므로 인과가
+             붙어 읽힌다. 여행 홈 티켓도 DATE → TRAVELERS 순이라 같이 맞춘다.
+             (2026-09-16 다빈) */}
+        <Section eyebrow="INVITE" title="여행 멤버">
           {/*
-            초대 자리. 점선 테두리라 "여기에 사람을 더 넣는다" 로 읽힌다.
-            모임을 안 골랐어도 링크는 나간다. 모임 정리는 여행장이 수락할 때 한다.
-            (docs/10_여행초대정책_v2.md §9-5 · 2026-09-11)
+            ⚠️ 눌리는 버튼으로 보이게 한다. 점선 카드였을 때는 장식으로 읽혀
+               있는 줄도 몰랐다. 켜짐·꺼짐이 색으로 바로 갈린다.
+            ⚠️ 꺼지는 조건은 **빈자리 없음** 하나다. 인원을 늘리면 켜진다.
+               모임을 안 골랐어도 링크는 나간다 — 모임 정리는 수락할 때 한다.
+               (docs/10_여행초대정책_v2.md §9-5)
           */}
           <Pressable
             accessibilityRole="button"
@@ -287,45 +279,42 @@ export function TripEditForm({
             accessibilityState={{ disabled: inviteDisabled }}
             disabled={inviteDisabled}
             onPress={onInvite}
-            className={`flex-row items-center ${inviteDisabled ? "" : "active:opacity-70"}`}
+            className={`flex-row items-center justify-center ${
+              inviteDisabled ? "" : "active:opacity-80"
+            }`}
             style={{
-              gap: 12,
-              marginTop: 2,
-              borderWidth: 1.5,
-              borderStyle: "dashed",
-              borderColor: "#c8ced6",
+              gap: 8,
+              height: 52,
               borderRadius: 14,
-              paddingHorizontal: 14,
-              paddingVertical: 13,
-              opacity: inviting ? 0.6 : canInvite ? 1 : 0.45,
+              backgroundColor: canInvite ? "#1B64F2" : "#eef0f3",
             }}
           >
-            <View
+            {inviting ? (
+              <ActivityIndicator size="small" color={canInvite ? "#fff" : MUTED} />
+            ) : (
+              <Ionicons
+                name="person-add-outline"
+                size={17}
+                color={canInvite ? "#fff" : "#9aa3ae"}
+              />
+            )}
+            <Text
               style={{
-                width: 30,
-                height: 30,
-                borderRadius: 15,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "#f3f5f7",
+                fontSize: 15,
+                fontWeight: "800",
+                color: canInvite ? "#fff" : "#9aa3ae",
               }}
             >
-              {inviting ? (
-                <ActivityIndicator size="small" color={INK} />
-              ) : (
-                <Ionicons name="person-add-outline" size={15} color={INK} />
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: "800", color: INK }}>여행 멤버 초대하기</Text>
-              <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
-                {canInvite
-                  ? "초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요."
-                  : `${joinedCount ?? 0}명이 모두 참여 중이에요. 위에서 인원을 늘리면 초대할 수 있어요.`}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={15} color={FAINT} />
+              여행 멤버 초대하기
+            </Text>
           </Pressable>
+
+          {/* 왜 켜졌는지 · 왜 꺼졌는지. 꺼졌으면 켜는 법까지 적는다 */}
+          <Text style={{ marginTop: 10, fontSize: 11.5, lineHeight: 17, color: MUTED }}>
+            {canInvite
+              ? "초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요."
+              : `인원 ${headcount}명이 모두 참여 중이에요. 위에서 인원을 늘리면 초대할 수 있어요.`}
+          </Text>
 
           {/*
             참여 요청 (INV-04 진입점). 초대 자리 바로 아래 — 링크를 보낸 사람이 답을 기다리는 곳이다.
@@ -382,19 +371,35 @@ export function TripEditForm({
           ) : null}
         </Section>
 
-        {/* ── 일정 ───────────────────────────────────────────────────── */}
-        <Section eyebrow="SCHEDULE" title="여행 일정">
-          <DateRangeCalendar
-            startDate={startDate}
-            endDate={endDate}
-            onChange={onChangeDates}
-            // 이미 시작한 여행의 시작일을 고치는 일이 있다. 과거를 막지 않는다.
-            disablePast={false}
-          />
-          <Text style={{ fontSize: 11, lineHeight: 17, color: FAINT }}>
-            일정을 바꿔도 이미 정한 예산 금액은 그대로예요. 필요하면 전체 예산에서
-            직접 고쳐 주세요.
-          </Text>
+        {/* ── 모임 ───────────────────────────────────────────────────── */}
+        <Section eyebrow="GROUP" title="모임">
+          <View
+            accessible
+            accessibilityLabel={`모임 ${groupLabel}. 이 화면에서는 바꿀 수 없어요`}
+            className="flex-row items-center"
+            style={{
+              gap: 12,
+              borderRadius: 14,
+              backgroundColor: "#f7f8fa",
+              paddingHorizontal: 14,
+              paddingVertical: 13,
+            }}
+          >
+            <Ionicons
+              name={isGroupTrip ? "people-outline" : "person-outline"}
+              size={16}
+              color={INK}
+            />
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "700", color: INK }}>
+                {groupLabel}
+              </Text>
+              <Text style={{ marginTop: 3, fontSize: 11, color: MUTED }}>
+                여행을 만든 뒤에는 모임을 바꿀 수 없어요
+              </Text>
+            </View>
+            <Ionicons name="lock-closed-outline" size={14} color={FAINT} />
+          </View>
         </Section>
 
       </ScrollView>
