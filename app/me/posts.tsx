@@ -12,7 +12,7 @@ import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
 import { PostDeleteConfirmModal } from '@/components/community/PostDeleteConfirmModal';
-import { MyPostList } from '@/components/mypage';
+import { MyPostList, MY_PAGE_BG } from '@/components/mypage';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
 import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { deletePost, getMyPosts, type MyPostListItem } from '@/lib/supabase/queries/community';
@@ -76,7 +76,7 @@ export default function ScreenMyPosts() {
 
   return (
     // 바탕은 홈과 같은 pot-visual. Loading·Empty·Error 도 같은 바탕 위에 온다.
-    <View className="flex-1 bg-pot-visual">
+    <View className="flex-1" style={{ backgroundColor: MY_PAGE_BG }}>
       <Stack.Screen options={{ title: '작성한 게시글', headerTitleAlign: 'center' }} />
 
       {loadState === 'loading' ? <Loading /> : null}

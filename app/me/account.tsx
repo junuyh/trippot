@@ -17,9 +17,10 @@ import { Alert, ScrollView } from 'react-native';
 
 import {
   AccountView,
-  ENGLISH_NAME_MAX_LENGTH,
-  NAME_MAX_LENGTH,
   WithdrawConfirmModal,
+  ENGLISH_NAME_MAX_LENGTH,
+  MY_PAGE_BG,
+  NAME_MAX_LENGTH,
 } from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
@@ -252,7 +253,8 @@ export default function ScreenMyAccount() {
       ) : null}
       {loadState === 'ready' ? (
         <ScrollView
-          className="flex-1 bg-pot-visual"
+          className="flex-1"
+          style={{ backgroundColor: MY_PAGE_BG }}
           contentContainerClassName="pb-16"
           keyboardShouldPersistTaps="handled"
         >

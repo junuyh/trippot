@@ -17,8 +17,8 @@ type Props = {
  *    그 위에 흰 카드를 얹으면 경계가 보이지 않으면서 그림자만 남는다.
  *    구분은 divider 가 한다. (MenuRow)
  *
- * 제목 아래 굵은 보라 장식선은 뺐다. (2026-09-17 MY 최종) 대신 목록의 위·아래에
- *    hairline(pot-line) 을 둬 "눌리는 목록 한 덩어리" 로 읽히게 한다. 카드로 띄우지 않는다.
+ * 제목 아래 장식선(보라 2px · 회색 hairline)은 두지 않는다. (2026-09-17 MY 최종)
+ *    섹션은 여백으로만 가르고, 눌리는 느낌은 MenuRow 의 구분선 · 눌림 배경 · chevron 이 낸다.
  */
 export function MenuSection({ title, children }: Props) {
   return (
@@ -35,12 +35,8 @@ export function MenuSection({ title, children }: Props) {
       >
         {title}
       </Text>
-      <View
-        className="mt-3"
-        style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#E5E8EC' }}
-      >
-        {children}
-      </View>
+      {/* 제목과 목록 사이는 선이 아니라 여백으로만 가른다. (2026-09-17) 행 사이 구분선은 MenuRow 가 긋는다. */}
+      <View className="mt-2">{children}</View>
     </View>
   );
 }

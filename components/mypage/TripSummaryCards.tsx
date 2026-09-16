@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
+import { BRAND } from '@/lib/constants/brandColor';
 import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
 
 import { PASSPORT } from './passport';
@@ -84,10 +85,10 @@ export function TripSummaryCards({
       >
         MY TRAVEL SUMMARY
       </Text>
-      {/* 홈 SectionHeader 와 같은 단(16 / 800 / -0.5). 색만 여권 잉크다. */}
+      {/* 홈 SectionHeader 와 같은 단(16 / 800 / -0.5). 색은 브랜드 Primary. (2026-09-17) */}
       <Text
         className="mt-0.5"
-        style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5, color: PASSPORT.ink }}
+        style={{ fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.5, color: BRAND.primary }}
       >
         내 여행
       </Text>
