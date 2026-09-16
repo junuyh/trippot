@@ -48,7 +48,7 @@ import {
   NewGroupNameSheet,
   type JoinRequestItem,
 } from "@/components/invite";
-import { TripEditForm } from "@/components/trip-edit";
+import { TripEditForm, type TripMemberChip } from "@/components/trip-edit";
 import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { TRIP_OWNER_TYPE_LABEL, TRIP_STATUS } from "@/lib/constants/status";
@@ -59,6 +59,7 @@ import {
 } from "@/lib/invite/tripInviteLink";
 import { getMyGroups, type Group } from "@/lib/supabase/queries/groups";
 import { getOrCreateTripInvite } from "@/lib/supabase/queries/tripInvites";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import {
   TRIP_JOIN_ERROR,
   acceptTripJoinRequest,
@@ -69,7 +70,6 @@ import {
 import { isTripLeader } from "@/lib/trip/tripLeader";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
-  getJoinedTripMemberCount,
   getTripById,
   updateTrip,
   type Trip,
@@ -96,10 +96,18 @@ export default function ScreenTripEdit() {
   const [endDate, setEndDate] = useState<string | null>(null);
   const [headcount, setHeadcount] = useState(1);
   /**
-   * 참여 중인 가입자 수. 초대 버튼을 켤지 정한다.
+   * 참여 중인 **가입** 멤버. 이름 목록과 초대 버튼 판정에 함께 쓴다.
+   *
+   * ⚠️ 목록과 숫자를 따로 읽지 않는다. 따로 읽으면 "3명 참여 중" 이라고 해놓고
+   *    이름은 2개만 뜨는 일이 생긴다. 하나에서 둘 다 뽑는다.
+   *
+   * ⚠️ 미가입 동행자(user_id null)는 뺀다. 알림·투표·위임·나가기 판정에서 이미
+   *    빠져 있어서, 목록에만 넣으면 거기서만 실제 멤버처럼 보인다.
+   *    (2026-09-16 다빈) 새 여행에는 애초에 생기지 않는다.
+   *
    * 못 읽으면 null 이고 버튼은 켜 둔다 — 서버가 수락할 때 다시 막는다.
    */
-  const [joinedCount, setJoinedCount] = useState<number | null>(null);
+  const [members, setMembers] = useState<TripMemberChip[] | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -134,10 +142,10 @@ export default function ScreenTripEdit() {
     }
     setError(false);
     try {
-      const [found, joined] = await Promise.all([
+      const [found, memberRows] = await Promise.all([
         getTripById(tripId),
         // 부가 정보다. 실패해도 일정·인원은 고칠 수 있어야 한다.
-        getJoinedTripMemberCount(tripId).catch(() => null),
+        listActiveTripMembers(tripId).catch(() => null),
       ]);
       if (!found) {
         setNotFound(true);
@@ -147,7 +155,25 @@ export default function ScreenTripEdit() {
       setStartDate(found.start_date);
       setEndDate(found.end_date);
       setHeadcount(found.headcount);
-      setJoinedCount(joined);
+      setMembers(
+        memberRows === null
+          ? null
+          : // 같은 사람 행이 여러 개일 수 있다 (trip_members 에 unique 가 없다)
+            Array.from(
+              new Map(
+                memberRows
+                  .filter((row) => row.user_id !== null)
+                  .map((row) => [
+                    row.user_id as string,
+                    {
+                      userId: row.user_id as string,
+                      name: row.name,
+                      isLeader: found.leader_user_id === row.user_id,
+                    },
+                  ]),
+              ).values(),
+            ),
+      );
     } catch {
       setError(true);
     } finally {
@@ -495,6 +521,7 @@ export default function ScreenTripEdit() {
   const canSubmit = datesValid && headcount >= 1;
 
   /** 초대할 빈자리가 있는가. 인원(편집 중인 값)이 참여 중인 가입자보다 많아야 한다 */
+  const joinedCount = members === null ? null : members.length;
   const canInvite = joinedCount === null || headcount > joinedCount;
   /** 모임 이름. 내 모임 목록에 없으면(불러오는 중·못 읽음) 소유 형태 이름으로 둔다 */
   const groupLabel = trip.group_id
@@ -521,6 +548,7 @@ export default function ScreenTripEdit() {
         groupLabel={groupLabel}
         isGroupTrip={trip.group_id !== null}
         joinedCount={joinedCount}
+        members={members}
         canInvite={canInvite}
         canSubmit={canSubmit}
         saving={saving}

@@ -37,6 +37,13 @@ import { Button } from "@/components/ui";
 import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
 import type { JoinRequestItem } from "@/components/invite";
 
+/** 멤버 한 줄에 필요한 최소 모양. Trip 전체를 요구하지 않는다 */
+export type TripMemberChip = {
+  userId: string;
+  name: string;
+  isLeader: boolean;
+};
+
 const INK = "#111827";
 const MUTED = "#7f8998";
 const FAINT = "#a8afb9";
@@ -64,6 +71,11 @@ type Props = {
   isGroupTrip: boolean;
   /** 참여 중인 가입자 수. 못 읽었으면 null */
   joinedCount: number | null;
+  /**
+   * 참여 중인 **가입** 멤버. 못 읽었으면 null 이고 목록을 그리지 않는다.
+   * 미가입 동행자는 화면 파일이 이미 걸러서 넘긴다.
+   */
+  members: TripMemberChip[] | null;
   /** 초대할 빈자리가 있는가. 없으면 버튼을 끈다 */
   canInvite: boolean;
 
@@ -138,6 +150,7 @@ export function TripEditForm({
   isGroupTrip,
   joinedCount,
   canInvite,
+  members,
   onInvite,
   inviting,
   joinRequests,
@@ -315,6 +328,55 @@ export function TripEditForm({
               ? "초대 링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요. 링크는 7일간 쓸 수 있어요."
               : `인원 ${headcount}명이 모두 참여 중이에요. 위에서 인원을 늘리면 초대할 수 있어요.`}
           </Text>
+
+          {/*
+            지금 함께하는 사람. 숫자만 보여주면 "3명 참여 중" 이 누구인지 모른다.
+            ⚠️ 미가입 동행자는 여기 없다. 알림·투표·위임·나가기 판정에서 이미
+               빠져 있어서, 목록에만 넣으면 거기서만 멤버처럼 보인다. (2026-09-16)
+          */}
+          {members !== null && members.length > 0 ? (
+            <View style={{ marginTop: 14, gap: 6 }}>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.3 }}>
+                함께하는 사람 {members.length}명
+              </Text>
+              {members.map((member) => (
+                <View
+                  key={member.userId}
+                  className="flex-row items-center"
+                  style={{
+                    gap: 10,
+                    borderRadius: 12,
+                    backgroundColor: "#f7f8fa",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <Ionicons name="person-circle-outline" size={20} color={FAINT} />
+                  <Text
+                    numberOfLines={1}
+                    style={{ flex: 1, fontSize: 13, fontWeight: "700", color: INK }}
+                  >
+                    {member.name}
+                  </Text>
+                  {member.isLeader ? (
+                    <Text
+                      style={{
+                        borderRadius: 6,
+                        backgroundColor: "#e8efff",
+                        color: "#1B64F2",
+                        paddingHorizontal: 7,
+                        paddingVertical: 3,
+                        fontSize: 10.5,
+                        fontWeight: "800",
+                      }}
+                    >
+                      여행장
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
 
           {/*
             참여 요청 (INV-04 진입점). 초대 자리 바로 아래 — 링크를 보낸 사람이 답을 기다리는 곳이다.
