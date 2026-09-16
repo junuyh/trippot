@@ -5,9 +5,11 @@
 // 다녀왔대요" 다. 그래서 누르면 여행 만들기가 아니라 **커뮤니티의 그 여행지
 // 글 목록**으로 간다.
 //
-// ⚠️ **지난 여행 칸(PastTripSection)과 같은 물건이다.** 카드 폭 비율·간격·
-//    그림자 여유를 값 하나까지 그대로 가져왔다. 첫 여행을 다녀오면 이 자리에
-//    지난 여행이 오는데, 둘이 다르게 생기면 화면이 통째로 바뀐 것으로 보인다.
+// ⚠️ **2026-09-16 지난 여행 칸(PastTripSection)과 일부러 다른 물건이 됐다.**
+//    전에는 카드 폭 비율·간격까지 지난 여행 태그와 같은 값이었는데, 그래서
+//    "내 여행 기록인지 남의 이야기인지 구별이 안 된다" 는 평을 받았다.
+//    지금은 엽서다. 이유는 DiscoverDestinationCard 머리말에 있다.
+//    (간격·그림자 여유는 그대로 둔다 — 같은 화면의 리듬은 맞아야 한다)
 //
 // ⚠️ **'전체 보기' 를 두지 않았다.** (2026-09-09 사용자 확인)
 //    여행지 목록 화면이 아직 없다. 눌러도 아무 일이 없는 칸을 만들지 않는다.
@@ -30,16 +32,18 @@ type Props = {
   onPressDestination: (nameKo: string) => void;
 };
 
-/** 아래 값은 PastTripSection 과 같다. 두 칸의 카드가 같은 크기로 선다. */
+/** 좌우 여백과 그림자 여유는 PastTripSection 과 같다. 카드 폭만 다르다. */
 const SCREEN_PADDING = 32;
 const SHADOW_PAD = 12;
 const CARD_GAP = 14;
 /**
  * 화면 안쪽 폭 대비 카드 폭.
- * ⚠️ 0.44 아래로 내리지 않는다. 그 아래에서는 나라 그림이 뭉개진다.
- *    (PastTripSection 주석)
+ *
+ * ⚠️ 2026-09-16 엽서로 바꾸면서 0.48 → 0.56 으로 넓혔다. 엽서는 가로로 눕는
+ *    종이라 좁으면 도시 이름과 우표가 서로 밀린다. 지난 여행 태그(0.48)와
+ *    **일부러 다른 값**이다 — 두 칸이 같은 물건으로 보이지 않아야 한다.
  */
-const CARD_RATIO = 0.48;
+const CARD_RATIO = 0.56;
 
 export function DiscoverDestinationSection({ destinations, onPressDestination }: Props) {
   const { width } = useWindowDimensions();

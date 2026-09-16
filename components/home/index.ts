@@ -14,7 +14,11 @@ export { HomeButton } from './HomeButton';
 export { HomeEmpty, HomeError, HomeLoading } from './HomeStates';
 export { HomeHeader } from './HomeHeader';
 export { HomeView } from './HomeView';
+export { HowItWorksSection } from './HowItWorksSection';
+export { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
 export { NextTripCard } from './NextTripCard';
+export { NowDestinationSection } from './NowDestinationSection';
+export { TravelStyleSection, type TravelStyleTile } from './TravelStyleSection';
 export { OngoingTripCard } from './OngoingTripCard';
 export { OngoingTripCarousel } from './OngoingTripCarousel';
 export { PastTripInsight } from './PastTripInsight';
@@ -34,6 +38,7 @@ export type {
   HomeFundSummaryData,
   HomeFundTripBar,
   HomeGroupItem,
+  HomeInvite,
   HomePastInsightData,
   NextTripCardData,
   OngoingTripCardData,
