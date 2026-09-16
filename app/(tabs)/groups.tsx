@@ -388,7 +388,7 @@ export default function ScreenGROUP01() {
 
   if (loadState === 'loading') {
     return (
-      <View className="flex-1 bg-pot-visual">
+      <View className="flex-1 bg-white">
         {header}
         <Loading message="모임을 불러오고 있어요" />
       </View>
@@ -397,7 +397,7 @@ export default function ScreenGROUP01() {
 
   if (loadState === 'error') {
     return (
-      <View className="flex-1 bg-pot-visual">
+      <View className="flex-1 bg-white">
         {header}
         <ErrorState message="모임 목록을 불러오지 못했어요." onRetry={() => void load()} />
       </View>
@@ -409,7 +409,7 @@ export default function ScreenGROUP01() {
     // 모임은 여행 생성의 '누구와' 단계에서 만든다. 별도 모임 생성 화면은 없다.
     // (docs/09_IA_v1.md §2-1)
     return (
-      <View className="flex-1 bg-pot-visual">
+      <View className="flex-1 bg-white">
         {header}
         <EmptyState
           icon="people-outline"
@@ -428,7 +428,7 @@ export default function ScreenGROUP01() {
     //    대비가 생기고, 터치를 막는 overlay 는 두지 않는다.
     //    gray-200(#E5E7EB) 은 pot-line(#E5E8EC) 과 사실상 같은 값이라
     //    앱의 뉴트럴 단계에서 벗어나지 않는다.
-    <View className={`flex-1 ${editMode ? 'bg-gray-200' : 'bg-pot-visual'}`}>
+    <View className={`flex-1 ${editMode ? 'bg-gray-200' : 'bg-white'}`}>
       {header}
 
       {/* ⚠️ zIndex 로 올린다. 정렬 목록이 뒤에 오는 카드 목록에 가리면 안 된다.

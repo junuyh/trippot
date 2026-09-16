@@ -395,7 +395,10 @@ export function GroupTravelCard({
         paddingTop: FRAME_TOP,
         paddingHorizontal: FRAME,
         paddingBottom: FRAME,
-        // 한 장씩 떠 보일 만큼만. 테두리는 없다 — 그림자가 분리를 맡는다.
+        // 한 장씩 떠 보일 만큼만. 흰 바탕(2026-09-17)에서는 그림자만으로 가장자리가 흐려져
+        // 테마 rule 색 1px 테두리를 더한다. 카드 색 체계는 그대로다.
+        borderWidth: 1,
+        borderColor: theme.rule,
         shadowColor: theme.ink,
         shadowOpacity: 0.1,
         shadowRadius: 14,
