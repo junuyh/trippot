@@ -165,13 +165,20 @@ export function buildJoinRequestAction(input: {
          이쪽으로 바뀌고, 거절되면 저쪽으로 돌아간다. 아이콘이 같으면 바뀐 것을
          알아채지 못한다. 전에는 둘 다 person-add-outline 이었다. (2026-09-17)
 
-      ⚠️ 사람+체크 글리프(account-check-outline 류)가 뜻은 제일 맞지만 Ionicons
-         에 없다. 이 프로젝트는 아이콘 333곳이 전부 Ionicons 라, 배너 하나를 위해
-         둘째 셋을 들이지 않았다. 정말 필요해지면 TripAction 에 iconSet 을 달고
-         세 껍데기(TripActionBanner · HomeActionBanner · ActionRequiredSection)를
-         함께 고치는 것이 맞는 길이다. (2026-09-17 다빈과 확인)
+      ⚠️ **체크를 쓰지 않는다.** 한때 checkmark-circle-outline 이었는데 "이미
+         승인됨" 으로 읽혔다 — 아직 안 한 일에 완료 표시를 단 셈이다.
+         사람 + 시계 = **기다리는 사람**이고, 제목("승인 대기 N건")과 글자
+         그대로 맞는다. (2026-09-18 다빈)
+
+      ⚠️ 이 문장은 곧 "초대를 수락했어요" → "참여 의사를 전달했어요" 로 바뀐다
+         (담당자가 일괄 반영). 아이콘을 **양쪽 문구에서 모두 맞는 것**으로 골랐다 —
+         둘 다 "누군가 들어오고 싶어 하고 내 결정을 기다린다" 는 같은 상태다.
+         문구가 바뀌어도 이 값은 그대로 둔다.
+
+      ⚠️ Ionicons 에는 사람과 시계를 함께 그린 글리프가 없다. 접두어 'mci:' 가
+         붙는 이유다. 그리는 것은 components/ui/ActionIcon 이 한다.
     */
-    icon: 'checkmark-circle-outline',
+    icon: 'mci:account-clock-outline',
     headline,
     meta: `승인 대기 ${count}건`,
     ctaLabel: '확인하기',

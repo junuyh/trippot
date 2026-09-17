@@ -28,7 +28,7 @@
 //
 // supabase / track 을 직접 부르지 않는다. 화면이 부른다. (CLAUDE.md 9장)
 // ============================================================================
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
 import { useCallback, useRef } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View, type ViewProps } from "react-native";
@@ -586,9 +586,15 @@ export function TripEditForm({
                     {/*
                       ⚠️ 여행 홈의 승인 대기 배너와 **같은 아이콘**이다. 배너를
                          눌러 이 화면에 오면 같은 아이콘이 기다려야 한다.
-                         전에는 여기만 hand-right-outline 이었다. (2026-09-17)
+                      ⚠️ 사람 + 시계 = 기다리는 사람. 체크를 쓰지 않는다 —
+                         "이미 승인됨" 으로 읽힌다. (2026-09-18 · tripActions 주석)
+                         Ionicons 에 없는 글리프라 여기만 다른 셋을 직접 부른다.
                     */}
-                    <Ionicons name="checkmark-circle-outline" size={15} color="#FFFFFF" />
+                    <MaterialCommunityIcons
+                      name="account-clock-outline"
+                      size={15}
+                      color="#FFFFFF"
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
                     {/* ⚠️ 글자색도 톤을 따른다. 연보라 바탕에 검정 글자면 덩어리가 갈린다 */}

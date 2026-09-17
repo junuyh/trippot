@@ -31,8 +31,9 @@
 //
 // 데이터만 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
-import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
+
+import { ActionIcon } from "@/components/ui/ActionIcon";
 
 import { TONE } from "@/lib/constants/toneColor";
 import type { TripAction } from "@/lib/trip/tripActions";
@@ -58,7 +59,7 @@ export function TripActionBanner({ action, onPress }: Props) {
         ⚠️ icon 은 lib 에서 **문자열로** 온다. 순수 함수가 @expo/vector-icons
            타입을 물고 오지 않게 한 것이다. 세 껍데기가 모두 같은 방식이다.
       */}
-      <Ionicons name={action.icon as never} size={20} color={c.fg} style={{ marginTop: 1 }} />
+      <ActionIcon name={action.icon} size={20} color={c.fg} style={{ marginTop: 1 }} />
       <View style={{ flex: 1 }}>
         {/*
           ⚠️ 여행 홈은 **상태(meta)가 제목**이고 사건(headline)이 부제다.
