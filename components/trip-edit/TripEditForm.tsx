@@ -30,7 +30,8 @@
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useRef } from "react";
+import { ActivityIndicator, Pressable, ScrollView, Text, View, type ViewProps } from "react-native";
 
 import { DateRangeCalendar, HeadcountStepper } from "@/components/trip-create";
 import { Button } from "@/components/ui";
@@ -95,6 +96,14 @@ type Props = {
   joinRequests: JoinRequestItem[];
   /** 요청 한 건을 눌렀을 때. 수락·거절 시트는 화면이 연다 */
   onPressJoinRequest: (request: JoinRequestItem) => void;
+  /**
+   * 참여 요청 자리로 스크롤한다. 홈·여행 홈 배너에서 "확인하기" 로 넘어왔을 때.
+   *
+   * ⚠️ 이 화면 맨 위는 여행지 카드와 캘린더라, 그냥 보내면 **뭘 하라는 건지
+   *    보이지 않는다.** 배너를 눌러 온 사람은 이미 할 일을 알고 왔다.
+   *    (2026-09-17 다빈)
+   */
+  focusJoinRequests?: boolean;
 
   /** 저장 가능한 상태인가. 검증은 화면이 한다 */
   canSubmit: boolean;
@@ -110,14 +119,18 @@ function Section({
   title,
   hint,
   children,
+  onLayout,
 }: {
   eyebrow: string;
   title: string;
   hint?: string;
   children: ReactNode;
+  /** 스크롤 위치를 잡을 때 쓴다. 이 카드는 ScrollView 의 직계 자식이라 y 가 곧 스크롤 위치다 */
+  onLayout?: ViewProps["onLayout"];
 }) {
   return (
     <View
+      onLayout={onLayout}
       style={{
         borderWidth: 1,
         borderColor: LINE,
@@ -159,6 +172,7 @@ export function TripEditForm({
   inviting,
   joinRequests,
   onPressJoinRequest,
+  focusJoinRequests = false,
   canSubmit,
   saving,
   errorMessage,
@@ -166,6 +180,35 @@ export function TripEditForm({
 }: Props) {
   const { fontFamily } = useDisplayFont();
   const inviteDisabled = inviting || !canInvite;
+
+  /**
+   * 참여 요청 자리로 한 번 스크롤한다.
+   *
+   * ⚠️ 요청 목록은 화면이 뜬 **뒤에** 서버에서 온다. 그래서 마운트 때 스크롤하면
+   *    아직 그 자리가 없다. 섹션이 onLayout 으로 자기 y 를 알려 준 뒤에 옮긴다.
+   * ⚠️ 한 번만 옮긴다. 사용자가 다시 올린 뒤 화면이 다시 그려질 때마다 끌려
+   *    내려가면 스크롤을 뺏긴다.
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  const didFocusRef = useRef(false);
+  /** '여행 멤버' 카드의 y. 이 카드는 ScrollView 직계 자식이라 곧 스크롤 위치다 */
+  const memberCardYRef = useRef<number | null>(null);
+  /** 그 카드 **안에서** 참여 요청 목록의 y. onLayout 은 부모 기준이라 더해야 한다 */
+  const requestsOffsetRef = useRef<number | null>(null);
+
+  const focusRequests = useCallback(() => {
+    if (!focusJoinRequests || didFocusRef.current) return;
+    const card = memberCardYRef.current;
+    const offset = requestsOffsetRef.current;
+    // 둘 다 와야 위치가 정해진다. 먼저 온 쪽이 다시 부른다
+    if (card === null || offset === null) return;
+    didFocusRef.current = true;
+    /*
+      ⚠️ 목록의 제목("승인 대기 N건")이 화면 맨 위에 딱 붙으면 잘린 것처럼
+         보인다. 한 줄 정도 위를 남겨 카드 안이라는 게 보이게 한다.
+    */
+    scrollRef.current?.scrollTo({ y: Math.max(0, card + offset - 24), animated: true });
+  }, [focusJoinRequests]);
 
   return (
     /*
@@ -175,6 +218,7 @@ export function TripEditForm({
     */
     <View className="flex-1">
       <ScrollView
+        ref={scrollRef}
         className="flex-1"
         contentContainerStyle={{
           paddingHorizontal: 16,
@@ -282,7 +326,14 @@ export function TripEditForm({
              인원 바로 아래에 둔다. 빈자리를 늘려야 초대가 켜지므로 인과가
              붙어 읽힌다. 여행 홈 티켓도 DATE → TRAVELERS 순이라 같이 맞춘다.
              (2026-09-16 다빈) */}
-        <Section eyebrow="INVITE" title="여행 멤버">
+        <Section
+          eyebrow="INVITE"
+          title="여행 멤버"
+          onLayout={(e) => {
+            memberCardYRef.current = e.nativeEvent.layout.y;
+            focusRequests();
+          }}
+        >
           {/*
             ⚠️ 설명 옆에 편지 그림을 둔다. 글자만 있으면 카드가 설정 목록처럼
                읽혀서 초대가 '할 수 있는 일' 로 안 보인다. (2026-09-16 다빈)
@@ -423,7 +474,13 @@ export function TripEditForm({
             여행장에게만 데이터가 오므로 다른 멤버 화면엔 아무것도 없다. 누르면 수락·거절 시트.
           */}
           {joinRequests.length > 0 ? (
-            <View style={{ marginTop: 10, gap: 6 }}>
+            <View
+              style={{ marginTop: 10, gap: 6 }}
+              onLayout={(e) => {
+                requestsOffsetRef.current = e.nativeEvent.layout.y;
+                focusRequests();
+              }}
+            >
               <Text style={{ fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.3 }}>
                 승인 대기 {joinRequests.length}건
               </Text>
