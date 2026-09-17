@@ -16,6 +16,7 @@ import { Button } from '@/components/ui';
 
 import { GroupAccountList } from './GroupAccountList';
 import { GroupMemberList } from './GroupMemberList';
+import { LuggageTagBack } from './LuggageTagBack';
 import type { GroupCardTheme } from './cardTheme';
 import { formatCreatedDate, formatMemberCount } from './format';
 import type { GroupAccountItem, GroupDetailData } from './types';
@@ -199,69 +200,36 @@ export function GroupDetailView({
     <View className="flex-1 bg-white">
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-10 pt-4">
       {/*
-        상단 = 모임 identity · 구성 정보 한 장. (2026-09-17)
-        목록 카드와 같은 모임 색(theme)을 옅은 tint · accent 로만 쓴다 — 여행준비홈 카드 언어
-        (radius 14 · 1px 테두리 · 옅은 그림자 · 안쪽 16)와 같은 문법이다. 진한 색으로 채우지 않는다.
+        상단 = 캐리어 태그 **뒷면**. 목록 카드(앞면)와 같은 모임 색 몸통에 흰 정보 카드가 꽂혀 있다.
+        (2026-09-17 · LuggageTagBack) 정보 구조는 그대로: 이름 + 연필 · 만든 날 · 멤버.
       */}
-      <View
-        className="overflow-hidden"
-        style={{
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: theme.rule,
-          backgroundColor: theme.paperStart,
-          shadowColor: theme.ink,
-          shadowOpacity: 0.06,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 2,
-        }}
-      >
-        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14 }}>
+      <LuggageTagBack theme={theme} label="TRIPPOT 모임">
+        {/* 이름 오른쪽에 수정 연필. 헤더 오른쪽 버튼을 여기로 옮겼다. */}
+        <View className="flex-row items-center">
           <Text
-            style={{ fontSize: 10.5, lineHeight: 14, fontWeight: '700', letterSpacing: 0.4, color: theme.accent }}
+            numberOfLines={2}
+            className="shrink font-black"
+            style={{ fontSize: 22, lineHeight: 30, letterSpacing: -0.6, color: theme.ink }}
           >
-            TRIPPOT 모임
+            {group.name}
           </Text>
-          {/* 이름 오른쪽에 수정 연필. 헤더 오른쪽 버튼을 여기로 옮겼다. */}
-          <View className="mt-1 flex-row items-center">
-            <Text
-              numberOfLines={2}
-              className="shrink font-black"
-              style={{ fontSize: 22, lineHeight: 30, letterSpacing: -0.6, color: theme.ink }}
-            >
-              {group.name}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="모임 이름 수정"
-              hitSlop={10}
-              onPress={onPressRename}
-              className="ml-2 h-8 w-8 items-center justify-center rounded-full active:opacity-60"
-              style={{ backgroundColor: 'rgba(255,255,255,0.6)' }}
-            >
-              <Ionicons name="pencil-outline" size={16} color={theme.accent} />
-            </Pressable>
-          </View>
-          <Text className="mt-1" style={{ fontSize: 12.5, lineHeight: 18, color: theme.secondary }}>
-            {`만든 날 ${formatCreatedDate(group.createdAt)}`}
-          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="모임 이름 수정"
+            hitSlop={10}
+            onPress={onPressRename}
+            className="ml-2 h-8 w-8 items-center justify-center rounded-full active:opacity-60"
+            style={{ backgroundColor: theme.paperStart }}
+          >
+            <Ionicons name="pencil-outline" size={16} color={theme.accent} />
+          </Pressable>
         </View>
+        <Text className="mt-1" style={{ fontSize: 12.5, lineHeight: 18, color: theme.secondary }}>
+          {`만든 날 ${formatCreatedDate(group.createdAt)}`}
+        </Text>
 
-        {/*
-          멤버 — 같은 카드 안 흰 칸. 정보 영역이다, 누르는 곳이 아니다. (2026-09-09 확정)
-          멤버 관리 화면을 없앴고, 인원수 옆 chevron·이동도 제거했다.
-        */}
-        <View
-          style={{
-            marginHorizontal: 10,
-            marginBottom: 10,
-            borderRadius: 11,
-            backgroundColor: '#FFFFFF',
-            paddingHorizontal: 14,
-            paddingVertical: 12,
-          }}
-        >
+        {/* 멤버 — 정보 영역이다, 누르는 곳이 아니다. (2026-09-09 확정) 종이 안의 구분선 아래. */}
+        <View className="mt-3.5 pt-3.5" style={{ borderTopWidth: 1, borderTopColor: theme.rule }}>
           <View className="flex-row items-center gap-2">
             <Ionicons name="people-outline" size={14} color={theme.accent} />
             <Text
@@ -278,7 +246,7 @@ export function GroupDetailView({
             <GroupMemberList members={group.members} />
           </View>
         </View>
-      </View>
+      </LuggageTagBack>
 
       <Section
         title="연결 계좌"

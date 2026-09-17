@@ -25,6 +25,7 @@
 // ⚠️ supabase 를 부르지 않는다. 이미 가져온 데이터를 받아 판단만 한다.
 //    조회는 화면 파일이 한다 — 홈은 여행 N개, 여행 홈은 1개라 모양이 다르다.
 // ============================================================================
+import { TRIP_STATUS } from '@/lib/constants/status';
 import type { BannerTone } from '@/lib/constants/toneColor';
 
 export type TripActionIntent =
@@ -64,6 +65,33 @@ export type TripAction = {
   intent: TripActionIntent;
 };
 
+/**
+ * 이 여행이 **아직 새 멤버를 들일 수 있는가.**
+ *
+ * ⚠️ 승인 대기 배너는 이 여행에만 뜬다. 전에는 상태를 안 봐서 **끝난 여행에도**
+ *    "승인 대기 1건" 이 떴다 — 이미 다녀온 여행에 승인을 권하는 셈이었다.
+ *    (2026-09-17 홈에 '세부 여행(ENDED) · 승인 대기 1건' 이 뜬 것으로 확인)
+ *
+ * ⚠️ CANCEL_PENDING 은 **들어간다.** 취소 요청 중에도 여행 준비는 그대로 돌고
+ *    승인도 할 수 있다. (POL-CXL-006) 여기서 빼면 취소 요청이 들어온 순간
+ *    승인 대기가 사라져 여행장이 요청을 놓친다.
+ *
+ * ⚠️ 서버는 CANCELED · DELETED 만 막는다(accept_trip_join_request ·
+ *    TRIP_NOT_OPEN). ENDED · SETTLED 는 서버가 허용하지만 **보여 주지 않는다** —
+ *    끝난 여행에 사람을 들이는 건 사용자가 원할 일이 아니다. 정말 필요하면
+ *    여행 정보 수정에 들어가면 목록은 그대로 있다.
+ *
+ * ⚠️ 홈은 조회 전에 이 함수로 여행을 먼저 거른다. 판정과 조회 범위가 **같은
+ *    기준**이어야 한다 — 전에 홈에만 따로 조건을 걸었다가 여행 홈과 갈렸다.
+ */
+export function tripAcceptsNewMembers(status: string): boolean {
+  return (
+    status === TRIP_STATUS.PLANNING ||
+    status === TRIP_STATUS.TRAVELING ||
+    status === TRIP_STATUS.CANCEL_PENDING
+  );
+}
+
 /** "오사카 여행". 여행지가 없으면 그냥 "여행" */
 export function tripActionLabel(destination: string | null | undefined): string {
   const name = destination?.trim();
@@ -77,14 +105,20 @@ export function tripActionLabel(destination: string | null | undefined): string 
  *    줄 이유가 없다. 부르는 쪽이 여행장일 때만 요청 목록을 채운다.
  *    (POL-INV-004 · canDecideJoinRequest)
  *
- * @returns 대기 중인 요청이 없으면 null — 화면은 null 을 안 그린다
+ * @returns 대기 중인 요청이 없거나 **새 멤버를 들일 수 없는 여행**이면 null
+ *          — 화면은 null 을 안 그린다
  */
 export function buildJoinRequestAction(input: {
   tripId: string;
   destination: string | null;
+  /** 여행 상태. 끝났거나 취소된 여행에는 배너를 띄우지 않는다 */
+  status: string;
   /** 대기 중인 요청자 이름, 오래 기다린 순. 빈 배열이면 null 을 돌려준다 */
   waitingNames: string[];
 }): TripAction | null {
+  // ⚠️ 상태를 **여기서** 본다. 화면마다 따로 걸면 홈과 여행 홈이 갈린다
+  if (!tripAcceptsNewMembers(input.status)) return null;
+
   const count = input.waitingNames.length;
   if (count === 0) return null;
 

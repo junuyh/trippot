@@ -64,6 +64,7 @@ import { canDecideJoinRequest } from '@/lib/trip/tripLeader';
 import {
   buildCancelPendingAction,
   buildJoinRequestAction,
+  tripAcceptsNewMembers,
   type TripAction,
 } from '@/lib/trip/tripActions';
 import { getActiveCancelRequest, getVoteProgress } from '@/lib/supabase/queries/tripCancel';
@@ -393,22 +394,13 @@ export default function ScreenHOME01() {
       }
 
       /*
-        ⚠️⚠️ **여행 홈과 같은 기준이어야 한다.** ⚠️⚠️
-           여행 홈은 canDecideJoinRequest(= 여행장인가)만 보고 **status 를 보지
-           않는다.** 여기에만 PLANNING·TRAVELING 조건을 걸었더니, 취소 요청이
-           들어온 순간 홈에서 참여 요청 배너가 사라지는데 여행 홈에는 그대로
-           남았다. 같은 일을 두 화면이 다르게 판정한 것이다. (2026-09-17 확인)
-
-           취소 요청 중에도 참여 요청은 살아 있고 수락할 수 있다 — 여행 준비가
-           그대로 도는 것과 같은 이유다. (POL-CXL-006) 서버도 CANCELED ·
-           DELETED 일 때만 수락을 거부한다. (accept_trip_join_request ·
-           TRIP_NOT_OPEN) 그 둘만 뺀다.
+        ⚠️ 조회를 아끼려고 미리 거르되, **판정과 같은 함수**를 쓴다.
+           (tripAcceptsNewMembers) 여기에만 따로 조건을 걸었다가 여행 홈과
+           갈린 적이 있다 — 취소 요청이 들어오면 홈에서만 배너가 사라졌다.
+           이제 조건이 한 곳에 있어서 갈릴 수 없다. (2026-09-17)
       */
       const leading = rows.filter(
-        (trip) =>
-          canDecideJoinRequest(trip, userId) &&
-          trip.status !== TRIP_STATUS.CANCELED &&
-          trip.status !== TRIP_STATUS.DELETED,
+        (trip) => canDecideJoinRequest(trip, userId) && tripAcceptsNewMembers(trip.status),
       );
       const canceling = rows.filter((trip) => trip.status === TRIP_STATUS.CANCEL_PENDING);
 
@@ -420,6 +412,7 @@ export default function ScreenHOME01() {
               return buildJoinRequestAction({
                 tripId: trip.id,
                 destination: trip.destination,
+                status: trip.status,
                 waitingNames: requests.map((r) => r.requester_name),
               });
             } catch {

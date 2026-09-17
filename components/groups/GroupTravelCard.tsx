@@ -1,9 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useId, useState } from 'react';
-import { Image, Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
+import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { pickGroupCardVariant, type GroupCardTheme } from './cardTheme';
+import {
+  TAG_HOLE_CX,
+  TAG_HOLE_R,
+  luggageTagBodyPath,
+  luggageTagHolePath,
+  luggageTagPanelPath,
+} from './luggageTag';
 import { formatCardDate, formatMemberCount, formatShortDateRange } from './format';
 import type { GroupTravelCardData, GroupTripItem } from './types';
 
@@ -46,26 +53,18 @@ const DATE_COL_WIDTH = 112;
 
 /** 실물 카드 모서리. 바깥 컬러 프레임. */
 const CARD_RADIUS = 18;
-/** 바깥 프레임 두께(좌·우·아래). 테마 색은 여기서만 보인다. (2026-09-15 · 9 → 15: 실물 카드 프레임처럼) */
+/** 바깥 프레임 두께(좌·우). 테마 색은 여기서만 보인다. (2026-09-15 · 9 → 15: 실물 카드 프레임처럼) */
 const FRAME = 15;
+/** 아래 프레임. 위쪽 머리(FRAME_TOP)와 균형을 맞추고, 오른쪽 아래에 태그 라벨 글자가 들어간다. (2026-09-17) */
+const FRAME_BOTTOM = 24;
 /**
  * 위쪽 프레임은 더 넓다 — 브랜드(로고 + TripPot 모임)가 **프레임에 인쇄된 것처럼** 여기 들어간다.
  * 흰 패널은 이 아래에서 시작한다. (2026-09-15)
  */
-const FRAME_TOP = 32;
+const FRAME_TOP = 34;
 /** 안쪽 흰 패널(인쇄면) 모서리. 프레임 radius − 프레임 두께에 가깝게 해 동심으로 보이게 한다. */
 const PANEL_RADIUS = 10;
-/**
- * 흰 패널 왼쪽 변 가운데의 돌출부(탭). 시안의 카드 인쇄면 실루엣이다. (2026-09-14)
- *   NOTCH_DEPTH  프레임 쪽으로 튀어나오는 깊이. FRAME(15)보다 작아 프레임 띠가 남는다
- *   NOTCH_HALF   돌출부 세로 반높이. 패널 중앙 ± 이만큼
- */
-const NOTCH_DEPTH = 12;
-const NOTCH_HALF = 26;
 
-/** 장식용 칩. 실물 카드의 IC 칩 자리. 누르지 못하고 읽히지도 않는다. */
-const CHIP_WIDTH = 28;
-const CHIP_HEIGHT = 20;
 
 /** 장식 변형 수. 항로 곡선의 시작점이 조금씩 다르다. */
 const PATTERN_VARIANTS = 3;
@@ -105,27 +104,33 @@ function FrameBackdrop({
   height,
   theme,
   variant,
+  selected,
 }: {
   width: number;
   height: number;
   theme: GroupCardTheme;
   variant: number;
+  /** 편집 모드 선택 — 실루엣을 따라 accent 링을 두른다 */
+  selected: boolean;
 }) {
   const gradientId = useId();
   const startX = width * (0.2 + variant * 0.15);
   const route = `M ${startX} ${height} C ${width * 0.45} ${height * 0.75}, ${width * 0.7} ${height * 0.3}, ${width} ${height * 0.12}`;
+  const body = luggageTagBodyPath(width, height);
 
   return (
     <Svg width={width} height={height} pointerEvents="none">
       <Defs>
         <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor={theme.paperStart} />
-          <Stop offset="1" stopColor={theme.paperEnd} />
+          <Stop offset="0" stopColor={theme.tagStart} />
+          <Stop offset="1" stopColor={theme.tagEnd} />
         </LinearGradient>
       </Defs>
-      <Rect x={0} y={0} width={width} height={height} fill={`url(#${gradientId})`} />
+      <Path d={body} fill={`url(#${gradientId})`} fillRule="evenodd" />
       {/* 프레임만 보이므로 한 단 진하게 — 흰 패널과 대비가 나야 테마가 읽힌다. */}
-      <Rect x={0} y={0} width={width} height={height} fill={theme.pattern} opacity={0.14} />
+      <Path d={body} fill={theme.pattern} opacity={0.12} fillRule="evenodd" />
+      {/* 구멍 둘레 — 펀칭 자국. 구멍 자체는 evenodd 로 뚫려 흰 화면이 비친다. */}
+      <Path d={luggageTagHolePath()} fill="none" stroke={theme.ink} strokeWidth={1.5} opacity={0.35} />
       <Path
         d={route}
         stroke={theme.pattern}
@@ -134,17 +139,22 @@ function FrameBackdrop({
         fill="none"
         opacity={0.35}
       />
+      {/* 가장자리 — 흰 바탕에서 태그 윤곽이 서게 1px. 선택되면 accent 2.5px 링. */}
+      <Path
+        d={body}
+        fill="none"
+        fillRule="evenodd"
+        stroke={selected ? theme.accent : theme.ink}
+        strokeWidth={selected ? 2.5 : 1}
+        opacity={selected ? 1 : 0.22}
+      />
     </Svg>
   );
 }
 
 /**
- * 흰 패널의 실루엣. 둥근 사각형인데 **왼쪽 변 가운데가 바깥(프레임 쪽)으로 뾰족하게 나온다.**
- * 시안의 인쇄면 모양이다. 테두리·그림자로 흉내 내지 않고 Path 로 실제 윤곽을 그린다.
- *
- * 패널 콘텐츠 뒤에 absolute 로 깔리며, Svg 폭은 패널 폭 + NOTCH_DEPTH 라 돌출부가
- * 패널 왼쪽 밖(프레임 띠 위)까지 그려진다. 바깥 카드는 overflow hidden 이지만
- * 돌출부는 FRAME 안에 머물러 잘리지 않는다.
+ * 흰 패널 — 바깥 태그와 같은 언어(왼쪽 사선 · 오른쪽 둥근 모서리)의 인쇄면. (2026-09-17)
+ * 살짝 떠 있게 아래로 2px 그림자 한 겹을 먼저 깔고 흰 면을 얹는다. 질감은 없다.
  */
 function PanelShape({
   width,
@@ -155,72 +165,17 @@ function PanelShape({
   height: number;
   theme: GroupCardTheme;
 }) {
-  const r = PANEL_RADIUS;
-  const d = NOTCH_DEPTH;
-  const mid = height / 2;
-  // 좌표는 Svg 기준 — 패널의 x=0 이 Svg 의 x=d 다.
-  const path = [
-    `M ${d + r} 0`,
-    `H ${d + width - r}`,
-    `A ${r} ${r} 0 0 1 ${d + width} ${r}`,
-    `V ${height - r}`,
-    `A ${r} ${r} 0 0 1 ${d + width - r} ${height}`,
-    `H ${d + r}`,
-    `A ${r} ${r} 0 0 1 ${d} ${height - r}`,
-    `V ${mid + NOTCH_HALF}`,
-    `L 0 ${mid}`,
-    `L ${d} ${mid - NOTCH_HALF}`,
-    `V ${r}`,
-    `A ${r} ${r} 0 0 1 ${d + r} 0`,
-    'Z',
-  ].join(' ');
-
+  const path = luggageTagPanelPath(width, height);
   return (
     <Svg
-      width={width + d}
-      height={height}
-      style={{ position: 'absolute', left: -d, top: 0 }}
+      width={width}
+      height={height + 3}
+      style={{ position: 'absolute', left: 0, top: 0 }}
       pointerEvents="none"
     >
+      <Path d={path} fill={theme.ink} opacity={0.14} transform="translate(0 2.5)" />
       <Path d={path} fill="#FFFFFF" stroke={theme.rule} strokeWidth={1} />
     </Svg>
-  );
-}
-
-/**
- * 장식용 칩. 실물 카드의 IC 칩 자리 — 뉴트럴 메탈 톤 사각형에 가는 선 두 줄.
- * 의미도 동작도 없다. 화면 읽기(접근성)에서 뺀다.
- */
-function CardChip() {
-  return (
-    <View
-      accessible={false}
-      importantForAccessibility="no-hide-descendants"
-      style={{
-        width: CHIP_WIDTH,
-        height: CHIP_HEIGHT,
-        borderRadius: 4,
-        backgroundColor: '#DDD8CC',
-        borderWidth: 1,
-        borderColor: '#C7C0B1',
-        overflow: 'hidden',
-        justifyContent: 'space-evenly',
-      }}
-    >
-      <View style={{ height: 1, backgroundColor: '#B9B1A1', opacity: 0.9 }} />
-      <View style={{ height: 1, backgroundColor: '#B9B1A1', opacity: 0.9 }} />
-      <View
-        style={{
-          position: 'absolute',
-          left: CHIP_WIDTH * 0.38,
-          top: 0,
-          bottom: 0,
-          width: 1,
-          backgroundColor: '#B9B1A1',
-          opacity: 0.9,
-        }}
-      />
-    </View>
   );
 }
 
@@ -387,28 +342,30 @@ export function GroupTravelCard({
       accessibilityState={{ selected: editMode && selectable ? selected : undefined }}
       onPress={handlePress}
       onLayout={onLayout}
-      className="overflow-hidden active:opacity-85"
+      className="active:opacity-85"
       style={{
-        // Svg 가 그려지기 전 첫 프레임의 바탕색. 그라데이션 시작색과 같다.
-        backgroundColor: theme.paperStart,
-        borderRadius: CARD_RADIUS,
+        // 몸통 · 테두리 · 모서리(머리 챔퍼)는 전부 FrameBackdrop(Svg)이 그린다. View 는 투명.
+        backgroundColor: 'transparent',
         paddingTop: FRAME_TOP,
-        paddingHorizontal: FRAME,
-        paddingBottom: FRAME,
-        // 한 장씩 떠 보일 만큼만. 흰 바탕(2026-09-17)에서는 그림자만으로 가장자리가 흐려져
-        // 테마 rule 색 1px 테두리를 더한다. 카드 색 체계는 그대로다.
-        borderWidth: 1,
-        borderColor: theme.rule,
+        paddingLeft: FRAME + 4,
+        paddingRight: FRAME,
+        paddingBottom: FRAME_BOTTOM,
+        // 한 장씩 떠 보일 만큼만. 투명 View 의 그림자는 그려진 내용(태그 실루엣)을 따라간다.
         shadowColor: theme.ink,
-        shadowOpacity: 0.1,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 3,
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 5 },
       }}
     >
       {size.width > 0 ? (
         <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0 }}>
-          <FrameBackdrop width={size.width} height={size.height} theme={theme} variant={variant} />
+          <FrameBackdrop
+            width={size.width}
+            height={size.height}
+            theme={theme}
+            variant={variant}
+            selected={showSelectedRing}
+          />
         </View>
       ) : null}
 
@@ -419,22 +376,44 @@ export function GroupTravelCard({
       <View
         pointerEvents="none"
         className="flex-row items-center"
-        style={{ position: 'absolute', left: FRAME + 2, top: 0, height: FRAME_TOP }}
+        style={{ position: 'absolute', left: TAG_HOLE_CX + TAG_HOLE_R + 9, top: 0, height: FRAME_TOP }}
       >
-        <Image
-          source={require('@/assets/logo.png')}
-          style={{ width: 18, height: 15 }}
-          resizeMode="contain"
-          accessibilityRole="image"
-          accessibilityLabel="TripPot"
-        />
-        <Text
-          className="ml-1"
-          style={{ fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: -0.1, color: theme.accent }}
+        {/* 라벨 알약 — 태그에 붙은 스티커 라벨. 로고는 없다. (2026-09-17) */}
+        <View
+          style={{
+            borderRadius: 999,
+            backgroundColor: 'rgba(255,255,255,0.88)',
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+          }}
         >
-          {group.kind === 'GROUP' ? 'TripPot 모임' : 'TripPot'}
-        </Text>
+          <Text
+            style={{ fontSize: 10, lineHeight: 13, fontWeight: '800', letterSpacing: 0.4, color: theme.accent }}
+          >
+            {group.kind === 'GROUP' ? 'TripPot 모임' : 'TripPot'}
+          </Text>
+        </View>
       </View>
+
+
+      {/* 아래 프레임 오른쪽 — 태그 라벨 글자 하나. 정보가 아니라 태그라는 표시다. */}
+      <Text
+        pointerEvents="none"
+        accessible={false}
+        style={{
+          position: 'absolute',
+          right: FRAME + 2,
+          bottom: (FRAME_BOTTOM - 12) / 2,
+          fontSize: 8.5,
+          lineHeight: 12,
+          fontWeight: '800',
+          letterSpacing: 1.2,
+          color: theme.ink,
+          opacity: 0.45,
+        }}
+      >
+        TRAVEL TAG
+      </Text>
 
       {/*
         흰 패널 — 실물 카드의 인쇄면. 프레임 안에 inset.
@@ -459,7 +438,6 @@ export function GroupTravelCard({
           이름은 flex-1 이라 칩·메타 폭을 뺀 만큼 쓰고 넘치면 말줄임한다.
         */}
         <View className="flex-row items-center" style={{ gap: 10, height: 28 }}>
-          <CardChip />
           <Text
             numberOfLines={1}
             className="flex-1"
@@ -545,21 +523,6 @@ export function GroupTravelCard({
       </View>
 
       {/* 선택 테두리 — 덧그리기라 카드 크기가 변하지 않는다. */}
-      {showSelectedRing ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            right: 0,
-            bottom: 0,
-            borderRadius: CARD_RADIUS,
-            borderWidth: 2,
-            borderColor: theme.accent,
-          }}
-        />
-      ) : null}
     </Pressable>
   );
 }
