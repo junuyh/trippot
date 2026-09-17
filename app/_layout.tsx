@@ -6,7 +6,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HeaderBackButton, Loading } from '@/components/ui';
 import { initAnalytics } from '@/lib/analytics/track';
 import { AuthProvider, useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
-import { savePendingInvite } from '@/lib/invite/pendingInvites';
+import {
+  rememberInviteForLogin,
+  savePendingInvite,
+  takeRememberedInvite,
+} from '@/lib/invite/pendingInvites';
 import { PushInboxObserver } from '@/lib/notifications/PushInboxObserver';
 
 import '../global.css';
@@ -69,6 +73,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       //    usePathname() 은 정규화된 '/invite/abc123' 을 준다.
       //    (expo-router hooks.d.ts: "Segments are not normalized" / "Segments will be normalized")
       const next = pathname;
+
+      /*
+        ⚠️ 2026-09-16 초대 링크였다면 token 을 **기기에 맡겨 둔다.**
+           로그인이 끝나면 아래 분기가 꺼내서 그 사람의 보관함으로 옮긴다.
+           초대 화면에서 답하지 않고 나갔을 때 홈이 배너로 다시 알리기 위해서다.
+           (화면 이동은 원래대로 초대 화면이다 — 아래 분기 주석 참조)
+
+           주소(?next=)에만 담아 두면 카카오 로그인으로 앱 밖을 다녀오거나
+           웹에서 새로고침이 일어날 때 사라진다. (lib/invite/pendingInvites)
+      */
+      const token = inviteTokenFromPath(next);
+      if (token) rememberInviteForLogin(token).catch(() => undefined);
+
       router.replace(next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
       return;
     }
@@ -83,26 +100,36 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       const isInternalPath = next !== null && next.startsWith('/') && !next.startsWith('//');
 
       /*
-        ⚠️ 2026-09-16 초대 링크로 들어와 **로그인 · 가입을 거친 사람은 홈으로 보낸다.**
-           초대 화면(/invite/:token)으로 돌려보내지 않는다. (HOME-01 담당 · 사용자 결정)
-           token 을 기기에 저장해 두면 홈이 초대한 사람 · 여행지 · 날짜를 확인해
-           모달을 한 번 띄우고, 답할 때까지 배너를 남긴다. (lib/invite/pendingInvites)
+        ⚠️ 2026-09-16 초대 링크로 들어온 사람은 **원래대로 초대 화면으로 돌려보낸다.**
+           (2026-09-15 에 홈으로 보내도록 바꿨다가 되돌렸다 — 초대를 읽는 자리는
+            초대 화면 INV-02 이고, 홈 배너는 **거기서 답하지 않고 나갔을 때만**
+            다시 알리는 보조 장치다.)
 
-           이미 로그인돼 있던 사람은 이 분기에 오지 않는다. 가드가 막지 않아서
-           링크가 곧장 초대 화면을 연다. 그 흐름은 바꾸지 않았다.
-
-        ⚠️ 저장이 끝난 뒤에 옮긴다. 먼저 옮기면 홈이 빈 저장소를 읽어 모달이 안 뜬다.
-           저장에 실패하면 초대를 잃지 않게 원래대로 초대 화면으로 보낸다.
+           옮기기 전에 token 을 그 사람 보관함에 저장한다. 초대 화면이 뜨면 거기서도
+           같은 저장을 하지만(app/invite/[token].tsx), 로그인 직후 한 번 더 해 두면
+           초대 화면을 보지 못하고 앱을 닫아도 홈이 배너로 알릴 수 있다.
+           저장은 같은 token 이면 덮어쓰지 않으므로 모달이 두 번 뜨지 않는다.
       */
       const inviteToken = isInternalPath && next ? inviteTokenFromPath(next) : null;
-      if (inviteToken && userId) {
-        savePendingInvite(userId, inviteToken)
-          .then(() => router.replace('/'))
-          .catch(() => router.replace(next as never));
-        return;
-      }
 
-      router.replace(isInternalPath ? (next as never) : '/');
+      void (async () => {
+        /*
+          맡겨 둔 초대를 먼저 꺼낸다. 주소에 남아 있으면 그것도 본다.
+          ⚠️ 꺼내는 일은 **성공하든 실패하든 한 번만** 한다. 자리를 비워 두지 않으면
+             다음에 로그인할 때 남의 초대가 뜬다.
+        */
+        const remembered = await takeRememberedInvite();
+        const token = inviteToken ?? remembered;
+
+        if (token && userId) {
+          await savePendingInvite(userId, token).catch(() => undefined);
+          // 초대 화면으로 보낸다. 주소에 next 가 남아 있으면 그것을, 없으면 맡겨 둔 token 으로 만든다.
+          router.replace(`/invite/${encodeURIComponent(token)}` as never);
+          return;
+        }
+
+        router.replace(isInternalPath ? (next as never) : '/');
+      })();
     }
   }, [status, canEnter, onLoginScreen, pathname, params.next, router, userId]);
 

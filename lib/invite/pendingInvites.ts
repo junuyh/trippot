@@ -25,11 +25,32 @@ export type StoredPendingInvite = {
   token: string;
   /** ISO. 링크를 처음 연 시각. 최신순 정렬에만 쓴다. */
   savedAt: string;
-  /** ISO. 홈에서 모달을 띄운 시각. 한 초대에 모달은 한 번만 뜨고, 그 뒤로는 배너만 남는다. */
+  /**
+   * ISO. 홈에서 모달을 띄운 시각.
+   *
+   * ⚠️ 2026-09-16 홈 모달을 빼면서 **쓰지 않는 값이 됐다.** 칸은 남겨 둔다 —
+   *    이미 기기에 저장된 값이 이 모양이라, 없애면 그 초대들이 읽히지 않고 사라진다.
+   *    새로 저장하는 초대는 null 이다.
+   */
   modalShownAt: string | null;
 };
 
 const STORAGE_KEY_PREFIX = 'trippot:pending-invites:';
+
+/**
+ * 로그인 전에 연 초대를 맡아 두는 자리. (2026-09-16)
+ *
+ * ⚠️ 위 보관함은 **사용자별**이라 로그인 전에는 쓸 수 없다. 누구의 초대인지
+ *    모르기 때문이다. 그래서 로그인할 때까지만 여기에 token 하나를 맡아 두고,
+ *    로그인이 끝나 userId 를 알게 되면 그 사람의 보관함으로 옮긴다.
+ *
+ * ⚠️ 한 칸뿐이다. 로그인 전에 링크를 여러 번 열면 마지막 것만 남는다.
+ *    로그인 절차를 밟는 동안 다른 초대를 또 열 일은 드물다.
+ *
+ * ⚠️ 주소 파라미터(?next=)로 넘기지 않는다. 카카오 로그인은 앱 밖을 한 번
+ *    다녀오고 웹에서는 새로고침이 일어나서, 주소에 담아 둔 값이 사라질 수 있다.
+ */
+const HANDOFF_KEY = 'trippot:invite-handoff';
 
 /**
  * 보관 상한. 배너가 홈을 덮지 않게 한다.
@@ -71,6 +92,26 @@ async function writeAll(userId: string, rows: StoredPendingInvite[]): Promise<vo
   await AsyncStorage.setItem(storageKey(userId), JSON.stringify(rows.slice(0, MAX_ITEMS)));
 }
 
+/** 로그인 전에 연 초대를 맡아 둔다. 실패해도 조용히 넘어간다 — 로그인 자체를 막지 않는다. */
+export async function rememberInviteForLogin(token: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HANDOFF_KEY, token);
+  } catch {
+    // 저장소를 못 쓰면 초대만 놓친다. 링크를 다시 열면 된다.
+  }
+}
+
+/** 맡아 둔 초대를 꺼내고 자리를 비운다. 없으면 null. */
+export async function takeRememberedInvite(): Promise<string | null> {
+  try {
+    const token = await AsyncStorage.getItem(HANDOFF_KEY);
+    if (token) await AsyncStorage.removeItem(HANDOFF_KEY);
+    return token;
+  } catch {
+    return null;
+  }
+}
+
 /** 이 사용자가 열어 둔 초대, 최신순. */
 export async function getPendingInvites(userId: string): Promise<StoredPendingInvite[]> {
   return readAll(userId);
@@ -94,17 +135,4 @@ export async function removePendingInvite(userId: string, token: string): Promis
   const next = rows.filter((row) => row.token !== token);
   if (next.length === rows.length) return;
   await writeAll(userId, next);
-}
-
-/** 모달을 띄웠다고 적는다. 다음부터 이 초대는 배너로만 보인다. */
-export async function markInviteModalShown(userId: string, token: string): Promise<void> {
-  const rows = await readAll(userId);
-  await writeAll(
-    userId,
-    rows.map((row) =>
-      row.token === token && row.modalShownAt === null
-        ? { ...row, modalShownAt: new Date().toISOString() }
-        : row,
-    ),
-  );
 }
