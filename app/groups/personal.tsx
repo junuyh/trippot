@@ -30,7 +30,7 @@
 // ============================================================================
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 
 import {
   AccountTripPickerSheet,
@@ -203,6 +203,18 @@ export default function ScreenPersonalTrips() {
         // 계좌를 누르면 어느 여행의 계좌 화면으로 갈지 고른다. 모임 상세와 같다.
         onPressAccount={(account) => setPickingAccount(account)}
         onPressAllAccounts={() => setAllAccountsOpen(true)}
+        /*
+          준비 중 여행 카드 스와이프 '여행 나가기' — **UI/제스처만 연결한다.** (2026-09-18)
+          ⚠️ 실제 나가기·취소 mutation(useLeaveTrip · leave_trip RPC · CXL 흐름)은 다른 담당 범위라
+             여기서 부르지 않는다. 제품 의도는 "개인 여행 나가기 = 그 여행 취소 → 취소됨 탭" 이며,
+             후속 작업에서 여행 홈·모임 상세와 같은 useLeaveTrip 을 연결한다. [검토 필요]
+        */
+        onPressLeaveTrip={(trip) =>
+          Alert.alert(
+            '여행 나가기',
+            `${trip.destination ?? '이 여행'} 나가기는 아직 연결 전이에요. 여행 홈의 설정에서 취소할 수 있어요.`,
+          )
+        }
         // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint 를 읽어 기록한다. (모임 상세와 같다)
         // ⚠️ entryPoint 는 기존 값(group_detail · 모임 탭의 상세 화면군)을 쓴다 — ENTRY_POINT 는 분석 축이라 임의로 늘리지 않는다.
         onPressCreateTrip={() =>

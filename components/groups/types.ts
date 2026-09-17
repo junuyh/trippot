@@ -11,6 +11,11 @@ import type { MyTripItem } from '@/components/my';
 
 export type GroupTripItem = {
   tripId: string;
+  /**
+   * trips.status 그대로 (PLANNING · CANCEL_PENDING · TRAVELING). 카드가 라벨(준비 중/여행 중)을 고르는 기준.
+   * ⚠️ 날짜로 다시 계산하지 않는다 — 상태는 closeTripIfEnded(queries/trips.ts) 가 DB 에서 올린다. (2026-09-18)
+   */
+  status: string;
   /** trips.destination 은 nullable 이다. 없으면 카드가 대체 문구를 쓴다. */
   destination: string | null;
   /** 'YYYY-MM-DD'. trips.start_date 는 date 타입이라 시간대 변환이 없다. nullable. */

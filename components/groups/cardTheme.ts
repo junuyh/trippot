@@ -33,7 +33,13 @@ export type GroupCardTheme = {
   /** 상세(GROUP-02 · Personal) 상단 카드의 옅은 tint. 원본 파스텔에서 accent 쪽 12/14% (개인은 원본). */
   paperStart: string;
   paperEnd: string;
-  /** 캐리어 태그 몸통 — accent 와 같은 hue · HSL(s .56/.58 · l .52/.44) 로 채도를 올린 선명한 톤(여행준비홈 국가 카드와 같은 밀도). 목록 앞면 · 상세 뒷면 공용. (2026-09-17) */
+  /**
+   * 모임 identity 색 — **canonical vivid**. 목록 카드의 끈 · 모임명 · 개인 메타가 이 값을 **그대로**
+   * 쓴다(투명도 · 흰색 혼합 없음). 상세 상단 배경은 이 값을 흰색 쪽으로 섞어 만든다.
+   * (2026-09-18 최종) 순수 원색 방향 — green #00A86B · blue #2563EB · rose #E72D5B · yellow #F4B400 ·
+   * indigo #3F46E8 · orange #F05A24 · purple #6D2FE6. 청록 · 겨자 · 벽돌 기운은 버렸다.
+   * tagEnd 는 같은 hue 한 단 진한 값(l −8~10%) — 끈 그늘 · 편집 선택 테두리에만 쓴다.
+   */
   tagStart: string;
   tagEnd: string;
   /** 모임명 · 여행지 · 값 */
@@ -55,8 +61,8 @@ const LAVENDER: GroupCardTheme = {
   name: 'lavender',
   paperStart: '#EFECF9',
   paperEnd: '#E1DCF3',
-  tagStart: '#5540C9',
-  tagEnd: '#432FB1',
+  tagStart: '#6D2FE6',
+  tagEnd: '#5620C4',
   ink: '#2B2757',
   secondary: '#7A75A0',
   accent: '#4B3F8F',
@@ -76,8 +82,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
     name: 'mint',
     paperStart: '#D2E4DD',
     paperEnd: '#BFD8CE',
-    tagStart: '#40C9A2',
-    tagEnd: '#2FB18C',
+    tagStart: '#00A86B',
+    tagEnd: '#008C59',
     ink: '#1F3D34',
     secondary: '#6C8C82',
     accent: '#2F6B5A',
@@ -89,8 +95,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
     name: 'sky',
     paperStart: '#D1DEED',
     paperEnd: '#BED0E7',
-    tagStart: '#407FC9',
-    tagEnd: '#2F6BB1',
+    tagStart: '#2563EB',
+    tagEnd: '#1D4FC4',
     ink: '#1E3350',
     secondary: '#6C819C',
     accent: '#2F5E96',
@@ -102,8 +108,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
     name: 'rose',
     paperStart: '#EED9DE',
     paperEnd: '#E4C8D0',
-    tagStart: '#C94064',
-    tagEnd: '#B12F51',
+    tagStart: '#E72D5B',
+    tagEnd: '#C4224B',
     ink: '#4A2530',
     secondary: '#A07684',
     accent: '#9A4A5F',
@@ -115,8 +121,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
     name: 'sand',
     paperStart: '#EAE1D2',
     paperEnd: '#DED1BC',
-    tagStart: '#C98F40',
-    tagEnd: '#B17A2F',
+    tagStart: '#F4B400',
+    tagEnd: '#C99400',
     ink: '#3F3225',
     secondary: '#9A8A72',
     accent: '#8A6A3E',
@@ -128,8 +134,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
     name: 'indigo',
     paperStart: '#D3D6EB',
     paperEnd: '#C1C6E3',
-    tagStart: '#4052C9',
-    tagEnd: '#2F40B1',
+    tagStart: '#3F46E8',
+    tagEnd: '#3138C2',
     ink: '#232A5C',
     secondary: '#6F76A2',
     accent: '#3A4590',
@@ -144,8 +150,8 @@ const GROUP_THEMES: GroupCardTheme[] = [
     name: 'terracotta',
     paperStart: '#EED7CB',
     paperEnd: '#E3C0AE',
-    tagStart: '#C96840',
-    tagEnd: '#B1552F',
+    tagStart: '#F05A24',
+    tagEnd: '#C9461A',
     ink: '#4A2C26',
     secondary: '#A47B6B',
     accent: '#9B5A3F',
