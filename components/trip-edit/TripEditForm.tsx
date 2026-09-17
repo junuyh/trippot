@@ -38,6 +38,7 @@ import { Button } from "@/components/ui";
 import { useDisplayFont } from "@/lib/hooks/useDisplayFont";
 import { InviteArt } from "./inviteArt";
 import { BRAND } from "@/lib/constants/brandColor";
+import { TONE } from "@/lib/constants/toneColor";
 import type { JoinRequestItem } from "@/components/invite";
 
 /** 멤버 한 줄에 필요한 최소 모양. Trip 전체를 요구하지 않는다 */
@@ -49,6 +50,24 @@ export type TripMemberChip = {
 
 /** TripPot 브랜드 보라. lib/constants/brandColor.ts */
 const ACCENT = BRAND.primary;
+/*
+  ⚠️ 이 화면에는 누를 것이 최대 셋이다. 전에는 '저장하기' 와 '여행 멤버 초대하기'
+     가 **같은 보라 채움**이라 테스터가 무엇이 저장인지 헷갈렸고, 정작 상대가
+     기다리는 '승인 대기' 는 흰 배경 회색 테두리라 바로 아래 '모임' 안내 칸
+     (누를 수 없는 칸)과 같아 보였다. 누를 것과 못 누를 것이 같아 보였다.
+     (2026-09-17 테스터 신고 · 다빈)
+
+       승인 대기    연보라 채움 + 보라 테두리   스크롤 영역에서 유일하게 색이 있다
+       저장하기     진보라 채움 + 흰 글자       하단 고정 (건드리지 않는다)
+       초대하기     채움 없음 + 보라 테두리     언제 해도 되는 일
+
+     채움 방식이 셋 다 다르다 — 연보라 채움 / 진보라 채움 / 채움 없음.
+
+  ⚠️ 색은 TONE.brand 를 그대로 쓴다. 여행 홈의 승인 대기 배너가 쓰는 바로 그
+     값이다. 같은 일에 같은 옷을 입혀야 배너를 눌러 이 화면에 왔을 때 같은
+     것으로 읽힌다. 톤이 바뀌면 함께 따라간다.
+*/
+const BRAND_LINE = TONE.brand.line;
 const INK = "#111827";
 const MUTED = "#7f8998";
 const FAINT = "#a8afb9";
@@ -400,28 +419,38 @@ export function TripEditForm({
             className={`flex-row items-center ${inviteDisabled ? "" : "active:opacity-85"}`}
             style={{
               marginTop: 6,
-              height: 56,
-              borderRadius: 16,
+              /* ⚠️ 공용 Button(약 50)보다 크지 않게. 전에는 56/r16 이라 저장하기보다 컸다 */
+              height: 52,
+              borderRadius: 14,
               paddingLeft: 18,
               paddingRight: 8,
-              backgroundColor: canInvite ? ACCENT : "#eef0f3",
+              /*
+                ⚠️ 켜짐은 **채움이 없다.** 흰 바탕 + 보라 테두리 + 보라 글자다.
+                   연보라(primarySoft #F6F0FA) 채움으로 낮추면 꺼짐(#eef0f3)과
+                   밝기가 거의 같아 켜졌는지 꺼졌는지 구분이 안 간다. 이 버튼은
+                   빈자리가 없으면 꺼지므로 그 구분이 실제로 필요하다.
+                ⚠️ 꺼짐은 예전 값 그대로 둔다. 켜짐/꺼짐이 **채움 유무**로 갈린다.
+              */
+              backgroundColor: canInvite ? "#FFFFFF" : "#eef0f3",
+              borderWidth: canInvite ? 1 : 0,
+              borderColor: BRAND_LINE,
             }}
           >
             <View className="flex-1 flex-row items-center justify-center" style={{ gap: 8 }}>
               {inviting ? (
-                <ActivityIndicator size="small" color={canInvite ? "#fff" : MUTED} />
+                <ActivityIndicator size="small" color={canInvite ? ACCENT : MUTED} />
               ) : (
                 <Ionicons
                   name="person-add-outline"
                   size={17}
-                  color={canInvite ? "#fff" : "#9aa3ae"}
+                  color={canInvite ? ACCENT : "#9aa3ae"}
                 />
               )}
               <Text
                 style={{
                   fontSize: 15,
                   fontWeight: "800",
-                  color: canInvite ? "#fff" : "#9aa3ae",
+                  color: canInvite ? ACCENT : "#9aa3ae",
                 }}
               >
                 여행 멤버 초대하기
@@ -436,13 +465,14 @@ export function TripEditForm({
                 borderRadius: 17,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: canInvite ? "rgba(255,255,255,0.22)" : "#e4e7ea",
+                /* ⚠️ 반투명 흰 원이었다. 흰 바탕에서는 보이지 않는다 */
+                backgroundColor: canInvite ? BRAND.primarySoft : "#e4e7ea",
               }}
             >
               <Ionicons
                 name="chevron-forward"
                 size={16}
-                color={canInvite ? "#fff" : "#9aa3ae"}
+                color={canInvite ? ACCENT : "#9aa3ae"}
               />
             </View>
           </Pressable>
@@ -528,12 +558,18 @@ export function TripEditForm({
                   className="flex-row items-center active:opacity-70"
                   style={{
                     gap: 12,
+                    /*
+                      ⚠️ 흰 배경 + 회색 테두리였다. 바로 아래 '모임' 안내 칸
+                         (#f7f8fa · 누를 수 없는 칸)과 같은 계열이라, 상대가
+                         기다리는 유일한 일인데도 못 누르는 칸처럼 보였다.
+                         스크롤 영역에서 **유일하게 색이 있는 덩어리**로 올린다.
+                    */
                     borderWidth: 1,
-                    borderColor: "#e5e8ec",
+                    borderColor: BRAND_LINE,
                     borderRadius: 14,
                     paddingHorizontal: 14,
                     paddingVertical: 12,
-                    backgroundColor: "#fff",
+                    backgroundColor: BRAND.primarySoft,
                   }}
                 >
                   <View
@@ -543,22 +579,34 @@ export function TripEditForm({
                       borderRadius: 15,
                       alignItems: "center",
                       justifyContent: "center",
-                      backgroundColor: BRAND.primarySoft,
+                      /* ⚠️ 바탕이 연보라가 됐으니 원은 채워야 보인다 */
+                      backgroundColor: BRAND.primary,
                     }}
                   >
-                    <Ionicons name="hand-right-outline" size={15} color={BRAND.primary} />
+                    {/*
+                      ⚠️ 여행 홈의 승인 대기 배너와 **같은 아이콘**이다. 배너를
+                         눌러 이 화면에 오면 같은 아이콘이 기다려야 한다.
+                         전에는 여기만 hand-right-outline 이었다. (2026-09-17)
+                    */}
+                    <Ionicons name="checkmark-circle-outline" size={15} color="#FFFFFF" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "800", color: INK }}>
+                    {/* ⚠️ 글자색도 톤을 따른다. 연보라 바탕에 검정 글자면 덩어리가 갈린다 */}
+                    <Text
+                      numberOfLines={1}
+                      style={{ fontSize: 13, fontWeight: "800", color: TONE.brand.fg }}
+                    >
                       {request.name}님이 초대를 수락했어요
                     </Text>
-                    <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
+                    <Text
+                      style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: TONE.brand.body }}
+                    >
                       {request.needsNewGroup
                         ? "승인하면 새 모임이 만들어져요 · 눌러서 확인"
                         : "눌러서 승인하거나 거절해요"}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={15} color={FAINT} />
+                  <Ionicons name="chevron-forward" size={15} color={TONE.brand.fg} />
                 </Pressable>
               ))}
             </View>
