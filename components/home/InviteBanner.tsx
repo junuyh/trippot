@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+
+import { tripActionLabel } from '@/lib/trip/tripActions';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { BRAND } from '@/lib/constants/brandColor';
@@ -60,7 +62,14 @@ const BODY = '#6B5B78';
 
 export function InviteBanner({ invite, requesting, onRequestJoin, onDecline }: Props) {
   const inviter = invite.inviterName ? `${invite.inviterName}님이` : '함께 갈 사람이';
-  const destination = invite.destination ?? '여행';
+  /*
+    ⚠️ "{여행지} 여행" 을 직접 이어 붙이지 않는다. 여행지가 없을 때 '여행' 으로
+       채우고 뒤에 '여행' 을 또 붙이면 **"여행 여행에 초대했어요"** 가 된다.
+       trips.destination 은 nullable 이라 실제로 난다. (2026-09-17 다빈)
+       다른 배너들은 이미 tripActionLabel() 로 이 경우를 처리한다 —
+       여행지가 있으면 "{이름} 여행", 없으면 "여행" 을 통째로 돌려준다.
+  */
+  const tripLabel = tripActionLabel(invite.destination);
 
   return (
     <View
@@ -83,7 +92,7 @@ export function InviteBanner({ invite, requesting, onRequestJoin, onDecline }: P
                (lib/constants/brandColor.ts · 2026-09-17)
           */}
           <Text style={{ fontSize: 15, fontWeight: '700', lineHeight: 20, color: PURPLE }}>
-            {inviter} {destination} 여행에 초대했어요
+            {inviter} {tripLabel}에 초대했어요
           </Text>
           <Text style={{ marginTop: 2, fontSize: 13, color: BODY }}>
             {invite.periodLabel ? `${invite.periodLabel} · ` : ''}아직 답하지 않았어요

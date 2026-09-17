@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+
+import { ActionIcon } from '@/components/ui/ActionIcon';
 import { Pressable, Text, View } from 'react-native';
 
 import { HOME_DANGER } from './palette';
@@ -61,7 +63,7 @@ export function ActionRequiredSection({ actions, onPressAction, onPressSeeAll }:
                 className="h-9 w-9 items-center justify-center rounded-xl"
                 style={{ backgroundColor: action.tint }}
               >
-                <Ionicons name={action.icon as never} size={16} color="#4B5563" />
+                <ActionIcon name={action.icon} size={16} color="#4B5563" />
               </View>
 
               <View className="ml-3 flex-1">

@@ -497,6 +497,12 @@ export default function ScreenHOME01() {
       case 'OPEN_CANCEL_PROGRESS':
         router.push(`/trips/${action.tripId}?cxl=progress`);
         return;
+      /*
+        ⚠️ OPEN_INVITE_SHEET 는 여기 없다. '아직 나 혼자' 배너는 여행 홈에만
+           띄운다 — 홈의 이 자리는 "지금 답해야 할 일" 이고 그건 권유라서다.
+           (buildInviteEmptyAction 주석) 홈에도 띄우기로 하면 여기에 분기를
+           더하고, 시트가 아니라 여행 홈으로 보내야 한다. 홈에는 초대 훅이 없다.
+      */
     }
   }
 
