@@ -1,7 +1,10 @@
 import { ScrollView, View } from 'react-native';
 
+import type { TripAction } from '@/lib/trip/tripActions';
+
 import { CreateTripFab } from './CreateTripFab';
 import { HomeHeader } from './HomeHeader';
+import { HomeActionBanners } from './HomeActionBanner';
 import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
 import { PastTripSection } from './PastTripSection';
@@ -40,6 +43,12 @@ type Props = {
   onPressNotifications: () => void;
   /** 답하지 않은 여행 초대. 준비 중인 여행 위 배너. (InvitePrompt) */
   invitePrompt: InvitePromptProps;
+  /**
+   * 지금 답해야 할 일 — 참여 요청 대기 · 취소 요청 중. 초대 배너 바로 아래.
+   * 판단·문구는 lib/trip/tripActions 가 한다. 여기는 그리기만.
+   */
+  actions: TripAction[];
+  onPressAction: (action: TripAction) => void;
   /** [개발용] 로고 길게 누르기. 신규 사용자 홈 미리보기 토글. (HomeHeader) */
   onLongPressLogo?: () => void;
 
@@ -99,6 +108,8 @@ export function HomeView({
   onPressAllPastTrips,
   onPressNotifications,
   invitePrompt,
+  actions,
+  onPressAction,
   onLongPressLogo,
 }: Props) {
   const { expanded, onScroll } = useFabExpand();
@@ -123,6 +134,9 @@ export function HomeView({
       >
         {/* 답하지 않은 초대는 준비 중인 여행보다 위다. 답할 때까지 남는다. */}
         <InvitePrompt {...invitePrompt} />
+
+        {/* 답해야 할 일도 준비 중인 여행보다 위다. 답하면 사라진다. */}
+        <HomeActionBanners actions={actions} onPressAction={onPressAction} />
 
         {/*
           ⚠️ **준비 중인 여행이 없으면 그 사실을 그대로 말한다.** (2026-09-16 되돌림)
