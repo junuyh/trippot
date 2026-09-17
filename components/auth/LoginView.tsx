@@ -24,14 +24,6 @@ type Props = {
    */
   showDevPreview: boolean;
   /**
-   * 미리볼 수 있는 seed 사용자들. 화면 파일이 넘긴다.
-   *
-   * ⚠️ 계정 목록이 아니다. 취소 동의처럼 **사람이 둘 이상 있어야** 열리는
-   *    화면을 시뮬레이터 두 대에서 눌러 보려고 둔 개발용 통로다.
-   */
-  devPreviewUsers: readonly { userId: string; name: string }[];
-  onPressDevPreview: (userId: string) => void;
-  /**
    * [개발용] 신규 사용자 홈(여행 0개)으로 들어가는 통로. (2026-09-16 · HOME-01 담당)
    *
    * ⚠️ seed 사용자 넷은 모두 여행이 있어서, 여행이 하나도 없는 사람의 홈을
@@ -66,8 +58,6 @@ export function LoginView({
   onPressTerms,
   onPressPrivacy,
   showDevPreview,
-  devPreviewUsers,
-  onPressDevPreview,
   onPressDevPreviewNewUser,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -239,28 +229,12 @@ export function LoginView({
               개발용으로 둘러보기
             </Text>
             {/*
-              ⚠️ 이름을 나란히 둔다. 누구로 들어왔는지가 곧 화면이 달라지는
-                 이유라, 고르는 자리를 감춰 두면 잘못된 사람으로 눌러 보게 된다.
-            */}
-            <View className="flex-row flex-wrap justify-center" style={{ gap: 8 }}>
-              {devPreviewUsers.map((user) => (
-                <Text
-                  key={user.userId}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${user.name}으로 둘러보기`}
-                  onPress={() => onPressDevPreview(user.userId)}
-                  suppressHighlighting
-                  className="rounded-full border border-pot-line px-3 py-1.5 text-pot-mute"
-                  style={{ fontSize: 12, lineHeight: 16 }}
-                >
-                  {user.name}
-                </Text>
-              ))}
-            </View>
+              ⚠️ seed 사용자 이름 칩(지수·민준…)은 2026-09-17 에 뺐다.
+                 미리보기는 Supabase 세션이 없어 서버가 로그인 전 사용자(anon)로 본다.
+                 권한 전환(20260916000008 이후) 뒤로 anon 은 여행·모임·글을 읽을 수 없어
+                 칩으로 들어가면 빈 화면만 나온다. 데이터 확인은 실제 로그인으로 한다.
 
-            {/*
-              [개발용] 여행이 하나도 없는 사람의 홈. 위 이름 칩과 뜻이 달라
-              한 줄 아래에 따로 둔다 — 사람을 고르는 것이 아니라 화면 상태를 고른다.
+              [개발용] 여행이 하나도 없는 사람의 홈. 조회 결과와 무관하게 그리므로 남긴다.
             */}
             {onPressDevPreviewNewUser ? (
               <Text
