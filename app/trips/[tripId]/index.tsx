@@ -44,6 +44,7 @@ import {
   type GridCategory,
   TodayAllowanceCard,
   TripSettingsButton,
+  TripActionBanner,
   TripSettingsSheet,
 } from "@/components/trip-home";
 import { AppHomeButton } from "@/components/navigation/AppHomeButton";
@@ -167,6 +168,7 @@ import { InviteLinkSheet, InviteNudgeModal, JoinRequestBanner } from "@/componen
 import { getTripJoinRequests } from "@/lib/supabase/queries/tripJoinRequests";
 import {
   buildCancelPendingAction,
+  buildInviteEmptyAction,
   buildJoinRequestAction,
 } from "@/lib/trip/tripActions";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
@@ -1468,6 +1470,23 @@ export default function ScreenTripHome() {
     waitingNames: data.joinRequests.map((r) => r.name),
   });
 
+  /**
+   * 아직 나 혼자인 여행. 초대 권유 모달은 한 번만 뜨고 사라지므로,
+   * 그 뒤로 "아무도 안 들어왔다" 를 알려 주는 자리가 여기밖에 없다.
+   *
+   * ⚠️ 승인 대기 배너와 **동시에 뜨지 않는다.** 판정은 tripActions 가 한다 —
+   *    수락했지만 승인 전인 사람이 있으면 가입 멤버는 여전히 나 혼자다.
+   */
+  const inviteEmptyAction = buildInviteEmptyAction({
+    tripId: trip.id,
+    destination: trip.destination,
+    status: trip.status,
+    ownerType: trip.owner_type,
+    registeredMemberCount,
+    headcount: trip.headcount,
+    waitingCount: data.joinRequests.length,
+  });
+
   const cancelPendingAction = buildCancelPendingAction({
     tripId: trip.id,
     destination: trip.destination,
@@ -1918,6 +1937,25 @@ export default function ScreenTripHome() {
            끝난 여행 화면에서 `JP` 는 이미 아는 정보고,
            '정산 전' 인지 '정산 완료' 인지가 다음 행동을 정한다.
       */}
+      {/*
+        ── 아직 나 혼자 배너 ──
+        ⚠️ 껍데기는 TripActionBanner 를 **그대로** 쓴다. 위의 두 배너처럼
+           얇은 래퍼 파일을 또 만들지 않는다 — 고를 intent 가 하나뿐이라
+           래퍼가 할 일이 없다. (두 배너의 래퍼는 이미 있어서 남겼다)
+        ⚠️ 누르면 화면이 이미 들고 있는 초대 훅을 연다. 초대 모달 · 여행 정보
+           수정과 **같은 링크, 같은 시트**다. (useTripInvite)
+        ⚠️ 승인 대기 배너 위에 둔다. 둘이 같이 뜨는 일은 없지만(판정에서 막는다)
+           자리 순서는 "먼저 부르고 → 그다음 승인" 흐름을 따른다.
+      */}
+      {inviteEmptyAction ? (
+        <View className="px-1 pb-3 pt-1">
+          <TripActionBanner
+            action={inviteEmptyAction}
+            onPress={() => void invite.startInvite()}
+          />
+        </View>
+      ) : null}
+
       {/*
         ── 참여 요청 대기 배너 ──
         ⚠️ 여행장에게만 그린다. load() 가 여행장일 때만 채우므로 여기서는
