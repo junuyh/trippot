@@ -78,6 +78,8 @@ export default function ScreenTRIP01() {
      * 그 모임을 미리 골라 둔다. (2026-09-09)
      */
     preselectedGroupId?: string;
+    /** 개인 여행 상세의 '개인으로 새 여행 만들기' 로 들어왔을 때 'personal'. '혼자 가요' 를 미리 고른다. (2026-09-17) */
+    preselectedCompanion?: string;
   }>();
   const { draft, patchDraft } = useTripDraft();
 
@@ -267,6 +269,16 @@ export default function ScreenTRIP01() {
    *    바꿀 수 있다.
    */
   const preselectedRef = useRef(false);
+
+  // 개인 여행 상세에서 온 경우 — 기존 선택 핸들러로 '혼자 가요' 를 고른다. (검증 로직을 우회하지 않는다)
+  const preselectedCompanionRef = useRef(false);
+  useEffect(() => {
+    if (preselectedCompanionRef.current) return;
+    if (params.preselectedCompanion !== COMPANION_TYPE.PERSONAL) return;
+    preselectedCompanionRef.current = true;
+    handleSelectCompanionType(COMPANION_TYPE.PERSONAL);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 진입 1회만
+  }, [params.preselectedCompanion]);
 
   useEffect(() => {
     if (preselectedRef.current) return;
