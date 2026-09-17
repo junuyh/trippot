@@ -65,10 +65,10 @@ async function resolveInviteReceived(notification: Notification): Promise<Notifi
         return { statusLabel: '참여 중', cta: row.trip_id ? tripHome(row.trip_id) : null };
       }
       if (row.my_state === 'PENDING') {
-        return { statusLabel: '승인 대기 중', cta: { label: '요청 상태 보기', href: inviteHref } };
+        return { statusLabel: '수락 대기 중', cta: { label: '참여 의사 상태 보기', href: inviteHref } };
       }
       if (row.my_state === 'REJECTED') {
-        return { statusLabel: '요청이 거절됐어요', cta: null };
+        return { statusLabel: '참여 의사가 거절됐어요', cta: null };
       }
       return { statusLabel: null, cta: { label: '여행 초대 확인하기', href: inviteHref } };
     case 'EXPIRED':
@@ -97,9 +97,9 @@ async function resolveJoinRequested(notification: Notification): Promise<Notific
     const stillPending = requestId !== null && pending.some((row) => row.request_id === requestId);
     if (stillPending) {
       return {
-        statusLabel: '승인 대기',
+        statusLabel: '수락 대기',
         // ⚠️ focus=requests — 배너와 같은 자리로 보낸다. 그냥 보내면 캘린더만 보인다
-        cta: { label: '승인 대기 확인하기', href: `/trips/${tripId}/edit?focus=requests` },
+        cta: { label: '참여 의사 확인 & 수락', href: `/trips/${tripId}/edit?focus=requests` },
       };
     }
     return { statusLabel: '처리 완료', cta: tripHome(tripId) };

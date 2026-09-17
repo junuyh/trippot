@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable } from 'react-native';
+import { Pressable, View } from 'react-native';
+
+import { useHasUnreadNotifications } from '@/lib/notifications/unreadNotifications';
 
 /**
  * MY-01 헤더 오른쪽 알림 버튼.
@@ -9,12 +11,15 @@ import { Pressable } from 'react-native';
  *
  * ⚠️ 이 버튼은 "받은 알림 메시지 목록" 으로 가는 입구다.
  *    설정 > 알림(알림을 켜고 끄는 화면)과 역할이 다르다. 같은 곳으로 보내지 않는다.
+ * 안 읽은 알림이 있으면 오른쪽 위에 작은 점. (2026-09-18 · lib/notifications/unreadNotifications)
+ * 점의 판단은 lib 훅이 한다 — 이 컴포넌트는 supabase 를 직접 부르지 않는다.
  */
 type Props = {
   onPress: () => void;
 };
 
 export function NotificationBellButton({ onPress }: Props) {
+  const hasUnread = useHasUnreadNotifications();
   return (
     <Pressable
       accessibilityRole="button"
@@ -27,6 +32,27 @@ export function NotificationBellButton({ onPress }: Props) {
       className="mr-2 h-9 w-9 items-center justify-center rounded-full active:bg-pot-visual"
     >
       <Ionicons name="notifications-outline" size={24} color="#111827" />
+      {hasUnread ? <UnreadDot /> : null}
     </Pressable>
+  );
+}
+
+/** 안 읽음 점 — 브랜드색, 흰 테두리로 아이콘 선과 분리. 홈 헤더(HomeHeader)와 같은 모양. */
+export function UnreadDot() {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top: 6,
+        right: 7,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#64139E',
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+      }}
+    />
   );
 }

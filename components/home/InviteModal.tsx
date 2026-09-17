@@ -54,7 +54,7 @@ export function InviteModal({ invite, requesting, onRequestJoin, onDecline, onCl
                 여행 초대가 도착했어요
               </Text>
               <Text className="mt-1.5 text-center text-sm leading-5 text-pot-mute">
-                초대를 수락하면 여행장이 확인 후 승인할 수 있어요.
+                참여 의사를 보내면 여행장이 확인해요.
               </Text>
 
               <View className="mt-5 rounded-2xl bg-pot-visual px-4 py-3.5">
@@ -64,7 +64,7 @@ export function InviteModal({ invite, requesting, onRequestJoin, onDecline, onCl
               </View>
 
               <View className="mt-5">
-                <Button label="초대 수락하기" loading={requesting} onPress={onRequestJoin} />
+                <Button label="참여 의사 보내기" loading={requesting} onPress={onRequestJoin} />
               </View>
               <Pressable
                 accessibilityRole="button"

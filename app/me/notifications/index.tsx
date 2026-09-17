@@ -42,6 +42,7 @@ import {
   type NotificationCategory,
 } from '@/lib/notifications/notificationCategory';
 import { deletePushNotification, getPushInbox } from '@/lib/notifications/pushInbox';
+import { notifyNotificationsChanged } from '@/lib/notifications/unreadNotifications';
 import {
   deleteNotification,
   getNotifications,
@@ -155,8 +156,12 @@ export default function ScreenNotifications() {
       if (!userId) return;
       if (item.source === 'db') {
         await deleteNotification(item.id, userId);
+        // 안 읽은 알림을 지웠을 수 있다 — 아이콘의 점을 다시 계산한다.
+        notifyNotificationsChanged();
       } else {
         await deletePushNotification(userId, item.id);
+        // 안 읽은 기기 알림을 지웠을 수 있다 — 점을 다시 계산한다.
+        notifyNotificationsChanged();
         // ⚠️ OS 알림 센터에서도 지운다. 남겨 두면 다음 앱 시작의 알림 센터 sync 가
         //    같은 알림을 다시 넣어 "지웠는데 되살아나는" 일이 생긴다. 실패해도 무시.
         Notifications.dismissNotificationAsync(item.id).catch(() => undefined);

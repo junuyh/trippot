@@ -547,7 +547,7 @@ export function TripEditForm({
               }}
             >
               <Text style={{ fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.3 }}>
-                승인 대기 {joinRequests.length}건
+                참여 의사 {joinRequests.length}건
               </Text>
               {joinRequests.map((request) => (
                 <Pressable

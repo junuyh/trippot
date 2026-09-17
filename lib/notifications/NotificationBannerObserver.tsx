@@ -36,6 +36,7 @@ import { NotificationBanner } from '@/components/ui';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { NOTIFICATION_TYPE } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
+import { notifyNotificationsChanged } from '@/lib/notifications/unreadNotifications';
 import { getUnreadNotifications, type Notification } from '@/lib/supabase/queries/notifications';
 
 /** 이번 프로세스에서 배너로 보여준(또는 보여줄 필요가 없던) 알림 id. 모듈 수준 = 앱 세션 수명. */
@@ -145,7 +146,10 @@ export function NotificationBannerObserver() {
           (payload) => {
             if (!alive) return;
             const row: unknown = payload.new;
-            if (isNotificationRow(row) && row.user_id === userId && row.read_at === null) offer(row);
+            if (!isNotificationRow(row) || row.user_id !== userId) return;
+            // 알림 아이콘의 점 — 같은 채널을 재사용한다. (lib/notifications/unreadNotifications)
+            notifyNotificationsChanged();
+            if (row.read_at === null) offer(row);
           },
         )
         .subscribe((status) => {

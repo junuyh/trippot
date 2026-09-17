@@ -180,7 +180,7 @@ export function buildJoinRequestAction(input: {
     */
     icon: 'mci:account-clock-outline',
     headline,
-    meta: `승인 대기 ${count}건`,
+    meta: `참여 의사 ${count}건`,
     ctaLabel: '확인하기',
     intent: 'OPEN_JOIN_REQUESTS',
   };
