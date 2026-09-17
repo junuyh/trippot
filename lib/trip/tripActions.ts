@@ -121,7 +121,8 @@ export function buildJoinRequestAction(input: {
     icon: 'person-add-outline',
     headline,
     meta: `승인 대기 ${count}건`,
-    note: '수락은 여행장만 할 수 있어요. 지금 결정하지 않아도 괜찮아요.',
+    // ⚠️ 여행장의 행동은 '승인' 이다. 여기에 '수락' 을 쓰면 받는 사람의 행동과 겹친다
+    note: '승인은 여행장만 할 수 있어요. 지금 결정하지 않아도 괜찮아요.',
     ctaLabel: '확인하기',
     intent: 'OPEN_JOIN_REQUESTS',
   };
