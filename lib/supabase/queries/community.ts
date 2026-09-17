@@ -116,11 +116,10 @@ export async function getPosts(
 ): Promise<PostListItem[]> {
   const types = postType ? [postType] : [...VISIBLE_POST_TYPES];
 
-  // ⚠️ 목적지로 거를 때는 trips 를 **!inner** 로 붙인다.
-  //    바깥 조인(trips(...))에 .eq('trips.destination', …) 를 걸면 Supabase 는
-  //    붙여 오는 trips 만 걸러내고 글 자체는 그대로 남긴다. 목적지가 다른 글이
-  //    destination = null 인 채로 목록에 섞여 버린다.
-  //    !inner 라야 조건에 맞는 trips 가 있는 글만 남는다.
+  // ⚠️ 목적지는 글의 destination 칼럼에서 읽는다. trips 를 조인하지 않는다.
+  //    trips 는 참여자만 읽을 수 있어서(20260916000008) 남의 여행 글은 조인하면
+  //    목적지가 null 로 온다. 글을 쓸 때 DB 트리거가 여행의 목적지를 복사해 둔다.
+  //    (20260917000005)
   //
   //    여행에 연결되지 않은 글이 목적지 칸에서 빠지는 것은 의도한 동작이다.
   //    목적지를 모르는 글은 어느 여행지에도 속할 수 없다.
@@ -140,7 +139,7 @@ export async function getPosts(
     postType: row.post_type as PostType,
     authorName: row.users?.name ?? null,
     authorImageUrl: row.users?.profile_image_url ?? null,
-    destination: row.trips?.destination ?? null,
+    destination: row.destination ?? null,
     publishedAt: row.published_at,
     content: row.content,
     likeCount: reactions.get(row.id)?.likeCount ?? 0,
@@ -164,7 +163,7 @@ export async function getPosts(
 async function selectPosts(types: PostType[], limit: number) {
   const { data, error } = await supabase
     .from('community_posts')
-    .select(`id, title, content, post_type, published_at, image_urls, ${AUTHOR}, trips(destination)`)
+    .select(`id, title, content, post_type, published_at, image_urls, ${AUTHOR}, destination`)
     .eq('status', POST_STATUS.PUBLISHED)
     .in('post_type', types)
     .order('published_at', { ascending: false })
@@ -174,14 +173,14 @@ async function selectPosts(types: PostType[], limit: number) {
   return data ?? [];
 }
 
-/** 특정 여행지의 글만. 여행에 연결된 글만 남는다. */
+/** 특정 여행지의 글만. 여행에 연결된(목적지가 있는) 글만 남는다. */
 async function selectPostsByDestination(types: PostType[], destination: string, limit: number) {
   const { data, error } = await supabase
     .from('community_posts')
-    .select(`id, title, content, post_type, published_at, image_urls, ${AUTHOR}, trips!inner(destination)`)
+    .select(`id, title, content, post_type, published_at, image_urls, ${AUTHOR}, destination`)
     .eq('status', POST_STATUS.PUBLISHED)
     .in('post_type', types)
-    .eq('trips.destination', destination)
+    .eq('destination', destination)
     .order('published_at', { ascending: false })
     .limit(limit);
 
@@ -213,7 +212,8 @@ export type PostDestinationCount = {
 export async function getPostDestinations(limit = 500): Promise<PostDestinationCount[]> {
   const { data, error } = await supabase
     .from('community_posts')
-    .select('trips!inner(destination)')
+    .select('destination')
+    .not('destination', 'is', null)
     .eq('status', POST_STATUS.PUBLISHED)
     .in('post_type', [...VISIBLE_POST_TYPES])
     .limit(limit);
@@ -222,8 +222,8 @@ export async function getPostDestinations(limit = 500): Promise<PostDestinationC
 
   const counts = new Map<string, number>();
   for (const row of data ?? []) {
-    const destination = row.trips?.destination;
-    // 여행은 있는데 목적지를 아직 안 정한 글이 있다. 칸으로 만들지 않는다.
+    const destination = row.destination;
+    // 위에서 null 은 걸렀지만 빈 문자열이 있을 수 있다. 칸으로 만들지 않는다.
     if (!destination) continue;
     counts.set(destination, (counts.get(destination) ?? 0) + 1);
   }
@@ -243,7 +243,7 @@ export async function getPostById(postId: string, userId: string): Promise<PostD
   const { data, error } = await supabase
     .from('community_posts')
     .select(
-      `id, title, content, post_type, published_at, author_user_id, trip_id, image_urls, ${AUTHOR}, trips(destination)`,
+      `id, title, content, post_type, published_at, author_user_id, trip_id, image_urls, ${AUTHOR}, destination`,
     )
     .eq('id', postId)
     .eq('status', POST_STATUS.PUBLISHED)
@@ -266,7 +266,7 @@ export async function getPostById(postId: string, userId: string): Promise<PostD
     tripId: data.trip_id,
     authorName: data.users?.name ?? null,
     authorImageUrl: data.users?.profile_image_url ?? null,
-    destination: data.trips?.destination ?? null,
+    destination: data.destination ?? null,
     publishedAt: data.published_at,
     content: data.content,
     likeCount: reactions.get(data.id)?.likeCount ?? 0,
@@ -641,7 +641,7 @@ export type MyPostListItem = {
 };
 
 /** 목록에 쓰는 최소 칼럼. 본문은 상세에서 읽는다. */
-const MY_POST_COLUMNS = 'id, title, post_type, published_at, trips(destination)';
+const MY_POST_COLUMNS = 'id, title, post_type, published_at, destination';
 
 /**
  * 내가 쓴 글. 게시된 것만 최신순으로.
@@ -670,7 +670,7 @@ export async function getMyPosts(userId: string, limit = 50): Promise<MyPostList
     postId: row.id,
     title: row.title,
     postType: row.post_type as PostType,
-    destination: row.trips?.destination ?? null,
+    destination: row.destination ?? null,
     publishedAt: row.published_at,
   }));
 }
@@ -708,7 +708,7 @@ export async function getMyLikedPosts(
     postId: row.community_posts.id,
     title: row.community_posts.title,
     postType: row.community_posts.post_type as PostType,
-    destination: row.community_posts.trips?.destination ?? null,
+    destination: row.community_posts.destination ?? null,
     publishedAt: row.community_posts.published_at,
   }));
 }
@@ -739,7 +739,7 @@ export async function getMyBookmarkedPosts(
     postId: row.community_posts.id,
     title: row.community_posts.title,
     postType: row.community_posts.post_type as PostType,
-    destination: row.community_posts.trips?.destination ?? null,
+    destination: row.community_posts.destination ?? null,
     publishedAt: row.community_posts.published_at,
   }));
 }
