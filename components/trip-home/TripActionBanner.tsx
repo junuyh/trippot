@@ -31,6 +31,7 @@
 //
 // 데이터만 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
 import { TONE } from "@/lib/constants/toneColor";
@@ -50,6 +51,14 @@ export function TripActionBanner({ action, onPress }: Props) {
       className="flex-row items-center rounded-2xl px-4 py-3.5"
       style={{ gap: 11, backgroundColor: c.tint }}
     >
+      {/*
+        ⚠️ 홈 배너(HomeActionBanner)와 **같은 값**이다 — size 20 · 톤의 fg ·
+           marginTop 1. 같은 일이 두 화면에 뜨는데 아이콘 크기가 다르면 다른
+           기능으로 읽힌다. 여행 홈만 아이콘이 없던 것을 맞췄다. (2026-09-17 다빈)
+        ⚠️ icon 은 lib 에서 **문자열로** 온다. 순수 함수가 @expo/vector-icons
+           타입을 물고 오지 않게 한 것이다. 세 껍데기가 모두 같은 방식이다.
+      */}
+      <Ionicons name={action.icon as never} size={20} color={c.fg} style={{ marginTop: 1 }} />
       <View style={{ flex: 1 }}>
         {/*
           ⚠️ 여행 홈은 **상태(meta)가 제목**이고 사건(headline)이 부제다.

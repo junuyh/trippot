@@ -159,7 +159,19 @@ export function buildJoinRequestAction(input: {
     tripId: input.tripId,
     tripLabel: tripActionLabel(input.destination),
     tone: 'brand',
-    icon: 'person-add-outline',
+    /*
+      ⚠️ '아직 나 혼자'(buildInviteEmptyAction)와 **다른 아이콘이어야 한다.**
+         둘은 여행 홈 같은 자리에서 서로 교대하는 배너다 — 누가 초대를 수락하면
+         이쪽으로 바뀌고, 거절되면 저쪽으로 돌아간다. 아이콘이 같으면 바뀐 것을
+         알아채지 못한다. 전에는 둘 다 person-add-outline 이었다. (2026-09-17)
+
+      ⚠️ 사람+체크 글리프(account-check-outline 류)가 뜻은 제일 맞지만 Ionicons
+         에 없다. 이 프로젝트는 아이콘 333곳이 전부 Ionicons 라, 배너 하나를 위해
+         둘째 셋을 들이지 않았다. 정말 필요해지면 TripAction 에 iconSet 을 달고
+         세 껍데기(TripActionBanner · HomeActionBanner · ActionRequiredSection)를
+         함께 고치는 것이 맞는 길이다. (2026-09-17 다빈과 확인)
+    */
+    icon: 'checkmark-circle-outline',
     headline,
     meta: `승인 대기 ${count}건`,
     ctaLabel: '확인하기',
