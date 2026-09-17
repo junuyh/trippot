@@ -20,7 +20,7 @@
 //    되돌릴 때는 이 커밋을 참고한다.
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { useDeferredPlaceholder } from '@/lib/hooks/useDeferredPlaceholder';
 
@@ -43,7 +43,18 @@ type Props = {
   onSelectDestination: (destination: Destination) => void;
 };
 
-function Chip({
+/**
+ * 도시 칩. **이것만 보라로 채운다.**
+ *
+ * ⚠️ 지역(필터)은 이 칩을 쓰지 않는다. 전에는 지역과 도시가 같은 칩을 써서
+ *    화면에 똑같이 생긴 보라 알약이 둘 떴다 — '아시아'(거르는 것)와
+ *    '도쿄'(고르는 것)가 한 픽셀도 다르지 않았다. 사용자는 지역을 누르고
+ *    답을 고른 줄 알았다. (2026-09-18 테스터 피드백)
+ *
+ * ⚠️ 그래서 **보라 채움은 화면에 항상 최대 하나**고, 그게 곧 답이다.
+ *    지역에 채움을 다시 넣지 않는다.
+ */
+function CityChip({
   label,
   selected,
   onPress,
@@ -66,6 +77,75 @@ function Chip({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * 지역 필터. **세그먼트 컨트롤이다 — 칩이 아니다.**
+ *
+ * ⚠️ 채우지 않는다. 회색 트랙 위에서 고른 칸만 흰 알약이 된다. 형태 자체가
+ *    "이 중 하나로 보고 있다" 를 말하므로, 라벨을 읽지 않아도 필터로 읽힌다.
+ *    보라로 채우면 도시 칩과 같아져 무엇이 답인지 사라진다.
+ *
+ * ⚠️ 검색 중에는 **아무 칸도 고르지 않은 모양**이다. 검색은 지역을 무시하고
+ *    12개 전체에서 찾기 때문이다. 이때 칸을 누르면 검색어가 지워지고 그
+ *    지역으로 돌아간다. (아래 onPress 가 setQuery('') 를 먼저 부른다)
+ *
+ * ⚠️ 지역이 지금 3개라 한 줄에 나눠 담는다. 다섯을 넘어가면 칸이 좁아 글자가
+ *    줄바꿈된다 — 그때는 세그먼트를 버리고 가로 스크롤 탭(밑줄)으로 간다.
+ *    채우지 않는다는 원칙만 지키면 형태는 바꿔도 된다.
+ */
+function RegionSegments({
+  regions,
+  selected,
+  onSelect,
+}: {
+  regions: RegionCode[];
+  /** 검색 중이면 null — 아무 칸도 고르지 않는다 */
+  selected: RegionCode | null;
+  onSelect: (region: RegionCode) => void;
+}) {
+  return (
+    <View
+      accessibilityRole="tablist"
+      className="flex-row rounded-xl bg-gray-100 p-[3px]"
+    >
+      {regions.map((region) => {
+        const isOn = selected === region;
+        return (
+          <Pressable
+            key={region}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isOn }}
+            accessibilityLabel={`${REGION_LABEL[region]} 지역만 보기`}
+            onPress={() => onSelect(region)}
+            className={`flex-1 items-center justify-center rounded-[9px] py-2.5 ${
+              isOn ? 'bg-white' : 'active:bg-gray-200'
+            }`}
+            style={
+              isOn
+                ? {
+                    // 흰 알약이 트랙에서 떠 보여야 '고른 칸' 으로 읽힌다
+                    shadowColor: '#0f172a',
+                    shadowOpacity: 0.08,
+                    shadowRadius: 3,
+                    shadowOffset: { width: 0, height: 1 },
+                    elevation: 1,
+                  }
+                : undefined
+            }
+          >
+            <Text
+              className={`text-[13px] ${
+                isOn ? 'font-bold text-gray-900' : 'font-semibold text-gray-500'
+              }`}
+            >
+              {REGION_LABEL[region]}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -107,7 +187,7 @@ function CountryRow({
       </View>
       <View className="flex-1 flex-row flex-wrap gap-1.5">
         {destinations.map((destination) => (
-          <Chip
+          <CityChip
             key={destination.code}
             label={destination.nameKo}
             selected={selectedCode === destination.code}
@@ -183,25 +263,15 @@ export function DestinationPicker({
         ) : null}
       </View>
 
-      {/* ── 지역 ── 검색 중에는 무엇도 선택된 상태로 두지 않는다 ── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="-mx-5"
-        contentContainerClassName="gap-1.5 px-5"
-      >
-        {REGIONS.map((region) => (
-          <Chip
-            key={region}
-            label={REGION_LABEL[region]}
-            selected={!trimmedQuery && openRegion === region}
-            onPress={() => {
-              setQuery('');
-              onOpenRegion(region);
-            }}
-          />
-        ))}
-      </ScrollView>
+      {/* ── 지역 ── 거르는 것이다. 채우지 않는다 (RegionSegments 주석) ── */}
+      <RegionSegments
+        regions={REGIONS}
+        selected={trimmedQuery ? null : openRegion}
+        onSelect={(region) => {
+          setQuery('');
+          onOpenRegion(region);
+        }}
+      />
 
       {/* ── 도시 ── */}
       {trimmedQuery || openRegion ? (
