@@ -30,9 +30,10 @@
 // 실제로 보이는 UI 는 components/home/ 에 있다. (CLAUDE.md 9장)
 //
 // 2026-09-15 답하지 않은 여행 초대를 맨 위에 띄운다. (모달 한 번 + 상시 배너)
-//   누구에게 뜨나 — 답할 때까지 남는다.
-//     · 로그인 전에 초대 링크를 열고 로그인 · 가입한 사람 (로그인 뒤 곧장 홈으로 온다 · app/_layout.tsx)
-//     · 이미 로그인한 채 초대 화면(/invite/:token)을 열고 참여 요청 없이 나간 사람
+//   **초대 화면(INV-02 · 한나 담당)에서 답하지 않고 나간 사람에게만 뜬다.**
+//   카톡 링크로 들어가면 초대 화면이 먼저 뜬다. 거기서 참여 요청도 거절도 누르지 않고
+//   창을 닫으면 그 건이 처리되지 않은 채 남는데, 그때 홈이 대신 알린다.
+//   답(참여 요청 · 거절)할 때까지 배너가 상시로 남는다.
 //   초대 링크에는 받는 사람이 없어서 서버는 누구에게 온 초대인지 모른다.
 //   링크를 연 기기가 token 을 저장해 두고(lib/invite/pendingInvites),
 //   홈이 열릴 때마다 resolve_trip_invite 로 다시 확인한다.
@@ -42,7 +43,7 @@
 // 하단 탭 라벨까지 바뀐다.
 // ============================================================================
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
 import {
@@ -59,17 +60,17 @@ import {
   type OngoingTripCardData,
 } from '@/components/home';
 import { daysUntil, formatTripDates } from '@/components/home/format';
-import type { TravelStyleTile } from '@/components/home';
 import { SCREENS } from '@/lib/analytics/events';
+import { canDecideJoinRequest } from '@/lib/trip/tripLeader';
 import {
-  TRAVEL_STYLES,
-  currentMonthKst,
-  entriesByStyle,
-  exploreEntries,
-  seasonOfMonth,
-  splitBySeason,
-  toExploreCard,
-} from '@/lib/destination/explore';
+  buildCancelPendingAction,
+  buildJoinRequestAction,
+  tripAcceptsNewMembers,
+  type TripAction,
+} from '@/lib/trip/tripActions';
+import { getActiveCancelRequest, getVoteProgress } from '@/lib/supabase/queries/tripCancel';
+import { getTripJoinRequests } from '@/lib/supabase/queries/tripJoinRequests';
+import { listActiveTripMembers } from '@/lib/supabase/queries/tripMembers';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import {
   getPendingInvites,
@@ -136,25 +137,6 @@ const SUGGESTION_LIMIT = 8;
  */
 const DISCOVER_LIMIT = 6;
 
-/**
- * 기존 사용자 홈 '○월에 떠나기 좋은 해외여행지' 에 보여줄 여행지 수. (2026-09-16)
- * 전체는 여행지 추천 화면(/destinations)이 맡는다. 홈이 여행지 목록이 되지 않게 추린다.
- */
-const EXPLORE_LIMIT = 6;
-
-/**
- * 여행지 추천 두 칸의 재료. 코드 상수만 읽으므로 모듈에서 한 번 만든다.
- * ⚠️ 달(month)은 여기서 굳히지 않는다. 앱을 켜 둔 채 달이 바뀔 수 있어 렌더 때 본다.
- */
-const EXPLORE_ENTRIES = exploreEntries();
-
-/** 스타일 타일. 걸리는 여행지가 0곳인 스타일은 빼서, 눌렀을 때 빈 목록이 나오지 않게 한다. */
-const STYLE_TILES: TravelStyleTile[] = TRAVEL_STYLES.map((style) => ({
-  key: style.key,
-  label: style.label,
-  icon: style.icon,
-  count: entriesByStyle(EXPLORE_ENTRIES, style.key).length,
-})).filter((tile) => tile.count > 0);
 
 /**
  * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-09 개편)
@@ -246,6 +228,17 @@ export default function ScreenHOME01() {
    */
   const params = useLocalSearchParams<{ preview?: string }>();
   const emptyPreview = __DEV__ && params.preview === 'empty';
+
+  /**
+   * [개발용] 로고를 길게 누르면 신규 사용자 홈 미리보기를 켜고 끈다. (2026-09-17)
+   *
+   * 실제 계정(카카오 로그인)으로 들어와도 새 유저 홈을 볼 수 있게 한다. 주소창이 없는
+   * 휴대폰에서도 켤 수 있도록 ?preview=empty 를 코드로 바꾼다. 조회 결과는 건드리지 않는다.
+   * ⚠️ 배포 빌드(__DEV__ false)에서는 undefined 라 로고가 눌리지 않는다.
+   */
+  const handleToggleEmptyPreview = __DEV__
+    ? () => router.setParams({ preview: emptyPreview ? '' : 'empty' })
+    : undefined;
   const { isPreview } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   /** 답하지 않은 초대. 서버 확인을 통과한 것만 들어온다. */
@@ -254,6 +247,11 @@ export default function ScreenHOME01() {
   const [modalToken, setModalToken] = useState<string | null>(null);
   /** 참여 요청을 보내는 중인 초대의 token. 중복 제출 방지. */
   const [requestingToken, setRequestingToken] = useState<string | null>(null);
+  /**
+   * 지금 답해야 할 일 — 참여 요청 대기 · 취소 요청 중.
+   * 홈 조회(load)와 **따로 돈다.** 실패해도 홈이 오류가 되면 안 된다.
+   */
+  const [actions, setActions] = useState<TripAction[]>([]);
   const [trips, setTrips] = useState<TripWithSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -402,6 +400,7 @@ export default function ScreenHOME01() {
       const next = checked.filter((invite): invite is HomeInvite => invite !== null);
       setInvites(next);
 
+      // 모달은 한 초대에 한 번만 띄운다. 그 뒤로는 배너로만 남는다.
       const firstUnseen = stored.find(
         (row) => row.modalShownAt === null && next.some((invite) => invite.token === row.token),
       );
@@ -415,12 +414,139 @@ export default function ScreenHOME01() {
     }
   }, [userId, isPreview]);
 
+  /**
+   * 지금 답해야 할 일을 모은다 — 참여 요청 대기 · 취소 요청 중.
+   *
+   * ⚠️ 홈 조회(load)와 **따로 돈다.** 실패해도 홈이 오류가 되면 안 된다.
+   *    배너가 없을 뿐이지 내 여행은 그대로 보여야 한다. (loadInvites 와 같은 원칙)
+   *
+   * ⚠️ 여행을 전부 돌지 않는다. 볼 필요가 있는 것만 고른다 —
+   *      참여 요청  내가 여행장이고 아직 열려 있는 여행
+   *      취소 동의  status 가 CANCEL_PENDING 인 여행
+   *    여행장인 여행은 보통 한둘이고 취소 요청 중인 여행은 대개 0개라,
+   *    실제로 늘어나는 조회는 0~2번이다. 여행 수만큼 도는 구조가 아니다.
+   *
+   * ⚠️⚠️ getActiveCancelRequest 는 **읽으면서 쓴다.** 7일이 지났거나 출발일이
+   *    됐으면 그 자리에서 요청을 닫는다(lazy expiration · 크론 없음). 전에는
+   *    여행 홈에 들어가야만 일어났는데, 이제 **홈만 열어도 만료가 정리된다.**
+   *    의도한 변화다. (2026-09-17)
+   *
+   * ⚠️ 여행장 판정을 여기서 새로 만들지 않는다. trips 가 이미 leader_user_id 를
+   *    물고 온다 (TripWithSummary = Trip & {...}).
+   */
+  const loadActions = useCallback(
+    async (rows: TripWithSummary[]) => {
+      if (!userId || isPreview) {
+        setActions([]);
+        return;
+      }
+
+      /*
+        ⚠️ 조회를 아끼려고 미리 거르되, **판정과 같은 함수**를 쓴다.
+           (tripAcceptsNewMembers) 여기에만 따로 조건을 걸었다가 여행 홈과
+           갈린 적이 있다 — 취소 요청이 들어오면 홈에서만 배너가 사라졌다.
+           이제 조건이 한 곳에 있어서 갈릴 수 없다. (2026-09-17)
+      */
+      const leading = rows.filter(
+        (trip) => canDecideJoinRequest(trip, userId) && tripAcceptsNewMembers(trip.status),
+      );
+      const canceling = rows.filter((trip) => trip.status === TRIP_STATUS.CANCEL_PENDING);
+
+      const [joinActions, cancelActions] = await Promise.all([
+        Promise.all(
+          leading.map(async (trip) => {
+            try {
+              const requests = await getTripJoinRequests(trip.id);
+              return buildJoinRequestAction({
+                tripId: trip.id,
+                destination: trip.destination,
+                status: trip.status,
+                waitingNames: requests.map((r) => r.requester_name),
+              });
+            } catch {
+              // 여행장이 아니게 됐거나 일시적인 실패. 이 여행 것만 뺀다.
+              return null;
+            }
+          }),
+        ),
+        Promise.all(
+          canceling.map(async (trip) => {
+            try {
+              const request = await getActiveCancelRequest(trip.id, trip.start_date);
+              if (!request) return null;
+              const [progress, members] = await Promise.all([
+                getVoteProgress(request),
+                listActiveTripMembers(trip.id).catch(() => []),
+              ]);
+              return buildCancelPendingAction({
+                tripId: trip.id,
+                destination: trip.destination,
+                agreedCount: progress.agreedCount,
+                voteTargetCount: progress.targetCount,
+                isRequester: request.requested_by === userId,
+                hasVoted: progress.votes.some((v) => v.user_id === userId),
+                requesterName:
+                  members.find((m) => m.user_id === request.requested_by)?.name ?? '요청자',
+              });
+            } catch {
+              return null;
+            }
+          }),
+        ),
+      ]);
+
+      /*
+        ⚠️ 참여 요청이 취소보다 **위**다. 취소는 여행 전체가 걸린 일이라 더
+           무겁지만, 참여 요청은 상대가 기다리고 있어 시간이 걸린다.
+           여행 홈 배너 순서와 같게 맞춘다.
+      */
+      setActions(
+        [...joinActions, ...cancelActions].filter((a): a is TripAction => a !== null),
+      );
+    },
+    [userId, isPreview],
+  );
+
   useFocusEffect(
     useCallback(() => {
       void load();
       void loadInvites();
     }, [load, loadInvites]),
   );
+
+  /**
+   * 여행 목록이 바뀌면 배너를 다시 계산한다.
+   *
+   * ⚠️ load() 안에서 부르지 않는다. 실패가 홈 조회의 실패로 번지면 안 된다.
+   */
+  useEffect(() => {
+    void loadActions(trips);
+  }, [loadActions, trips]);
+
+  /**
+   * 배너를 눌렀을 때. **여기서 수락·동의를 하지 않는다.**
+   *
+   * ⚠️ 그 화면으로 보낸다. 수락·거절은 여행 정보 수정에, 동의·현황은 여행 홈
+   *    시트에 이미 다 있다. 홈에 또 만들면 같은 흐름이 두 벌이 된다.
+   *    (2026-09-17 다빈 · leaveTrip 이 둘로 갈렸던 것과 같은 일)
+   *
+   * ⚠️ 취소 쪽은 시트라 라우트가 없다. 여행 홈이 파라미터를 보고 연다.
+   *    모임 상세가 ?cancel=1 로 취소 사유 시트를 여는 것과 같은 방식이다.
+   */
+  function handlePressAction(action: TripAction) {
+    switch (action.intent) {
+      case 'OPEN_JOIN_REQUESTS':
+        // ⚠️ focus=requests — 그냥 보내면 캘린더만 보이고 할 일이 안 보인다
+        router.push(`/trips/${action.tripId}/edit?focus=requests`);
+        return;
+      case 'OPEN_CANCEL_VOTE':
+        router.push(`/trips/${action.tripId}?cxl=vote`);
+        return;
+      case 'OPEN_CANCEL_PROGRESS':
+        router.push(`/trips/${action.tripId}?cxl=progress`);
+        return;
+    }
+  }
 
   /** 답이 끝난 초대를 화면과 기기에서 뺀다. */
   function dismissInvite(token: string) {
@@ -699,30 +825,19 @@ export default function ScreenHOME01() {
         onPressSuggestion={handlePressDestination}
         onPressDiscovery={handlePressDiscovery}
         onPressNotifications={handlePressNotifications}
+        onLongPressLogo={handleToggleEmptyPreview}
         invitePrompt={invitePrompt}
+        actions={actions}
+        onPressAction={handlePressAction}
       />
     );
   }
 
-  // ── 1-3 · 1-4. 여행지 추천 (2026-09-16) ────────────────────────────────
-  // ⚠️ 이벤트를 찍지 않는다. 여행지 추천 · 상세 화면 모두 SCREENS 상수가 없고,
-  //    새 이벤트를 임의로 만들지 않는다. (CLAUDE.md 8장)
-  const exploreMonth = currentMonthKst();
-  const exploreItems = splitBySeason(EXPLORE_ENTRIES, seasonOfMonth(exploreMonth))
-    .now.slice(0, EXPLORE_LIMIT)
-    .map(toExploreCard);
+  // ⚠️ 2026-09-16 기존 사용자 홈의 여행지 추천 두 칸을 뺐다. 이유는 HomeView 주석 참조.
+  //    추천은 신규 사용자 홈(HomeEmpty)과 여행지 추천 화면(/destinations)이 맡는다.
 
   return (
     <HomeView
-      exploreMonthLabel={`${exploreMonth}월`}
-      exploreItems={exploreItems}
-      styleTiles={STYLE_TILES}
-      onPressExploreDestination={handlePressDestination}
-      onPressExploreAll={() => router.push('/destinations')}
-      onPressStyle={(key) =>
-        router.push(`/destinations?tab=style&style=${encodeURIComponent(key)}`)
-      }
-      onPressAllStyles={() => router.push('/destinations?tab=style')}
       userName={profile?.name ?? null}
       daysToNextTrip={daysUntil(nearest?.startDate ?? null)}
       ongoingTrips={ongoingTrips}
@@ -736,6 +851,9 @@ export default function ScreenHOME01() {
       onPressAllPastTrips={() => router.push('/me/trips?filter=past')}
       onPressNotifications={handlePressNotifications}
       invitePrompt={invitePrompt}
+      actions={actions}
+      onPressAction={handlePressAction}
+      onLongPressLogo={handleToggleEmptyPreview}
     />
   );
 }

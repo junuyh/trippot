@@ -77,7 +77,13 @@ import {
 } from "@/lib/supabase/queries/trips";
 
 export default function ScreenTripEdit() {
-  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  /**
+   * ⚠️ focus=requests 는 **배너에서 넘어온 신호**다. (2026-09-17)
+   *    홈·여행 홈의 "승인 대기" 배너에서 확인하기를 누르면 여기로 오는데,
+   *    이 화면 맨 위는 여행지 카드와 캘린더라 **뭘 하라는 건지 보이지 않았다.**
+   *    참여 요청 자리로 스크롤해 준다. (스크롤은 TripEditForm 이 한다)
+   */
+  const { tripId, focus } = useLocalSearchParams<{ tripId: string; focus?: string }>();
   // 로그인한 사용자. 여행장인지 가려 참여 요청을 읽는다.
   const userId = useCurrentUserId();
   // 개발용 미리보기인가. 미리보기에는 Supabase 세션이 없어 초대 RPC 를 부를 수 없다.
@@ -333,7 +339,7 @@ export default function ScreenTripEdit() {
         } else if (code === TRIP_JOIN_ERROR.LEADER_NOT_CONFIGURED) {
           Alert.alert(
             "여행장 정보가 없어요",
-            "이 여행은 여행장이 지정되지 않아 참여 요청을 처리할 수 없어요. 운영팀에 알려 주세요.",
+            "이 여행은 여행장이 지정되지 않아 멤버 승인을 처리할 수 없어요. 운영팀에 알려 주세요.",
           );
         } else if (code === TRIP_JOIN_ERROR.REQUEST_NOT_PENDING) {
           await afterDecision();
@@ -501,6 +507,7 @@ export default function ScreenTripEdit() {
         inviting={invite.inviting}
         joinRequests={joinRequests}
         onPressJoinRequest={setDecidingRequest}
+        focusJoinRequests={focus === "requests"}
       />
 
       {/* 참여 요청 수락·거절 (INV-04). 여행장에게만 목록이 오므로 여기까지 오면 여행장이다. */}

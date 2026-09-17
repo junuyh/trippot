@@ -165,6 +165,10 @@ import { LeaveDoneView, LeaveTripFlow } from "@/components/members";
 import { useLeaveTrip } from "@/lib/hooks/useLeaveTrip";
 import { InviteLinkSheet, InviteNudgeModal, JoinRequestBanner } from "@/components/invite";
 import { getTripJoinRequests } from "@/lib/supabase/queries/tripJoinRequests";
+import {
+  buildCancelPendingAction,
+  buildJoinRequestAction,
+} from "@/lib/trip/tripActions";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 
 /** 화면 배경. 티켓 노치를 이 색으로 칠해야 테두리가 끊겨 보인다 */
@@ -259,9 +263,18 @@ export default function ScreenTripHome() {
    *    '마지막 1명이라 못 나감 → 여행 취소하기' 를 여기로 보낸다.
    *    바로 취소하지 않는다. CXL-01(사유)부터 연다. (POL-CXL-060)
    */
-  const { tripId, cancel, from, filter } = useLocalSearchParams<{
+  const { tripId, cancel, cxl, from, filter } = useLocalSearchParams<{
     tripId: string;
     cancel?: string;
+    /**
+     * ⚠️ cxl 은 **홈(HOME-01)에서 넘어온 신호**다. 홈 배너가 "확인하기" 를
+     *    눌렀을 때 여기까지 오고, 이 화면이 시트를 연다. 취소 동의·현황은
+     *    라우트가 아니라 시트라서 주소로 바로 열 수 없다.
+     *      vote      동의 시트 (CXL-06) — 아직 안 고른 사람만
+     *      progress  현황 (CXL-07)
+     *    어느 쪽인지는 홈이 아니라 lib/trip/tripActions 의 intent 가 정한다.
+     */
+    cxl?: string;
     from?: string;
     filter?: string;
   }>();
@@ -588,14 +601,45 @@ export default function ScreenTripHome() {
   /**
    * 모임 상세에서 '여행 취소하기' 를 누르고 넘어왔으면 취소 사유 시트를 연다.
    *
-   * ⚠️ 한 번만 연다. 사용자가 닫은 뒤 화면을 다시 그릴 때마다 열리면 못 빠져나간다.
+   * ⚠️⚠️ **연 뒤에 파라미터를 지운다.** useRef 로 "한 번만" 을 막으면 안 된다.
+   *    이 화면은 모임 상세에서 다시 들어와도 **언마운트되지 않는다** — 같은
+   *    라우트라 expo-router 가 컴포넌트를 재사용하고 params 만 바꾼다. ref 가
+   *    true 로 남아 **두 번째부터는 시트가 안 열렸다.**
+   *    (2026-09-17 · 아래 cxl 파라미터에서 같은 버그를 먼저 찾아 고쳤다)
+   *
+   * ⚠️ 파라미터를 지우면 같은 값으로 다시 와도 새 값으로 잡힌다. 그리고 이
+   *    화면에 머무는 동안 데이터가 바뀔 때마다 시트가 다시 열리는 것도 막는다.
    */
-  const cancelParamRef = useRef(false);
   useEffect(() => {
-    if (cancel !== "1" || cancelParamRef.current || !data) return;
-    cancelParamRef.current = true;
+    if (cancel !== "1" || !data) return;
     setSheet("cancelReason");
-  }, [cancel, data]);
+    router.setParams({ cancel: "" });
+  }, [cancel, data, router]);
+
+  /**
+   * 홈 배너에서 넘어왔으면 취소 동의 시트 · 현황을 연다. (2026-09-17)
+   *
+   * ⚠️⚠️ **연 뒤에 파라미터를 지운다.** useRef 로 "한 번만" 을 막으면 안 된다.
+   *    이 화면은 홈에서 다시 들어와도 **언마운트되지 않는다** — 같은 라우트라
+   *    expo-router 가 컴포넌트를 재사용하고 params 만 바꾼다. ref 는 true 로
+   *    남아 있어서 두 번째부터는 아무것도 열리지 않는다.
+   *    (2026-09-17 시뮬에서 확인 — vote 로 한 번 들어간 뒤 progress 가 안 열렸다)
+   *    파라미터를 지우면 같은 값으로 다시 와도 새 값으로 잡힌다.
+   *
+   * ⚠️ 지우는 일은 열지 못했을 때도 한다. 남겨 두면 이 화면에 머무는 동안
+   *    데이터가 바뀔 때마다 시트가 다시 열린다.
+   *
+   * ⚠️ 취소 요청이 살아 있을 때만 연다. 홈에서 누르는 사이에 만료·철회됐을 수
+   *    있다. 그러면 아무것도 열지 않고 여행 홈만 보여준다 — 배너는 이미 없다.
+   */
+  useEffect(() => {
+    if (!cxl || !data) return;
+    if (data.cancelRequest) {
+      if (cxl === "vote") setSheet("vote");
+      else if (cxl === "progress") setProgressOpen(true);
+    }
+    router.setParams({ cxl: "" });
+  }, [cxl, data, router]);
 
   const remindedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1410,6 +1454,31 @@ export default function ScreenTripHome() {
     "요청자";
 
   /**
+   * 배너 두 개의 **문구와 판정**. 홈(HOME-01)과 같은 함수에서 받는다.
+   *
+   * ⚠️ 여기서 문장을 만들지 않는다. 같은 일이 홈에도 뜨는데 양쪽이 각자 만들면
+   *    한쪽만 고쳐진다. (CLAUDE.md 7장 · lib/trip/tripActions)
+   * ⚠️ tripLabel 은 여행 홈에서 안 그린다. 이미 그 여행 안이다.
+   */
+  const joinRequestAction = buildJoinRequestAction({
+    tripId: trip.id,
+    destination: trip.destination,
+    // ⚠️ 끝난 여행에는 배너를 띄우지 않는다. 판정은 tripActions 가 한다
+    status: trip.status,
+    waitingNames: data.joinRequests.map((r) => r.name),
+  });
+
+  const cancelPendingAction = buildCancelPendingAction({
+    tripId: trip.id,
+    destination: trip.destination,
+    agreedCount: data.voteProgress?.agreedCount ?? 0,
+    voteTargetCount: data.voteProgress?.targetCount ?? voteTargetCount,
+    isRequester: isCancelRequester,
+    hasVoted,
+    requesterName: cancelRequesterName,
+  });
+
+  /**
    * CXL-07 이 그리는 동의 대상 목록.
    *
    * ⚠️ **아직 안 고른 사람까지 넣는다.** getVoteProgress().votes 에는 표를 던진
@@ -1857,13 +1926,13 @@ export default function ScreenTripHome() {
            무겁지만, 참여 요청은 상대가 기다리고 있어 시간이 걸린다.
            둘 다 뜨는 경우는 드물다.
       */}
-      {data.joinRequests.length > 0 ? (
+      {joinRequestAction ? (
         <View className="px-1 pb-3 pt-1">
           <JoinRequestBanner
-            count={data.joinRequests.length}
-            firstName={data.joinRequests[0].name}
-            /* 수락·거절은 저기에 있다. 여기에 또 만들지 않는다 */
-            onOpen={() => router.push(`/trips/${trip.id}/edit`)}
+            action={joinRequestAction}
+            /* 수락·거절은 저기에 있다. 여기에 또 만들지 않는다
+               ⚠️ focus=requests — 그냥 보내면 캘린더만 보이고 할 일이 안 보인다 */
+            onOpen={() => router.push(`/trips/${trip.id}/edit?focus=requests`)}
           />
         </View>
       ) : null}
@@ -1908,16 +1977,12 @@ export default function ScreenTripHome() {
       {isCancelPending ? (
         <View className="px-1 pb-3 pt-1">
           <CancelPendingBanner
-            agreedCount={data.voteProgress?.agreedCount ?? 0}
-            voteTargetCount={data.voteProgress?.targetCount ?? voteTargetCount}
-            isRequester={isCancelRequester}
-            hasVoted={hasVoted}
-            requesterName={cancelRequesterName}
+            action={cancelPendingAction}
             /*
               ⚠️ 현황은 **동의 시트가 아니다.** 여기서 동의 시트를 열면 요청자가
                  자기 요청에 동의할 수 있게 되고, 동의 대상 수는 요청자를 빼고
                  세므로 분자만 부풀어 남은 사람이 동의하지 않았는데 취소가
-                 확정된다.
+                 확정된다. 어느 쪽인지는 action.intent 가 정한다.
             */
             onOpenProgress={() => {
               setSettingsOpen(false);

@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+
+import type { TripAction } from '@/lib/trip/tripActions';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 
 import { CreateTripFab } from './CreateTripFab';
@@ -7,6 +9,7 @@ import { DiscoverDestinationSection } from './DiscoverDestinationSection';
 import { HomeButton } from './HomeButton';
 import { HomeHeader } from './HomeHeader';
 import { HowItWorksSection } from './HowItWorksSection';
+import { HomeActionBanners } from './HomeActionBanner';
 import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
 import type { DestinationSuggestion, DiscoverDestination } from './types';
 import { useFabExpand } from './useFabExpand';
@@ -58,8 +61,18 @@ type HomeEmptyProps = {
   onPressDiscovery: (nameKo: string) => void;
   /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
   onPressNotifications: () => void;
-  /** 답하지 않은 여행 초대. 추천 여행지 위 배너와 모달. (InvitePrompt) */
+  /** 답하지 않은 여행 초대. 추천 여행지 위 배너. (InvitePrompt) */
   invitePrompt: InvitePromptProps;
+  /**
+   * 지금 답해야 할 일 — 참여 요청 대기 · 취소 요청 중.
+   *
+   * ⚠️ 신규 사용자 홈에도 둔다. 여행이 하나도 없어 보여도 **취소가 확정된 뒤**
+   *    이 화면으로 떨어질 수 있고, 그때 되돌리기 안내가 여기 말고는 없다.
+   */
+  actions: TripAction[];
+  onPressAction: (action: TripAction) => void;
+  /** [개발용] 로고 길게 누르기. 신규 사용자 홈 미리보기 토글. (HomeHeader) */
+  onLongPressLogo?: () => void;
 };
 
 /**
@@ -109,6 +122,9 @@ export function HomeEmpty({
   onPressDiscovery,
   onPressNotifications,
   invitePrompt,
+  actions,
+  onPressAction,
+  onLongPressLogo,
 }: HomeEmptyProps) {
   const { expanded, onScroll } = useFabExpand();
 
@@ -119,6 +135,7 @@ export function HomeEmpty({
         userName={userName}
         daysToNextTrip={null}
         onPressNotifications={onPressNotifications}
+        onLongPressLogo={onLongPressLogo}
       />
 
       {/* 아래 여백은 기존 홈(HomeView)과 같은 값이다. 떠 있는 버튼까지 덮는다. */}
@@ -130,6 +147,7 @@ export function HomeEmpty({
       >
         {/* 초대받은 사람은 여행이 없는 신규 사용자일 때가 많다. 기존 홈과 같은 자리에 둔다. */}
         <InvitePrompt {...invitePrompt} />
+        <HomeActionBanners actions={actions} onPressAction={onPressAction} />
 
         <DestinationSuggestSection
           suggestions={suggestions}

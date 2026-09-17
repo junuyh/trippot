@@ -15,6 +15,7 @@ export { HomeEmpty, HomeError, HomeLoading } from './HomeStates';
 export { HomeHeader } from './HomeHeader';
 export { HomeView } from './HomeView';
 export { HowItWorksSection } from './HowItWorksSection';
+export { HomeActionBanners } from './HomeActionBanner';
 export { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
 export { NextTripCard } from './NextTripCard';
 export { NowDestinationSection } from './NowDestinationSection';

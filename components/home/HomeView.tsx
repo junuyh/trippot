@@ -1,14 +1,13 @@
 import { ScrollView, View } from 'react-native';
 
+import type { TripAction } from '@/lib/trip/tripActions';
+
 import { CreateTripFab } from './CreateTripFab';
 import { HomeHeader } from './HomeHeader';
-import type { ExploreCardData } from '@/components/explore';
-
+import { HomeActionBanners } from './HomeActionBanner';
 import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
-import { NowDestinationSection } from './NowDestinationSection';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
 import { PastTripSection } from './PastTripSection';
-import { TravelStyleSection, type TravelStyleTile } from './TravelStyleSection';
 import type {
   EndedTripCardData,
   HomeEmptyVariant,
@@ -42,20 +41,23 @@ type Props = {
   onPressAllPastTrips: () => void;
   /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
   onPressNotifications: () => void;
-  /** 답하지 않은 여행 초대. 준비 중인 여행 위 배너와 모달. (InvitePrompt) */
+  /** 답하지 않은 여행 초대. 준비 중인 여행 위 배너. (InvitePrompt) */
   invitePrompt: InvitePromptProps;
+  /**
+   * 지금 답해야 할 일 — 참여 요청 대기 · 취소 요청 중. 초대 배너 바로 아래.
+   * 판단·문구는 lib/trip/tripActions 가 한다. 여기는 그리기만.
+   */
+  actions: TripAction[];
+  onPressAction: (action: TripAction) => void;
+  /** [개발용] 로고 길게 누르기. 신규 사용자 홈 미리보기 토글. (HomeHeader) */
+  onLongPressLogo?: () => void;
 
-  /** 지난 여행 아래 '○월에 떠나기 좋은 해외여행지'. '9월'. */
-  exploreMonthLabel: string;
-  exploreItems: ExploreCardData[];
-  /** 맨 아래 '여행 스타일로 떠나보기' 타일. */
-  styleTiles: TravelStyleTile[];
-  /** 여행지 카드를 눌렀을 때. 여행지 상세로 보낸다. */
-  onPressExploreDestination: (code: string) => void;
-  /** '전체 보기'. 여행지 추천 화면으로 보낸다. */
-  onPressExploreAll: () => void;
-  onPressStyle: (key: string) => void;
-  onPressAllStyles: () => void;
+  /*
+   * ⚠️ 2026-09-16 여행지 추천 두 칸(계절 추천 · 여행 스타일)을 뺐다.
+   *    기존 사용자 홈은 **내 여행이 놓인 선반**이다. 추천이 지난 여행 아래
+   *    두 칸을 더 차지하면서 홈이 길어지고, 내 여행보다 추천이 많아 보였다.
+   *    추천은 신규 사용자 홈과 여행지 추천 화면(/destinations)이 맡는다.
+   */
 };
 
 /**
@@ -106,13 +108,9 @@ export function HomeView({
   onPressAllPastTrips,
   onPressNotifications,
   invitePrompt,
-  exploreMonthLabel,
-  exploreItems,
-  styleTiles,
-  onPressExploreDestination,
-  onPressExploreAll,
-  onPressStyle,
-  onPressAllStyles,
+  actions,
+  onPressAction,
+  onLongPressLogo,
 }: Props) {
   const { expanded, onScroll } = useFabExpand();
 
@@ -123,6 +121,7 @@ export function HomeView({
         userName={userName}
         daysToNextTrip={daysToNextTrip}
         onPressNotifications={onPressNotifications}
+        onLongPressLogo={onLongPressLogo}
       />
 
       {/* 아래 여백은 탭바(58~84)만이 아니라 떠 있는 버튼까지 덮을 만큼 준다.
@@ -135,6 +134,9 @@ export function HomeView({
       >
         {/* 답하지 않은 초대는 준비 중인 여행보다 위다. 답할 때까지 남는다. */}
         <InvitePrompt {...invitePrompt} />
+
+        {/* 답해야 할 일도 준비 중인 여행보다 위다. 답하면 사라진다. */}
+        <HomeActionBanners actions={actions} onPressAction={onPressAction} />
 
         {/*
           ⚠️ **준비 중인 여행이 없으면 그 사실을 그대로 말한다.** (2026-09-16 되돌림)
@@ -160,29 +162,6 @@ export function HomeView({
             onPressTrip={onPressTrip}
             onPressSettle={onPressSettle}
             onPressSeeAll={onPressAllPastTrips}
-          />
-        </View>
-
-        {/*
-          2026-09-16 지난 여행 아래에 여행지 추천 두 칸을 넣었다. (시안 01)
-          ⚠️ 내 여행(준비 중 · 지난 여행)이 먼저고 추천은 그 아래다.
-          ⚠️ 준비 중인 여행이 없어도 이 칸은 자리를 옮기지 않는다. 위쪽 빈 카드가
-             "없다 · 만들어보세요" 를 말하고, 추천은 언제나 여기서 한다.
-        */}
-        <View className="mt-7">
-          <NowDestinationSection
-            monthLabel={exploreMonthLabel}
-            items={exploreItems}
-            onPressDestination={onPressExploreDestination}
-            onPressSeeAll={onPressExploreAll}
-          />
-        </View>
-
-        <View className="mt-7">
-          <TravelStyleSection
-            tiles={styleTiles}
-            onPressStyle={onPressStyle}
-            onPressSeeAll={onPressAllStyles}
           />
         </View>
       </ScrollView>
