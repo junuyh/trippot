@@ -22,7 +22,7 @@ import { useState } from 'react';
 import { EmailAuthView, type EmailAuthMode } from '@/components/auth/EmailAuthView';
 import { LoginView } from '@/components/auth/LoginView';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { DEV_PREVIEW_USERS, DEV_USER_ID } from '@/lib/constants/devUser';
+import { DEV_USER_ID } from '@/lib/constants/devUser';
 import {
   EMAIL_CODE_MAX,
   EMAIL_CODE_MIN,
@@ -242,13 +242,6 @@ export default function ScreenLogin() {
         //    미리보기는 배포된 앱에 아예 그려지지 않는다. (AuthProvider 가
         //    enterPreview 안에서도 한 번 더 막는다)
         showDevPreview={__DEV__}
-        /*
-          ⚠️ seed 사용자 넷을 그대로 쓴다. 오사카·도쿄 여행의 trip_members 에
-             넷이 모두 ACTIVE 라, 시뮬레이터 두 대에서 서로 다른 사람으로
-             들어가면 취소 동의·여행장 위임을 눌러 볼 수 있다.
-        */
-        devPreviewUsers={DEV_PREVIEW_USERS}
-        onPressDevPreview={enterPreview}
         onPressDevPreviewNewUser={handlePressNewUserPreview}
       />
     </>

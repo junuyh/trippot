@@ -43,7 +43,7 @@
 // 하단 탭 라벨까지 바뀐다.
 // ============================================================================
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
 import {
@@ -60,6 +60,15 @@ import {
 } from '@/components/home';
 import { daysUntil, formatTripDates } from '@/components/home/format';
 import { SCREENS } from '@/lib/analytics/events';
+import { canDecideJoinRequest } from '@/lib/trip/tripLeader';
+import {
+  buildCancelPendingAction,
+  buildJoinRequestAction,
+  type TripAction,
+} from '@/lib/trip/tripActions';
+import { getActiveCancelRequest, getVoteProgress } from '@/lib/supabase/queries/tripCancel';
+import { getTripJoinRequests } from '@/lib/supabase/queries/tripJoinRequests';
+import { listActiveTripMembers } from '@/lib/supabase/queries/tripMembers';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import {
   getPendingInvites,
@@ -189,6 +198,11 @@ export default function ScreenHOME01() {
   const [modalToken, setModalToken] = useState<string | null>(null);
   /** 참여 요청을 보내는 중인 초대의 token. 중복 제출 방지. */
   const [requestingToken, setRequestingToken] = useState<string | null>(null);
+  /**
+   * 지금 답해야 할 일 — 참여 요청 대기 · 취소 요청 중.
+   * 홈 조회(load)와 **따로 돈다.** 실패해도 홈이 오류가 되면 안 된다.
+   */
+  const [actions, setActions] = useState<TripAction[]>([]);
   const [trips, setTrips] = useState<TripWithSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -351,12 +365,147 @@ export default function ScreenHOME01() {
     }
   }, [userId, isPreview]);
 
+  /**
+   * 지금 답해야 할 일을 모은다 — 참여 요청 대기 · 취소 요청 중.
+   *
+   * ⚠️ 홈 조회(load)와 **따로 돈다.** 실패해도 홈이 오류가 되면 안 된다.
+   *    배너가 없을 뿐이지 내 여행은 그대로 보여야 한다. (loadInvites 와 같은 원칙)
+   *
+   * ⚠️ 여행을 전부 돌지 않는다. 볼 필요가 있는 것만 고른다 —
+   *      참여 요청  내가 여행장이고 아직 열려 있는 여행
+   *      취소 동의  status 가 CANCEL_PENDING 인 여행
+   *    여행장인 여행은 보통 한둘이고 취소 요청 중인 여행은 대개 0개라,
+   *    실제로 늘어나는 조회는 0~2번이다. 여행 수만큼 도는 구조가 아니다.
+   *
+   * ⚠️⚠️ getActiveCancelRequest 는 **읽으면서 쓴다.** 7일이 지났거나 출발일이
+   *    됐으면 그 자리에서 요청을 닫는다(lazy expiration · 크론 없음). 전에는
+   *    여행 홈에 들어가야만 일어났는데, 이제 **홈만 열어도 만료가 정리된다.**
+   *    의도한 변화다. (2026-09-17)
+   *
+   * ⚠️ 여행장 판정을 여기서 새로 만들지 않는다. trips 가 이미 leader_user_id 를
+   *    물고 온다 (TripWithSummary = Trip & {...}).
+   */
+  const loadActions = useCallback(
+    async (rows: TripWithSummary[]) => {
+      if (!userId || isPreview) {
+        setActions([]);
+        return;
+      }
+
+      /*
+        ⚠️⚠️ **여행 홈과 같은 기준이어야 한다.** ⚠️⚠️
+           여행 홈은 canDecideJoinRequest(= 여행장인가)만 보고 **status 를 보지
+           않는다.** 여기에만 PLANNING·TRAVELING 조건을 걸었더니, 취소 요청이
+           들어온 순간 홈에서 참여 요청 배너가 사라지는데 여행 홈에는 그대로
+           남았다. 같은 일을 두 화면이 다르게 판정한 것이다. (2026-09-17 확인)
+
+           취소 요청 중에도 참여 요청은 살아 있고 수락할 수 있다 — 여행 준비가
+           그대로 도는 것과 같은 이유다. (POL-CXL-006) 서버도 CANCELED ·
+           DELETED 일 때만 수락을 거부한다. (accept_trip_join_request ·
+           TRIP_NOT_OPEN) 그 둘만 뺀다.
+      */
+      const leading = rows.filter(
+        (trip) =>
+          canDecideJoinRequest(trip, userId) &&
+          trip.status !== TRIP_STATUS.CANCELED &&
+          trip.status !== TRIP_STATUS.DELETED,
+      );
+      const canceling = rows.filter((trip) => trip.status === TRIP_STATUS.CANCEL_PENDING);
+
+      const [joinActions, cancelActions] = await Promise.all([
+        Promise.all(
+          leading.map(async (trip) => {
+            try {
+              const requests = await getTripJoinRequests(trip.id);
+              return buildJoinRequestAction({
+                tripId: trip.id,
+                destination: trip.destination,
+                waitingNames: requests.map((r) => r.requester_name),
+              });
+            } catch {
+              // 여행장이 아니게 됐거나 일시적인 실패. 이 여행 것만 뺀다.
+              return null;
+            }
+          }),
+        ),
+        Promise.all(
+          canceling.map(async (trip) => {
+            try {
+              const request = await getActiveCancelRequest(trip.id, trip.start_date);
+              if (!request) return null;
+              const [progress, members] = await Promise.all([
+                getVoteProgress(request),
+                listActiveTripMembers(trip.id).catch(() => []),
+              ]);
+              return buildCancelPendingAction({
+                tripId: trip.id,
+                destination: trip.destination,
+                agreedCount: progress.agreedCount,
+                voteTargetCount: progress.targetCount,
+                isRequester: request.requested_by === userId,
+                hasVoted: progress.votes.some((v) => v.user_id === userId),
+                requesterName:
+                  members.find((m) => m.user_id === request.requested_by)?.name ?? '요청자',
+              });
+            } catch {
+              return null;
+            }
+          }),
+        ),
+      ]);
+
+      /*
+        ⚠️ 참여 요청이 취소보다 **위**다. 취소는 여행 전체가 걸린 일이라 더
+           무겁지만, 참여 요청은 상대가 기다리고 있어 시간이 걸린다.
+           여행 홈 배너 순서와 같게 맞춘다.
+      */
+      setActions(
+        [...joinActions, ...cancelActions].filter((a): a is TripAction => a !== null),
+      );
+    },
+    [userId, isPreview],
+  );
+
   useFocusEffect(
     useCallback(() => {
       void load();
       void loadInvites();
     }, [load, loadInvites]),
   );
+
+  /**
+   * 여행 목록이 바뀌면 배너를 다시 계산한다.
+   *
+   * ⚠️ load() 안에서 부르지 않는다. 실패가 홈 조회의 실패로 번지면 안 된다.
+   */
+  useEffect(() => {
+    void loadActions(trips);
+  }, [loadActions, trips]);
+
+  /**
+   * 배너를 눌렀을 때. **여기서 수락·동의를 하지 않는다.**
+   *
+   * ⚠️ 그 화면으로 보낸다. 수락·거절은 여행 정보 수정에, 동의·현황은 여행 홈
+   *    시트에 이미 다 있다. 홈에 또 만들면 같은 흐름이 두 벌이 된다.
+   *    (2026-09-17 다빈 · leaveTrip 이 둘로 갈렸던 것과 같은 일)
+   *
+   * ⚠️ 취소 쪽은 시트라 라우트가 없다. 여행 홈이 파라미터를 보고 연다.
+   *    모임 상세가 ?cancel=1 로 취소 사유 시트를 여는 것과 같은 방식이다.
+   */
+  function handlePressAction(action: TripAction) {
+    switch (action.intent) {
+      case 'OPEN_JOIN_REQUESTS':
+        // ⚠️ focus=requests — 그냥 보내면 캘린더만 보이고 할 일이 안 보인다
+        router.push(`/trips/${action.tripId}/edit?focus=requests`);
+        return;
+      case 'OPEN_CANCEL_VOTE':
+        router.push(`/trips/${action.tripId}?cxl=vote`);
+        return;
+      case 'OPEN_CANCEL_PROGRESS':
+        router.push(`/trips/${action.tripId}?cxl=progress`);
+        return;
+    }
+  }
 
   /** 답이 끝난 초대를 화면과 기기에서 뺀다. */
   function dismissInvite(token: string) {
@@ -606,6 +755,8 @@ export default function ScreenHOME01() {
         onPressNotifications={handlePressNotifications}
         onLongPressLogo={handleToggleEmptyPreview}
         invitePrompt={invitePrompt}
+        actions={actions}
+        onPressAction={handlePressAction}
       />
     );
   }
@@ -628,6 +779,8 @@ export default function ScreenHOME01() {
       onPressAllPastTrips={() => router.push('/me/trips?filter=past')}
       onPressNotifications={handlePressNotifications}
       invitePrompt={invitePrompt}
+      actions={actions}
+      onPressAction={handlePressAction}
       onLongPressLogo={handleToggleEmptyPreview}
     />
   );

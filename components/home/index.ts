@@ -14,6 +14,7 @@ export { HomeHeader } from './HomeHeader';
 export { HomeView } from './HomeView';
 export { OnboardingEntryCard } from './onboarding/OnboardingEntryCard';
 export { OnboardingView } from './onboarding/OnboardingView';
+export { HomeActionBanners } from './HomeActionBanner';
 export { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
 export { NextTripCard } from './NextTripCard';
 export { OngoingTripCard } from './OngoingTripCard';

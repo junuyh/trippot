@@ -98,7 +98,8 @@ async function resolveJoinRequested(notification: Notification): Promise<Notific
     if (stillPending) {
       return {
         statusLabel: '승인 대기',
-        cta: { label: '참여 요청 확인하기', href: `/trips/${tripId}/edit` },
+        // ⚠️ focus=requests — 배너와 같은 자리로 보낸다. 그냥 보내면 캘린더만 보인다
+        cta: { label: '승인 대기 확인하기', href: `/trips/${tripId}/edit?focus=requests` },
       };
     }
     return { statusLabel: '처리 완료', cta: tripHome(tripId) };

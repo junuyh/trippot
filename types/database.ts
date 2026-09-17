@@ -167,6 +167,7 @@ export type Database = {
           author_user_id: string | null
           content: string | null
           created_at: string
+          destination: string | null
           id: string
           image_urls: string[]
           post_type: string
@@ -180,6 +181,7 @@ export type Database = {
           author_user_id?: string | null
           content?: string | null
           created_at?: string
+          destination?: string | null
           id?: string
           image_urls?: string[]
           post_type?: string
@@ -193,6 +195,7 @@ export type Database = {
           author_user_id?: string | null
           content?: string | null
           created_at?: string
+          destination?: string | null
           id?: string
           image_urls?: string[]
           post_type?: string
