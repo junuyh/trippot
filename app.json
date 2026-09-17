@@ -45,6 +45,12 @@
         }
       ]
     ],
-    "scheme": "trippot"
+    "scheme": "trippot",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7971a07a-f0f0-4ac8-a575-2dea8a16ff8b"
+    }
   }
 }
