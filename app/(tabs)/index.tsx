@@ -64,6 +64,7 @@ import { SCREENS } from '@/lib/analytics/events';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import {
   getPendingInvites,
+  markInviteModalShown,
   removePendingInvite,
 } from '@/lib/invite/pendingInvites';
 import { previewInviteState } from '@/lib/invite/previewInvite';
@@ -232,6 +233,8 @@ export default function ScreenHOME01() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   /** 답하지 않은 초대. 서버 확인을 통과한 것만 들어온다. */
   const [invites, setInvites] = useState<HomeInvite[]>([]);
+  /** 지금 모달로 띄운 초대의 token. 닫으면 null. */
+  const [modalToken, setModalToken] = useState<string | null>(null);
   /** 참여 요청을 보내는 중인 초대의 token. 중복 제출 방지. */
   const [requestingToken, setRequestingToken] = useState<string | null>(null);
   const [trips, setTrips] = useState<TripWithSummary[]>([]);
@@ -379,7 +382,17 @@ export default function ScreenHOME01() {
         }),
       );
 
-      setInvites(checked.filter((invite): invite is HomeInvite => invite !== null));
+      const next = checked.filter((invite): invite is HomeInvite => invite !== null);
+      setInvites(next);
+
+      // 모달은 한 초대에 한 번만 띄운다. 그 뒤로는 배너로만 남는다.
+      const firstUnseen = stored.find(
+        (row) => row.modalShownAt === null && next.some((invite) => invite.token === row.token),
+      );
+      if (firstUnseen) {
+        setModalToken((current) => current ?? firstUnseen.token);
+        await markInviteModalShown(userId, firstUnseen.token);
+      }
     } catch {
       // 기기 저장소를 못 읽었다. 초대 칸만 비우고 홈은 그대로 둔다.
       setInvites([]);
@@ -396,6 +409,7 @@ export default function ScreenHOME01() {
   /** 답이 끝난 초대를 화면과 기기에서 뺀다. */
   function dismissInvite(token: string) {
     setInvites((prev) => prev.filter((invite) => invite.token !== token));
+    setModalToken((current) => (current === token ? null : current));
     if (userId) removePendingInvite(userId, token).catch(() => undefined);
   }
 
@@ -455,9 +469,11 @@ export default function ScreenHOME01() {
 
   const invitePrompt: InvitePromptProps = {
     invites,
+    modalInvite: invites.find((invite) => invite.token === modalToken) ?? null,
     requestingToken,
     onRequestJoin: (token) => void handleRequestJoin(token),
     onDecline: handleDeclineInvite,
+    onCloseModal: () => setModalToken(null),
   };
 
   function handlePressTrip(tripId: string) {
