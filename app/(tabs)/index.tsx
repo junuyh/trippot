@@ -51,7 +51,6 @@ import {
   HomeError,
   HomeLoading,
   HomeView,
-  type DestinationSuggestion,
   type DiscoverDestination,
   type EndedTripCardData,
   type HomeEmptyVariant,
@@ -87,7 +86,7 @@ import {
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { destinationPhoto } from '@/lib/constants/destinationPhoto';
 import { destinationEditorial } from '@/lib/constants/destinationEditorial';
-import { DESTINATIONS, findDestinationByName } from '@/lib/constants/destinations';
+import { findDestinationByName } from '@/lib/constants/destinations';
 import {
   ENTRY_POINT,
   TRIP_OWNER_TYPE,
@@ -122,14 +121,6 @@ const HOME_PAST_TRIP_LIMIT = 4;
 const RETRY_DELAY_MS = 600;
 
 /**
- * 신규 사용자 홈 배너에 돌릴 여행지 수.
- *
- * 이 서비스가 다루는 나라가 8개다. 나라마다 한 곳씩 전부 보여준다.
- * 나라가 늘면 이 값도 함께 올린다. (lib/constants/destinations.ts)
- */
-const SUGGESTION_LIMIT = 8;
-
-/**
  * 홈 '여행자들은 이렇게 다녀왔어요' 에 보여줄 여행지 수.
  *
  * 태그가 한 화면에 두 장 보이므로 3번 넘겨서 다 본다.
@@ -138,51 +129,12 @@ const SUGGESTION_LIMIT = 8;
 const DISCOVER_LIMIT = 6;
 
 
-/**
- * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-09 개편)
- *
- * 상수만 읽어 만드는 부분이다. 렌더마다 다시 계산할 이유가 없어 모듈에서
- * 한 번 만든다. 배지는 커뮤니티 글 수에서 나오는 조회 결과라서
- * 아래 컴포넌트에서 붙인다.
- *
- * ⚠️ **나라마다 한 곳씩만 고른다.** 목적지 상수는 나라별로 묶여 있어서 앞에서부터
- *    자르면 일본 도시 세 개가 연달아 나온다. "어디 가지?" 에 답이 되려면 후보가
- *    서로 달라야 한다.
- *
- * ⚠️ **사람이 쓴 소개가 있는 곳만 넣는다.** (lib/constants/destinationEditorial)
- *    소개 없이 도시 이름만 있는 카드는 "여기가 어떤 곳인가" 에 답하지 못한다.
- *    소개를 쓴 목적지가 늘면 후보도 자동으로 늘어난다.
- *
- * ⚠️ 사진(destinationHeroPhoto)을 더 이상 쓰지 않는다. 카드가 사진 배너에서
- *    보딩패스로 바뀌었다. 상수 파일은 지우지 않았다. (CLAUDE.md 1장)
+/*
+ * ⚠️ 2026-09-17 신규 사용자 홈의 '추천 여행지' 를 뺐다. (여행지 추천 기능 제거)
+ *    여행지 상세(/destinations/:code) · 여행지 추천(/destinations) 화면도 함께 지웠다.
+ *    여행비 가이드를 접속 시점 시세로만 보여줄 방법이 지금 구조에 없어서다
+ *    (시세 캐시가 만료 없이 재사용되고, 금액 뼈대가 코드 기준값이다).
  */
-const HOME_SUGGESTION_BASE = (() => {
-  const usedCountries = new Set<string>();
-  const picked: Omit<DestinationSuggestion, 'badge'>[] = [];
-
-  for (const destination of DESTINATIONS) {
-    if (picked.length >= SUGGESTION_LIMIT) break;
-    if (usedCountries.has(destination.countryKo)) continue;
-
-    const editorial = destinationEditorial(destination.code);
-    if (!editorial) continue;
-
-    usedCountries.add(destination.countryKo);
-    picked.push({
-      code: destination.code,
-      nameKo: destination.nameKo,
-      nameEn: destination.nameEn,
-      countryKo: destination.countryKo,
-      airportCode: destination.airportCode,
-      flag: destination.flag,
-      blurb: editorial.blurb,
-      days: editorial.days,
-      theme: countryTheme(destination.countryKo),
-    });
-  }
-
-  return picked;
-})();
 
 /** 서버 my_state 중 아직 참여 요청을 보낼 수 있는 상태. 초대 화면(INV-02)과 같은 기준이다. */
 function isAnswerable(myState: string): boolean {
@@ -644,16 +596,6 @@ export default function ScreenHOME01() {
     router.push(`/community?destination=${encodeURIComponent(nameKo)}`);
   }
 
-  /**
-   * 추천 여행지 카드를 눌렀을 때. 그 여행지 상세로 보낸다. (2026-09-11)
-   *
-   * ⚠️ 전에는 여행 만들기로 보냈다. 카드가 '○○ 둘러보기' 라고 말하는데 갈
-   *    화면이 없어서였다. 이제 DEST-01 이 생겨 말과 동작이 맞는다.
-   */
-  function handlePressDestination(code: string) {
-    router.push(`/destinations/${code}`);
-  }
-
   function handlePressCreateTrip(entryPoint: EntryPoint) {
     // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint param 을 읽어 기록한다.
     // 홈에서도 track() 하면 trip_create_started 가 두 번 쌓여 퍼널이 부풀려진다.
@@ -762,30 +704,8 @@ export default function ScreenHOME01() {
   // 여행을 한 번도 만들지 않았으면 first, 기록이 있으면 return 이다.
   const emptyVariant: HomeEmptyVariant = trips.length === 0 ? 'first' : 'return';
 
-  /**
-   * '인기' 배지를 달 여행지.
-   *
-   * ⚠️ 근거 없이 '인기' 를 붙이지 않는다. 커뮤니티 글이 가장 많은 여행지
-   *    한 곳만 단다. 글이 하나도 없으면 아무 카드에도 배지가 없다.
-   *    postCounts 는 쿼리가 이미 글 수 내림차순으로 정렬해 돌려준다.
-   */
-  const topByPosts = postCounts.length > 0 ? postCounts[0].destination : null;
-
-  /**
-   * 추천 여행지.
-   *
-   * ⚠️ **두 홈이 함께 쓴다.** (2026-09-11) 신규 사용자 홈은 화면 전체에,
-   *    기존 홈은 준비 중인 여행이 하나도 없을 때 그 자리에 놓는다.
-   *    그래서 분기 안이 아니라 여기서 만든다.
-   */
-  const suggestions: DestinationSuggestion[] = HOME_SUGGESTION_BASE.map((base) => ({
-    ...base,
-    badge: base.nameKo === topByPosts ? '인기' : null,
-  }));
-
   // 여행이 하나도 없으면 신규 사용자 홈을 보여준다.
-  // 기존 홈의 두 칸(보딩패스 슬라이드 · 러기지 태그 목록)을 그대로 쓰고
-  // 내용만 '추천 여행지' 와 '여행자들은 이렇게 다녀왔어요' 로 바꾼 화면이다.
+  // 온보딩 들어가기 카드와 '여행자들은 이렇게 다녀왔어요' 로 이루어진 화면이다.
   if (trips.length === 0 || emptyPreview) {
     /**
      * '여행자들은 이렇게 다녀왔어요' 목록.
@@ -817,13 +737,14 @@ export default function ScreenHOME01() {
     return (
       <HomeEmpty
         userName={profile?.name ?? null}
-        suggestions={suggestions}
         discoveries={discoveries}
         onCreateTrip={() => handlePressCreateTrip(ENTRY_POINT.EMPTY_STATE)}
-        // 목적지 코드를 받지만 아직 넘기지 않는다. TRIP-01 이 destination param 을
-        // 받게 되면 그때 붙인다. (components/home/DestinationSuggestCard 주석)
-        onPressSuggestion={handlePressDestination}
+        // 온보딩은 궁금한 사람만 들어가 보는 페이지다. (app/onboarding.tsx)
+        // ⚠️ 이벤트를 찍지 않는다. events.ts 에 맞는 이벤트가 없다. (CLAUDE.md 8장) [검토 필요]
+        onPressOnboarding={() => router.push('/onboarding')}
         onPressDiscovery={handlePressDiscovery}
+        // 전체 보기는 여행지 필터 없이 커뮤니티 탭 첫 화면이다. (이벤트는 COMM-01 이 기록)
+        onPressAllDiscoveries={() => router.push('/community')}
         onPressNotifications={handlePressNotifications}
         onLongPressLogo={handleToggleEmptyPreview}
         invitePrompt={invitePrompt}
