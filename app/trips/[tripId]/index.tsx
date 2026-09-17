@@ -601,14 +601,20 @@ export default function ScreenTripHome() {
   /**
    * 모임 상세에서 '여행 취소하기' 를 누르고 넘어왔으면 취소 사유 시트를 연다.
    *
-   * ⚠️ 한 번만 연다. 사용자가 닫은 뒤 화면을 다시 그릴 때마다 열리면 못 빠져나간다.
+   * ⚠️⚠️ **연 뒤에 파라미터를 지운다.** useRef 로 "한 번만" 을 막으면 안 된다.
+   *    이 화면은 모임 상세에서 다시 들어와도 **언마운트되지 않는다** — 같은
+   *    라우트라 expo-router 가 컴포넌트를 재사용하고 params 만 바꾼다. ref 가
+   *    true 로 남아 **두 번째부터는 시트가 안 열렸다.**
+   *    (2026-09-17 · 아래 cxl 파라미터에서 같은 버그를 먼저 찾아 고쳤다)
+   *
+   * ⚠️ 파라미터를 지우면 같은 값으로 다시 와도 새 값으로 잡힌다. 그리고 이
+   *    화면에 머무는 동안 데이터가 바뀔 때마다 시트가 다시 열리는 것도 막는다.
    */
-  const cancelParamRef = useRef(false);
   useEffect(() => {
-    if (cancel !== "1" || cancelParamRef.current || !data) return;
-    cancelParamRef.current = true;
+    if (cancel !== "1" || !data) return;
     setSheet("cancelReason");
-  }, [cancel, data]);
+    router.setParams({ cancel: "" });
+  }, [cancel, data, router]);
 
   /**
    * 홈 배너에서 넘어왔으면 취소 동의 시트 · 현황을 연다. (2026-09-17)
@@ -1457,6 +1463,8 @@ export default function ScreenTripHome() {
   const joinRequestAction = buildJoinRequestAction({
     tripId: trip.id,
     destination: trip.destination,
+    // ⚠️ 끝난 여행에는 배너를 띄우지 않는다. 판정은 tripActions 가 한다
+    status: trip.status,
     waitingNames: data.joinRequests.map((r) => r.name),
   });
 
