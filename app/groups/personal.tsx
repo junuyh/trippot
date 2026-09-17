@@ -45,6 +45,7 @@ import type { MyTripItem } from '@/components/my';
 import { ErrorState, Loading } from '@/components/ui';
 import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { countryTheme } from '@/lib/constants/countryTheme';
+import { COMPANION_TYPE, ENTRY_POINT } from '@/lib/constants/status';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import {
   TRIP_OWNER_TYPE,
@@ -202,6 +203,13 @@ export default function ScreenPersonalTrips() {
         // 계좌를 누르면 어느 여행의 계좌 화면으로 갈지 고른다. 모임 상세와 같다.
         onPressAccount={(account) => setPickingAccount(account)}
         onPressAllAccounts={() => setAllAccountsOpen(true)}
+        // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint 를 읽어 기록한다. (모임 상세와 같다)
+        // ⚠️ entryPoint 는 기존 값(group_detail · 모임 탭의 상세 화면군)을 쓴다 — ENTRY_POINT 는 분석 축이라 임의로 늘리지 않는다.
+        onPressCreateTrip={() =>
+          router.push(
+            `/trips/new/owner?entryPoint=${ENTRY_POINT.GROUP_DETAIL}&preselectedCompanion=${COMPANION_TYPE.PERSONAL}`,
+          )
+        }
       />
 
       <AccountTripPickerSheet

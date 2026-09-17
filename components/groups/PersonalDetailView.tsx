@@ -21,6 +21,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   MyTripCard,
@@ -30,9 +31,12 @@ import {
   type MyTripItem,
 } from '@/components/my';
 
+import { Button } from '@/components/ui';
+
 import { GroupAccountList } from './GroupAccountList';
 import { Section } from './GroupDetailView';
 import { PERSONAL_CARD_THEME } from './cardTheme';
+import { LuggageTagBack } from './LuggageTagBack';
 import type { GroupAccountItem } from './types';
 
 /** 개인 여행 상세의 탭. MY-02 의 5탭에서 '나간 여행' 만 뺀다. */
@@ -66,6 +70,8 @@ type Props = {
   onPressTrip: (tripId: string) => void;
   onPressAccount: (account: GroupAccountItem) => void;
   onPressAllAccounts: () => void;
+  /** 하단 CTA — '개인으로 새 여행 만들기'. 화면 파일이 여행 만들기(혼자 가요 선택 상태)로 보낸다. */
+  onPressCreateTrip: () => void;
 };
 
 export function PersonalDetailView({
@@ -73,7 +79,9 @@ export function PersonalDetailView({
   onPressTrip,
   onPressAccount,
   onPressAllAccounts,
+  onPressCreateTrip,
 }: Props) {
+  const insets = useSafeAreaInsets();
   // 기본은 '준비 중'. 모임 상세·MY-02 와 같다.
   const [filter, setFilter] = useState<MyTripFilter>('planning');
 
@@ -98,44 +106,23 @@ export function PersonalDetailView({
           ⚠️ "멤버가 없다" 고 쓰지 않는다 — 개인 여행에도 본인은 trip_members ACTIVE 다.
         */}
         {/*
-          상단 identity 카드 — 모임 상세(GroupDetailView)와 같은 카드 문법(radius 14 · 1px rule 테두리 ·
-          옅은 그림자 · 안쪽 16). 색은 개인 여행 고정 보라(PERSONAL_CARD_THEME = 목록의 Lavender Air).
-          멤버 · 만든 날 · 연필 같은 모임 전용 정보는 두지 않는다. (2026-09-17)
+          상단 = 캐리어 태그 **뒷면** (LuggageTagBack) — 모임 상세와 같은 모양, 색은 개인 여행 고정 보라
+          (PERSONAL_CARD_THEME = 목록 Lavender Air). 멤버 · 만든 날 · 연필 같은 모임 전용 정보는 없다. (2026-09-17)
         */}
-        <View
-          style={{
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: PERSONAL_CARD_THEME.rule,
-            backgroundColor: PERSONAL_CARD_THEME.paperStart,
-            paddingHorizontal: 16,
-            paddingTop: 14,
-            paddingBottom: 16,
-            shadowColor: PERSONAL_CARD_THEME.ink,
-            shadowOpacity: 0.06,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 3 },
-            elevation: 2,
-          }}
-        >
-          <View className="flex-row items-center gap-1.5">
-            <Ionicons name="person-outline" size={12} color={PERSONAL_CARD_THEME.accent} />
+        <LuggageTagBack theme={PERSONAL_CARD_THEME} label="PERSONAL">
+          <View className="flex-row items-center gap-2">
+            <Ionicons name="person-outline" size={16} color={PERSONAL_CARD_THEME.accent} />
             <Text
-              style={{ fontSize: 10.5, lineHeight: 14, fontWeight: '700', letterSpacing: 0.4, color: PERSONAL_CARD_THEME.accent }}
+              className="font-black"
+              style={{ fontSize: 22, lineHeight: 30, letterSpacing: -0.6, color: PERSONAL_CARD_THEME.ink }}
             >
-              PERSONAL
+              개인 여행
             </Text>
           </View>
-          <Text
-            className="mt-1 font-black"
-            style={{ fontSize: 22, lineHeight: 30, letterSpacing: -0.6, color: PERSONAL_CARD_THEME.ink }}
-          >
-            개인 여행
-          </Text>
           <Text className="mt-1" style={{ fontSize: 12.5, lineHeight: 18, color: PERSONAL_CARD_THEME.secondary }}>
             내 개인 여행을 한곳에서 관리해요.
           </Text>
-        </View>
+        </LuggageTagBack>
 
         {/*
           연결 계좌. 모임 상세와 같은 섹션·같은 목록 컴포넌트다.
@@ -199,6 +186,17 @@ export function PersonalDetailView({
           </View>
         </View>
       </ScrollView>
+
+      {/*
+        CTA — 모임 상세의 '이 모임으로 새 여행 만들기' 와 같은 자리 · 같은 모양(border-t · px-4 · pt-3).
+        누르면 여행 만들기 1단계가 '혼자 가요' 가 골라진 채로 열린다. (2026-09-17)
+      */}
+      <View
+        className="border-t border-pot-line bg-white px-4 pt-3"
+        style={{ paddingBottom: Math.max(insets.bottom, 32) }}
+      >
+        <Button label="개인으로 새 여행 만들기" onPress={onPressCreateTrip} />
+      </View>
     </View>
   );
 }
