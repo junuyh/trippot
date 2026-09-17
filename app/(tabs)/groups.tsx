@@ -128,6 +128,17 @@ export default function ScreenGROUP01() {
     try {
       if (!userId) return;
 
+      /**
+       * 카드 대표 여행 = **여행 중(TRAVELING) 이 준비 중보다 먼저.** HOME-01 의 진행 중 정렬과 같은 규칙.
+       * (app/(tabs)/index.tsx ongoingTrips · "지금 여행 중인 여행이 가장 급하다") 그 안의 순서는
+       * 쿼리가 준 그대로(start_date 최신순)다. 상태는 DB 값만 본다 — 날짜로 다시 판정하지 않는다. (2026-09-18)
+       */
+      const travelingFirst = <T extends { status: string }>(list: T[]): T[] =>
+        [...list].sort(
+          (a, b) =>
+            Number(b.status === TRIP_STATUS.TRAVELING) - Number(a.status === TRIP_STATUS.TRAVELING),
+        );
+
       // 숨김 제외·정렬·정렬 모드 판정까지 쿼리가 끝낸다.
       // getMyGroups() 는 HOME-01·TRIP-01 도 쓰므로 건드리지 않는다.
       // 실제 모임과 개인 여행을 같이 읽는다. (docs/11_모임정책_v1.md §2)
@@ -158,8 +169,9 @@ export default function ScreenGROUP01() {
               name: entry.group.name,
               createdAt: entry.group.created_at,
               memberCount,
-              ongoingTrips: trips.ongoing.map((trip) => ({
+              ongoingTrips: travelingFirst(trips.ongoing).map((trip) => ({
                 tripId: trip.id,
+                status: trip.status,
                 destination: trip.destination,
                 startDate: trip.start_date,
                 endDate: trip.end_date,
@@ -212,8 +224,9 @@ export default function ScreenGROUP01() {
                     .map((trip) => trip.created_at)
                     .sort()
                     .at(0) as string,
-                  ongoingTrips: personalOngoing.map((trip) => ({
+                  ongoingTrips: travelingFirst(personalOngoing).map((trip) => ({
                     tripId: trip.id,
+                    status: trip.status,
                     destination: trip.destination,
                     startDate: trip.start_date,
                     endDate: trip.end_date,
