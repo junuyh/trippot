@@ -2,13 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 
 import { CreateTripFab } from './CreateTripFab';
-import { DestinationSuggestSection } from './DestinationSuggestSection';
 import { DiscoverDestinationSection } from './DiscoverDestinationSection';
 import { HomeButton } from './HomeButton';
 import { HomeHeader } from './HomeHeader';
-import { HowItWorksSection } from './HowItWorksSection';
 import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
-import type { DestinationSuggestion, DiscoverDestination } from './types';
+import { OnboardingEntryCard } from './onboarding/OnboardingEntryCard';
+import type { DiscoverDestination } from './types';
 import { useFabExpand } from './useFabExpand';
 
 /**
@@ -47,18 +46,18 @@ export function HomeError({ message, onRetry }: { message: string; onRetry: () =
 type HomeEmptyProps = {
   /** 인사에 쓸 이름. 없으면 이름 없이 인사한다. */
   userName: string | null;
-  /** 추천 여행지 카드. 상수 조회는 화면 파일이 하고 결과만 받는다. */
-  suggestions: DestinationSuggestion[];
   /** 커뮤니티에 글이 있는 여행지. 없으면 빈 배열이고 그 칸을 그리지 않는다. */
   discoveries: DiscoverDestination[];
   onCreateTrip: () => void;
-  /** 추천 여행지 카드를 눌렀을 때. 목적지 코드를 넘긴다. */
-  onPressSuggestion: (code: string) => void;
+  /** '둘러보기' 카드. 온보딩 페이지(/onboarding)로 보낸다. */
+  onPressOnboarding: () => void;
   /** 여행자들은 이렇게 다녀왔어요 태그를 눌렀을 때. 커뮤니티로 보낸다. 한글 도시명을 넘긴다. */
   onPressDiscovery: (nameKo: string) => void;
+  /** 여행자들은 이렇게 다녀왔어요 '전체 보기'. 커뮤니티 탭으로 보낸다. */
+  onPressAllDiscoveries: () => void;
   /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
   onPressNotifications: () => void;
-  /** 답하지 않은 여행 초대. 추천 여행지 위 배너. (InvitePrompt) */
+  /** 답하지 않은 여행 초대. 맨 위 배너. (InvitePrompt) */
   invitePrompt: InvitePromptProps;
   /** [개발용] 로고 길게 누르기. 신규 사용자 홈 미리보기 토글. (HomeHeader) */
   onLongPressLogo?: () => void;
@@ -67,27 +66,20 @@ type HomeEmptyProps = {
 /**
  * 여행이 하나도 없는 사람의 홈. (2026-09-09 개편)
  *
- * **기존 홈의 두 칸을 그대로 쓰고 내용만 바꾼 것이다.**
+ *   로고 · 알림                      ← 기존 홈과 같다 (HomeHeader)
+ *   답하지 않은 초대 배너              ← 기존 홈과 같다 (InvitePrompt)
+ *   떠나기 전에, TripPot 먼저 여행해 볼래요?  ← 온보딩 들어가기 카드 (OnboardingEntryCard)
+ *   여행자들은 이렇게 다녀왔어요 (트래블 스토리 카드 → 커뮤니티 그 여행지 글)
+ *   새 여행 만들기                   ← 기존 홈과 같은 떠 있는 버튼 (CreateTripFab)
  *
- *   기존 홈 (HomeView)              신규 사용자 홈 (여기)
- *   ─────────────────────           ─────────────────────
- *   로고 · 인사말                    로고 · 인사말          ← 같다 (HomeHeader)
- *   준비 중인 여행 슬라이드           추천 여행지 슬라이드    ← 같은 보딩패스 카드
- *   지난 여행 태그 목록              여행자들은 이렇게 다녀왔어요 태그 목록  ← 같은 러기지 태그
- *   새 여행 만들기 버튼              새 여행 만들기 버튼      ← 같다 (CreateTripFab)
+ * ⚠️ 2026-09-17 온보딩 캐러셀을 홈에서 빼고 페이지(/onboarding)로 옮겼다.
+ *    첫 화면이 설명서가 되어 부담스러웠다. 넘기는 설명은 대부분 건너뛴다는 조사도 있다.
+ *    홈에는 궁금하면 들어가 보게 만드는 카드 한 장만 둔다.
+ *    캐러셀 아래 '첫 여행 만들기' 가 함께 사라져서 떠 있는 버튼(CreateTripFab)을 되살렸다.
+ *    기존 홈과 같은 버튼이라 첫 여행을 만든 뒤에도 자리가 그대로다.
  *
- * ⚠️ 두 칸 모두 **기존 홈과 같은 부품·같은 치수**다. 첫 여행을 만든 순간
- *    이 화면이 HomeView 로 바뀌는데, 카드가 다르게 생기면 사용자에게는
- *    화면이 통째로 바뀐 것으로 보인다.
- *
- * ⚠️ 두 칸이 하는 말이 다르다.
- *    · 추천 여행지   앞으로 갈 곳 → 누르면 **여행 만들기**
- *    · 여행자들은 이렇게 다녀왔어요 다녀온 사람의 이야기 → 누르면 **커뮤니티 그 여행지 글**
- *    보딩패스와 러기지 태그라는 생김새 차이가 그 말을 대신한다.
- *
- * ⚠️ 2026-09-09 새 여행 만들기를 카드에서 떠 있는 버튼으로 바꿨다.
- *    기존 홈과 같은 컴포넌트·같은 자리·같은 접힘 규칙을 쓴다. 첫 여행을 만든
- *    순간 이 화면이 HomeView 로 바뀌는데, 그때 버튼이 옮겨 다니면 안 된다.
+ * ⚠️ 2026-09-17 맨 위 '추천 여행지' 포스터 슬라이드를 뺐다. 여행지 추천 기능 제거.
+ *    누르면 가던 여행지 상세 화면도 함께 지웠다. (app/(tabs)/index.tsx 주석)
  *
  * ⚠️ 껍데기(바탕색·좌우 여백·아래 여백)를 HomeView 와 같은 값으로 맞췄다.
  *    첫 여행을 만든 순간 이 화면이 HomeView 로 바뀌는데, 여백이 다르면
@@ -104,11 +96,11 @@ type HomeEmptyProps = {
  */
 export function HomeEmpty({
   userName,
-  suggestions,
   discoveries,
   onCreateTrip,
-  onPressSuggestion,
+  onPressOnboarding,
   onPressDiscovery,
+  onPressAllDiscoveries,
   onPressNotifications,
   invitePrompt,
   onLongPressLogo,
@@ -135,35 +127,25 @@ export function HomeEmpty({
         {/* 초대받은 사람은 여행이 없는 신규 사용자일 때가 많다. 기존 홈과 같은 자리에 둔다. */}
         <InvitePrompt {...invitePrompt} />
 
-        <DestinationSuggestSection
-          suggestions={suggestions}
-          onPressSuggestion={onPressSuggestion}
-        />
-
         {/*
-          2026-09-16 서비스 소개 칸.
-
-          ⚠️ **추천 여행지 아래, 다녀온 이야기 위**다. 첫 화면은 '어디 가지?' 가
-             먼저 잡고, 바로 아래에서 '이 앱이 뭘 해주나' 에 답한다. 맨 위에 두면
-             처음 온 사람이 안내문부터 읽어야 한다.
-
-          ⚠️ **신규 사용자 홈에만 둔다.** 기존 홈(HomeView)에는 넣지 않는다 —
-             이미 여행을 만들어 본 사람에게 서비스 설명을 반복하지 않는다.
+          서비스 소개 칸. 신규 사용자 홈에만 둔다 — 이미 여행을 만들어 본 사람에게
+          서비스 설명을 반복하지 않는다.
+          ⚠️ 2026-09-17 위에 있던 '추천 여행지' 를 빼서 이 칸이 맨 위다.
+             초대 배너가 있으면 그 아래(InvitePrompt 가 mb-6 을 준다).
         */}
-        <View className="mt-7">
-          <HowItWorksSection />
-        </View>
+        <OnboardingEntryCard onPress={onPressOnboarding} />
 
         {/* 칸 사이 간격은 기존 홈(HomeView)의 mt-7 과 같다. */}
         <View className="mt-7">
           <DiscoverDestinationSection
             destinations={discoveries}
             onPressDestination={onPressDiscovery}
+            onPressSeeAll={onPressAllDiscoveries}
           />
         </View>
       </ScrollView>
 
-      {/* 맨 위에서는 글자까지 보이고, 내리면 아이콘만 남는다. */}
+      {/* 기존 홈(HomeView)과 같은 버튼이다. 맨 위에서는 글자까지, 내리면 아이콘만. */}
       <CreateTripFab expanded={expanded} onPress={onCreateTrip} />
     </View>
   );
