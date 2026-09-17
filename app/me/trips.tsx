@@ -142,6 +142,19 @@ export default function ScreenMY02() {
   const params = useLocalSearchParams<{ filter?: string }>();
   const [filter, setFilter] = useState<MyTripFilter>(() => toFilter(params.filter));
 
+  /**
+   * 주소의 filter 가 바뀌면 탭을 맞춘다. (2026-09-17)
+   *
+   * ⚠️ useState 초기값은 **화면이 처음 만들어질 때 한 번만** 읽힌다. 이 화면이 이미
+   *    스택에 살아 있으면 홈의 '지난 여행 — 전체 보기'(?filter=past)로 다시 와도
+   *    화면을 새로 만들지 않고 재사용해서, 전에 보던 탭(준비 중)이 그대로 보였다.
+   * ⚠️ filter 가 **없을 때는 건드리지 않는다.** 사용자가 탭을 눌러 바꾼 상태를
+   *    주소에 filter 가 없다는 이유로 되돌리면 안 된다.
+   */
+  useEffect(() => {
+    if (params.filter) setFilter(toFilter(params.filter));
+  }, [params.filter]);
+
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [trips, setTrips] = useState<TripWithSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);

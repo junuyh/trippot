@@ -30,9 +30,10 @@
 // 실제로 보이는 UI 는 components/home/ 에 있다. (CLAUDE.md 9장)
 //
 // 2026-09-15 답하지 않은 여행 초대를 맨 위에 띄운다. (모달 한 번 + 상시 배너)
-//   누구에게 뜨나 — 답할 때까지 남는다.
-//     · 로그인 전에 초대 링크를 열고 로그인 · 가입한 사람 (로그인 뒤 곧장 홈으로 온다 · app/_layout.tsx)
-//     · 이미 로그인한 채 초대 화면(/invite/:token)을 열고 참여 요청 없이 나간 사람
+//   **초대 화면(INV-02 · 한나 담당)에서 답하지 않고 나간 사람에게만 뜬다.**
+//   카톡 링크로 들어가면 초대 화면이 먼저 뜬다. 거기서 참여 요청도 거절도 누르지 않고
+//   창을 닫으면 그 건이 처리되지 않은 채 남는데, 그때 홈이 대신 알린다.
+//   답(참여 요청 · 거절)할 때까지 배너가 상시로 남는다.
 //   초대 링크에는 받는 사람이 없어서 서버는 누구에게 온 초대인지 모른다.
 //   링크를 연 기기가 token 을 저장해 두고(lib/invite/pendingInvites),
 //   홈이 열릴 때마다 resolve_trip_invite 로 다시 확인한다.
@@ -59,17 +60,7 @@ import {
   type OngoingTripCardData,
 } from '@/components/home';
 import { daysUntil, formatTripDates } from '@/components/home/format';
-import type { TravelStyleTile } from '@/components/home';
 import { SCREENS } from '@/lib/analytics/events';
-import {
-  TRAVEL_STYLES,
-  currentMonthKst,
-  entriesByStyle,
-  exploreEntries,
-  seasonOfMonth,
-  splitBySeason,
-  toExploreCard,
-} from '@/lib/destination/explore';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import {
   getPendingInvites,
@@ -136,25 +127,6 @@ const SUGGESTION_LIMIT = 8;
  */
 const DISCOVER_LIMIT = 6;
 
-/**
- * 기존 사용자 홈 '○월에 떠나기 좋은 해외여행지' 에 보여줄 여행지 수. (2026-09-16)
- * 전체는 여행지 추천 화면(/destinations)이 맡는다. 홈이 여행지 목록이 되지 않게 추린다.
- */
-const EXPLORE_LIMIT = 6;
-
-/**
- * 여행지 추천 두 칸의 재료. 코드 상수만 읽으므로 모듈에서 한 번 만든다.
- * ⚠️ 달(month)은 여기서 굳히지 않는다. 앱을 켜 둔 채 달이 바뀔 수 있어 렌더 때 본다.
- */
-const EXPLORE_ENTRIES = exploreEntries();
-
-/** 스타일 타일. 걸리는 여행지가 0곳인 스타일은 빼서, 눌렀을 때 빈 목록이 나오지 않게 한다. */
-const STYLE_TILES: TravelStyleTile[] = TRAVEL_STYLES.map((style) => ({
-  key: style.key,
-  label: style.label,
-  icon: style.icon,
-  count: entriesByStyle(EXPLORE_ENTRIES, style.key).length,
-})).filter((tile) => tile.count > 0);
 
 /**
  * 여행이 하나도 없는 사람에게 보여줄 여행지 후보. (2026-09-09 개편)
@@ -246,6 +218,17 @@ export default function ScreenHOME01() {
    */
   const params = useLocalSearchParams<{ preview?: string }>();
   const emptyPreview = __DEV__ && params.preview === 'empty';
+
+  /**
+   * [개발용] 로고를 길게 누르면 신규 사용자 홈 미리보기를 켜고 끈다. (2026-09-17)
+   *
+   * 실제 계정(카카오 로그인)으로 들어와도 새 유저 홈을 볼 수 있게 한다. 주소창이 없는
+   * 휴대폰에서도 켤 수 있도록 ?preview=empty 를 코드로 바꾼다. 조회 결과는 건드리지 않는다.
+   * ⚠️ 배포 빌드(__DEV__ false)에서는 undefined 라 로고가 눌리지 않는다.
+   */
+  const handleToggleEmptyPreview = __DEV__
+    ? () => router.setParams({ preview: emptyPreview ? '' : 'empty' })
+    : undefined;
   const { isPreview } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   /** 답하지 않은 초대. 서버 확인을 통과한 것만 들어온다. */
@@ -402,6 +385,7 @@ export default function ScreenHOME01() {
       const next = checked.filter((invite): invite is HomeInvite => invite !== null);
       setInvites(next);
 
+      // 모달은 한 초대에 한 번만 띄운다. 그 뒤로는 배너로만 남는다.
       const firstUnseen = stored.find(
         (row) => row.modalShownAt === null && next.some((invite) => invite.token === row.token),
       );
@@ -699,30 +683,17 @@ export default function ScreenHOME01() {
         onPressSuggestion={handlePressDestination}
         onPressDiscovery={handlePressDiscovery}
         onPressNotifications={handlePressNotifications}
+        onLongPressLogo={handleToggleEmptyPreview}
         invitePrompt={invitePrompt}
       />
     );
   }
 
-  // ── 1-3 · 1-4. 여행지 추천 (2026-09-16) ────────────────────────────────
-  // ⚠️ 이벤트를 찍지 않는다. 여행지 추천 · 상세 화면 모두 SCREENS 상수가 없고,
-  //    새 이벤트를 임의로 만들지 않는다. (CLAUDE.md 8장)
-  const exploreMonth = currentMonthKst();
-  const exploreItems = splitBySeason(EXPLORE_ENTRIES, seasonOfMonth(exploreMonth))
-    .now.slice(0, EXPLORE_LIMIT)
-    .map(toExploreCard);
+  // ⚠️ 2026-09-16 기존 사용자 홈의 여행지 추천 두 칸을 뺐다. 이유는 HomeView 주석 참조.
+  //    추천은 신규 사용자 홈(HomeEmpty)과 여행지 추천 화면(/destinations)이 맡는다.
 
   return (
     <HomeView
-      exploreMonthLabel={`${exploreMonth}월`}
-      exploreItems={exploreItems}
-      styleTiles={STYLE_TILES}
-      onPressExploreDestination={handlePressDestination}
-      onPressExploreAll={() => router.push('/destinations')}
-      onPressStyle={(key) =>
-        router.push(`/destinations?tab=style&style=${encodeURIComponent(key)}`)
-      }
-      onPressAllStyles={() => router.push('/destinations?tab=style')}
       userName={profile?.name ?? null}
       daysToNextTrip={daysUntil(nearest?.startDate ?? null)}
       ongoingTrips={ongoingTrips}
@@ -736,6 +707,7 @@ export default function ScreenHOME01() {
       onPressAllPastTrips={() => router.push('/me/trips?filter=past')}
       onPressNotifications={handlePressNotifications}
       invitePrompt={invitePrompt}
+      onLongPressLogo={handleToggleEmptyPreview}
     />
   );
 }

@@ -58,8 +58,10 @@ type HomeEmptyProps = {
   onPressDiscovery: (nameKo: string) => void;
   /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
   onPressNotifications: () => void;
-  /** 답하지 않은 여행 초대. 추천 여행지 위 배너와 모달. (InvitePrompt) */
+  /** 답하지 않은 여행 초대. 추천 여행지 위 배너. (InvitePrompt) */
   invitePrompt: InvitePromptProps;
+  /** [개발용] 로고 길게 누르기. 신규 사용자 홈 미리보기 토글. (HomeHeader) */
+  onLongPressLogo?: () => void;
 };
 
 /**
@@ -109,6 +111,7 @@ export function HomeEmpty({
   onPressDiscovery,
   onPressNotifications,
   invitePrompt,
+  onLongPressLogo,
 }: HomeEmptyProps) {
   const { expanded, onScroll } = useFabExpand();
 
@@ -119,6 +122,7 @@ export function HomeEmpty({
         userName={userName}
         daysToNextTrip={null}
         onPressNotifications={onPressNotifications}
+        onLongPressLogo={onLongPressLogo}
       />
 
       {/* 아래 여백은 기존 홈(HomeView)과 같은 값이다. 떠 있는 버튼까지 덮는다. */}

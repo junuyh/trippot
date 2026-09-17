@@ -45,31 +45,51 @@ type Props = {
   daysToNextTrip: number | null;
   /** 알림 버튼을 눌렀을 때. 받은 알림 목록으로 보낸다. */
   onPressNotifications: () => void;
+  /**
+   * [개발용] 로고를 길게 눌렀을 때. 화면 파일이 신규 사용자 홈 미리보기를 켜고 끈다.
+   * (2026-09-17) 넘기지 않으면 로고는 눌리지 않는다. 배포 빌드에서는 화면 파일이 넘기지 않는다.
+   */
+  onLongPressLogo?: () => void;
 };
 
 export function HomeHeader({
   userName: _userName,
   daysToNextTrip: _daysToNextTrip,
   onPressNotifications,
+  onLongPressLogo,
 }: Props) {
   const insets = useSafeAreaInsets();
 
   return (
     <View className="bg-white px-4 pb-3" style={{ paddingTop: insets.top + 12 }}>
       <View className="flex-row items-center">
-        <Image
-          source={require('@/assets/logo.png')}
-          style={{ width: 34, height: 28 }}
-          resizeMode="contain"
-          accessibilityRole="image"
-          accessibilityLabel="TripPot"
-        />
-        <Text
-          className="ml-2 flex-1 text-brand"
-          style={{ fontSize: 18, fontWeight: '700', letterSpacing: -0.4 }}
+        {/*
+          ⚠️ [개발용] 로고 + 이름 전체를 길게 누르면 신규 사용자 홈 미리보기를 켜고 끈다.
+             짧게 누르면 아무 일도 없다 — 사용자에게는 여전히 그냥 로고다.
+             onLongPressLogo 가 없으면 disabled 라 눌리지 않는다.
+             (글자색 text-brand 는 한나 브랜드 컬러 작업 그대로다)
+        */}
+        <Pressable
+          className="flex-1 flex-row items-center"
+          disabled={!onLongPressLogo}
+          onLongPress={onLongPressLogo}
+          delayLongPress={600}
+          accessible={false}
         >
-          TripPot
-        </Text>
+          <Image
+            source={require('@/assets/logo.png')}
+            style={{ width: 34, height: 28 }}
+            resizeMode="contain"
+            accessibilityRole="image"
+            accessibilityLabel="TripPot"
+          />
+          <Text
+            className="ml-2 flex-1 text-brand"
+            style={{ fontSize: 18, fontWeight: '700', letterSpacing: -0.4 }}
+          >
+            TripPot
+          </Text>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="알림"
