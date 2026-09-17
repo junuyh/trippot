@@ -543,7 +543,8 @@ export default function ScreenHOME01() {
   function handlePressAction(action: TripAction) {
     switch (action.intent) {
       case 'OPEN_JOIN_REQUESTS':
-        router.push(`/trips/${action.tripId}/edit`);
+        // ⚠️ focus=requests — 그냥 보내면 캘린더만 보이고 할 일이 안 보인다
+        router.push(`/trips/${action.tripId}/edit?focus=requests`);
         return;
       case 'OPEN_CANCEL_VOTE':
         router.push(`/trips/${action.tripId}?cxl=vote`);

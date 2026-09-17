@@ -94,10 +94,23 @@ export function buildJoinRequestAction(input: {
        두 줄을 넘는다.
   */
   const first = input.waitingNames[0];
+  /*
+    ⚠️⚠️ **용어는 두 단어뿐이다.** (2026-09-17 팀 확정)
+         받는 사람이 링크에 응하는 것 = **초대 수락**
+         여행장이 들이는 것           = **승인** (안 들이면 거절)
+       한때 받는 쪽을 "참여 요청" 으로 바꿨다가 "초대 수락" 으로 되돌렸다.
+       ⚠️ 여행장의 행동에 '수락' 을 쓰지 않는다. 양쪽이 모두 '수락' 이면 누가
+          결정권자인지 사라진다.
+
+    ⚠️ "함께 가고 싶어 해요" 는 쓰지 않는다. 홈에서 이 배너가 초대 배너
+       ("○○님이 도쿄 여행에 초대했어요") 바로 아래 뜨는데, 문장만으로는 방향이
+       안 드러난다. 방향은 **부제**가 말한다 — "{여행} · 승인 대기 N건" 이
+       붙는 쪽이 내가 승인할 차례다. (2026-09-17 다빈)
+  */
   const headline =
     count === 1
-      ? `${first}님이 함께 가고 싶어 해요`
-      : `${first}님 외 ${count - 1}명이 참여를 기다리고 있어요`;
+      ? `${first}님이 초대를 수락했어요`
+      : `${first}님 외 ${count - 1}명이 초대를 수락했어요`;
 
   return {
     id: `${input.tripId}:JOIN_REQUEST`,
@@ -108,7 +121,8 @@ export function buildJoinRequestAction(input: {
     icon: 'person-add-outline',
     headline,
     meta: `승인 대기 ${count}건`,
-    note: '수락은 여행장만 할 수 있어요. 지금 결정하지 않아도 괜찮아요.',
+    // ⚠️ 여행장의 행동은 '승인' 이다. 여기에 '수락' 을 쓰면 받는 사람의 행동과 겹친다
+    note: '승인은 여행장만 할 수 있어요. 지금 결정하지 않아도 괜찮아요.',
     ctaLabel: '확인하기',
     intent: 'OPEN_JOIN_REQUESTS',
   };

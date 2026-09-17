@@ -1922,8 +1922,9 @@ export default function ScreenTripHome() {
         <View className="px-1 pb-3 pt-1">
           <JoinRequestBanner
             action={joinRequestAction}
-            /* 수락·거절은 저기에 있다. 여기에 또 만들지 않는다 */
-            onOpen={() => router.push(`/trips/${trip.id}/edit`)}
+            /* 수락·거절은 저기에 있다. 여기에 또 만들지 않는다
+               ⚠️ focus=requests — 그냥 보내면 캘린더만 보이고 할 일이 안 보인다 */
+            onOpen={() => router.push(`/trips/${trip.id}/edit?focus=requests`)}
           />
         </View>
       ) : null}
