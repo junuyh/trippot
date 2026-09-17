@@ -1,5 +1,5 @@
 // ============================================================================
-// 초대 링크를 열 수 없을 때 — 전체 화면 (/invite/[token])
+// 초대 링크를 열 수 없을 때 — 전체 화면 (/invite/[token] · /invite/by/[inviteId])
 //
 // resolveInvite() 가 실패한 이유별로 다른 말을 한다. 다섯 가지를 "잘못된
 // 링크예요" 하나로 묶으면, 만료된 사람은 새 링크를 받으면 된다는 걸 모르고
@@ -10,11 +10,16 @@
 //
 // ⚠️ ALREADY_REJECTED 에 "거절당했어요" 라고 쓰지 않는다. 사유를 전달하지
 //    않는 것이 정책이고, 링크가 안 된다는 사실만 알리면 된다. (POL-INV-051)
+//
+// 2026-09-16 · visual 만 바꿨다 (InviteShell 카드 안 · 공용 EmptyState 대신 같은 구성을 그린다).
+//    아이콘 · 문구 · [홈으로] 동작은 그대로다.
 // ============================================================================
-import { View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Text, View } from "react-native";
 
-import { EmptyState } from "@/components/ui";
-
+import { InvitePrimaryButton } from "./InviteButtons";
+import { InviteShell } from "./InviteShell";
+import { INVITE_THEME } from "./inviteTheme";
 import type { InviteFailReason } from "./types";
 
 type Copy = {
@@ -40,8 +45,8 @@ const COPY: Record<InviteFailReason, Copy> = {
   // 같은 invite 에서 거절된 사람. 다른 사람·새 링크에는 영향이 없다. (docs/12 §4)
   ALREADY_REJECTED: {
     icon: "lock-closed-outline",
-    title: "이 초대에서는 다시 요청할 수 없어요",
-    description: "새 초대 링크를 받으면 다시 참여 요청을 보낼 수 있어요.",
+    title: "이 초대에는 다시 응답할 수 없어요",
+    description: "새 초대 링크를 받으면 다시 수락할 수 있어요.",
   },
   NOT_FOUND: {
     icon: "link-outline",
@@ -58,14 +63,27 @@ type Props = {
 export function InviteUnavailableView({ reason, onGoHome }: Props) {
   const copy = COPY[reason];
   return (
-    <View className="flex-1 bg-white">
-      <EmptyState
-        icon={copy.icon}
-        title={copy.title}
-        description={copy.description}
-        actionLabel="홈으로"
-        onAction={onGoHome}
-      />
-    </View>
+    <InviteShell footer={<InvitePrimaryButton label="홈으로" onPress={onGoHome} />}>
+      <View className="items-center">
+        <View
+          className="mt-8 h-14 w-14 items-center justify-center rounded-full"
+          style={{ backgroundColor: INVITE_THEME.well }}
+        >
+          <Ionicons name={copy.icon} size={26} color={INVITE_THEME.primary} />
+        </View>
+        <Text
+          className="mt-4 text-center text-base font-semibold"
+          style={{ color: INVITE_THEME.ink }}
+        >
+          {copy.title}
+        </Text>
+        <Text
+          className="mt-1.5 text-center text-sm leading-5"
+          style={{ color: INVITE_THEME.body }}
+        >
+          {copy.description}
+        </Text>
+      </View>
+    </InviteShell>
   );
 }

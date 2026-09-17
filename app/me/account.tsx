@@ -17,9 +17,9 @@ import { Alert, ScrollView } from 'react-native';
 
 import {
   AccountView,
+  WithdrawConfirmModal,
   ENGLISH_NAME_MAX_LENGTH,
   NAME_MAX_LENGTH,
-  WithdrawConfirmModal,
 } from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
@@ -30,7 +30,9 @@ import {
   toProductAuthProvider,
   updateUserEnglishName,
   updateUserName,
-  withdrawUser,
+  WITHDRAWAL_ERROR,
+  requestWithdrawal,
+  withdrawalErrorCode,
 } from '@/lib/supabase/queries/users';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -211,11 +213,20 @@ export default function ScreenMyAccount() {
 
     setWithdrawing(true);
     try {
-      await withdrawUser(userId);
-    } catch {
+      // 30일 유예 신청. 즉시 지우지 않는다 — 서버가 요청 시각만 찍고 30일 뒤 최종 처리한다.
+      await requestWithdrawal();
+    } catch (error) {
       setWithdrawing(false);
       setWithdrawAsking(false);
-      Alert.alert('탈퇴하지 못했어요', '잠시 후 다시 시도해 주세요.');
+      if (withdrawalErrorCode(error) === WITHDRAWAL_ERROR.LEADER_MUST_DELEGATE) {
+        // 자동 위임하지 않는다. 누구에게 넘길지는 본인이 멤버 관리에서 고른다.
+        Alert.alert(
+          '여행장인 여행이 있어요',
+          '함께하는 멤버가 있는 여행의 여행장은 탈퇴할 수 없어요. 여행 멤버 관리에서 여행장을 다른 멤버에게 위임한 뒤 다시 시도해 주세요.',
+        );
+        return;
+      }
+      Alert.alert('탈퇴를 신청하지 못했어요', '잠시 후 다시 시도해 주세요.');
       return;
     }
 
@@ -226,7 +237,7 @@ export default function ScreenMyAccount() {
       // 여기서 되돌리지 않는다. 사용자가 직접 로그아웃하면 정리된다.
       setWithdrawing(false);
       setWithdrawAsking(false);
-      Alert.alert('탈퇴했어요', '로그아웃에 실패했어요. 앱을 다시 실행해 주세요.');
+      Alert.alert('탈퇴를 신청했어요', '로그아웃에 실패했어요. 앱을 다시 실행해 주세요.');
     }
   }
 
@@ -241,7 +252,7 @@ export default function ScreenMyAccount() {
       ) : null}
       {loadState === 'ready' ? (
         <ScrollView
-          className="flex-1 bg-pot-visual"
+          className="flex-1 bg-brand-soft"
           contentContainerClassName="pb-16"
           keyboardShouldPersistTaps="handled"
         >

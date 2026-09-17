@@ -43,8 +43,10 @@ export function WithdrawConfirmModal({ visible, busy, onCancel, onConfirm }: Pro
                "모든 정보가 삭제됩니다" 라고 쓰면 사실이 아니다.
           */}
           <Text className="mt-2 text-pot-mute" style={{ fontSize: 13, lineHeight: 20 }}>
-            탈퇴하면 프로필과 내 활동을 더 이상 볼 수 없어요.{'\n'}
-            함께한 모임과 여행 기록은 다른 참여자를 위해 남습니다.
+            회원 탈퇴를 신청하면 30일 후 탈퇴가 완료됩니다.{'\n'}
+            30일 이내에는 탈퇴를 취소할 수 있습니다.{'\n\n'}
+            회원정보는 최종 탈퇴 후 삭제되지만,{'\n'}
+            다른 멤버와 함께 만든 여행·납부·지출·정산 기록은 유지됩니다.
           </Text>
 
           <View className="mt-5 flex-row gap-2">

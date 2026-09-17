@@ -329,26 +329,6 @@ export default function ScreenTRIP01() {
     );
   }, [draft.newGroupName]);
 
-  const handleAddCompanion = useCallback(() => {
-    patchDraft({ companionNames: [...draft.companionNames, ''] });
-  }, [draft.companionNames, patchDraft]);
-
-  const handleChangeCompanion = useCallback(
-    (index: number, value: string) => {
-      const next = [...draft.companionNames];
-      next[index] = value;
-      patchDraft({ companionNames: next });
-    },
-    [draft.companionNames, patchDraft],
-  );
-
-  const handleRemoveCompanion = useCallback(
-    (index: number) => {
-      patchDraft({ companionNames: draft.companionNames.filter((_, i) => i !== index) });
-    },
-    [draft.companionNames, patchDraft],
-  );
-
   // ── 다음 단계 ─────────────────────────────────────────────────────────
   const showPastDataChoice = draft.pastTripCount > 0 && !pastCountLoading;
 
@@ -403,11 +383,7 @@ export default function ScreenTRIP01() {
     }
 
     if (draft.companionType === COMPANION_TYPE.NEW_GROUP) {
-      // 빈 칸으로 남은 동행자 입력은 저장하지 않는다.
-      patchDraft({
-        newGroupName: trimmedGroupName,
-        companionNames: draft.companionNames.map((n) => n.trim()).filter(Boolean),
-      });
+      patchDraft({ newGroupName: trimmedGroupName });
     }
 
     if (navigatingRef.current) return;
@@ -419,7 +395,6 @@ export default function ScreenTRIP01() {
   }, [
     canProceed,
     draft.applyPastData,
-    draft.companionNames,
     draft.companionType,
     draft.pastDataInteracted,
     draft.pastTripCount,
@@ -514,10 +489,6 @@ export default function ScreenTRIP01() {
                   onChangeGroupName={handleChangeGroupName}
                   groupNameError={groupNameError}
                   onBlurGroupName={handleBlurGroupName}
-                  companionNames={draft.companionNames}
-                  onChangeCompanionName={handleChangeCompanion}
-                  onAddCompanion={handleAddCompanion}
-                  onRemoveCompanion={handleRemoveCompanion}
                 />
               ),
             }}

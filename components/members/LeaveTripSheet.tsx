@@ -99,7 +99,7 @@ export function LeaveTripSheet({
           </View>
         }
       >
-        <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+        <View style={{ paddingBottom: 8 }}>
           <BranchNotice
             tone="warn"
             title={
@@ -137,7 +137,7 @@ export function LeaveTripSheet({
         description={`${destination} 여행을 이어서 준비할 사람이 필요해요.`}
         footer={<Button label="여행장 넘기기" onPress={onOpenDelegate} />}
       >
-        <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+        <View style={{ paddingBottom: 8 }}>
           /*
             ⚠️ **여행장만 할 수 있는 일은 '참여 요청 수락' 하나뿐이다.** (2026-09-14 다빈 확인)
                초대는 ACTIVE 멤버 누구나 하고(canInviteToTrip), 여행 정보와 예산은 모든
@@ -176,7 +176,7 @@ export function LeaveTripSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         <View style={{ gap: 8 }}>
           <LeaveChoice
             selected={alsoLeaveGroup === false}
@@ -210,7 +210,13 @@ export function LeaveTripSheet({
   );
 }
 
-function LeaveChoice({
+/**
+ * '이 여행에서만 / 모임에서도' 선택지 한 줄.
+ *
+ * ⚠️ DelegateLeaderSheet 도 이걸 쓴다. 위임 경로에도 같은 선택을 물어야 해서다.
+ *    두 시트가 각자 그리면 문구와 생김새가 갈린다. (2026-09-15)
+ */
+export function LeaveChoice({
   selected,
   disabled,
   title,
@@ -231,15 +237,15 @@ function LeaveChoice({
       disabled={disabled}
       onPress={onPress}
       className={`flex-row items-center gap-2.5 rounded-xl border px-3.5 py-3 active:opacity-70 ${
-        selected ? "border-blue-600 bg-white" : "border-gray-200 bg-white"
+        selected ? "border-brand bg-white" : "border-gray-200 bg-white"
       } ${disabled ? "opacity-40" : ""}`}
     >
       <View
         className={`h-5 w-5 items-center justify-center rounded-full border-2 ${
-          selected ? "border-blue-600" : "border-gray-300"
+          selected ? "border-brand" : "border-gray-300"
         }`}
       >
-        {selected ? <View className="h-2 w-2 rounded-full bg-blue-600" /> : null}
+        {selected ? <View className="h-2 w-2 rounded-full bg-brand" /> : null}
       </View>
       <View style={{ flex: 1 }}>
         <Text className="text-sm font-semibold text-gray-900">{title}</Text>

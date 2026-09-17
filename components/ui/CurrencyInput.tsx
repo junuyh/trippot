@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
+import { useDeferredPlaceholder } from '@/lib/hooks/useDeferredPlaceholder';
+
 type Props = {
   label?: string;
   /** 금액. **정수 원 단위**다. 값이 없으면 null. */
@@ -38,6 +40,8 @@ export function CurrencyInput({
   max = DEFAULT_MAX,
 }: Props) {
   const invalid = Boolean(error);
+  // ⚠️ 첫 그림에서 플레이스홀더가 번진다. 한 틱 뒤에 넣어 다시 그리게 한다.
+  const deferredPlaceholder = useDeferredPlaceholder(placeholder);
   const display = useMemo(() => (value === null ? '' : value.toLocaleString('ko-KR')), [value]);
 
   function handleChange(text: string) {
@@ -70,7 +74,7 @@ export function CurrencyInput({
           accessibilityLabel={label}
           value={display}
           onChangeText={handleChange}
-          placeholder={placeholder}
+          placeholder={deferredPlaceholder}
           placeholderTextColor="#9ca3af"
           keyboardType="number-pad"
           inputMode="numeric"

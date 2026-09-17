@@ -5,14 +5,21 @@
 //    "모든 DB Query 는 queries/ 안에" 로 정해 두었고 그쪽이 우선한다. (§0)
 //    판정은 lib/trip/tripLeader.ts · lib/trip/members.ts(순수 유틸) 다.
 //
-// ⚠️⚠️ supabase-js 에는 트랜잭션이 없다. 나가기는 표 두 개를 잇달아 바꾸고,
-//    위임은 거기에 trips 까지 더한다. 각 함수에 순서와 실패 시 남는 상태를 적었다.
+// ⚠️⚠️ 나가기·위임은 **서버 함수(RPC)** 를 거친다. (보안 점검 필수 6 · 2026-09-16)
+//    앱이 trip_members.status · trips.leader_user_id 를 직접 고치지 않는다.
+//    "본인만" · "여행장만" · "마지막 1명" 판정을 서버가 한다.
+//    마이그레이션 20260916000004 · 계약서 .handoff/필수6-RPC계약서.md
+//
+// ⚠️ 그래서 **userId 를 인자로 받지 않는다.** 서버가 auth.uid() 로 정한다.
+//    받아 두면 "남을 대신 내보낼 수 있다" 는 착각을 주는데 서버는 그 값을
+//    보지도 않는다. 조용히 무시되는 인자를 남기지 않는다.
+//
+// ⚠️ 여러 표를 잇달아 바꾸는 순서 문제도 서버로 넘어갔다. RPC 하나가 한
+//    트랜잭션이라 중간에 끊기지 않는다. (supabase-js 에는 트랜잭션이 없다)
 // ============================================================================
-import {
-  GROUP_MEMBER_STATUS,
-  TRIP_MEMBER_STATUS,
-} from '@/lib/constants/status';
+import { TRIP_MEMBER_STATUS } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
+import type { AfterLeaveOutcome } from '@/lib/supabase/queries/tripCancel';
 import type { Tables } from '@/types/database';
 
 export type TripMemberRow = Tables<'trip_members'>;
@@ -74,75 +81,51 @@ export async function listActiveTripMembers(
 /**
  * 여행에서 나간다. (POL-MEM-001 · 002 · 005)
  *
- * ⚠️ **거래·납부 기록을 지우지 않는다.** status 를 LEFT 로 바꾸고 left_at 만
- *    찍는다. 지우면 남은 사람들의 정산 근거가 사라진다.
+ * 서버(`leave_trip`)가 검사한다 — 본인 여부 · ACTIVE · 마지막 1명 · 여행장 여부.
+ * 여행장이면 `NEEDS_DELEGATION` 으로 거절한다. delegateAndLeave 로만 나간다.
  *
- * ⚠️ 순서 — 여행 먼저, 모임 나중.
- *    여행에서 못 나갔는데 모임에서만 빠지면, 여행 화면에는 그대로 있으면서
- *    다음 여행 초대만 못 받는 이상한 상태가 된다. 반대 순서면 여행에서만
- *    빠진 상태로 남아 사용자가 다시 시도하면 된다.
+ * ⚠️ 거래·납부 기록을 지우지 않는다. status 를 LEFT 로 바꾸고 left_at 만 찍는다.
+ *    지우면 남은 사람들의 정산 근거가 사라진다.
  *
- * ⚠️ 여행장 판정은 **호출부가 먼저 한다.** (canLeaveTrip) 여기서 또 하면
- *    판정이 두 곳에 생긴다.
+ * ⚠️ 모임 이탈까지 **같은 호출 안에서** 처리된다. 이 앱에서 모임을 나가는
+ *    통로가 나가기 시트뿐이라 둘을 떼면 모임에 갇히는 사람이 생긴다.
+ *
+ * ⚠️ 취소 재판정도 서버가 이어서 한다. 따로 부르지 않는다 — 반환값이 그 결과다.
+ *    (예전에는 화면이 recheckAfterMemberLeft 를 이어서 불렀고, 빠뜨리면 이미
+ *     전원이 동의했는데도 요청이 대기로 남았다)
+ *
+ * @returns 나간 뒤 취소 요청이 어떻게 됐는지. 화면이 MEM-03 갈래를 정하는 데 쓴다
  */
 export async function leaveTrip(input: {
   tripId: string;
-  userId: string;
   /** 모임에서도 나갈지. 개인 여행이면 false 를 넘긴다 */
   alsoLeaveGroup: boolean;
-  /** 모임 여행일 때의 모임 id. alsoLeaveGroup 이 true 면 필요하다 */
-  groupId: string | null;
-}): Promise<void> {
-  const now = new Date().toISOString();
-
-  const { error } = await supabase
-    .from('trip_members')
-    .update({ status: TRIP_MEMBER_STATUS.LEFT, left_at: now })
-    .eq('trip_id', input.tripId)
-    .eq('user_id', input.userId)
-    /**
-     * ⚠️ ACTIVE 행만 바꾼다. trip_members 에는 unique (trip_id, user_id) 가
-     *    없어서 같은 사람 행이 여러 개일 수 있다. 조건을 빼면 예전에 나갔던
-     *    행의 left_at 까지 지금 시각으로 덮어써 "언제 나갔는지" 가 어긋난다.
-     * ⚠️ 멱등성도 여기서 나온다 — 이미 나간 사람이 다시 불러도 아무 일이 없다.
-     */
-    .eq('status', TRIP_MEMBER_STATUS.ACTIVE);
+}): Promise<AfterLeaveOutcome> {
+  const { data, error } = await supabase.rpc('leave_trip', {
+    p_trip_id: input.tripId,
+    p_also_leave_group: input.alsoLeaveGroup,
+  });
   if (error) throw error;
-
-  if (input.alsoLeaveGroup && input.groupId) {
-    const { error: groupError } = await supabase
-      .from('group_members')
-      // ⚠️ group_members 에는 left_at 이 없다. status 만 바꾼다.
-      //    (trip_members 에만 20260910000001 이 left_at 을 넣었다)
-      .update({ status: GROUP_MEMBER_STATUS.LEFT })
-      .eq('group_id', input.groupId)
-      .eq('user_id', input.userId);
-    // 여행에서는 이미 나갔다. 모임 이탈이 실패해도 그건 되돌리지 않는다.
-    // 되돌리면 "나갔다" 는 사용자 인식과 어긋난다. 모임은 다시 시도하면 된다.
-    if (groupError) throw groupError;
-  }
-
-  // TODO: notify MEMBER_LEFT → 남은 멤버 (모임 이탈 여부는 담지 않는다 · POL-MEM-007)
+  return (data ?? 'NONE') as AfterLeaveOutcome;
 }
 
 /**
  * 여행장을 넘긴다. (POL-INV-004 · 005)
  *
+ * 서버(`delegate_trip_leader`)가 검사한다 — 호출자가 현재 여행장인지,
+ * 넘길 대상이 이 여행의 ACTIVE 가입 멤버인지.
+ *
  * ⚠️ **되돌릴 수 없다.** 화면이 그 사실을 미리 알린다.
- *
- * ⚠️ trips.leader_user_id 한 곳만 바꾼다. trip_members 에 role 이 없어서
- *    맞출 곳이 하나뿐이다. 이게 role 을 안 만든 이유다.
- *
- * ⚠️ 멱등 — 이미 그 사람이 여행장이면 아무것도 하지 않는다.
+ * ⚠️ 이미 그 사람이 여행장이면 아무것도 하지 않는다 (멱등).
  */
 export async function delegateTripLeader(
   tripId: string,
   toUserId: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from('trips')
-    .update({ leader_user_id: toUserId })
-    .eq('id', tripId);
+  const { error } = await supabase.rpc('delegate_trip_leader', {
+    p_trip_id: tripId,
+    p_to_user_id: toUserId,
+  });
   if (error) throw error;
 
   // TODO: notify OWNER_DELEGATED → 새 여행장
@@ -151,22 +134,24 @@ export async function delegateTripLeader(
 /**
  * 여행장을 넘기고 나간다. MEM-02 의 실제 동작.
  *
- * ⚠️ 순서 — **위임 먼저, 나가기 나중.**
- *    나가기가 먼저면 그 사이 여행장 없는 여행이 생긴다. 위임이 실패하면
- *    나가지 않은 상태로 남아 사용자가 다시 시도할 수 있다.
+ * ⚠️ 위임 먼저, 나가기 나중 — **서버가 한 함수 안에서** 한다.
+ *    예전에는 앱이 두 번 불렀고, 나가기가 먼저 돌면 그 사이 여행장 없는 여행이
+ *    생겼다. 실제로 오사카 여행이 그렇게 돼서 참여 요청을 수락할 사람이 없어졌다.
+ *
+ * ⚠️ fromUserId 를 받지 않는다. 넘기는 사람은 언제나 호출자 본인이다.
  */
 export async function delegateAndLeave(input: {
   tripId: string;
-  fromUserId: string;
   toUserId: string;
   alsoLeaveGroup: boolean;
-  groupId: string | null;
-}): Promise<void> {
-  await delegateTripLeader(input.tripId, input.toUserId);
-  await leaveTrip({
-    tripId: input.tripId,
-    userId: input.fromUserId,
-    alsoLeaveGroup: input.alsoLeaveGroup,
-    groupId: input.groupId,
+}): Promise<AfterLeaveOutcome> {
+  const { data, error } = await supabase.rpc('delegate_and_leave', {
+    p_trip_id: input.tripId,
+    p_to_user_id: input.toUserId,
+    p_also_leave_group: input.alsoLeaveGroup,
   });
+  if (error) throw error;
+
+  // TODO: notify OWNER_DELEGATED → 새 여행장 · MEMBER_LEFT → 남은 멤버
+  return (data ?? 'NONE') as AfterLeaveOutcome;
 }

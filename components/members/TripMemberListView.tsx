@@ -32,6 +32,8 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { Button } from "@/components/ui";
 import type { JoinRequestItem } from "@/components/invite";
 
+import { BRAND } from "@/lib/constants/brandColor";
+
 import type { TripMemberItem } from "./types";
 
 type Props = {
@@ -132,7 +134,7 @@ export function TripMemberListView({
         {/* 여행장만 — 참여 요청 */}
         {isLeaderView && pendingRequests.length > 0 ? (
           <>
-            <SectionTitle>참여 요청 {pendingRequests.length}건</SectionTitle>
+            <SectionTitle>승인 대기 {pendingRequests.length}건</SectionTitle>
             <View className="overflow-hidden rounded-2xl bg-white">
               {pendingRequests.map((request, index) => (
                 <View
@@ -157,9 +159,9 @@ export function TripMemberListView({
                   </View>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${request.name} 참여 요청 보기`}
+                    accessibilityLabel={`${request.name} 초대 수락 보기`}
                     onPress={() => onOpenRequest(request.requestId)}
-                    className="rounded-lg bg-blue-600 px-3 py-2 active:opacity-80"
+                    className="rounded-lg bg-brand px-3 py-2 active:bg-brand-pressed"
                   >
                     <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>보기</Text>
                   </Pressable>
@@ -175,7 +177,7 @@ export function TripMemberListView({
             <SectionTitle>초대 보냄</SectionTitle>
             <View className="rounded-2xl bg-white px-4 py-3.5">
               <Text style={{ fontSize: 12.5, lineHeight: 19, color: "#8B94A2" }}>
-                초대 링크를 보냈어요 · 7일간 유효해요. 상대가 참여를 요청하면 여기에 표시돼요.
+                초대 링크를 보냈어요 · 7일간 유효해요. 상대가 초대를 수락하면 여기에 표시돼요.
               </Text>
             </View>
           </>
@@ -218,9 +220,9 @@ function Badge({ tone, children }: { tone: "brand" | "wait"; children: string })
   return (
     <View
       className="shrink-0 rounded px-1.5 py-0.5"
-      style={{ backgroundColor: brand ? "#EBF1FF" : "#FFF7E8" }}
+      style={{ backgroundColor: brand ? BRAND.primarySoft : "#FFF7E8" }}
     >
-      <Text style={{ fontSize: 10, fontWeight: "800", color: brand ? "#0043D1" : "#8A5A00" }}>
+      <Text style={{ fontSize: 10, fontWeight: "800", color: brand ? BRAND.primary : "#8A5A00" }}>
         {children}
       </Text>
     </View>

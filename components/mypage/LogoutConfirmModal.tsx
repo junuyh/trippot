@@ -35,7 +35,7 @@ export function LogoutConfirmModal({ visible, onCancel, onConfirm }: Props) {
               <Button label="취소" variant="secondary" onPress={onCancel} />
             </View>
             <View className="flex-1">
-              <Button label="로그아웃" onPress={onConfirm} />
+              <Button label="로그아웃" variant="brand" onPress={onConfirm} />
             </View>
           </View>
         </Pressable>

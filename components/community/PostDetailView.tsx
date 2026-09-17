@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Dimensions, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Avatar } from './Avatar';
+import { BRAND } from '@/lib/constants/brandColor';
 import type { PostDetailData } from './types';
 
 type Props = {
@@ -210,7 +211,7 @@ export function PostDetailView({
           <Ionicons
             name={post.likedByMe ? 'thumbs-up' : 'thumbs-up-outline'}
             size={20}
-            color={post.likedByMe ? '#111827' : '#747B88'}
+            color={post.likedByMe ? BRAND.primary : '#747B88'}
           />
           {post.likeCount > 0 ? (
             <Text className="ml-2 text-pot-mute" style={{ fontSize: 14, ...NUM }}>
@@ -236,7 +237,7 @@ export function PostDetailView({
           <Ionicons
             name={post.dislikedByMe ? 'thumbs-down' : 'thumbs-down-outline'}
             size={20}
-            color={post.dislikedByMe ? '#111827' : '#747B88'}
+            color={post.dislikedByMe ? BRAND.primary : '#747B88'}
           />
           {post.dislikeCount > 0 ? (
             <Text className="ml-2 text-pot-mute" style={{ fontSize: 14, ...NUM }}>
@@ -273,7 +274,7 @@ export function PostDetailView({
           <Ionicons
             name={post.bookmarkedByMe ? 'bookmark' : 'bookmark-outline'}
             size={21}
-            color="#111827"
+            color={BRAND.primary}
           />
         </Pressable>
       </View>

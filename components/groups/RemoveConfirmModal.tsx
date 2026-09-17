@@ -45,7 +45,7 @@ export function RemoveConfirmModal({ visible, count, saving, onCancel, onConfirm
               <Button label="취소" variant="secondary" onPress={onCancel} disabled={saving} />
             </View>
             <View className="flex-1">
-              <Button label="목록에서 숨김" onPress={onConfirm} loading={saving} />
+              <Button label="목록에서 숨김" variant="brand" onPress={onConfirm} loading={saving} />
             </View>
           </View>
         </Pressable>

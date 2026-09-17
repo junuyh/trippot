@@ -110,7 +110,7 @@ export function CancelReasonSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 18 }}>
+      <View style={{ paddingBottom: 8, gap: 18 }}>
         {/*
           구제 카드 — 취소하지 않아도 되는 길을 먼저 보여준다.
           ⚠️ 누르면 시트를 닫고 이동한다. 돌아올 때 다시 열지 않는다. (스펙 §7)
@@ -188,10 +188,10 @@ export function CancelReasonSheet({
                 >
                   <View
                     className={`h-5 w-5 items-center justify-center rounded-full border-2 ${
-                      on ? "border-blue-600" : "border-gray-300"
+                      on ? "border-brand" : "border-gray-300"
                     }`}
                   >
-                    {on ? <View className="h-2 w-2 rounded-full bg-blue-600" /> : null}
+                    {on ? <View className="h-2 w-2 rounded-full bg-brand" /> : null}
                   </View>
                   <Text
                     style={{

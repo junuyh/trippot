@@ -1137,12 +1137,15 @@ export default function ScreenTRIP03() {
           headcount: draft.headcount,
           travel_style_json: { style: draft.travelStyle },
         },
-        members: [
-          // 본인
-          { user_id: userId },
-          // 아직 가입하지 않은 동행자는 이름만 저장한다. (docs/README.md §5 #15)
-          ...draft.companionNames.map((name) => ({ display_name: name })),
-        ],
+        /**
+         * 만든 사람만 넣는다.
+         *
+         * ⚠️ 2026-09-15 · 예전에는 TRIP-01 에서 받은 동행자 이름을
+         *    display_name 행으로 함께 넣었다. 그 행과 초대를 수락하고 들어온
+         *    사람을 잇는 장치가 없어 같은 사람이 두 번 보였다.
+         *    이제 멤버는 초대 수락으로만 늘어난다. (NewGroupForm 주석)
+         */
+        members: [{ user_id: userId }],
         budget: {
           method,
           target_amount: targetTotal,

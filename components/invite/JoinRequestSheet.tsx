@@ -68,8 +68,8 @@ export function JoinRequestSheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      title={`${request.name}님이 참여를 요청했어요`}
-      description={`수락하면 ${destination} 여행 준비를 함께할 수 있어요.`}
+      title={`${request.name}님이 초대를 수락했어요`}
+      description="함께할지 확인해 주세요."
       footer={
         <View style={{ gap: 8 }}>
           <View className="flex-row" style={{ gap: 8 }}>
@@ -82,24 +82,24 @@ export function JoinRequestSheet({
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Button label="수락하기" loading={deciding} onPress={onAccept} />
+              <Button label="승인하기" loading={deciding} onPress={onAccept} />
             </View>
           </View>
           <Text
             style={{ fontSize: 11.5, lineHeight: 18, color: "#8B94A2", textAlign: "center" }}
           >
-            거절하면 {request.name}님에게도 알려드려요. 이 링크로는 다시 요청할 수 없어요.
+            거절하면 {request.name}님에게도 알려드려요. 이 초대에는 다시 응답할 수 없어요.
           </Text>
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         <View className="rounded-xl border border-gray-200 bg-white px-3.5 py-3">
           <Text style={{ fontSize: 14.5, fontWeight: "700", color: "#111827" }}>
             {request.name}
           </Text>
           <Text style={{ marginTop: 3, fontSize: 12, color: "#8B94A2" }}>
-            {requestedAtLabel} 요청 · 초대 링크로 들어옴
+            {requestedAtLabel} · 초대 링크로 수락
           </Text>
         </View>
 
@@ -110,7 +110,7 @@ export function JoinRequestSheet({
         */}
         <BranchNotice
           tone="info"
-          title={`수락하면 ${request.name}님도 이걸 볼 수 있어요`}
+          title={`승인하면 ${request.name}님도 이걸 볼 수 있어요`}
           body={
             accountLabel
               ? `여행 예산과 계획, 함께하는 사람, 그리고 ${accountLabel}의 잔액과 입출금 내역이요.`
@@ -122,11 +122,11 @@ export function JoinRequestSheet({
         {needsNewGroup ? (
           <BranchNotice
             tone="info"
-            title="수락하면 이 여행을 위한 새 모임이 만들어져요"
+            title="승인하면 이 여행을 위한 새 모임이 만들어져요"
             body={
               fromGroupName
-                ? `${request.name}님은 ${fromGroupName} 멤버가 아니라서, 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. ${fromGroupName}의 다른 여행과 멤버는 그대로예요. 모임 이름은 수락할 때 정해요.`
-                : `개인 여행에 다른 사람이 들어오면 모임 여행이 돼요. 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. 모임 이름은 수락할 때 정해요.`
+                ? `${request.name}님은 ${fromGroupName} 멤버가 아니라서, 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. ${fromGroupName}의 다른 여행과 멤버는 그대로예요. 모임 이름은 승인할 때 정해요.`
+                : `개인 여행에 다른 사람이 들어오면 모임 여행이 돼요. 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. 모임 이름은 승인할 때 정해요.`
             }
           />
         ) : null}

@@ -84,7 +84,7 @@ export default function ScreenMyComments() {
 
   return (
     // 바탕은 작성한 게시글·좋아요와 같은 pot-visual 이다.
-    <View className="flex-1 bg-pot-visual">
+    <View className="flex-1 bg-brand-soft">
       <Stack.Screen options={{ title: '작성한 댓글', headerTitleAlign: 'center' }} />
 
       {loadState === 'loading' ? <Loading /> : null}

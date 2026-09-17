@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image, Pressable, Text, View } from 'react-native';
 
 import { POST_TYPE, type PostType } from '@/lib/constants/status';
+import { BRAND } from '@/lib/constants/brandColor';
 
 import { Avatar } from './Avatar';
 import type { PostCardData } from './types';
@@ -23,7 +24,7 @@ const PHOTO_RATIO = 1.15;
  * PAID_TIP 은 목록에 나오지 않지만(유료 기능 제외) 타입을 채우려고 함께 둔다.
  */
 const BADGE: Record<PostType, { color: string; soft: string }> = {
-  [POST_TYPE.FREE_TIP]: { color: '#6C5CE7', soft: '#EFEDFF' },
+  [POST_TYPE.FREE_TIP]: { color: BRAND.primary, soft: BRAND.primarySoft },
   [POST_TYPE.POST]: { color: '#F0424E', soft: '#FFECEE' },
   [POST_TYPE.TYPE_SHARE]: { color: '#1F9160', soft: '#E8F5EE' },
   [POST_TYPE.PAID_TIP]: { color: '#747B88', soft: '#F1F3F6' },
@@ -141,7 +142,7 @@ export function PostCard({ post, onPress }: Props) {
         <Ionicons
           name={post.likedByMe ? 'thumbs-up' : 'thumbs-up-outline'}
           size={15}
-          color={post.likedByMe ? '#111827' : '#8B94A2'}
+          color={post.likedByMe ? BRAND.primary : '#8B94A2'}
         />
         <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
           {post.likeCount}
@@ -150,7 +151,7 @@ export function PostCard({ post, onPress }: Props) {
         <Ionicons
           name={post.dislikedByMe ? 'thumbs-down' : 'thumbs-down-outline'}
           size={15}
-          color={post.dislikedByMe ? '#111827' : '#8B94A2'}
+          color={post.dislikedByMe ? BRAND.primary : '#8B94A2'}
           style={{ marginLeft: 18 }}
         />
         <Text className="ml-1.5 text-pot-mute" style={{ fontSize: 12, ...NUM }}>
@@ -171,7 +172,7 @@ export function PostCard({ post, onPress }: Props) {
 
         {/* 찜 표시. 목록에서는 보여주기만 한다 — 누르면 글로 들어간다.
             카드 전체가 이미 누르는 자리라 그 안에 또 누를 곳을 만들지 않는다. */}
-        {post.bookmarkedByMe ? <Ionicons name="bookmark" size={15} color="#111827" /> : null}
+        {post.bookmarkedByMe ? <Ionicons name="bookmark" size={15} color={BRAND.primary} /> : null}
       </View>
     </Pressable>
   );

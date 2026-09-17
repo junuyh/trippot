@@ -285,16 +285,15 @@ export default function ScreenMY01() {
     router.push('/me/likes');
   }
 
-  function handlePressNotification() {
-    router.push('/me/settings/notifications');
+  function handlePressMyBookmarks() {
+    router.push('/me/bookmarks');
   }
 
   /**
    * 헤더 알림 아이콘. 받은 알림 목록으로 간다.
    *
-   * ⚠️ 설정 > 알림 설정 과 다른 화면이다.
-   *    설정 > 알림 설정 = 어떤 알림을 받을지 (/me/settings/notifications)
-   *    이 버튼          = 실제로 받은 알림   (/me/notifications)
+   * ⚠️ /me/settings/notifications(어떤 알림을 받을지)와 다른 화면이다.
+   *    이 버튼 = 실제로 받은 알림 (/me/notifications). 알림 설정 메뉴는 MY 에서 뺐다.
    */
   function handlePressNotifications() {
     router.push('/me/notifications');
@@ -392,7 +391,7 @@ export default function ScreenMY01() {
       {header}
 
       <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
-      {/* ── 상단: 여권 영역 (프로필 · 내 여행) — 화면 폭 전체에 깔린다 ──── */}
+      {/* ── 상단: 여권 영역 (프로필 · 내 여행) — 흰 바탕 위에 놓인 여권 한 장(카드) ──── */}
       <TravelPassportPanel
         profile={profile}
         pickedImageUri={pickedImageUri}
@@ -403,18 +402,26 @@ export default function ScreenMY01() {
         onPressPast={handlePressPastTrips}
       />
 
-      {/* ── 하단: 메뉴 · action ───────────────────────────────────────── */}
-      <View className="px-4 pt-7">
+      {/* ── 하단: 메뉴 · action ───────────────────────────────────────────
+          가로 여백 18 = 여행준비홈 계열(페이지 14 + 섹션 안쪽 4 · app/trips/[tripId]/index.tsx)과
+          같은 content grid. 제목 · 메뉴 글자 · chevron 이 그 화면들과 같은 선에 선다. (2026-09-17) */}
+      <View className="pt-8" style={{ paddingHorizontal: 18 }}>
         <MenuSection title="내 커뮤니티 활동">
           <MenuRow label="작성한 게시글" onPress={handlePressMyPosts} />
           <MenuRow label="작성한 댓글" onPress={handlePressMyComments} />
+          <MenuRow label="저장된 게시물" onPress={handlePressMyBookmarks} />
           <MenuRow label="좋아요" onPress={handlePressMyLikes} isLast />
         </MenuSection>
 
         <View className="mt-7">
           <MenuSection title="설정">
+            {/*
+              알림 설정(/me/settings/notifications)은 메뉴에서 뺐다. (2026-09-17 MY Finalization)
+              스위치 값은 users.notification_settings_json 에 저장되지만 알림을 만드는 RPC ·
+              배너 · 목록 어디도 그 값을 읽지 않아 사용자에게 아무 효과가 없는 설정이었다.
+              실제 preference 가 연결되면 다시 넣는다. 화면 파일은 그대로 둔다.
+            */}
             <MenuRow label="계정 관리" onPress={handlePressAccount} />
-            <MenuRow label="알림 설정" onPress={handlePressNotification} />
             <MenuRow label="이용약관" onPress={handlePressTerms} />
             <MenuRow label="개인정보처리방침" onPress={handlePressPrivacy} isLast />
           </MenuSection>

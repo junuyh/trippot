@@ -34,6 +34,10 @@
 | **`11_모임정책_v2.md`** ← 기준 | **모임(GROUP) 정책 Source of Truth.** v1 내용 그대로 + **§6-2 나간(LEFT) 여행 접근 확정(2026-09-14 · 2계정 E2E)**: 이력으로만 표시, 여행 홈·상세 진입 불가·수정 불가, 안내 `이 여행은 더 이상 볼 수 없어요.`, 여행 홈 앱 가드(`hasLeftTrip`), 재참여는 초대 링크로 가능. v1 의 read-only 여행 홈 정책 폐기 | 267 |
 | `11_모임정책_v1.md` | v2 이전 버전(2026-09-12~13). §6-2 "볼 수 있다·수정 불가(read-only 여행 홈 예정)" 는 **폐기됨** — 비교용 보존 | 267 |
 | **`12_여행초대_승인_RPC계약_v1.md`** ← 기준 | **DB 담당 구현 계약 · 팀 확정(2026-09-13).** 수신자 초대 확인 · 참가 요청 · 취소 · 대기 목록 · 승인(CASE A/B/C/D · **새 모임 = target 여행 ACTIVE 참여자 + 요청자** · PERSONAL→GROUP · headcount 재검사 · 원자적) · 거절 — 6개 서버 함수의 auth · 검사 · 쓰기 · 반환 · 멱등 · race. REJECTED 는 (invite, user) 단위 · `pending_group_name` 미사용 · `leader_user_id` 선행 조건. §13 에 10_v2·11_v1 과의 차이(이 문서 우선) | 346 |
+| **`13_퍼널정의서_v1.md`** ← 기준 | **지금 코드에 심어진 이벤트(35개)로 그릴 수 있는 퍼널 6종.** 단계·이벤트·쪼개 볼 값, 못 그리는 퍼널 5종과 그 이유, 테스트 빌드 전 제안 2개. 요약은 이 README §6 | 165 |
+| **`14_알림센터_v1.md`** ← 기준 | **알림센터(Notification Center) 정책 · 팀 확정(2026-09-16).** 알림 SoT = `public.notifications` · 생성은 SECURITY DEFINER RPC 안(10_v2 §14 · 12 §9 의 Edge Function 안을 대체) · Push 는 전달 채널일 뿐 · 카테고리 필터(초대·참여 / 멤버·권한 / 여행 취소) · 1차 4종(`INVITE_RECEIVED` 신설 · `JOIN_*`) · 상세 화면 + 현재 상태 기반 CTA · Banner ≠ 읽음 · 365일(1년) 조회 + 30건 cursor · 730일 retention cron · raw token 미저장 · RLS 목표 | 170 |
+| **`15_회원탈퇴정책_v1.md`** ← 기준 | **회원탈퇴 정책 · 팀 확정(2026-09-17).** 30일 유예(PENDING_WITHDRAWAL) · 30일 내 취소 · 로그인 자동 복구 금지 · 여행장은 위임 후 탈퇴 · 공동 여행 기록/금액/정산 불변 · users hard delete 금지(tombstone) · 최종 탈퇴 = 권한 제거 + 식별정보 비식별화 + auth 삭제 · 이후 같은 카카오 계정은 신규 회원 · 서버 함수 3종 + cron | — |
+| **`16_여행멤버십_보안_v1.md`** ← 기준 | **여행 멤버십 권한 lifecycle 보안(2026-09-17).** 초대(ACTIVE 참여자 · 7일 재사용) → 요청(본인) → 승인(여행장 · 원자적 trip/group 멤버) → 나가기(LEFT · 여행장은 위임 후) / 취소 / 위임 을 RLS · GRANT · RPC 에서 강제. groups/group_members/trip_members/trip_invites dev 정책 제거 · 탈퇴 대기 계정 차단 · 취소 여행 초대/요청 차단 | — |
 
 `05_v6`, `06_v3`, `09` 는 크다. 통째로 읽지 말고 해당 절만 읽는다.
 특히 `06_v3` 는 로깅 작업이 아니면 열지 않는다.
@@ -55,7 +59,9 @@
 | 모임원 납부 | `02` §3, `04_v3` CONTRIB-01, `05_v6` §3 contributions |
 | **여행 초대 · 참가 신청 · 여행장 · 모임 분기 · headcount** | **`10_여행초대정책_v2.md`** — 권한·링크 생명주기·모임 분기·RPC 계약이 전부 여기 있다. **§15 폐기 정책표와 §16 STALE 목록을 먼저 본다.** ⚠️ `20260910000001` 마이그레이션 하단의 배포용 RLS 초안(`invites_owner` 여행장 전용)과 `POL-INV-010/014` 주석은 **historical implementation draft** — PR #86 으로 대체됨 |
 | **모임 목록(GROUP-01) · 모임 상세(GROUP-02) · 개인 여행** | **`11_모임정책_v2.md`** — 개인 여행이 모임 탭에 어떻게 보이는지, 카드를 누르면 어디로 가는지, 모임 이름은 누가 고치는지. 첫 외부인 승인 시 PERSONAL → GROUP 전환은 §4 |
+| **알림 · 알림센터 · In-app Banner · 알림 상세 · 알림 producer** | **`14_알림센터_v1.md`** — 어떤 type 을 언제 누구에게 만드는지, `data` 키, CTA 계산, Banner/읽음/보관 정책. 알림 관련 RPC·RLS·cron 을 만들기 전에 반드시 읽는다 |
 | **로깅·Analytics** | `06_v3` (§0-1 v2→v3 변경, §4 네이밍, §5 공통 파라미터, §7 해당 Flow, §11 구현 규칙) |
+| **퍼널·전환율 / 무엇을 볼 수 있나** | 이 README **§6** 요약 → 필요하면 `13_퍼널정의서_v1.md` (단계별 이벤트·파라미터·못 그리는 퍼널) |
 | **스키마·Migration** | `05_v6` (§1 원칙, §3 테이블, §4 FK 정책, §7 migrations 순서) |
 | **RLS·권한 / `permission denied` 에러** | `05_v6` §6 — **§6-0 먼저 읽는다.** RLS 정책과 GRANT 는 별개고 둘 다 있어야 접근된다 |
 | **Storage / 이미지 업로드** | `05_v6` §6-6(`profile-images`) · §6-7(`community-images`) — bucket 설정·object path 규약·현재 개발용 정책 |
@@ -139,3 +145,22 @@
 - `travel_style` 배수·반올림 규칙: `lib/constants/budgetMultiplier.ts`
 - [임시] 개발용 고정 사용자: `lib/constants/devUser.ts`
 - 도메인 정책·화면 분담: `CLAUDE.md`
+
+---
+
+## 6. 지금 그릴 수 있는 퍼널 6종
+
+`develop` 기준으로 **실제 코드에 심어진 이벤트**만으로 그릴 수 있는 퍼널이다.
+단계별 파라미터와 못 그리는 퍼널은 `13_퍼널정의서_v1.md` 를 본다.
+
+| # | 퍼널 | 단계 (이벤트) | 무엇을 판단하나 |
+|---|---|---|---|
+| 1 | **여행 생성** (활성화) | `screen_viewed(home)` → `trip_create_started` → `trip_companion_selected` → `trip_basic_info_submitted` → `budget_method_selected` → `budget_target_confirmed` → `travel_fund_registered` → `trip_created` | 받은 사람이 **핵심 가치(예산 잡힌 여행)** 까지 가는가. 5→6 이탈이 곧 "추천 예산이 와닿지 않는다" |
+| 2 | **예산 계획** | `screen_viewed(budget_detail)` → `budget_category_edited` → `budget_plan_item_added` | 추천을 **그대로 쓰는가 고치는가.** 예산 3칼럼 규칙을 둔 이유가 이 측정이다 |
+| 3 | **결산** | `settlement_prompted` → `settlement_confirmed` → `settlement_shared` | 핵심 루프(계획→소비→결산)가 실제로 도는가. `trigger` 로 자동 안내와 직접 진입을 비교 |
+| 4 | **개인화** (재사용) | `personalization_offered` → `personalization_applied` | 지난 여행 데이터가 다음 여행에 쓰이는가. `trip_created.user_trip_count >= 2` 가 재사용률 |
+| 5 | **수익 모델** (전환) | 보험 `screen_viewed(insurance)` → `insurance_cta_clicked` / 팁 `tip_list_viewed` → `tip_detail_viewed` → `tip_purchase_intent` → `tip_purchased` | BM 이 실제 전환을 만드는가 |
+| 6 | **자금 전환** | `fund_conversion_started` → `fund_conversion_confirmed` → `fund_conversion_completed` | 수기 금액이 사라진다는 경고 앞에서 얼마나 포기하는가 |
+
+⚠️ **획득 퍼널(앱 실행 → 로그인 → 홈)은 아직 못 그린다.** `login_completed` 가 기록되지 않는다.
+테스트 빌드 후 가장 먼저 볼 숫자라 배포 전에 넣기를 제안한다. (`13_퍼널정의서_v1.md` §5)

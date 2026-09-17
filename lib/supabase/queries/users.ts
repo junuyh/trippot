@@ -199,7 +199,11 @@ export function toProductAuthProvider(raw: string | null): AuthProvider | null {
   // (lib/auth/kakao.ts OIDC_PROVIDER 와 같은 값이다)
   const KAKAO_IDS = ['kakao', 'custom:kakao-oidc'];
   if (raw === null) return null;
-  return KAKAO_IDS.includes(raw) ? AUTH_PROVIDER.KAKAO : null;
+  if (KAKAO_IDS.includes(raw)) return AUTH_PROVIDER.KAKAO;
+  // 로그인 수단 확대(2026-09-16). Supabase identity.provider 값 그대로다.
+  if (raw === 'google') return AUTH_PROVIDER.GOOGLE;
+  if (raw === 'email') return AUTH_PROVIDER.EMAIL;
+  return null;
 }
 
 /**
@@ -239,73 +243,33 @@ export function readOAuthProfile(user: {
   };
 }
 
-/** ensureUserProfile 의 동작을 정하는 값. */
-export type EnsureUserProfileOptions = {
-  /**
-   * 탈퇴한 계정을 되살려도 되는지.
-   *
-   *   SIGNED_IN        true   사용자가 직접 로그인한 것이다 = 재가입
-   *   INITIAL_SESSION  false  저장된 세션이 복원된 것뿐이다
-   *
-   * ⚠️ 이 구분이 없으면, 탈퇴 직후 로그아웃이 실패해 세션만 남은 사용자가
-   *    앱을 다시 켰다는 이유만으로 탈퇴가 취소된다. 본인이 하지 않은 일이다.
-   */
-  allowRevive: boolean;
-};
-
 /**
  * 로그인한 사용자의 public.users 행을 보장한다.
  *
- * 1. 행이 없으면 만든다 (두 이벤트 모두)
- * 2. 살아 있는 행이면 아무것도 하지 않는다
- * 3. 탈퇴한 행이면 allowRevive 일 때만 되살린다
+ * 1. 행이 없으면 만든다
+ * 2. 행이 있으면 아무것도 하지 않는다 — **탈퇴 대기 · 탈퇴 완료 행을 되살리지 않는다.**
+ *    (회원탈퇴 30일 유예 정책 · 2026-09-17) 되살리는 길은 사용자가 직접 누르는
+ *    cancelWithdrawal() 하나뿐이다. 로그인 이벤트로 자동 복구하던 allowRevive 는 없앴다.
+ *    계정 상태(대기/완료)는 AuthProvider 가 getAccountState() 로 읽어 화면을 가른다.
  *
  * ⚠️ name 은 NOT NULL 이다. 카카오가 닉네임을 주지 않는 경우
  *    (동의항목 미설정·거부) 를 대비해 '여행자' 를 쓴다. 빈 문자열이나
  *    id 조각을 넣지 않는다 — 화면 곳곳에 그대로 노출되는 값이다.
  *    사용자는 나중에 프로필에서 바꿀 수 있다.
  */
-export async function ensureUserProfile(
-  user: {
-    id: string;
-    user_metadata?: Record<string, unknown>;
-    identities?: { provider: string; id: string }[] | null;
-  },
-  options: EnsureUserProfileOptions,
-): Promise<void> {
+export async function ensureUserProfile(user: {
+  id: string;
+  user_metadata?: Record<string, unknown>;
+  identities?: { provider: string; id: string }[] | null;
+}): Promise<void> {
   const { data: existing, error: readError } = await supabase
     .from('users')
-    .select('id, deleted_at')
+    .select('id')
     .eq('id', user.id)
     .maybeSingle();
 
   if (readError) throw readError;
-
-  if (existing) {
-    // 살아 있는 계정이면 아무것도 하지 않는다. 매 로그인마다 덮어쓰지 않는다.
-    if (existing.deleted_at === null) return;
-
-    // ⚠️ 여기부터는 탈퇴한 계정이다. 같은 카카오 계정으로 다시 들어오면
-    //    auth.users 의 id 가 같아서 이 행이 그대로 잡힌다.
-    //
-    //    되살릴지 말지는 **어떤 이벤트로 왔는지**가 정한다. (allowRevive)
-    //    세션 복원(INITIAL_SESSION)으로는 절대 되살리지 않는다. 탈퇴 직후
-    //    로그아웃이 실패해 세션만 남은 경우, 앱을 다시 켰다는 이유만으로
-    //    탈퇴가 취소되면 사용자가 의도하지 않은 일이 벌어진다.
-    if (!options.allowRevive) return;
-
-    const { error: reviveError } = await supabase
-      .from('users')
-      .update({ deleted_at: null })
-      .eq('id', user.id);
-    if (reviveError) throw reviveError;
-
-    // ⚠️ 되살릴 때 name·profile_image_url 을 카카오 값으로 덮지 않는다.
-    //    탈퇴해도 여행·모임 데이터는 그대로 두는 정책이라(2026-09-08 확정)
-    //    돌아온 사람은 자기 기록을 그대로 돌려받는다. 그 사람이 앱에서 직접
-    //    바꿔둔 이름과 사진까지 카카오 값으로 되돌리면 남의 계정처럼 보인다.
-    return;
-  }
+  if (existing) return;
 
   const profile = readOAuthProfile(user);
 
@@ -371,30 +335,82 @@ export async function updateUserEnglishName(userId: string, englishName: string)
   if (error) throw error;
 }
 
-/**
- * 회원탈퇴. (계정관리)
- *
- * users.deleted_at 을 채우는 soft delete 다. 행을 지우지 않는다.
- *
- * ⚠️ auth.users 는 건드리지 않는다. 지우려면 service_role 이 필요한데
- *    앱은 anon key 만 쓴다. (CLAUDE.md 1장) 그래서 카카오 연결 자체는
- *    남고, 같은 계정으로 다시 로그인하면 ensureUserProfile 이 이 행을
- *    되살린다. 재가입 허용이 확정된 정책이다. (2026-09-08)
- *
- * ⚠️ 모임 · 여행 · 게시글은 건드리지 않는다. 같은 날 확정된 정책이다.
- *    조회 query 들이 이미 users.deleted_at 으로 걸러 작성자 이름을 null 로
- *    내려주고 있어(queries/community.ts · groups.ts) 화면은 대응돼 있다.
- *    여기서 남의 모임·여행 기록까지 지우면 다른 모임원의 데이터가 깨진다.
- *
- * ⚠️ 세션 삭제는 여기서 하지 않는다. 화면이 signOut() 을 따로 부른다.
- *    DB 갱신이 실패했는데 로그아웃만 되는 순서를 만들지 않기 위해서다.
- */
-export async function withdrawUser(userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('users')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', userId)
-    .is('deleted_at', null);
+/** 회원탈퇴 유예 30일. 서버 RPC 와 같은 값이다. (docs/15_회원탈퇴정책_v1.md) */
+export const WITHDRAWAL_GRACE_DAYS = 30;
 
+/** 서버가 message 로 돌려주는 탈퇴 도메인 오류. migration 20260917000001 머리 주석의 표 그대로. */
+export const WITHDRAWAL_ERROR = {
+  AUTH_REQUIRED: 'AUTH_REQUIRED',
+  NOT_FOUND: 'NOT_FOUND',
+  /** 다른 ACTIVE 멤버가 있는 진행 중 여행의 여행장. 위임(delegate_trip_leader)이 먼저다. */
+  LEADER_MUST_DELEGATE: 'LEADER_MUST_DELEGATE',
+  ALREADY_WITHDRAWN: 'ALREADY_WITHDRAWN',
+} as const;
+export type WithdrawalErrorCode = (typeof WITHDRAWAL_ERROR)[keyof typeof WITHDRAWAL_ERROR];
+
+const WITHDRAWAL_ERROR_CODES = new Set<string>(Object.values(WITHDRAWAL_ERROR));
+
+/** 던져진 오류에서 탈퇴 도메인 코드를 꺼낸다. 없으면 null. (queries/tripJoinRequests 와 같은 방식) */
+export function withdrawalErrorCode(error: unknown): WithdrawalErrorCode | null {
+  const message =
+    error !== null && typeof error === 'object' && 'message' in error
+      ? String((error as { message: unknown }).message).trim()
+      : '';
+  return WITHDRAWAL_ERROR_CODES.has(message) ? (message as WithdrawalErrorCode) : null;
+}
+
+/**
+ * 계정 상태. users 의 두 시각으로 가른다. (회원탈퇴 30일 유예 · 2026-09-17)
+ *   ACTIVE              정상
+ *   PENDING_WITHDRAWAL  탈퇴 신청 뒤 30일 이내. effectiveAt 에 최종 탈퇴 예정 (ISO)
+ *   WITHDRAWN           최종 탈퇴 완료(tombstone). 세션이 남아 있어도 서비스를 쓸 수 없다
+ */
+export type AccountState =
+  | { kind: 'ACTIVE' }
+  | { kind: 'PENDING_WITHDRAWAL'; effectiveAt: string }
+  | { kind: 'WITHDRAWN' };
+
+/** 내 계정 상태. 행이 없으면(아직 ensureUserProfile 전) ACTIVE 로 본다. */
+export async function getAccountState(userId: string): Promise<AccountState> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('deleted_at, withdrawal_requested_at')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return { kind: 'ACTIVE' };
+  if (data.deleted_at) return { kind: 'WITHDRAWN' };
+  if (data.withdrawal_requested_at) {
+    const effective = new Date(data.withdrawal_requested_at);
+    effective.setDate(effective.getDate() + WITHDRAWAL_GRACE_DAYS);
+    return { kind: 'PENDING_WITHDRAWAL', effectiveAt: effective.toISOString() };
+  }
+  return { kind: 'ACTIVE' };
+}
+
+/**
+ * 회원탈퇴 신청. 서버 request_withdrawal — 본인만 · 멱등.
+ *
+ * 즉시 지우지 않는다. users.withdrawal_requested_at 만 찍히고 30일 뒤 서버(cron)가 최종 처리한다.
+ * 그 사이 같은 계정으로 로그인하면 홈 대신 '탈퇴 진행 중' 화면(app/withdrawal-pending)이 뜨고
+ * 거기서 취소할 수 있다. 여행장이면 LEADER_MUST_DELEGATE — 멤버 관리에서 위임한 뒤 다시 신청한다.
+ *
+ * ⚠️ 모임 · 여행 · 납부 · 지출 · 정산 · 게시글은 최종 탈퇴 뒤에도 그대로다. 다른 멤버의 공동 기록이다.
+ * ⚠️ 세션 삭제는 여기서 하지 않는다. 화면이 signOut() 을 따로 부른다. (DB 먼저, 로그아웃은 그다음)
+ *
+ * @returns 최종 탈퇴 예정 시각 (ISO)
+ */
+export async function requestWithdrawal(): Promise<string> {
+  const { data, error } = await supabase.rpc('request_withdrawal');
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) throw new Error('request_withdrawal: 서버가 빈 결과를 돌려줬습니다.');
+  return row.withdrawal_effective_at;
+}
+
+/** 탈퇴 취소. 30일 이내 · 본인만. 되살아나는 것은 없다 — 아무것도 지우지 않았으니 그대로 ACTIVE 다. */
+export async function cancelWithdrawal(): Promise<void> {
+  const { error } = await supabase.rpc('cancel_withdrawal');
   if (error) throw error;
 }

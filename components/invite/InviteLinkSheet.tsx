@@ -26,6 +26,10 @@ import { Pressable, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/ui";
 
+import { InviteLinkBox, InviteSendButton } from "./inviteLinkParts";
+
+import { BRAND } from "@/lib/constants/brandColor";
+
 import type { GroupBranch, InviteCandidate } from "./types";
 
 type Props = {
@@ -89,34 +93,15 @@ export function InviteLinkSheet({
       description={
         hasCandidates
           ? "초대할 사람을 고르면 링크를 보내드려요."
-          : "링크를 보내면 상대가 참가를 요청하고, 여행장이 수락하면 함께해요."
+          : "링크를 받은 사람이 수락하면, 여행장이 확인 후 승인할 수 있어요."
       }
       footer={
         <View style={{ gap: 8 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="초대 링크 보내기"
-            accessibilityState={{ disabled: !canSend }}
-            disabled={!canSend}
-            onPress={onShareKakao}
-            className="h-12 flex-row items-center justify-center gap-2 rounded-xl active:opacity-90"
-            style={{ backgroundColor: canSend ? "#FEE500" : "#E5E8EB" }}
-          >
-            <Ionicons name="chatbubble" size={16} color={canSend ? "#191919" : "#B0B8C1"} />
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "800",
-                color: canSend ? "#191919" : "#B0B8C1",
-              }}
-            >
-              초대 링크 보내기
-            </Text>
-          </Pressable>
+          <InviteSendButton onPress={onShareKakao} disabled={!canSend} />
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 14 }}>
+      <View style={{ paddingBottom: 8, gap: 14 }}>
         {branch === "newGroup" ? (
           <BranchNotice
             tone="info"
@@ -136,7 +121,7 @@ export function InviteLinkSheet({
         <View style={{ gap: 8 }}>
           {candidates.length === 0 ? (
             <Text style={{ fontSize: 12.5, lineHeight: 19, color: "#8B94A2" }}>
-              고를 수 있는 사람이 없어요. 아래 링크를 복사해 보내면 누구나 참여를 요청할 수 있어요.
+              고를 수 있는 사람이 없어요. 아래 링크를 복사해 보내면 누구나 초대를 수락할 수 있어요.
             </Text>
           ) : null}
 
@@ -151,12 +136,12 @@ export function InviteLinkSheet({
                 disabled={sending}
                 onPress={() => onToggle?.(candidate.userId)}
                 className={`flex-row items-center gap-2.5 rounded-xl border px-3.5 py-3 active:opacity-70 ${
-                  on ? "border-blue-600 bg-white" : "border-gray-200 bg-white"
+                  on ? "border-brand bg-white" : "border-gray-200 bg-white"
                 } ${sending ? "opacity-40" : ""}`}
               >
                 <View
                   className={`h-5 w-5 items-center justify-center rounded-md ${
-                    on ? "bg-blue-600" : "border border-gray-300 bg-white"
+                    on ? "bg-brand" : "border border-gray-300 bg-white"
                   }`}
                 >
                   {on ? <Ionicons name="checkmark" size={13} color="#fff" /> : null}
@@ -175,29 +160,13 @@ export function InviteLinkSheet({
         </View>
         ) : null}
 
-        {/* 링크 박스. 고른 사람이 없어도 링크는 언제나 복사할 수 있다 */}
-        <View className="flex-row items-center gap-2 rounded-xl bg-gray-100 px-3.5 py-3">
-          <Text
-            numberOfLines={1}
-            style={{ flex: 1, fontSize: 12, color: "#4B5563" }}
-          >
-            {inviteUrl}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="초대 링크 복사"
-            onPress={onCopyLink}
-            className="rounded-lg bg-white px-2.5 py-1.5 active:opacity-70"
-          >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: "#4B5563" }}>
-              {copied ? "복사됨" : "복사"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <Text style={{ fontSize: 11.5, lineHeight: 18, color: "#8B94A2" }}>
-          링크는 7일간 쓸 수 있어요 · {headcount}명 예정이라 그 인원까지만 수락돼요
-        </Text>
+        {/* 링크 박스·안내는 여행 홈 모달과 같은 조각을 쓴다 (inviteLinkParts) */}
+        <InviteLinkBox
+          inviteUrl={inviteUrl}
+          copied={copied}
+          onCopyLink={onCopyLink}
+          headcount={headcount}
+        />
       </View>
     </BottomSheet>
   );
@@ -220,7 +189,7 @@ export function BranchNotice({
         borderRadius: 12,
         paddingHorizontal: 15,
         paddingVertical: 14,
-        backgroundColor: info ? "#EBF1FF" : "#FDF0F0",
+        backgroundColor: info ? BRAND.primarySoft : "#FDF0F0",
       }}
     >
       <Text
@@ -228,7 +197,7 @@ export function BranchNotice({
           fontSize: 13,
           fontWeight: "700",
           lineHeight: 20,
-          color: info ? "#0043D1" : "#B4272B",
+          color: info ? BRAND.primary : "#B4272B",
         }}
       >
         {title}
@@ -238,7 +207,7 @@ export function BranchNotice({
           marginTop: 4,
           fontSize: 12,
           lineHeight: 19,
-          color: info ? "#3C6FD8" : "#C4494D",
+          color: info ? "#747B88" : "#C4494D", // 설명 본문은 brand 가 아니라 보조 글자색(pot.mute)
         }}
       >
         {body}

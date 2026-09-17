@@ -23,6 +23,8 @@ import { Text, View } from "react-native";
 import { BranchNotice } from "@/components/invite";
 import { BottomSheet, Button } from "@/components/ui";
 
+import { BRAND } from "@/lib/constants/brandColor";
+
 import type { CancelFundSummary } from "./types";
 
 type Props = {
@@ -98,7 +100,7 @@ export function CancelConfirmSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 16 }}>
+      <View style={{ paddingBottom: 8, gap: 16 }}>
         {/* 영향 안내 — 조건부 조합 (스펙 §7) */}
         <View>
           {needsAgreement ? (
@@ -180,7 +182,7 @@ export function CancelConfirmSheet({
                   {fund.headcount}명이 똑같이 나누면
                 </Text>
                 <Text
-                  style={{ marginTop: 3, fontSize: 15.5, fontWeight: "800", color: "#2563eb" }}
+                  style={{ marginTop: 3, fontSize: 15.5, fontWeight: "800", color: BRAND.primary }}
                 >
                   1인당 약 {fund.perPersonLabel}
                 </Text>
@@ -209,7 +211,7 @@ function Effect({ children, keep = false }: { children: React.ReactNode; keep?: 
           height: 5,
           borderRadius: 3,
           marginTop: 8,
-          backgroundColor: keep ? "#2563eb" : "#C3CBD5",
+          backgroundColor: keep ? BRAND.primary : "#C3CBD5",
         }}
       />
       <Text style={{ flex: 1, fontSize: 14, lineHeight: 22, color: "#4B5563" }}>{children}</Text>

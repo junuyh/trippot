@@ -21,6 +21,8 @@ import { Text, View } from "react-native";
 import { BranchNotice } from "@/components/invite";
 import { Button } from "@/components/ui";
 
+import { BRAND } from "@/lib/constants/brandColor";
+
 import type { CancelFundType } from "./types";
 
 type Props = {
@@ -75,10 +77,10 @@ export function CanceledTripNotice({
       {canRestore ? (
         <View
           className="flex-row items-center rounded-2xl px-4 py-3.5"
-          style={{ gap: 11, backgroundColor: "#EBF1FF" }}
+          style={{ gap: 11, backgroundColor: BRAND.primarySoft }}
         >
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13.5, fontWeight: "700", color: "#0043D1" }}>
+            <Text style={{ fontSize: 13.5, fontWeight: "700", color: BRAND.primary }}>
               예산과 계획은 그대로 있어요
             </Text>
             <Text style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: "#3C6FD8" }}>

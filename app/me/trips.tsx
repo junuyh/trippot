@@ -11,9 +11,9 @@
 // ⚠️ 화면목록에서 MY-02 담당은 아직 `[미확정]` B 또는 C 다. HOME-01 과 같은 묶음이라
 //    홈 담당자가 이어서 만들었다. 담당이 갈리면 사람에게 알린다. (CLAUDE.md 13장)
 //
-// 2026-09-16 취소된 여행 카드에 '되돌리기' 를 넣었다.
-//   누르면 CXL-05 확인 시트(components/cancel/RestoreConfirmSheet)를 거쳐 되돌린다.
-//   여행 홈(TRIP-HOME-03)의 되돌리기와 같은 함수 · 같은 시트 · 같은 72시간 규칙이다.
+// 2026-09-16 취소된 여행의 되돌리기 — 되돌릴 수 있는 카드를 누르면 여행 홈 대신
+//   되돌리기 확인 팝업(ConfirmModal)이 뜨고, 되돌리면 그 여행 홈으로 들어간다.
+//   여행 홈(TRIP-HOME-03)의 되돌리기와 같은 함수 · 같은 72시간 규칙이다. (시트 대신 팝업)
 //   ⚠️ 이벤트를 찍지 않는다. TRIP_RESTORE_* 의 entry 값에 이 목록이 없고
 //      (done_screen | canceled_home), 여행 홈도 아직 찍지 않는다. (CLAUDE.md 8장)
 //
@@ -25,7 +25,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
-import { RestoreConfirmSheet, type CancelChangeItem } from '@/components/cancel';
+import type { CancelChangeItem } from '@/components/cancel';
 import { MyTripListView, type MyTripFilter, type MyTripItem } from '@/components/my';
 import { ConfirmModal } from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
@@ -56,6 +56,7 @@ import {
   type CanceledFundSnapshot,
 } from '@/lib/supabase/queries/tripCancel';
 import {
+  RESTORE_WINDOW_HOURS,
   canRestoreTrip,
   restoreRemainingLabel,
   restoredRemainingAmount,
@@ -75,14 +76,60 @@ type LoadState = 'loading' | 'ready' | 'error';
 const PAST: TripStatus[] = [TRIP_STATUS.ENDED, TRIP_STATUS.SETTLED];
 
 /**
+ * 되돌리기 마감 시각. '9월 18일 15:40'.
+ *
+ * ⚠️ 72시간 규칙은 lib/trip/cancelPolicy 의 RESTORE_WINDOW_HOURS 를 그대로 쓴다.
+ *    여기서 숫자를 다시 적지 않는다.
+ */
+function restoreDeadlineLabel(canceledAt: string): string {
+  const deadline = new Date(new Date(canceledAt).getTime() + RESTORE_WINDOW_HOURS * 3_600_000);
+  return format(deadline, 'M월 d일 HH:mm');
+}
+
+/**
+ * 되돌리기 팝업 본문.
+ *
+ *   9월 16일 23:37까지 되돌릴 수 있어요.
+ *   취소하기 전 상태로 여행 홈에 들어가요.
+ *   취소 뒤 계좌 내역 3건도 함께 반영돼요. 반영 후 남은 돈 120,000원     ← 내역이 있을 때만
+ *
+ * ⚠️ "멤버들에게도 알려드려요" 를 쓰지 않는다. (2026-09-16)
+ *    되돌리기는 아직 알림을 보내지 않는다. (tripCancel.ts restoreCanceledTrip 의
+ *    TODO: notify CANCEL_RESTORED) 알림이 붙으면 그때 줄을 되살린다.
+ */
+function restoreDescription(target: RestoreTarget): string {
+  const lines: string[] = [];
+  if (target.trip.canceled_at) {
+    lines.push(`${restoreDeadlineLabel(target.trip.canceled_at)}까지 되돌릴 수 있어요.`);
+  }
+  lines.push('취소하기 전 상태로 여행 홈에 들어가요.');
+
+  const snapshot = target.trip.canceled_fund_snapshot_json as CanceledFundSnapshot | null;
+  if (target.changes.length > 0) {
+    const fundType = snapshot?.fund_type ?? 'ZERO';
+    const after = restoredRemainingAmount(snapshot?.remaining ?? 0, target.changes);
+    lines.push(
+      fundType === 'ZERO'
+        ? `취소 뒤 계좌 내역 ${target.changes.length}건도 함께 반영돼요.`
+        : `취소 뒤 계좌 내역 ${target.changes.length}건도 함께 반영돼요. 반영 후 남은 돈 ${after.toLocaleString('ko-KR')}원`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
  * 어느 탭으로 열지 정한다.
  *
  * ⚠️ 'ongoing' 은 준비 중과 여행 중을 함께 부르던 예전 이름이다.
  *    그 값으로 들어오는 링크가 남아 있을 수 있어 준비 중으로 받는다.
+ * ⚠️ 취소됨·나간 여행도 받는다. 여행 홈의 '<' 가 보던 탭으로 돌아올 때 이 값이 온다.
+ *    빠져 있으면 취소됨 탭에서 연 여행에서 돌아와도 준비 중 탭이 열린다. (2026-09-16)
  */
 function toFilter(value: string | undefined): MyTripFilter {
   if (value === 'past') return 'past';
   if (value === 'traveling') return 'traveling';
+  if (value === 'canceled') return 'canceled';
+  if (value === 'left') return 'left';
   return 'planning';
 }
 
@@ -129,7 +176,7 @@ export default function ScreenMY02() {
   const [leftNoticeOpen, setLeftNoticeOpen] = useState(false);
   /** 되돌리기 확인 시트에 올린 여행. 닫혀 있으면 null. (위와 같은 이유로 맨 위에 둔다) */
   const [restoreTarget, setRestoreTarget] = useState<RestoreTarget | null>(null);
-  /** 시트를 열기 전 내역을 불러오는 중인 여행. 그 카드 버튼에 스피너가 뜬다. */
+  /** 시트를 열기 전 내역을 불러오는 중인 여행. 그 카드에 스피너가 뜬다. */
   const [preparingRestoreTripId, setPreparingRestoreTripId] = useState<string | null>(null);
   /** 되돌리는 중. 중복 실행 방지. */
   const [restoring, setRestoring] = useState(false);
@@ -161,9 +208,9 @@ export default function ScreenMY02() {
   }, [load]);
 
   /**
-   * 되돌리기 버튼. 바로 되돌리지 않고 CXL-05 확인 시트를 연다. (POL-CXL-036)
+   * 되돌릴 수 있는 취소 여행 카드를 눌렀을 때. 바로 되돌리지 않고 확인 팝업을 연다. (POL-CXL-036)
    *
-   * 시트는 취소 뒤 달라진 계좌 내역 **전부**가 필요하다. 먼저 불러온 뒤에 연다.
+   * 팝업은 취소 뒤 달라진 계좌 내역 **전부**가 필요하다(건수·남은 돈). 먼저 불러온 뒤에 연다.
    * ⚠️ 누르는 순간 72시간을 다시 본다. 목록을 띄워 둔 사이 기간이 지났을 수 있다.
    */
   async function handleOpenRestore(tripId: string) {
@@ -202,14 +249,21 @@ export default function ScreenMY02() {
     if (!restoreTarget || restoring) return;
     setRestoring(true);
     try {
-      await restoreCanceledTrip(restoreTarget.trip.id);
+      const tripId = restoreTarget.trip.id;
+      await restoreCanceledTrip(tripId);
       setRestoreTarget(null);
-      // 되살아난 여행은 준비 중으로 돌아간다. 그 탭에서 바로 보이게 한다.
-      // ⚠️ 날짜가 이미 지난 여행이면 여행 홈에 들어갈 때 상태가 다시 계산된다.
-      //    (restoreCanceledTrip 주석 · closeTripIfEnded)
+      /*
+        되살린 여행의 홈으로 바로 들어간다. (2026-09-16)
+        ⚠️ 목록을 먼저 '준비 중' 탭으로 돌려 두고 params 도 맞춘다. 여행 홈의 '<' 가
+           dismissTo('/me/trips?filter=planning') 로 돌아오는데, 이 화면 params 가
+           canceled 로 남아 있으면 스택의 이 화면을 못 찾고 사본을 하나 더 만든다.
+        ⚠️ 날짜가 이미 지난 여행이면 여행 홈에 들어갈 때 상태가 다시 계산된다.
+           (restoreCanceledTrip 주석 · closeTripIfEnded)
+      */
       setFilter('planning');
-      await load();
-      Alert.alert('다시 준비해요', '취소하기 전 상태로 돌아왔어요.');
+      router.setParams({ filter: 'planning' });
+      void load();
+      router.push(`/trips/${tripId}?from=my-trips&filter=planning`);
     } catch {
       Alert.alert('되돌리지 못했어요', '잠시 후 다시 시도해 주세요.');
     } finally {
@@ -338,8 +392,13 @@ export default function ScreenMY02() {
         restorable,
         restoreRemainingLabel:
           restorable && canceledAt ? restoreRemainingLabel(canceledAt, now) : null,
+        restoreDeadlineLabel: restorable && canceledAt ? restoreDeadlineLabel(canceledAt) : null,
       };
     });
+
+  const restorableIds = new Set(
+    canceled.filter((item) => item.restorable).map((item) => item.tripId),
+  );
 
   // 준비 중은 출발이 가까운 순, 여행 중은 먼저 돌아오는 순,
   // 지난 여행은 최근에 다녀온 순으로 본다. 탭마다 급한 것이 다르다.
@@ -374,45 +433,46 @@ export default function ScreenMY02() {
         // 준비 중·여행 중·종료 모두 같은 라우트다. 도착 화면이 trip.status 로 분기한다. (docs/04_v3 §5)
         // ⚠️ 나간 여행은 열지 않는다 — 목록 이력으로만 보인다. 모임 상세와 같은 안내만 띄운다.
         // ⚠️ from=my-trips 를 붙인다. 여행 홈이 집 대신 '<' 로 여기에 돌아온다.
-        onPressTrip={(tripId) =>
-          leftIds.has(tripId)
-            ? setLeftNoticeOpen(true)
-            : router.push(`/trips/${tripId}?from=my-trips&filter=${filter}`)
-        }
+        // ⚠️ 되돌릴 수 있는 취소 여행은 여행 홈으로 가지 않는다. 확인 시트부터 연다.
+        //    (2026-09-16) 되돌리면 그 여행 홈으로 바로 들어간다. (handleRestore)
+        onPressTrip={(tripId) => {
+          if (leftIds.has(tripId)) {
+            setLeftNoticeOpen(true);
+            return;
+          }
+          if (restorableIds.has(tripId)) {
+            void handleOpenRestore(tripId);
+            return;
+          }
+          router.push(`/trips/${tripId}?from=my-trips&filter=${filter}`);
+        }}
         // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint param 을 읽어 기록한다.
         onPressCreateTrip={() => router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)}
-        onRestoreTrip={(tripId) => void handleOpenRestore(tripId)}
         preparingRestoreTripId={preparingRestoreTripId}
       />
 
       {/*
-        CXL-05 되돌리기 확인. 여행 홈과 같은 시트다.
-        ⚠️ 취소 시점 스냅샷을 그대로 읽는다. 다시 계산하지 않는다. (POL-CXL-011)
-           스냅샷이 없으면 남은 돈 0 · ZERO 로 보고 요약 행을 숨긴다.
-        ⚠️ 남은 돈은 보이는 5건이 아니라 **내역 전부**로 계산한다.
+        되돌리기 확인 팝업. (2026-09-16)
+
+        ⚠️ 바텀시트(RestoreConfirmSheet)가 아니라 **가운데 팝업**이다. 카드를 누르면
+           바로 묻는 자리라 짧게 끝낸다. 여행 홈(TRIP-HOME-03)은 그대로 시트를 쓴다.
+        ⚠️ 그래도 '항상 거친다' 는 지킨다. 누르자마자 되돌리지 않는다. (POL-CXL-036)
+        ⚠️ 계좌 내역 목록은 팝업에 그리지 않고 **건수와 반영 후 남은 돈**만 적는다.
+           남은 돈은 보이는 것이 아니라 내역 전부로 계산한다. 스냅샷을 다시 계산하지
+           않는다. (POL-CXL-011)
       */}
-      {restoreTarget ? (
-        <RestoreConfirmSheet
-          visible
-          onClose={() => {
-            if (!restoring) setRestoreTarget(null);
-          }}
-          destination={restoreTarget.trip.destination ?? '여행'}
-          isGroupTrip={Boolean(restoreTarget.trip.group_id)}
-          changes={restoreTarget.changes}
-          afterLabel={`${restoredRemainingAmount(
-            (restoreTarget.trip.canceled_fund_snapshot_json as CanceledFundSnapshot | null)
-              ?.remaining ?? 0,
-            restoreTarget.changes,
-          ).toLocaleString('ko-KR')}원`}
-          fundType={
-            (restoreTarget.trip.canceled_fund_snapshot_json as CanceledFundSnapshot | null)
-              ?.fund_type ?? 'ZERO'
-          }
-          onRestore={() => void handleRestore()}
-          restoring={restoring}
-        />
-      ) : null}
+      <ConfirmModal
+        visible={restoreTarget !== null}
+        title={`${restoreTarget?.trip.destination ?? '여행'} 여행을 되돌릴까요?`}
+        description={restoreTarget ? restoreDescription(restoreTarget) : null}
+        confirmLabel="되돌리기"
+        centerDescription
+        busy={restoring}
+        onCancel={() => {
+          if (!restoring) setRestoreTarget(null);
+        }}
+        onConfirm={() => void handleRestore()}
+      />
 
       <ConfirmModal
         visible={leftNoticeOpen}

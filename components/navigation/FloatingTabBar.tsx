@@ -21,6 +21,8 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BRAND } from '@/lib/constants/brandColor';
+
 /** 아이콘이 놓이는 줄 높이. 안전영역은 이 아래에 더 붙는다. */
 const BAR_HEIGHT = 50;
 /** 안전영역이 없는 기기에서 바닥과 띄우는 최소 간격. */
@@ -30,7 +32,7 @@ const ICON_SIZE = 25;
 const BAR_BG = '#FFFFFF';
 /** 본문과 바를 가르는 실선. 진하면 바가 무거워 보인다. */
 const BAR_LINE = '#EEF0F3';
-const ICON_ACTIVE = '#111827';
+const ICON_ACTIVE = BRAND.primary;
 const ICON_INACTIVE = '#B6BCC6';
 
 /**

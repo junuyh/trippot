@@ -67,6 +67,7 @@ export function HomeHeader({
           ⚠️ [개발용] 로고 + 이름 전체를 길게 누르면 신규 사용자 홈 미리보기를 켜고 끈다.
              짧게 누르면 아무 일도 없다 — 사용자에게는 여전히 그냥 로고다.
              onLongPressLogo 가 없으면 disabled 라 눌리지 않는다.
+             (글자색 text-brand 는 한나 브랜드 컬러 작업 그대로다)
         */}
         <Pressable
           className="flex-1 flex-row items-center"
@@ -83,7 +84,7 @@ export function HomeHeader({
             accessibilityLabel="TripPot"
           />
           <Text
-            className="ml-2 flex-1 text-pot-ink"
+            className="ml-2 flex-1 text-brand"
             style={{ fontSize: 18, fontWeight: '700', letterSpacing: -0.4 }}
           >
             TripPot

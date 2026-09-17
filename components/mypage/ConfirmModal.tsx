@@ -7,6 +7,11 @@ type Props = {
   title: string;
   /** 한 줄 설명. 없으면 그리지 않는다. */
   description?: string | null;
+  /**
+   * 설명을 가운데 정렬한다. 여러 줄 안내를 읽기 쉽게 할 때 쓴다.
+   * ⚠️ 기본은 false 라 기존 사용처(커뮤니티 삭제 확인 등)는 그대로 왼쪽 정렬이다. (2026-09-16)
+   */
+  centerDescription?: boolean;
   /** 확인 버튼 글자. 예: `삭제` `좋아요 취소` */
   confirmLabel: string;
   /**
@@ -52,6 +57,7 @@ export function ConfirmModal({
   visible,
   title,
   description,
+  centerDescription = false,
   confirmLabel,
   destructive = false,
   busy,
@@ -77,7 +83,10 @@ export function ConfirmModal({
           <Text className="text-lg font-bold leading-7 text-pot-ink">{title}</Text>
 
           {description ? (
-            <Text className="mt-2 text-pot-mute" style={{ fontSize: 13, lineHeight: 19 }}>
+            <Text
+              className={`mt-2 text-pot-mute ${centerDescription ? 'text-center' : ''}`}
+              style={{ fontSize: 13, lineHeight: 19 }}
+            >
               {description}
             </Text>
           ) : null}
@@ -114,7 +123,7 @@ export function ConfirmModal({
                   )}
                 </Pressable>
               ) : (
-                <Button label={confirmLabel} loading={busy} onPress={onConfirm} />
+                <Button label={confirmLabel} variant="brand" loading={busy} onPress={onConfirm} />
               )}
             </View>
           </View>

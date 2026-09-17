@@ -28,8 +28,9 @@ type Props = {
 export function MyCommentList({ comments, onPressComment, onDeleteComment }: Props) {
   return (
     <FlatList
-      className="flex-1 bg-pot-visual"
-      contentContainerClassName="px-4 pb-16 pt-4"
+      className="flex-1 bg-brand-soft"
+      contentContainerClassName="pb-16 pt-4"
+      contentContainerStyle={{ paddingHorizontal: 18 }}
       data={comments}
       keyExtractor={(item) => item.commentId}
       ItemSeparatorComponent={() => <View className="h-2.5" />}
@@ -49,8 +50,10 @@ export function MyCommentList({ comments, onPressComment, onDeleteComment }: Pro
                 accessibilityRole="button"
                 accessibilityLabel={item.content}
                 onPress={() => onPressComment(item.postId)}
-                className="flex-row items-center bg-white px-3.5 py-3.5 active:opacity-90"
+                className="flex-row items-center bg-white px-3.5 py-3.5 active:bg-pot-visual"
                 style={{
+                  borderWidth: 1,
+                  borderColor: '#E5E8EC',
                   shadowColor: '#111827',
                   shadowOpacity: 0.05,
                   shadowRadius: 12,

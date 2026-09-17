@@ -19,6 +19,7 @@ import { Text, View } from "react-native";
 
 import { BranchNotice } from "@/components/invite";
 import { BottomSheet, Button } from "@/components/ui";
+import { BRAND } from "@/lib/constants/brandColor";
 
 type Props = {
   visible: boolean;
@@ -97,7 +98,7 @@ export function CancelVoteSheet({
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 16 }}>
+      <View style={{ paddingBottom: 8, gap: 16 }}>
         {/* 사유 — 없으면 없다고 명시한다 */}
         {reasonLabel ? (
           <BranchNotice
@@ -141,7 +142,7 @@ function Effect({ children, keep = false }: { children: React.ReactNode; keep?: 
           height: 5,
           borderRadius: 3,
           marginTop: 8,
-          backgroundColor: keep ? "#2563eb" : "#C3CBD5",
+          backgroundColor: keep ? BRAND.primary : "#C3CBD5",
         }}
       />
       <Text style={{ flex: 1, fontSize: 14, lineHeight: 22, color: "#4B5563" }}>{children}</Text>

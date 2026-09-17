@@ -10,10 +10,12 @@ type Props = {
   trips: MyTripItem[];
   filter: MyTripFilter;
   onChangeFilter: (filter: MyTripFilter) => void;
+  /**
+   * 카드를 눌렀을 때. 되돌릴 수 있는 취소 여행도 여기로 온다 —
+   * 화면 파일이 여행 홈 대신 되돌리기 확인 시트를 연다. (2026-09-16)
+   */
   onPressTrip: (tripId: string) => void;
   onPressCreateTrip: () => void;
-  /** 취소된 여행 카드의 '되돌리기'. 화면 파일이 CXL-05 확인 시트를 연다. */
-  onRestoreTrip: (tripId: string) => void;
   /** 되돌리기 준비(내역 조회) 중인 여행. 없으면 null. */
   preparingRestoreTripId: string | null;
 };
@@ -44,13 +46,19 @@ export function MyTripListView({
   onChangeFilter,
   onPressTrip,
   onPressCreateTrip,
-  onRestoreTrip,
   preparingRestoreTripId,
 }: Props) {
   return (
-    <View className="flex-1 bg-pot-visual">
+    // 페이지 바탕 = 브랜드 soft(#F6F0FA · MY 세부 화면 공통). 헤더 아래 탭 영역부터 하단까지 한 색이다. (2026-09-17)
+    <View className="flex-1 bg-brand-soft">
       {/* 탭. GROUP-02 모임 상세와 같은 컴포넌트를 쓴다. */}
-      <TripFilterTabs filter={filter} onChangeFilter={onChangeFilter} tabs={MY_TRIP_FILTER_TABS} />
+      {/* 탭 버튼 스타일은 그대로, 탭 바깥 배경만 페이지와 같은 soft 로 잇는다 (GROUP 상세는 기본 white 그대로). */}
+      <TripFilterTabs
+        filter={filter}
+        onChangeFilter={onChangeFilter}
+        tabs={MY_TRIP_FILTER_TABS}
+        className="bg-brand-soft"
+      />
 
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-16 pt-4">
         {trips.length === 0 ? (
@@ -65,7 +73,7 @@ export function MyTripListView({
                 accessibilityRole="button"
                 accessibilityLabel="새 여행 만들기"
                 onPress={onPressCreateTrip}
-                className="mt-3 rounded-full bg-pot-ink px-4 py-2.5 active:opacity-80"
+                className="mt-3 rounded-full bg-brand px-4 py-2.5 active:bg-brand-pressed"
               >
                 <Text className="font-bold text-white" style={{ fontSize: 12.5 }}>
                   + 여행 만들기
@@ -80,7 +88,6 @@ export function MyTripListView({
                 key={trip.tripId}
                 trip={trip}
                 onPress={onPressTrip}
-                onRestore={onRestoreTrip}
                 restoreLoading={preparingRestoreTripId === trip.tripId}
               />
             ))}

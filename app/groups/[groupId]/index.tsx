@@ -15,10 +15,8 @@
 //       app/trips/new/owner.tsx 가 groupId param 을 받지 않는다.
 //       그 파일은 L 담당이라 여기서 고치지 않는다. 담당자 요청 후 &groupId= 를 붙인다.
 // ============================================================================
-import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable } from 'react-native';
 
 import {
   AccountTripPickerSheet,
@@ -55,9 +53,15 @@ import {
   getGroupMemberCount,
   getGroupMembers,
   getGroupTrips,
+  getMyGroups,
   getTripAmountSummaries,
   updateGroup,
 } from '@/lib/supabase/queries/groups';
+import {
+  FALLBACK_GROUP_CARD_THEME,
+  assignGroupThemesByOrder,
+  type GroupCardTheme,
+} from '@/components/groups/cardTheme';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 import { LeaveDoneView, LeaveTripFlow } from '@/components/members';
 import { useLeaveTrip } from '@/lib/hooks/useLeaveTrip';
@@ -73,6 +77,8 @@ export default function ScreenGROUP02() {
   const userId = useCurrentUserId();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [group, setGroup] = useState<GroupDetailData | null>(null);
+  /** 목록 카드와 같은 모임 색. 내 모임 전체의 안정 순서로 정해진다. (2026-09-17) */
+  const [theme, setTheme] = useState<GroupCardTheme>(FALLBACK_GROUP_CARD_THEME);
   /** 여행을 고르는 시트에 올라온 계좌. null 이면 닫혀 있다. */
   const [pickingAccount, setPickingAccount] = useState<GroupAccountItem | null>(null);
   /** '전체 계좌' 시트. 이 모임의 모든 계좌를 담는다. */
@@ -136,7 +142,7 @@ export default function ScreenGROUP02() {
         return;
       }
 
-      const [memberCount, members, accounts, participating, trips, canceledTrips, myLeftTrips] =
+      const [memberCount, members, accounts, participating, trips, canceledTrips, myLeftTrips, myGroups] =
         await Promise.all([
         // 인원 수는 GROUP-01 카드와 같은 기준을 쓴다.
         // ⚠️ getGroupMembers() 는 탈퇴 회원까지 추가로 걸러서 members.length 와
@@ -153,7 +159,15 @@ export default function ScreenGROUP02() {
         getGroupCanceledTrips(groupId),
         // 내가 나간 여행 id. 탭이 아니라 카드 배지에만 쓴다. MY 와 같은 쿼리다.
         getLeftTrips(userId),
+        // 목록(GROUP-01)과 같은 색을 내려면 내 모임 전체가 필요하다. (cardTheme.assignGroupThemesByOrder)
+        getMyGroups(userId).catch(() => []),
       ]);
+
+      setTheme(
+        assignGroupThemesByOrder(
+          myGroups.map((g) => ({ groupId: g.id, createdAt: g.created_at })),
+        ).get(groupId) ?? FALLBACK_GROUP_CARD_THEME,
+      );
 
       /**
        * ⚠️ 이 모임의 **참여 중(ACTIVE) 멤버만** 상세를 볼 수 있다.
@@ -465,29 +479,16 @@ export default function ScreenGROUP02() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: group.name,
-          // 이름 수정 진입점. 실제 모임(groupId 있음)에서만 이 화면이 열리므로
-          // 개인 여행에는 애초에 나타나지 않는다. (docs/11_모임정책_v1.md §3)
-          headerRight: () => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="모임 이름 수정"
-              hitSlop={8}
-              onPress={() => {
-                setRenameError(null);
-                setRenameOpen(true);
-              }}
-              className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
-            >
-              <Ionicons name="pencil-outline" size={20} color="#111827" />
-            </Pressable>
-          ),
-        }}
-      />
+      {/* 이름 수정 연필은 헤더가 아니라 본문의 모임 이름 옆에 있다. (2026-09-17 · GroupDetailView onPressRename)
+          실제 모임(groupId 있음)에서만 이 화면이 열리므로 개인 여행에는 애초에 나타나지 않는다. (docs/11 §3) */}
+      <Stack.Screen options={{ title: group.name }} />
       <GroupDetailView
         group={group}
+        theme={theme}
+        onPressRename={() => {
+          setRenameError(null);
+          setRenameOpen(true);
+        }}
         onPressTrip={handlePressTrip}
         onPressCreateTrip={handlePressCreateTrip}
         /**

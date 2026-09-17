@@ -1,13 +1,19 @@
 import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-native';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'brand' | 'secondary' | 'ghost' | 'danger';
 
 const BASE = 'flex-row items-center justify-center rounded-xl px-5 py-3.5';
 
 const VARIANT: Record<Variant, { box: string; label: string }> = {
-  primary: { box: 'bg-blue-600 active:bg-blue-700', label: 'text-white' },
+  primary: { box: 'bg-brand active:bg-brand-pressed', label: 'text-white' },
+  /**
+   * primary 와 같은 브랜드 CTA (#64139E · 눌림 #521080). PR #122 에서 먼저 쓴 이름이라 남겨 둔다.
+   * primary 는 generic 기본 동작 색이고, 사용처 어디도 국가 테마 색을 넘기지 않아 둘 다 브랜드다.
+   * 국가 테마(theme.primary) 버튼은 이 컴포넌트를 쓰지 않는다. (2026-09-16 Final Color System)
+   */
+  brand: { box: 'bg-brand active:bg-brand-pressed', label: 'text-white' },
   secondary: { box: 'bg-gray-100 active:bg-gray-200', label: 'text-gray-900' },
-  ghost: { box: 'bg-transparent active:bg-gray-100', label: 'text-blue-600' },
+  ghost: { box: 'bg-transparent active:bg-gray-100', label: 'text-brand' },
   danger: { box: 'bg-red-600 active:bg-red-700', label: 'text-white' },
 };
 

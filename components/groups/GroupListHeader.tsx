@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import type { GroupSortMode } from '@/lib/supabase/queries/groups';
+import { BRAND } from '@/lib/constants/brandColor';
 
 /** 화면에 보이는 정렬 이름. 두 가지뿐이다. (2026-09-03 정책) */
 export const GROUP_SORT_LABEL: Record<GroupSortMode, string> = {
@@ -128,7 +129,7 @@ export function GroupListHeader({
               >
                 {/* 체크 자리는 늘 비워 둔다. 선택이 바뀌어도 글자가 움직이지 않는다. */}
                 <View style={{ width: 14 }}>
-                  {selected ? <Ionicons name="checkmark" size={14} color="#111827" /> : null}
+                  {selected ? <Ionicons name="checkmark" size={14} color={BRAND.primary} /> : null}
                 </View>
                 <Text
                   className={selected ? 'font-semibold text-pot-ink' : 'text-pot-mute'}

@@ -15,11 +15,13 @@
 import { Platform } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+import { BRAND } from '@/lib/constants/brandColor';
+
 export const PASSPORT = {
-  /** 내지 바탕. 아주 연한 라벤더 */
-  paper: '#F4F1FB',
-  /** 구분선 · 사진 칸 테두리 */
-  rule: '#DDD8EA',
+  /** 내지 바탕. 실제 여권 속지 같은 밝은 off-white — 노란 기 없이 색만 종이. (2026-09-17) */
+  paper: '#FAF9F6',
+  /** 구분선 · 사진 칸 테두리 · 카드 테두리 */
+  rule: '#E4E0EA',
   /** 제목 · 이름 · 값. 진한 남보라 */
   ink: '#2E2A5E',
   /** 라벨 · 보조 글자. 회보라 */
@@ -31,7 +33,7 @@ export const PASSPORT = {
    * ⚠️ 홈의 #6C5CE7 을 쓰지 않는다. (2026-09-13) 종이 위에서 네온처럼 떴다.
    *    채도를 낮추고 어둡게 — 여권 인쇄 잉크 같은 보라.
    */
-  accent: '#4B3F8F',
+  accent: BRAND.primary,
   /** 워터마크 색. 잉크보다 조금 푸른 회보라 */
   watermark: '#5B5490',
   /** 사진 칸 안 기본 아이콘 */

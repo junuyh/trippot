@@ -118,7 +118,7 @@ export function CommentSection({
           accessibilityState={{ disabled: !canSubmit, busy: submitting }}
           disabled={!canSubmit}
           onPress={onSubmit}
-          className="ml-2 rounded-full bg-pot-ink px-4 py-3 active:opacity-80"
+          className="ml-2 rounded-full bg-brand px-4 py-3 active:bg-brand-pressed"
           style={{ opacity: canSubmit ? 1 : 0.35 }}
         >
           <Text className="font-bold text-white" style={{ fontSize: 13 }}>

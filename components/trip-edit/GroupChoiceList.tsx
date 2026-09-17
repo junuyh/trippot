@@ -11,6 +11,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 
+import { useDeferredPlaceholder } from "@/lib/hooks/useDeferredPlaceholder";
+
 import { Loading } from "@/components/ui";
 import type { Group } from "@/lib/supabase/queries/groups";
 
@@ -80,6 +82,8 @@ export function GroupChoiceList({
   onSelect,
 }: Props) {
   const [query, setQuery] = useState("");
+  // ⚠️ 첫 그림에서 플레이스홀더가 번진다. 한 틱 뒤에 넣어 다시 그리게 한다.
+  const deferredPlaceholder = useDeferredPlaceholder("모임 이름으로 찾기");
   const showSearch = groups.length > SEARCH_THRESHOLD;
 
   const filtered = useMemo(() => {
@@ -109,7 +113,7 @@ export function GroupChoiceList({
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="모임 이름으로 찾기"
+            placeholder={deferredPlaceholder}
             placeholderTextColor="#9ca3af"
             autoCorrect={false}
             autoCapitalize="none"

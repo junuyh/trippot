@@ -50,7 +50,7 @@ export function TravelStyleSelector({ value, onChange, disabled = false }: Props
               }`}
             >
               <Text
-                className={`text-xs font-bold ${selected ? 'text-blue-600' : 'text-gray-500'}`}
+                className={`text-xs font-bold ${selected ? 'text-brand' : 'text-gray-500'}`}
               >
                 {TRAVEL_STYLE_LABEL[style]}
               </Text>
@@ -66,7 +66,7 @@ export function TravelStyleSelector({ value, onChange, disabled = false }: Props
       <Text className="mt-2.5 text-[11px] leading-4 text-gray-500">
         {value ? (
           <>
-            <Text className="font-bold text-blue-600">{TRAVEL_STYLE_LABEL[value]}</Text>
+            <Text className="font-bold text-brand">{TRAVEL_STYLE_LABEL[value]}</Text>
             <Text> · {TRAVEL_STYLE_DESCRIPTION[value]}</Text>
           </>
         ) : (

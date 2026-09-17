@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { CurrencyInput } from '@/components/ui';
+import { BRAND } from '@/lib/constants/brandColor';
 import { CATEGORY_CODE, CATEGORY_CODE_LABEL, type CategoryCode } from '@/lib/constants/status';
 
 /** 카테고리를 펼쳤을 때 고를 수 있는 근거 상품 하나. 금액은 화면이 계산해 넘긴다. */
@@ -155,12 +156,12 @@ function ProductCard({
       disabled={disabled}
       onPress={onPress}
       className={`w-[136px] overflow-hidden rounded-2xl border-2 bg-white ${
-        product.selected ? 'border-blue-600' : 'border-gray-200'
+        product.selected ? 'border-brand' : 'border-gray-200'
       }`}
     >
       <View
         className={`h-[70px] items-center justify-center ${
-          product.selected ? 'bg-blue-50' : 'bg-gray-50'
+          product.selected ? 'bg-brand-soft' : 'bg-gray-50'
         }`}
       >
         <Text className="text-3xl">{product.emoji}</Text>
@@ -168,7 +169,7 @@ function ProductCard({
 
       <View
         className={`absolute right-1.5 top-1.5 h-5 w-5 items-center justify-center rounded-full ${
-          product.selected ? 'bg-blue-600' : 'bg-white/90'
+          product.selected ? 'bg-brand' : 'bg-white/90'
         }`}
       >
         <Ionicons
@@ -254,7 +255,7 @@ export function BudgetCategoryList({
               disabled={disabled}
               onPress={() => onToggleEditing(category.categoryCode)}
               className={`flex-row items-center justify-between px-4 py-3.5 ${
-                open ? 'bg-blue-50' : 'bg-white active:bg-gray-50'
+                open ? 'bg-brand-soft' : 'bg-white active:bg-gray-50'
               }`}
             >
               <Text className="text-base text-gray-800">
@@ -296,7 +297,7 @@ export function BudgetCategoryList({
             </Pressable>
 
             {open ? (
-              <View className="gap-3 bg-blue-50 pb-4">
+              <View className="gap-3 bg-brand-soft pb-4">
                 {/*
                   ── 근거와 기준 금액 ──
                   두 길(AI 추천 / 직접 입력) 중 무엇을 고를지 판단하려면
@@ -305,7 +306,7 @@ export function BudgetCategoryList({
                 */}
                 <View className="gap-2 px-4 pt-1">
                   <View className="flex-row items-start gap-1.5">
-                    <Ionicons name="bulb-outline" size={15} color="#2563eb" />
+                    <Ionicons name="bulb-outline" size={15} color={BRAND.primary} />
                     <Text className="flex-1 text-xs leading-5 text-gray-700">
                       {/*
                         예비비는 basis 를 쓰지 않는다. basis 는 기준 금액을 어떻게
@@ -354,7 +355,7 @@ export function BudgetCategoryList({
                         <Text className="text-xs font-semibold text-gray-700">
                           {CATEGORY_CODE_LABEL[category.categoryCode]} 예산
                         </Text>
-                        <Text className="text-sm font-bold text-blue-700">
+                        <Text className="text-sm font-bold text-brand">
                           {won(category.plannedAmount)}
                         </Text>
                       </View>
@@ -378,8 +379,8 @@ export function BudgetCategoryList({
                       onPress={() => onToggleManual(category.categoryCode)}
                       className="h-11 flex-row items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white active:bg-gray-100"
                     >
-                      <Ionicons name="sparkles-outline" size={14} color="#2563eb" />
-                      <Text className="text-[13px] font-bold text-blue-600">추천으로 돌아가기</Text>
+                      <Ionicons name="sparkles-outline" size={14} color={BRAND.primary} />
+                      <Text className="text-[13px] font-bold text-brand">추천으로 돌아가기</Text>
                     </Pressable>
                   </View>
                 ) : (
@@ -388,8 +389,8 @@ export function BudgetCategoryList({
                     {/* 카드 줄은 좌우 여백까지 흘러 잘린 카드가 보이게 한다 */}
                     {category.productsFromAi && category.products?.length ? (
                       <View className="flex-row items-center gap-1 px-4">
-                        <Ionicons name="sparkles" size={12} color="#2563eb" />
-                        <Text className="text-[11px] font-semibold text-blue-600">
+                        <Ionicons name="sparkles" size={12} color={BRAND.primary} />
+                        <Text className="text-[11px] font-semibold text-brand">
                           이 여행지에 맞춰 만든 선택지예요
                         </Text>
                       </View>
@@ -427,7 +428,7 @@ export function BudgetCategoryList({
                               onPress={() => onChangeContingency(option.value)}
                               className={`flex-1 items-center justify-center rounded-xl border py-2.5 ${
                                 selected
-                                  ? 'border-blue-600 bg-blue-600'
+                                  ? 'border-brand bg-brand'
                                   : 'border-gray-200 bg-white active:bg-gray-100'
                               }`}
                             >
@@ -473,7 +474,7 @@ export function BudgetCategoryList({
                           className={
                             showTotalRow
                               ? 'text-xs font-bold text-gray-900'
-                              : 'text-sm font-bold text-blue-700'
+                              : 'text-sm font-bold text-brand'
                           }
                         >
                           {won(
@@ -532,7 +533,7 @@ export function BudgetCategoryList({
                           <Text className="text-xs font-semibold text-gray-700">
                             {CATEGORY_CODE_LABEL[category.categoryCode]} 예산
                           </Text>
-                          <Text className="text-sm font-bold text-blue-700">
+                          <Text className="text-sm font-bold text-brand">
                             {won(category.plannedAmount)}
                           </Text>
                         </View>

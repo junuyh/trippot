@@ -58,7 +58,7 @@ export function HiddenGroupsSheet({
                     onPress={() => onPressUnhide(group.groupId)}
                     className={`shrink-0 rounded-lg px-2 py-1 active:bg-gray-100 ${saving ? 'opacity-40' : ''}`}
                   >
-                    <Text className="text-sm font-semibold text-blue-600">다시 표시</Text>
+                    <Text className="text-sm font-semibold text-brand">다시 표시</Text>
                   </Pressable>
                 </View>
               ))}

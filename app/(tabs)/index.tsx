@@ -90,7 +90,10 @@ import {
   type PostDestinationCount,
 } from '@/lib/supabase/queries/community';
 import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
-import { getTripsWithSummary, type TripWithSummary } from '@/lib/supabase/queries/trips';
+import {
+  getMyParticipatingTripsWithSummary,
+  type TripWithSummary,
+} from '@/lib/supabase/queries/trips';
 import { getUserProfile, type UserProfile } from '@/lib/supabase/queries/users';
 import { isTripOngoing } from '@/lib/trip/tripStatus';
 
@@ -104,6 +107,8 @@ type LoadState = 'loading' | 'ready' | 'error';
  * 여기서 다 보여주면 홈이 여행 목록 페이지가 된다. (CLAUDE.md 2장)
  */
 const HOME_PAST_TRIP_LIMIT = 4;
+/** 첫 조회가 실패했을 때 다시 시도하기까지 기다리는 시간. (load 의 재시도 주석 참고) */
+const RETRY_DELAY_MS = 600;
 
 /**
  * 신규 사용자 홈 배너에 돌릴 여행지 수.
@@ -240,7 +245,7 @@ export default function ScreenHOME01() {
    */
   const [postCounts, setPostCounts] = useState<PostDestinationCount[]>([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (attempt = 0) => {
     // ⚠️ 여기서 setLoadState('loading') 을 하지 않는다. (2026-09-03)
     //    아래 useFocusEffect 때문에 탭에 들어올 때마다 load 가 도는데,
     //    그때마다 loading 으로 바꾸면 여행 카드가 사라졌다 스피너가 번쩍이고
@@ -255,7 +260,15 @@ export default function ScreenHOME01() {
       // 모임은 카드에 '개인 / 모임명' 을 쓰기 위해 조회한다. (docs/09_IA_v2.md §1-1, §1-2)
       // 모임 바로가기 섹션은 이번 개편에서 뺐다.
       const [nextTrips, nextGroups, nextProfile] = await Promise.all([
-        getTripsWithSummary(userId),
+        /**
+         * ⚠️ **참여 중인 여행만** 가져온다. getTripsWithSummary 는 모임 소속만
+         *    보고 여행 참여 여부를 안 봐서, 내가 나간 여행까지 홈에 떴다.
+         *    모임 상세는 '나간 여행' 배지로 구분해 주는데 홈에는 그 장치가
+         *    없어서 그냥 준비 중인 내 여행처럼 보였다. (2026-09-15)
+         * ⚠️ 개인 여행도 안전하다 — 여행을 만들 때 본인이 trip_members 에
+         *    ACTIVE 로 들어간다. (app/trips/new/budget-fund.tsx · seed 다낭)
+         */
+        getMyParticipatingTripsWithSummary(userId),
         getMyGroups(userId),
         getUserProfile(userId),
       ]);
@@ -291,8 +304,27 @@ export default function ScreenHOME01() {
       }
 
       setLoadState('ready');
-    } catch {
+    } catch (error) {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
+      // ⚠️ 개발 중에는 이유를 남긴다. 배포 빌드(__DEV__ = false)에서는 찍지 않는다.
+      if (__DEV__) console.warn('[home] load failed', error, 'attempt', attempt);
+
+      /*
+        ⚠️ **한 번 실패했다고 바로 오류 화면을 보여주지 않는다.** (2026-09-16)
+
+        구글로 처음 가입할 때(아이디 → 비밀번호 → 동의 → 2단계 인증) 앱이 한동안
+        브라우저 뒤에 있다가 돌아오는데, 돌아오자마자 도는 첫 조회가 한 번
+        실패하면서 새 사용자가 가입 직후에 오류 화면을 봤다. 곧바로 '다시 시도' 를
+        누르면 정상이었다.
+
+        그래서 짧게 기다렸다가 한 번 더 시도하고, 그래도 안 되면 그때 오류로 둔다.
+        무한 재시도는 하지 않는다 — 진짜 실패가 조용히 숨으면 안 된다.
+      */
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        await load(1);
+        return;
+      }
       setLoadState('error');
     }
   }, [userId, emptyPreview]);
@@ -380,7 +412,7 @@ export default function ScreenHOME01() {
     // 미리보기 — 서버에 아무것도 쓰지 않고 결과만 흉내 낸다.
     if (__DEV__ && isPreview) {
       dismissInvite(token);
-      Alert.alert('참여 요청을 보냈어요', '여행장이 수락하면 여행에 함께할 수 있어요.');
+      Alert.alert('초대를 수락했어요', '여행장이 승인하면 여행에 함께할 수 있어요.');
       return;
     }
 
@@ -388,7 +420,7 @@ export default function ScreenHOME01() {
     try {
       await requestTripJoin(token);
       dismissInvite(token);
-      Alert.alert('참여 요청을 보냈어요', '여행장이 수락하면 여행에 함께할 수 있어요.');
+      Alert.alert('초대를 수락했어요', '여행장이 승인하면 여행에 함께할 수 있어요.');
     } catch (error) {
       const code = tripJoinErrorCode(error);
       if (code === TRIP_JOIN_ERROR.ALREADY_MEMBER) {
@@ -398,13 +430,13 @@ export default function ScreenHOME01() {
       } else if (code === TRIP_JOIN_ERROR.REJECTED_FOR_INVITE) {
         // ⚠️ 거절 사유를 말하지 않는다. (POL-INV-051)
         dismissInvite(token);
-        Alert.alert('이 초대로는 참여 요청을 보낼 수 없어요');
+        Alert.alert('이 초대에는 응답할 수 없어요');
       } else if (code === TRIP_JOIN_ERROR.INVITE_NOT_VALID || code === TRIP_JOIN_ERROR.NOT_FOUND) {
         dismissInvite(token);
         Alert.alert('초대 링크가 만료됐어요', '초대한 사람에게 새 링크를 받아 주세요.');
       } else {
         // 일시적인 실패일 수 있다. 초대는 남겨 두고 다시 누를 수 있게 한다.
-        Alert.alert('참여 요청을 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
+        Alert.alert('초대 수락을 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
       }
     } finally {
       setRequestingToken(null);

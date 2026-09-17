@@ -70,7 +70,7 @@ export function AccountView({
   onPressWithdraw,
 }: Props) {
   return (
-    <View className="px-4">
+    <View style={{ paddingHorizontal: 18 }}>
       <View className="mt-7">
         <Text
           className="text-pot-ink"
@@ -106,6 +106,7 @@ export function AccountView({
           <View className="mt-3">
             <Button
               label="저장"
+              variant="brand"
               disabled={!canSaveName}
               loading={savingName}
               onPress={onPressSaveName}
@@ -150,6 +151,7 @@ export function AccountView({
           <View className="mt-3">
             <Button
               label="저장"
+              variant="brand"
               disabled={!canSaveEnglishName}
               loading={savingEnglishName}
               onPress={onPressSaveEnglishName}
@@ -202,7 +204,8 @@ export function AccountView({
             onPress={onPressWithdraw}
             suppressHighlighting
             className="py-3 text-pot-mute"
-            style={{ fontSize: 13.5, lineHeight: 19 }}
+            // 섹션 제목('프로필')과 같은 단. 탈퇴라고 작게 숨기지 않는다. (2026-09-17)
+            style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.5 }}
           >
             회원탈퇴
           </Text>

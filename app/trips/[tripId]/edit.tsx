@@ -39,7 +39,7 @@ import { format, isAfter, parseISO } from "date-fns";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Alert, ScrollView, Share, View } from "react-native";
+import { Alert, Share, View } from "react-native";
 
 import { useAuth, useCurrentUserId } from "@/lib/auth/AuthProvider";
 import {
@@ -48,7 +48,7 @@ import {
   NewGroupNameSheet,
   type JoinRequestItem,
 } from "@/components/invite";
-import { TripEditForm } from "@/components/trip-edit";
+import { TripEditForm, type TripMemberChip } from "@/components/trip-edit";
 import { EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { TRIP_OWNER_TYPE_LABEL, TRIP_STATUS } from "@/lib/constants/status";
@@ -59,6 +59,8 @@ import {
 } from "@/lib/invite/tripInviteLink";
 import { getMyGroups, type Group } from "@/lib/supabase/queries/groups";
 import { getOrCreateTripInvite } from "@/lib/supabase/queries/tripInvites";
+import { useTripInvite } from "@/lib/hooks/useTripInvite";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import {
   TRIP_JOIN_ERROR,
   acceptTripJoinRequest,
@@ -69,7 +71,6 @@ import {
 import { isTripLeader } from "@/lib/trip/tripLeader";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
-  getJoinedTripMemberCount,
   getTripById,
   updateTrip,
   type Trip,
@@ -96,21 +97,24 @@ export default function ScreenTripEdit() {
   const [endDate, setEndDate] = useState<string | null>(null);
   const [headcount, setHeadcount] = useState(1);
   /**
-   * 참여 중인 가입자 수. 초대 버튼을 켤지 정한다.
+   * 참여 중인 **가입** 멤버. 이름 목록과 초대 버튼 판정에 함께 쓴다.
+   *
+   * ⚠️ 목록과 숫자를 따로 읽지 않는다. 따로 읽으면 "3명 참여 중" 이라고 해놓고
+   *    이름은 2개만 뜨는 일이 생긴다. 하나에서 둘 다 뽑는다.
+   *
+   * ⚠️ 미가입 동행자(user_id null)는 뺀다. 알림·투표·위임·나가기 판정에서 이미
+   *    빠져 있어서, 목록에만 넣으면 거기서만 실제 멤버처럼 보인다.
+   *    (2026-09-16 다빈) 새 여행에는 애초에 생기지 않는다.
+   *
    * 못 읽으면 null 이고 버튼은 켜 둔다 — 서버가 수락할 때 다시 막는다.
    */
-  const [joinedCount, setJoinedCount] = useState<number | null>(null);
+  const [members, setMembers] = useState<TripMemberChip[] | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // ── 여행 멤버 초대 ────────────────────────────────────────────────────
-  const [inviting, setInviting] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  /** RPC 가 돌려준 링크. 유효한 게 있으면 같은 값이 다시 온다 (§4-1) */
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
   /** 시트를 열 때 한 번 고른 첫 문장. 공유·복사가 같은 글을 쓴다 */
-  const [inviteOpener, setInviteOpener] = useState<string>("");
 
   // ── 참여 요청 (INV-04 · 여행장만) ──────────────────────────────────────────
   // 여행장 = trips.leader_user_id. owner_user_id 는 판정에 쓰지 않는다. (docs/12 §2)
@@ -124,7 +128,6 @@ export default function ScreenTripEdit() {
   const [namingRequest, setNamingRequest] = useState<JoinRequestItem | null>(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupNameError, setNewGroupNameError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     if (!tripId) {
@@ -134,10 +137,10 @@ export default function ScreenTripEdit() {
     }
     setError(false);
     try {
-      const [found, joined] = await Promise.all([
+      const [found, memberRows] = await Promise.all([
         getTripById(tripId),
         // 부가 정보다. 실패해도 일정·인원은 고칠 수 있어야 한다.
-        getJoinedTripMemberCount(tripId).catch(() => null),
+        listActiveTripMembers(tripId).catch(() => null),
       ]);
       if (!found) {
         setNotFound(true);
@@ -147,7 +150,25 @@ export default function ScreenTripEdit() {
       setStartDate(found.start_date);
       setEndDate(found.end_date);
       setHeadcount(found.headcount);
-      setJoinedCount(joined);
+      setMembers(
+        memberRows === null
+          ? null
+          : // 같은 사람 행이 여러 개일 수 있다 (trip_members 에 unique 가 없다)
+            Array.from(
+              new Map(
+                memberRows
+                  .filter((row) => row.user_id !== null)
+                  .map((row) => [
+                    row.user_id as string,
+                    {
+                      userId: row.user_id as string,
+                      name: row.name,
+                      isLeader: found.leader_user_id === row.user_id,
+                    },
+                  ]),
+              ).values(),
+            ),
+      );
     } catch {
       setError(true);
     } finally {
@@ -246,47 +267,32 @@ export default function ScreenTripEdit() {
    * ⚠️ 권한은 RPC 가 본다. ACTIVE 멤버가 아니면 42501 이 온다. 여기서 여행장
    *    여부를 미리 따지지 않는다. (§3)
    */
-  const handleInvite = useCallback(async () => {
-    if (inviting || !trip) return;
-
-    // 개발용 미리보기 — 실제 세션이 없어 서버가 auth.uid() 를 못 본다. RPC 를 부르지
-    // 않고 바로 알린다. "참여 중인 멤버만" 안내는 여기서는 틀린 설명이다.
-    // ⚠️ 미리보기를 위해 RPC·RLS 를 풀거나 가짜 링크를 만들지 않는다.
-    if (isPreview) {
-      Alert.alert(
-        "개발용 둘러보기에서는 초대 링크를 만들 수 없어요",
-        "실제 초대 기능은 카카오 로그인 후 확인할 수 있어요.",
-      );
-      return;
-    }
-
-    setInviting(true);
-    try {
-      // 늘린 인원이 아직 저장 전이면 먼저 저장한다. 서버는 저장된 인원으로 수락을 판정한다.
-      // ⚠️ 인원만 저장한다. 일정은 사용자가 '저장하기' 로 확정한다.
-      if (headcount !== trip.headcount) {
-        try {
-          await updateTrip(trip.id, { headcount });
-          setTrip({ ...trip, headcount });
-        } catch {
-          Alert.alert("인원을 저장하지 못했어요", "잠시 후 다시 시도해 주세요.");
-          return;
-        }
+  /**
+   * 여행 멤버 초대하기. 배선은 공용 훅에 있다 — 여행 홈 모달과 **같은 버튼,
+   * 같은 동작**이어야 해서 한 곳에 모았다. (2026-09-16 다빈)
+   */
+  const invite = useTripInvite({
+    tripId: trip?.id ?? null,
+    destination: trip?.destination ?? null,
+    periodLabel,
+    isPreview,
+    /**
+     * 늘린 인원이 아직 저장 전이면 먼저 저장한다. 서버는 저장된 인원으로 수락을
+     * 판정하므로 저장 전 인원으로 링크를 보내면 수락이 막힌다.
+     * ⚠️ 인원만 저장한다. 일정은 사용자가 '저장하기' 로 확정한다.
+     */
+    beforeOpen: async () => {
+      if (!trip || headcount === trip.headcount) return true;
+      try {
+        await updateTrip(trip.id, { headcount });
+        setTrip({ ...trip, headcount });
+        return true;
+      } catch {
+        Alert.alert("인원을 저장하지 못했어요", "잠시 후 다시 시도해 주세요.");
+        return false;
       }
-      const invite = await getOrCreateTripInvite(trip.id);
-      setInviteLink(buildTripInviteLink(invite.token));
-      setInviteOpener(pickTripInviteOpener());
-      setCopied(false);
-      setInviteOpen(true);
-    } catch {
-      Alert.alert(
-        "초대 링크를 준비하지 못했어요",
-        "이 여행에 참여 중인 멤버만 초대할 수 있어요. 잠시 후 다시 시도해 주세요.",
-      );
-    } finally {
-      setInviting(false);
-    }
-  }, [headcount, inviting, isPreview, trip]);
+    },
+  });
 
   /** 수락·거절이 끝난 뒤. 목록과 여행(모임 · 인원)을 다시 읽는다. */
   const afterDecision = useCallback(async () => {
@@ -383,43 +389,6 @@ export default function ScreenTripEdit() {
     [groups, trip?.group_id],
   );
 
-  /** 초대 글 전문. 공유와 복사가 같은 글을 쓴다 */
-  const inviteMessage = useMemo(
-    () =>
-      trip && inviteLink
-        ? buildTripInviteMessage({
-            opener: inviteOpener,
-            destination: trip.destination ?? "여행",
-            periodLabel,
-            link: inviteLink,
-          })
-        : "",
-    [inviteLink, inviteOpener, periodLabel, trip],
-  );
-
-  /**
-   * OS 공유 시트. 카카오톡이든 문자든 사용자가 고른다.
-   * ⚠️ 카카오 talk_message API 를 붙이지 않는다. (v2 §13)
-   */
-  const handleShare = useCallback(async () => {
-    if (!inviteMessage) return;
-    try {
-      await Share.share({ message: inviteMessage });
-    } catch {
-      // 사용자가 시트를 닫은 것도 여기로 온다. 알리지 않는다.
-    }
-  }, [inviteMessage]);
-
-  const handleCopyLink = useCallback(async () => {
-    if (!inviteMessage) return;
-    try {
-      await Clipboard.setStringAsync(inviteMessage);
-      setCopied(true);
-    } catch {
-      Alert.alert("복사하지 못했어요", "잠시 후 다시 시도해 주세요.");
-    }
-  }, [inviteMessage]);
-
   // ── 4상태 ─────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -495,6 +464,7 @@ export default function ScreenTripEdit() {
   const canSubmit = datesValid && headcount >= 1;
 
   /** 초대할 빈자리가 있는가. 인원(편집 중인 값)이 참여 중인 가입자보다 많아야 한다 */
+  const joinedCount = members === null ? null : members.length;
   const canInvite = joinedCount === null || headcount > joinedCount;
   /** 모임 이름. 내 모임 목록에 없으면(불러오는 중·못 읽음) 소유 형태 이름으로 둔다 */
   const groupLabel = trip.group_id
@@ -502,16 +472,9 @@ export default function ScreenTripEdit() {
     : TRIP_OWNER_TYPE_LABEL.PERSONAL;
 
   return (
-    <ScrollView
-      className="flex-1"
-      style={{ backgroundColor: "#f5f6f8" }}
-      contentContainerStyle={{
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 48,
-      }}
-      keyboardShouldPersistTaps="handled"
-    >
+    /* ⚠️ 스크롤은 TripEditForm 안에 있다. '저장하기' 를 하단에 고정하려면
+          스크롤 영역 바깥에 버튼이 있어야 해서 함께 그리도록 옮겼다. (2026-09-16) */
+    <View className="flex-1" style={{ backgroundColor: "#f5f6f8" }}>
       <Stack.Screen options={{
           headerLeft: () => (
             <HeaderBackButton parentHref={`/trips/${tripId}`} />
@@ -528,13 +491,14 @@ export default function ScreenTripEdit() {
         groupLabel={groupLabel}
         isGroupTrip={trip.group_id !== null}
         joinedCount={joinedCount}
+        members={members}
         canInvite={canInvite}
         canSubmit={canSubmit}
         saving={saving}
         errorMessage={saveError}
         onSubmit={() => void handleSubmit()}
-        onInvite={() => void handleInvite()}
-        inviting={inviting}
+        onInvite={() => void invite.startInvite()}
+        inviting={invite.inviting}
         joinRequests={joinRequests}
         onPressJoinRequest={setDecidingRequest}
       />
@@ -585,19 +549,19 @@ export default function ScreenTripEdit() {
 
       {/* 초대 링크 공유. candidates · branch 는 넘기지 않는다 — 링크는 여행당
           하나이고, 모임 분기는 수락 시점에 판정한다. (InviteLinkSheet 헤더) */}
-      {inviteLink ? (
+      {invite.link ? (
         <InviteLinkSheet
-          visible={inviteOpen}
-          onClose={() => setInviteOpen(false)}
+          visible={invite.open}
+          onClose={invite.close}
           destination={trip.destination ?? "여행"}
-          inviteUrl={inviteLink}
-          onCopyLink={() => void handleCopyLink()}
-          copied={copied}
+          inviteUrl={invite.link}
+          onCopyLink={() => void invite.copy()}
+          copied={invite.copied}
           headcount={headcount}
-          onShareKakao={() => void handleShare()}
+          onShareKakao={() => void invite.share()}
           sending={false}
         />
       ) : null}
-    </ScrollView>
+    </View>
   );
 }

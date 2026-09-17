@@ -41,13 +41,13 @@ export function BudgetOverviewCard({
       <View className="gap-1.5">
         <View className="h-2 overflow-hidden rounded-full bg-gray-100">
           <View
-            className={`h-full rounded-full ${over ? "bg-red-500" : "bg-blue-600"}`}
+            className={`h-full rounded-full ${over ? "bg-red-500" : "bg-brand"}`}
             style={{ width: `${Math.min(100, usage)}%` }}
           />
         </View>
         <View className="flex-row items-center justify-between">
           <Text
-            className={`text-xs font-semibold ${over ? "text-red-500" : "text-blue-700"}`}
+            className={`text-xs font-semibold ${over ? "text-red-500" : "text-brand"}`}
           >
             사용률 {usage}%
           </Text>
