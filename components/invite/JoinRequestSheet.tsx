@@ -68,7 +68,7 @@ export function JoinRequestSheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      title={`${request.name}님이 초대를 수락했어요`}
+      title={`${request.name}님이 참여를 요청했어요`}
       description="함께할지 확인해 주세요."
       footer={
         <View style={{ gap: 8 }}>
@@ -99,7 +99,7 @@ export function JoinRequestSheet({
             {request.name}
           </Text>
           <Text style={{ marginTop: 3, fontSize: 12, color: "#8B94A2" }}>
-            {requestedAtLabel} · 초대 링크로 수락
+            {requestedAtLabel} · 초대 링크로 요청
           </Text>
         </View>
 

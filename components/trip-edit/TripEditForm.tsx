@@ -351,7 +351,7 @@ export function TripEditForm({
               }}
             >
               {canInvite
-                ? "초대 링크를 받은 사람이 수락하면,\n여행장이 확인 후 승인할 수 있어요.\n링크는 7일간 쓸 수 있어요."
+                ? "링크를 받은 사람이 참여를 요청하면,\n여행장이 확인 후 승인할 수 있어요.\n링크는 7일간 쓸 수 있어요."
                 : `인원 ${headcount}명이 모두 참여 중이에요.\n위에서 인원을 늘리면 초대할 수 있어요.`}
             </Text>
             <InviteArt width={112} height={90} muted={!canInvite} style={{ marginTop: -8 }} />
@@ -471,6 +471,11 @@ export function TripEditForm({
 
           {/*
             참여 요청 (INV-04 진입점). 초대 자리 바로 아래 — 링크를 보낸 사람이 답을 기다리는 곳이다.
+            ⚠️ "초대를 수락했어요" 라고 쓰지 않는다. **수락·승인은 여행장의 행동**이다.
+               링크를 연 사람이 하는 건 참여 요청이고, 그걸 여행장이 승인한다.
+               (docs/10_여행초대정책_v2.md §7 — 참여 요청 → 여행장 승인 → 참여 확정)
+               전에 "한나님이 초대를 수락했어요" 라고 적혀 있어서, 여행장이 이미
+               끝난 일로 읽었다. (2026-09-17 다빈)
             여행장에게만 데이터가 오므로 다른 멤버 화면엔 아무것도 없다. 누르면 수락·거절 시트.
           */}
           {joinRequests.length > 0 ? (
@@ -488,7 +493,7 @@ export function TripEditForm({
                 <Pressable
                   key={request.requestId}
                   accessibilityRole="button"
-                  accessibilityLabel={`${request.name}님의 초대 수락 보기`}
+                  accessibilityLabel={`${request.name}님의 참여 요청 보기`}
                   onPress={() => onPressJoinRequest(request)}
                   className="flex-row items-center active:opacity-70"
                   style={{
@@ -515,12 +520,12 @@ export function TripEditForm({
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "800", color: INK }}>
-                      {request.name}님이 초대를 수락했어요
+                      {request.name}님이 참여를 요청했어요
                     </Text>
                     <Text style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: MUTED }}>
                       {request.needsNewGroup
                         ? "승인하면 새 모임이 만들어져요 · 눌러서 확인"
-                        : "눌러서 수락하거나 거절해요"}
+                        : "눌러서 승인하거나 거절해요"}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={15} color={FAINT} />

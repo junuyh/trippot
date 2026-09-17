@@ -116,7 +116,7 @@ export function InviteNudgeModal({
               함께 갈 사람을{"\n"}초대해 볼까요?
             </Text>
             <Text className="mt-1.5 text-center text-sm leading-5 text-pot-mute">
-              링크를 받은 사람이 초대를 수락하면,{"\n"}
+              링크를 받은 사람이 참여를 요청하면,{"\n"}
               회원님이 승인해서 같이 준비해요.
             </Text>
 

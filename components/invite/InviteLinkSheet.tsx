@@ -93,7 +93,7 @@ export function InviteLinkSheet({
       description={
         hasCandidates
           ? "초대할 사람을 고르면 링크를 보내드려요."
-          : "링크를 받은 사람이 수락하면, 여행장이 확인 후 승인할 수 있어요."
+          : "링크를 받은 사람이 참여를 요청하면, 여행장이 확인 후 승인할 수 있어요."
       }
       footer={
         <View style={{ gap: 8 }}>
