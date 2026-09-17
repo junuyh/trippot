@@ -206,6 +206,11 @@ export type PostDestinationCount = {
  * ⚠️ 글이 많은 여행지가 앞이다. 수가 같으면 이름순으로 고정해서
  *    새로고침할 때마다 칸 순서가 바뀌지 않게 한다.
  *
+ * ⚠️ 2026-09-17 **여행 팁(FREE_TIP)만** 센다. 여행지 칸을 누르면 여행 팁만 보여주기 때문이다.
+ *    (app/(tabs)/community.tsx toQuery) 자유 글까지 세면 자유 글만 있는 여행지 칸이 생겨
+ *    눌렀을 때 빈 목록이 나오고, 칸의 숫자와 목록 수도 어긋난다.
+ *    홈 '여행자들은 이렇게 다녀왔어요' 의 여행기 수도 이 값이라 같은 기준이 된다.
+ *
  * 집계 함수 대신 목적지만 받아 메모리에서 센다. MVP 글 수에서는 이 편이 단순하고,
  * group by 를 쓰려면 DB 에 뷰나 RPC 를 만들어야 한다. (CLAUDE.md 1장)
  */
@@ -215,7 +220,7 @@ export async function getPostDestinations(limit = 500): Promise<PostDestinationC
     .select('destination')
     .not('destination', 'is', null)
     .eq('status', POST_STATUS.PUBLISHED)
-    .in('post_type', [...VISIBLE_POST_TYPES])
+    .eq('post_type', POST_TYPE.FREE_TIP)
     .limit(limit);
 
   if (error) throw error;

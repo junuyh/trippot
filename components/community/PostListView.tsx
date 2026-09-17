@@ -75,10 +75,13 @@ export function PostListView({
   return (
     <View className="flex-1 bg-pot-visual">
       {/* 상단바 — 다른 화면과 같은 공통 Header 를 쓴다. 제목은 가운데다.
-          커뮤니티는 탭 첫 화면이라 뒤로가기가 없다.
-          탭 헤더를 끈 상태라 상태바 높이만큼은 여기서 띄운다. */}
+          탭 헤더를 끈 상태라 상태바 높이만큼은 여기서 띄운다.
+          ⚠️ 2026-09-18 뒤로가기를 켰다. 홈 '여행자들은 이렇게 다녀왔어요' 태그 · 전체 보기로
+             들어온 사람이 하단 탭을 찾지 않고 바로 돌아갈 수 있게 한다.
+             공통 Header 는 돌아갈 곳이 있을 때만(router.canGoBack) 화살표를 그리고
+             router.back() 으로 직전 화면에 간다. components/ui 는 [공유] 라 고치지 않았다. */}
       <View className="bg-white" style={{ paddingTop: insets.top }}>
-        <Header title="커뮤니티" showBack={false} />
+        <Header title="커뮤니티" />
       </View>
 
       <View className="bg-white px-4 pb-3 pt-3">

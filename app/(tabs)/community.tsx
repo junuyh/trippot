@@ -95,7 +95,10 @@ function toQuery(category: string): { postType: PostType | null; destination: st
     return { postType: category.slice(TYPE_PREFIX.length) as PostType, destination: null };
   }
   if (category.startsWith(DEST_PREFIX)) {
-    return { postType: null, destination: category.slice(DEST_PREFIX.length) };
+    // ⚠️ 2026-09-17 여행지 칸은 **여행 팁만** 보여준다. 자유 글은 '자유' 칸에서 본다.
+    //    여행지를 골랐는데 여행과 상관없는 잡담이 섞이면 팁을 찾기 어렵다.
+    //    칸의 글 수도 같은 기준으로 센다. (getPostDestinations)
+    return { postType: POST_TYPE.FREE_TIP, destination: category.slice(DEST_PREFIX.length) };
   }
   return { postType: null, destination: null };
 }
@@ -117,8 +120,18 @@ export default function ScreenCOMM01() {
    * ⚠️ 값은 **한글 도시명**이다. 여행지 필터가 글에 연결된 여행의
    *    trips.destination 으로 거르는데 그 칼럼이 한글 도시명이라서다.
    */
-  const params = useLocalSearchParams<{ destination?: string }>();
-  const destinationParam = typeof params.destination === 'string' ? params.destination : null;
+  const params = useLocalSearchParams<{ destination?: string; openedAt?: string }>();
+  // 빈 문자열은 '여행지 없음(전체)' 이다. 홈 '전체 보기' 가 이전 여행지 값을 지우려고 보낸다.
+  const destinationParam =
+    typeof params.destination === 'string' && params.destination !== '' ? params.destination : null;
+  /**
+   * 홈에서 이 화면을 연 시각. 누를 때마다 값이 달라진다. (2026-09-17)
+   *
+   * ⚠️ 여행지 값만 보면 **같은 버튼을 두 번 눌렀을 때** 값이 그대로라 아래 effect 가 돌지 않는다.
+   *    '전체 보기' → 안에서 도쿄 칸 선택 → 홈 → 다시 '전체 보기' 면 도쿄가 그대로 남는다.
+   *    홈에서 들어올 때마다 새 값을 붙여 매번 다시 맞춘다.
+   */
+  const openedAt = typeof params.openedAt === 'string' ? params.openedAt : null;
 
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [posts, setPosts] = useState<PostListItem[]>([]);
@@ -141,13 +154,20 @@ export default function ScreenCOMM01() {
    *    (unmountOnBlur 없음) 커뮤니티에 한 번 들어왔다 나간 사람이 홈에서 태그를
    *    누르면 이 화면이 이미 만들어져 있어 초기값이 다시 쓰이지 않는다.
    *
-   * ⚠️ destinationParam 이 바뀔 때만 돈다. 사용자가 화면 안에서 다른 칸을
-   *    직접 고른 뒤에는 다시 덮어쓰지 않는다.
+   * ⚠️ 홈에서 들어올 때(destinationParam · openedAt 이 바뀔 때)만 돈다. 사용자가 화면 안에서
+   *    다른 칸을 직접 고른 뒤에는 다시 덮어쓰지 않는다. 하단 탭으로 들어오면 그대로다.
+   *
+   * ⚠️ 2026-09-17 여행지 없이 들어오면(홈 '전체 보기') **전체 칸으로 되돌린다.**
+   *    전에는 여행지가 없으면 그냥 return 해서, 도쿄 태그로 들어왔다가 홈에서 '전체 보기' 를
+   *    눌러도 도쿄 글만 보였다.
    */
   useEffect(() => {
-    if (!destinationParam) return;
-    setCategory(`${DEST_PREFIX}${destinationParam}`);
-  }, [destinationParam]);
+    if (destinationParam) {
+      setCategory(`${DEST_PREFIX}${destinationParam}`);
+      return;
+    }
+    if (openedAt) setCategory(CATEGORY_ALL);
+  }, [destinationParam, openedAt]);
 
   const load = useCallback(async (selected: string) => {
     if (!userId) return;
