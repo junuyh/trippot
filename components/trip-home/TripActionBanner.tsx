@@ -23,9 +23,11 @@
 //    (홈 HOME-01 은 여행 이름이 필요해서 자기 껍데기를 따로 쓴다 —
 //     HomeActionBanner. 거기는 카드·초대 배너와 자리를 다투므로 모양이 다르다)
 //
-// ⚠️ note 는 배너 **밖** 아래에 붙는다. 빼지 말 것 — 세 배너 모두 "이걸 해야
-//    여행이 돌아간다" 는 오해를 막는 문장이다. 이유는 각 배너 주석에 있다.
-//    홈에서는 그리지 않는다. 여행 준비를 하러 온 자리가 아니라서다.
+// ⚠️ 배너 밖 보조 문장(note)이 아래에 붙어 있었다. 2026-09-17 걷어냈다 —
+//    셋 중 둘은 한 탭 뒤 시트에 같은 말이 있었고, 하나는 여행장만 보는
+//    배너에서 "여행장만 할 수 있어요" 라고 말하고 있었다. (tripActions 주석)
+//    그래서 이 컴포넌트는 이제 **한 덩어리**다. 바깥 래퍼를 두지 않는다 —
+//    자식이 하나뿐인데 gap 을 주면 다음 사람이 뭔가 더 있는 줄 안다.
 //
 // 데이터만 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
@@ -44,46 +46,42 @@ export function TripActionBanner({ action, onPress }: Props) {
   const c = TONE[action.tone];
 
   return (
-    <View style={{ gap: 8 }}>
-      <View
-        className="flex-row items-center rounded-2xl px-4 py-3.5"
-        style={{ gap: 11, backgroundColor: c.tint }}
-      >
-        <View style={{ flex: 1 }}>
-          {/*
-            ⚠️ 여행 홈은 **상태(meta)가 제목**이고 사건(headline)이 부제다.
-               홈은 정반대다. 문장은 둘 다 tripActions 가 만든다.
-            ⚠️ 부제는 제목보다 옅어야 위계가 선다. 두 배너가 각자 다른 회색을
-               쓰다가 2026-09-17 에 TONE.body 로 맞췄다.
-          */}
-          <Text style={{ fontSize: 13.5, fontWeight: "700", color: c.fg }}>{action.meta}</Text>
-          <Text style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: c.body }}>
-            {action.headline}
-          </Text>
-        </View>
-        <View style={{ flexShrink: 0 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${action.meta} ${action.ctaLabel}`}
-            onPress={onPress}
-            className="active:opacity-90"
-            style={{
-              height: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 12,
-              backgroundColor: c.fg,
-              paddingHorizontal: 18,
-            }}
-          >
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFFFFF" }}>
-              {action.ctaLabel}
-            </Text>
-          </Pressable>
-        </View>
+    <View
+      className="flex-row items-center rounded-2xl px-4 py-3.5"
+      style={{ gap: 11, backgroundColor: c.tint }}
+    >
+      <View style={{ flex: 1 }}>
+        {/*
+          ⚠️ 여행 홈은 **상태(meta)가 제목**이고 사건(headline)이 부제다.
+             홈은 정반대다. 문장은 둘 다 tripActions 가 만든다.
+          ⚠️ 부제는 제목보다 옅어야 위계가 선다. 두 배너가 각자 다른 회색을
+             쓰다가 2026-09-17 에 TONE.body 로 맞췄다.
+        */}
+        <Text style={{ fontSize: 13.5, fontWeight: "700", color: c.fg }}>{action.meta}</Text>
+        <Text style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: c.body }}>
+          {action.headline}
+        </Text>
       </View>
-
-      <Text style={{ fontSize: 11.5, lineHeight: 18, color: "#8B94A2" }}>{action.note}</Text>
+      <View style={{ flexShrink: 0 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${action.meta} ${action.ctaLabel}`}
+          onPress={onPress}
+          className="active:opacity-90"
+          style={{
+            height: 40,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 12,
+            backgroundColor: c.fg,
+            paddingHorizontal: 18,
+          }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFFFFF" }}>
+            {action.ctaLabel}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }

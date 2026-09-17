@@ -56,15 +56,17 @@ export type TripAction = {
   headline: string;
   /** 지금 상태. 여행 홈의 제목 · 홈의 부제 뒷부분 */
   meta: string;
-  /**
-   * 배너 **밖** 보조 문장. **여행 홈만 그린다.**
-   *
-   * ⚠️ 홈에서 빼는 건 의도다. "취소 요청 중에도 예산과 계획은 그대로 수정할 수
-   *    있어요" 는 예산을 고치려던 사람에게 하는 말이라 여행 홈 맥락이다.
-   *    홈에서는 자리만 차지한다. 여행 홈에서는 빼지 말 것 — 두 배너 모두
-   *    주석에 이유가 적혀 있다. (POL-CXL-006)
-   */
-  note: string;
+  /*
+    ⚠️ 배너 **밖** 보조 문장(note)이 여기 있었다. 2026-09-17 세 배너에서 모두
+       걷어냈다. 세 문장 중 둘은 한 탭 뒤 시트에 같은 말이 있었고(취소 안내는
+       CancelConfirmSheet · CancelVoteSheet, 초대 흐름 설명은 InviteLinkSheet),
+       하나는 여행장만 보는 배너에서 "여행장만 할 수 있어요" 라고 말하고 있었다.
+       배너마다 있고 없고가 갈리는 것보다 없는 쪽으로 통일했다. (다빈 확인)
+
+    ⚠️ "지금 결정하지 않아도 괜찮아요" 한 조각만은 앱 어디에도 없는 문장이라
+       남기자고 제안했으나, 통일성을 택했다. 승인 대기가 밀린 숙제처럼 읽힌다는
+       신고가 들어오면 이 자리가 원래 그것을 막던 자리다.
+  */
 
   ctaLabel: string;
   intent: TripActionIntent;
@@ -160,8 +162,6 @@ export function buildJoinRequestAction(input: {
     icon: 'person-add-outline',
     headline,
     meta: `승인 대기 ${count}건`,
-    // ⚠️ 여행장의 행동은 '승인' 이다. 여기에 '수락' 을 쓰면 받는 사람의 행동과 겹친다
-    note: '승인은 여행장만 할 수 있어요. 지금 결정하지 않아도 괜찮아요.',
     ctaLabel: '확인하기',
     intent: 'OPEN_JOIN_REQUESTS',
   };
@@ -201,7 +201,6 @@ export function buildCancelPendingAction(input: {
       ? '멤버 모두가 동의하면 취소돼요'
       : `${input.requesterName}님이 여행 취소를 요청했어요`,
     meta: `취소 요청 중 · ${input.agreedCount}/${input.voteTargetCount}명 동의`,
-    note: '취소 요청 중에도 예산과 계획은 그대로 수정할 수 있어요.',
     ctaLabel: needsVote ? '확인하기' : '현황 보기',
     intent: needsVote ? 'OPEN_CANCEL_VOTE' : 'OPEN_CANCEL_PROGRESS',
   };
@@ -269,7 +268,6 @@ export function buildInviteEmptyAction(input: {
     icon: 'person-add-outline',
     headline: '함께 갈 사람에게 초대 링크를 보내 보세요',
     meta: '아직 나 혼자예요',
-    note: '상대가 참여 의사를 보내면 승인해 주세요. 그러면 멤버가 돼요.',
     ctaLabel: '초대하기',
     intent: 'OPEN_INVITE_SHEET',
   };

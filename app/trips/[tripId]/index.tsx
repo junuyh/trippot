@@ -1948,7 +1948,14 @@ export default function ScreenTripHome() {
            자리 순서는 "먼저 부르고 → 그다음 승인" 흐름을 따른다.
       */}
       {inviteEmptyAction ? (
-        <View className="px-1 pb-3 pt-1">
+        /*
+          ⚠️ 세 배너 모두 여백을 덧대지 않는다. ScrollView 가 직계 자식 사이에
+             gap 24 를 이미 준다(contentContainerStyle). 전에는 배너 밖 보조
+             문장과 떼어 놓으려고 pb-3 을 더 얹었는데, 그 문장을 걷어낸
+             2026-09-17 부터는 배너와 여행 카드 사이만 36 으로 벌어졌다.
+             이제 화면의 다른 칸들과 같은 24 다. (다빈)
+        */
+        <View className="px-1">
           <TripActionBanner
             action={inviteEmptyAction}
             onPress={() => void invite.startInvite()}
@@ -1965,7 +1972,7 @@ export default function ScreenTripHome() {
            둘 다 뜨는 경우는 드물다.
       */}
       {joinRequestAction ? (
-        <View className="px-1 pb-3 pt-1">
+        <View className="px-1">
           <JoinRequestBanner
             action={joinRequestAction}
             /* 수락·거절은 저기에 있다. 여기에 또 만들지 않는다
@@ -2013,7 +2020,7 @@ export default function ScreenTripHome() {
         ⚠️ 새 라우트를 만들지 않는다. 배너만 얹는다. (스펙 §7)
       */}
       {isCancelPending ? (
-        <View className="px-1 pb-3 pt-1">
+        <View className="px-1">
           <CancelPendingBanner
             action={cancelPendingAction}
             /*
