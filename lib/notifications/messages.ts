@@ -80,29 +80,30 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
   }),
   // ── 1차 4종 · docs/14 §4 확정 문구 · DB producer 와 글자까지 같다 ─────────
   [NOTIFICATION_TYPE.INVITE_RECEIVED]: (tripLabel, personName = '사용자') => ({
-    title: '여행 초대를 받았어요',
+    title: '여행 초대가 도착했어요',
     body: `${personName}님이 ${tripLabel}에 초대했어요.`,
   }),
   [NOTIFICATION_TYPE.JOIN_REQUESTED]: (tripLabel, personName = '사용자') => ({
-    title: '여행 참여 요청이 도착했어요',
-    body: `${personName}님이 ${tripLabel} 참여를 요청했어요.`,
+    title: '참여 의사가 도착했어요',
+    body: `${personName}님이 ${tripLabel} 참여 의사를 보냈어요.`,
   }),
   [NOTIFICATION_TYPE.JOIN_ACCEPTED]: (tripLabel) => ({
-    title: '여행 참여가 승인됐어요',
-    body: `${tripLabel} 참여가 승인됐어요.`,
+    title: '여행 참여가 수락됐어요',
+    body: `${tripLabel} 참여가 수락됐어요.`,
   }),
   /** ⚠️ 거절 사유를 묻지도 전달하지도 않는다. (POL-INV-051) */
   [NOTIFICATION_TYPE.JOIN_REJECTED]: (tripLabel) => ({
-    title: '여행 참여 요청이 거절됐어요',
-    body: `${tripLabel} 참여 요청이 거절됐어요.`,
+    title: '여행 참여가 거절됐어요',
+    body: `${tripLabel} 참여 의사가 거절됐어요.`,
   }),
-  [NOTIFICATION_TYPE.MEMBER_JOINED]: (tripName) => ({
-    title: '새 멤버가 합류했어요',
-    body: `${tripName}에 함께 갈 사람이 늘었어요.`,
+  // ── 멤버 합류·이탈 (2026-09-18 확정 문구 · migration 20260918000001 이 같은 문자열로 만든다) ──
+  [NOTIFICATION_TYPE.MEMBER_JOINED]: (tripLabel, personName = '사용자') => ({
+    title: '새 멤버가 참여했어요',
+    body: `${personName}님이 ${tripLabel}에 함께하게 됐어요.`,
   }),
-  [NOTIFICATION_TYPE.MEMBER_LEFT]: (tripName) => ({
+  [NOTIFICATION_TYPE.MEMBER_LEFT]: (tripLabel, personName = '사용자') => ({
     title: '멤버가 여행에서 나갔어요',
-    body: `${tripName}의 멤버 한 명이 나갔어요.`,
+    body: `${personName}님이 ${tripLabel}에서 나갔어요.`,
   }),
   // OWNER_DELEGATED 는 받는 사람에 따라 문구가 갈린다.
   // 아래는 **새 여행장용**. 나머지 멤버용은 DB 함수에만 있다:

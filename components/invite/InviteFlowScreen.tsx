@@ -25,6 +25,7 @@ import {
   type RequestTripJoinRow,
   type ResolveTripInviteRow,
 } from '@/lib/supabase/queries/tripJoinRequests';
+import { notifyNotificationsChanged } from '@/lib/notifications/unreadNotifications';
 import { markInviteNotificationsAsRead } from '@/lib/supabase/queries/notifications';
 
 import { InviteLandingView } from './InviteLandingView';
@@ -134,7 +135,9 @@ export function InviteFlowScreen({
       // 초대 내용을 실제로 봤다 — 같은 초대의 INVITE_RECEIVED 알림을 읽음으로. (읽음 정책 2026-09-17)
       // 화면 흐름과 분리한다: 실패해도 초대 화면은 그대로다. 미리보기(isPreview)는 위에서 이미 갈라졌다.
       if (userId && row.invite_state === 'VALID') {
-        markInviteNotificationsAsRead(userId, { inviteId, tripId: row.trip_id }).catch(() => undefined);
+        markInviteNotificationsAsRead(userId, { inviteId, tripId: row.trip_id })
+          .then(() => notifyNotificationsChanged())
+          .catch(() => undefined);
       }
     } catch {
       // 네트워크 · 세션 없음 등. 예외 객체를 화면에 그대로 내보내지 않는다.

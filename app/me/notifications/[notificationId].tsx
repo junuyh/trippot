@@ -22,6 +22,7 @@ import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { fromDbNotification, fromPushNotification } from '@/lib/notifications/listItem';
 import { toTripLabel } from '@/lib/notifications/messages';
 import { getPushInbox, markPushNotificationAsRead } from '@/lib/notifications/pushInbox';
+import { notifyNotificationsChanged } from '@/lib/notifications/unreadNotifications';
 import { resolveNotificationAction } from '@/lib/notifications/resolveNotificationAction';
 import { getNotification, markNotificationAsRead } from '@/lib/supabase/queries/notifications';
 import { getTripById } from '@/lib/supabase/queries/trips';
@@ -67,6 +68,8 @@ export default function ScreenNotificationDetail() {
         }
         // 진입 = 확인. 처음 읽은 시각을 지킨다. 실패해도 본문은 보여준다.
         const readAt = row.readAt ?? (await markPushNotificationAsRead(userId, row.id).catch(() => null));
+        // 기기 알림도 읽음이 바뀌면 점을 다시 계산한다. (DB 알림과 같은 규칙)
+        if (!row.readAt && readAt) notifyNotificationsChanged();
         setItem({
           ...fromPushNotification(row),
           readAt,
@@ -85,6 +88,8 @@ export default function ScreenNotificationDetail() {
         return;
       }
       const readAt = row.read_at ?? (await markNotificationAsRead(row.id, userId).catch(() => null));
+      // 읽음이 바뀌었으면 알림 아이콘의 점을 다시 계산한다. (lib/notifications/unreadNotifications)
+      if (!row.read_at && readAt) notifyNotificationsChanged();
       const base: NotificationDetailItem = {
         ...fromDbNotification(row),
         readAt,

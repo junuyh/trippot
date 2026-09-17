@@ -23,6 +23,7 @@ import {
   syncPresentedNotifications,
   toStoredPushNotification,
 } from '@/lib/notifications/pushInbox';
+import { notifyNotificationsChanged } from '@/lib/notifications/unreadNotifications';
 
 export function PushInboxObserver() {
   const userId = useCurrentUserId();
@@ -34,7 +35,10 @@ export function PushInboxObserver() {
     // 1. 앱이 켜져 있을 때 도착한 알림.
     const received = Notifications.addNotificationReceivedListener((notification) => {
       if (!alive) return;
-      savePushNotification(userId, toStoredPushNotification(notification)).catch(() => undefined);
+      savePushNotification(userId, toStoredPushNotification(notification))
+        // 안 읽은 기기 알림이 하나 늘었다 — 알림 아이콘의 점을 다시 계산한다. (unreadNotifications)
+        .then(() => notifyNotificationsChanged())
+        .catch(() => undefined);
     });
 
     // 2. 백그라운드에서 OS 알림을 눌러 들어온 경우. 사용자가 직접 봤으니 읽음이다.
@@ -43,7 +47,9 @@ export function PushInboxObserver() {
       savePushNotification(
         userId,
         toStoredPushNotification(response.notification, { readAt: new Date().toISOString() }),
-      ).catch(() => undefined);
+      )
+        .then(() => notifyNotificationsChanged())
+        .catch(() => undefined);
     });
 
     // 3 · 4. 시작 시점에 한 번 — 꺼진 앱을 알림 탭으로 열었을 때의 마지막 응답, 그리고
@@ -66,6 +72,8 @@ export function PushInboxObserver() {
       } catch {
         // 위와 같다.
       }
+      // 시작 시점의 보관함 변화(마지막 응답 · 알림 센터 sync)를 점에 반영한다.
+      if (alive) notifyNotificationsChanged();
     })();
 
     return () => {
