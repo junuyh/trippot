@@ -21,11 +21,16 @@
 //    홈(HOME-01)에도 뜨는데 판정을 양쪽에서 하면 한쪽만 고쳐진다.
 //    (CLAUDE.md 7장 · leaveTrip 이 둘로 갈렸던 것과 같은 일)
 //
-// ⚠️ action.tripLabel 을 그리지 않는다. 이미 그 여행 안이다.
+// ⚠️ 2026-09-17 그리는 일도 여기서 하지 않는다. 승인 대기 배너·초대 배너와
+//    **생김새가 한 글자도 다르지 않아** 껍데기를 TripActionBanner 한 벌로
+//    합쳤다. 앰버 버튼이 필요해 공통 Button 을 못 쓰는 사정도 거기로 옮겼다.
+//
+// ⚠️ 배너 밖 보조 문장(action.note)을 빼지 말 것. 요청 중이면 아무것도 못
+//    고치는 줄 알고 동의가 모일 때까지 여행 준비를 멈춘다. (POL-CXL-006)
+//
+// ⚠️ action.tripLabel 을 그리지 않는다. 이미 그 여행 안이다. (TripActionBanner)
 // ============================================================================
-import { Pressable, Text, View } from "react-native";
-
-import { TONE } from "@/lib/constants/toneColor";
+import { TripActionBanner } from "@/components/trip-home/TripActionBanner";
 import type { TripAction } from "@/lib/trip/tripActions";
 
 type Props = {
@@ -37,7 +42,6 @@ type Props = {
 };
 
 export function CancelPendingBanner({ action, onOpenProgress, onOpenVote }: Props) {
-  const c = TONE[action.tone];
   /*
     ⚠️ 현황은 **동의 시트가 아니다.** 여기서 동의 시트를 열면 요청자가 자기
        요청에 동의할 수 있게 되고, 동의 대상 수는 요청자를 빼고 세므로 분자만
@@ -46,57 +50,5 @@ export function CancelPendingBanner({ action, onOpenProgress, onOpenVote }: Prop
   */
   const onPress = action.intent === "OPEN_CANCEL_VOTE" ? onOpenVote : onOpenProgress;
 
-  return (
-    <View style={{ gap: 8 }}>
-      <View
-        className="flex-row items-center rounded-2xl px-4 py-3.5"
-        style={{ gap: 11, backgroundColor: c.tint }}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13.5, fontWeight: "700", color: c.fg }}>{action.meta}</Text>
-          {/*
-            ⚠️ 2026-09-17 부제 색을 제목과 같은 앰버(#8A5A00)에서 톤 body 로 내렸다.
-               홈 배너 부제와 같은 규칙이다 — 제목보다 옅어야 위계가 선다.
-          */}
-          <Text style={{ marginTop: 3, fontSize: 12, lineHeight: 18, color: c.body }}>
-            {action.headline}
-          </Text>
-        </View>
-        <View style={{ flexShrink: 0 }}>
-          {/*
-            ⚠️ 공통 Button 을 쓰지 않는다. Button 은 브랜드 보라 고정이라
-               앰버 바탕에 보라 버튼이 됐다. 취소는 경고 색이라 버튼도 같은 톤이어야
-               한 벌로 읽힌다. (2026-09-17 다빈)
-               tailwind.config.js 에 앰버를 넣지 않았다 — 25개 화면이 함께 쓴다.
-               모양은 JoinRequestBanner 버튼과 **같은 값**이다.
-          */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${action.meta} ${action.ctaLabel}`}
-            onPress={onPress}
-            className="active:opacity-90"
-            style={{
-              height: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 12,
-              backgroundColor: c.fg,
-              paddingHorizontal: 18,
-            }}
-          >
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFFFFF" }}>
-              {action.ctaLabel}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {/*
-        ⚠️ 이 문장을 빼지 말 것. 요청 중이면 아무것도 못 고치는 줄 알고
-           동의가 모일 때까지 여행 준비를 멈춘다. (POL-CXL-006)
-        ⚠️ 홈에서는 그리지 않는다. 여행 준비를 하러 온 자리가 아니라서다.
-      */}
-      <Text style={{ fontSize: 11.5, lineHeight: 18, color: "#8B94A2" }}>{action.note}</Text>
-    </View>
-  );
+  return <TripActionBanner action={action} onPress={onPress} />;
 }
