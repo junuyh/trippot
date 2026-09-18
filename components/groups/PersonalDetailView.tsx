@@ -31,9 +31,7 @@ import {
   type MyTripItem,
 } from '@/components/my';
 
-import { SwipeToAction } from '@/components/mypage';
 import { Button } from '@/components/ui';
-import { TRIP_STATUS } from '@/lib/constants/status';
 
 import { GroupAccountList } from './GroupAccountList';
 import { Section } from './GroupDetailView';
@@ -74,12 +72,8 @@ type Props = {
   onPressAllAccounts: () => void;
   /** 하단 CTA — '개인으로 새 여행 만들기'. 화면 파일이 여행 만들기(혼자 가요 선택 상태)로 보낸다. */
   onPressCreateTrip: () => void;
-  /**
-   * 준비 중 여행 카드를 왼쪽으로 밀면 나오는 '여행 나가기'. 모임 상세(GroupDetailView)와 같은
-   * SwipeToAction · 같은 조건(PLANNING). 개인 여행은 전부 내 것이라 참가자 검사는 없다.
-   * 없으면(undefined) 스와이프 액션을 붙이지 않는다. 실제 동작은 화면 파일이 정한다. (2026-09-18)
-   */
-  onPressLeaveTrip?: (trip: MyTripItem) => void;
+  // ⚠️ '여행 나가기' 스와이프는 없다. (2026-09-18 최종 정책) 개인 여행은 나가는 개념이 없고
+  //    여행 자체의 취소만 가능하며, 취소는 여행준비홈(다른 담당)이 제공한다. 여기서 다시 붙이지 않는다.
 };
 
 export function PersonalDetailView({
@@ -88,7 +82,6 @@ export function PersonalDetailView({
   onPressAccount,
   onPressAllAccounts,
   onPressCreateTrip,
-  onPressLeaveTrip,
 }: Props) {
   const insets = useSafeAreaInsets();
   // 기본은 '준비 중'. 모임 상세·MY-02 와 같다.
@@ -185,30 +178,12 @@ export function PersonalDetailView({
             ) : (
               // 개인 여행은 전부 내 것이다. 카드를 누르면 여행 홈으로 간다.
               // 모임 이름 줄은 끈다 — 이 화면 안에서는 전부 '개인' 이라 반복이다.
-              visibleTrips.map((trip) => {
-                const card = <MyTripCard trip={trip} onPress={onPressTrip} showGroupName={false} />;
-                // 나가기 가능 조건 = 준비 중. 모임 상세와 같은 SwipeToAction(같은 폭·색·라벨·아이콘).
-                // 여행 중·지난 여행·취소됨에는 붙이지 않는다.
-                const canLeave = Boolean(onPressLeaveTrip) && trip.status === TRIP_STATUS.PLANNING;
-                return (
-                  // 흰 바탕 위 카드 가장자리 — 모임 상세와 같은 1px 테두리. MyTripCard 자체는 MY 공유라 그대로.
-                  <View key={trip.tripId} className="overflow-hidden rounded-2xl border border-pot-line">
-                    {canLeave ? (
-                      <SwipeToAction
-                        label="여행 나가기"
-                        accessibilityLabel={`${trip.destination ?? '여행'} 에서 나가기`}
-                        icon="exit-outline"
-                        color="#6B7280"
-                        onPress={() => onPressLeaveTrip?.(trip)}
-                      >
-                        {card}
-                      </SwipeToAction>
-                    ) : (
-                      card
-                    )}
-                  </View>
-                );
-              })
+              visibleTrips.map((trip) => (
+                // 흰 바탕 위 카드 가장자리 — 모임 상세와 같은 1px 테두리. MyTripCard 자체는 MY 공유라 그대로.
+                <View key={trip.tripId} className="overflow-hidden rounded-2xl border border-pot-line">
+                  <MyTripCard trip={trip} onPress={onPressTrip} showGroupName={false} />
+                </View>
+              ))
             )}
           </View>
         </View>

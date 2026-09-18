@@ -51,10 +51,12 @@ type Props = {
   theme: GroupCardTheme;
   /** 패널 위 작은 라벨 글자. 예: 'TRIPPOT 모임' · 'PERSONAL'. 알약 없이 글자만. */
   label: string;
+  /** 라벨과 같은 줄 오른쪽 끝에 놓는 메타(예: 만든 날). 없으면 라벨만. (2026-09-18 · 모임 상세) */
+  labelRight?: ReactNode;
   children: ReactNode;
 };
 
-export function LuggageTagBack({ theme, label, children }: Props) {
+export function LuggageTagBack({ theme, label, labelRight, children }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const onLayout = (e: LayoutChangeEvent) =>
     setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
@@ -92,19 +94,28 @@ export function LuggageTagBack({ theme, label, children }: Props) {
         </View>
       ) : null}
 
-      {/* 라벨 — 알약 없는 글자만. */}
-      <Text
+      {/* 라벨 줄 — 왼쪽 라벨(알약 없는 글자만) · 오른쪽 메타(있을 때). 세로 가운데 정렬. */}
+      <View
         style={{
           marginBottom: 8,
-          fontSize: 9.5,
-          lineHeight: 12,
-          fontWeight: '800',
-          letterSpacing: 1,
-          color: theme.accent,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
         }}
       >
-        {label}
-      </Text>
+        <Text
+          style={{
+            fontSize: 9.5,
+            lineHeight: 12,
+            fontWeight: '800',
+            letterSpacing: 1,
+            color: theme.accent,
+          }}
+        >
+          {label}
+        </Text>
+        {labelRight ?? null}
+      </View>
 
       {children}
     </View>

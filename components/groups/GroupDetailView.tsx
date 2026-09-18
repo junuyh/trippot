@@ -203,7 +203,16 @@ export function GroupDetailView({
         상단 = 캐리어 태그 **뒷면**. 목록 카드(앞면)와 같은 모임 색 몸통에 흰 정보 카드가 꽂혀 있다.
         (2026-09-17 · LuggageTagBack) 정보 구조는 그대로: 이름 + 연필 · 만든 날 · 멤버.
       */}
-      <LuggageTagBack theme={theme} label="TRIPPOT GROUP">
+      <LuggageTagBack
+        theme={theme}
+        label="TRIPPOT GROUP"
+        // 만든 날은 라벨과 같은 줄 오른쪽 끝. (2026-09-18 확정 · 이름 아래 별도 줄은 없앴다)
+        labelRight={
+          <Text style={{ fontSize: 12.5, lineHeight: 18, color: theme.secondary }}>
+            {`만든 날 ${formatCreatedDate(group.createdAt)}`}
+          </Text>
+        }
+      >
         {/*
           이름 오른쪽에 수정 연필 — 조용한 보조 요소. 아이콘만 선처럼 뜨지 않게 아주 연한 흰 원(반투명) 안에
           13pt 회색 아이콘. 터치 영역은 32×32 + hitSlop 그대로. 제목과 16 띄운다. (2026-09-18)
@@ -227,10 +236,6 @@ export function GroupDetailView({
             <Ionicons name="pencil-outline" size={13} color={theme.secondary} />
           </Pressable>
         </View>
-        <Text className="mt-1" style={{ fontSize: 12.5, lineHeight: 18, color: theme.secondary }}>
-          {`만든 날 ${formatCreatedDate(group.createdAt)}`}
-        </Text>
-
         {/* 멤버 — 정보 영역이다, 누르는 곳이 아니다. (2026-09-09 확정) 종이 안의 구분선 아래. */}
         <View className="mt-3.5 pt-3.5" style={{ borderTopWidth: 1, borderTopColor: theme.rule }}>
           <View className="flex-row items-center gap-2">
