@@ -8,7 +8,7 @@ export { MenuRow } from './MenuRow';
 export { MyCommentList } from './MyCommentList';
 export { MyPostList } from './MyPostList';
 export { MenuSection } from './MenuSection';
-export { NotificationBellButton } from './NotificationBellButton';
+export { NotificationBellButton, UnreadDot } from './NotificationBellButton';
 export { NotificationDetailView } from './NotificationDetailView';
 export { NotificationFilterChips } from './NotificationFilterChips';
 export { NotificationList } from './NotificationList';

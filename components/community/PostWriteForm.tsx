@@ -116,55 +116,8 @@ export function PostWriteForm({
       contentContainerClassName="px-5 pb-12 pt-5"
       keyboardShouldPersistTaps="handled"
     >
-      {/* 사진 */}
+      {/* 유형 — 2026-09-18 사진을 아래로 옮겨 맨 위가 됐다. 그래서 위 간격(mt-6)을 뺐다. */}
       <Text className="mb-2 font-bold text-pot-ink" style={{ fontSize: 13 }}>
-        사진 <Text className="text-pot-faint">({imageUris.length}/{maxImages})</Text>
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
-        {imageUris.map((uri, index) => (
-          <View key={uri} className="overflow-hidden rounded-2xl">
-            <Image source={{ uri }} style={{ width: 110, height: 110 }} />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${index + 1}번째 사진 지우기`}
-              disabled={submitting}
-              onPress={() => onRemoveImage(index)}
-              className="absolute right-1.5 top-1.5 h-7 w-7 items-center justify-center rounded-full bg-black/55 active:opacity-70"
-            >
-              <Ionicons name="close" size={15} color="#FFFFFF" />
-            </Pressable>
-          </View>
-        ))}
-
-        {imageUris.length < maxImages ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="사진 추가"
-            disabled={submitting || imagePicking}
-            onPress={onPickImages}
-            className="items-center justify-center rounded-2xl bg-pot-visual active:opacity-70"
-            style={{ width: 110, height: 110, opacity: imagePicking ? 0.5 : 1 }}
-          >
-            <Ionicons name="add" size={24} color="#9AA3AE" />
-            <Text className="mt-1 text-pot-faint" style={{ fontSize: 12 }}>
-              사진 추가
-            </Text>
-          </Pressable>
-        ) : null}
-      </ScrollView>
-      {/* ⚠️ 여기 '사진 저장은 준비 중이에요' 안내를 뒀다가 뺐다. 글을 쓰러 온
-             사람에게 아직 안 되는 기능을 먼저 알릴 이유가 없다.
-             오류가 났을 때만 말한다. */}
-      {imageError ? (
-        <Text className="mt-1.5 text-red-500" style={{ fontSize: 12 }}>
-          {imageError}
-        </Text>
-      ) : null}
-
-      {/* 유형 */}
-      {/* ⚠️ mt-6 은 아래 '어느 여행 이야기인가요' · '제목' 과 같은 값이다.
-             안내 문구가 있던 시절에는 그 문구가 간격 노릇을 해서 필요 없었다. */}
-      <Text className="mb-2 mt-6 font-bold text-pot-ink" style={{ fontSize: 13 }}>
         어떤 글인가요
       </Text>
       <View className="flex-row gap-2">
@@ -313,6 +266,52 @@ export function PostWriteForm({
           {content.length}/2000
         </Text>
       </View>
+
+      {/* 사진 — 2026-09-18 맨 위에서 내용 아래로 옮겼다. 어떤 글인지 · 제목 · 내용을 먼저 쓰고
+          사진은 마지막에 덧붙인다. 글쓰기의 중심은 글이고, 사진은 선택이다. */}
+      <Text className="mb-2 mt-4 font-bold text-pot-ink" style={{ fontSize: 13 }}>
+        사진 <Text className="text-pot-faint">({imageUris.length}/{maxImages})</Text>
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+        {imageUris.map((uri, index) => (
+          <View key={uri} className="overflow-hidden rounded-2xl">
+            <Image source={{ uri }} style={{ width: 110, height: 110 }} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${index + 1}번째 사진 지우기`}
+              disabled={submitting}
+              onPress={() => onRemoveImage(index)}
+              className="absolute right-1.5 top-1.5 h-7 w-7 items-center justify-center rounded-full bg-black/55 active:opacity-70"
+            >
+              <Ionicons name="close" size={15} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        ))}
+
+        {imageUris.length < maxImages ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="사진 추가"
+            disabled={submitting || imagePicking}
+            onPress={onPickImages}
+            className="items-center justify-center rounded-2xl bg-pot-visual active:opacity-70"
+            style={{ width: 110, height: 110, opacity: imagePicking ? 0.5 : 1 }}
+          >
+            <Ionicons name="add" size={24} color="#9AA3AE" />
+            <Text className="mt-1 text-pot-faint" style={{ fontSize: 12 }}>
+              사진 추가
+            </Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+      {/* ⚠️ 여기 '사진 저장은 준비 중이에요' 안내를 뒀다가 뺐다. 글을 쓰러 온
+             사람에게 아직 안 되는 기능을 먼저 알릴 이유가 없다.
+             오류가 났을 때만 말한다. */}
+      {imageError ? (
+        <Text className="mt-1.5 text-red-500" style={{ fontSize: 12 }}>
+          {imageError}
+        </Text>
+      ) : null}
 
       {submitError ? (
         <Text className="mt-4 text-center text-red-500" style={{ fontSize: 13 }}>

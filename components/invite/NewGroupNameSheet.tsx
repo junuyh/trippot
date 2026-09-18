@@ -58,10 +58,10 @@ export function NewGroupNameSheet({
       visible={visible}
       onClose={onClose}
       title="새 모임 이름을 정해주세요"
-      description={`승인하면 ${destination} 여행을 함께할 새 모임이 만들어져요.`}
+      description={`수락하면 ${destination} 여행을 함께할 새 모임이 만들어져요.`}
       footer={
         <Button
-          label="이 이름으로 승인하기"
+          label="이 이름으로 수락하기"
           loading={submitting}
           disabled={groupName.trim().length === 0}
           onPress={onSubmit}
@@ -130,7 +130,7 @@ export function NewGroupNameSheet({
         </View>
 
         <Text style={{ fontSize: 11.5, lineHeight: 18, color: "#8B94A2" }}>
-          승인과 동시에 모임이 만들어지고 상대가 여행에 참여해요. 지금 닫으면 승인 대기 상태로 남아요.
+          수락과 동시에 모임이 만들어지고 상대가 여행에 참여해요. 지금 닫으면 수락 대기 상태로 남아요.
         </Text>
       </View>
     </BottomSheet>

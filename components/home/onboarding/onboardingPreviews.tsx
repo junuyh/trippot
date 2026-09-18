@@ -6,8 +6,10 @@
 //      PLAN      여행 만들기 3단계 (app/trips/new/budget-fund)  BudgetResultHero · TravelStyleSelector
 //                                                              · BudgetCategoryList
 //      FUND      여행 준비 홈 (app/trips/[tripId])              BaggageTagCard · FundManagerCard
-//      RECORD    여행 종료 홈 카테고리별 결산                    SettlementVaultGrid
-//      NEXT TRIP 여행 종료 홈 여행 유형 · 영수증                 TravelTypeCard · TripReceiptCard
+//      RECORD    여행자금 화면 · 지출 기록 시트 (FUND-01)          FundSummaryCard · Input · CurrencyInput
+//                                                              · DateRangeCalendar (시트는 같은 부품으로 재구성)
+//      NEXT TRIP 여행 종료 홈 여행 유형 · 영수증 · 카테고리별 정산  TravelTypeCard · TripReceiptCard
+//                                                              · SettlementVaultGrid
 //
 // ⚠️ **금액만 예시 데이터다.** DB 를 부르지 않는다. 신규 사용자에게는 아직 여행이 없다.
 //    여행 유형 · 한 줄 기록은 예시 금액을 실제 로직(resolveTravelType · buildTripRecord)에
@@ -19,6 +21,7 @@
 // ⚠️ 예시 숫자끼리 앞뒤가 맞아야 한다. 바꾸면 같이 고친다.
 //      PLAN  항공 640,000(1인 왕복 320,000 × 2명) + 280,000 + 228,000 + 90,000 = 1,238,000 · 2명
 //      FUND  480,000 / 1,238,000 = 39% (계산해서 넣는다)
+//      RECORD 같은 도쿄 여행 이틀째 점심 · 회전초밥 24,000 · 식비
 //      홍콩   계획 3,648,000 · 실제 4,740,000 (129.9%) · 쇼핑 +760,000 · 최대 지출 쇼핑
 //            (숙소 +100,000 · 식비 +200,000 · 교통 +34,000 · 액티비티 −52,000 · 보험 +2,000
 //             · 예비비 +48,000 · 항공 동일)
@@ -30,13 +33,16 @@ import { Text, View } from 'react-native';
 import {
   BudgetCategoryList,
   BudgetResultHero,
+  DateRangeCalendar,
   TravelStyleSelector,
   type EditableCategory,
 } from '@/components/trip-create';
 // ⚠️ trip-create 진입점(index.ts)이 이 타입을 내보내지 않는다. 다른 담당자 파일이라
 //    진입점을 고치지 않고 정의된 파일에서 타입만 가져온다. (CLAUDE.md 13장)
 import type { CategoryProduct } from '@/components/trip-create/BudgetCategoryList';
+import { FundSummaryCard } from '@/components/fund';
 import { BaggageTagCard, FundManagerCard } from '@/components/trip-home';
+import { Button, CurrencyInput, Input } from '@/components/ui';
 import { SettlementVaultGrid, TravelTypeCard, TripReceiptCard, type SettlementVault } from '@/components/trip-type';
 import { resolveTravelType } from '@/lib/budget/travelType';
 import { buildTripRecord } from '@/lib/budget/tripRecord';
@@ -45,6 +51,7 @@ import { countryTheme } from '@/lib/constants/countryTheme';
 import {
   BUDGET_METHOD,
   CATEGORY_CODE,
+  CATEGORY_CODE_LABEL,
   TRAVEL_STYLE,
   TRAVEL_STYLE_LABEL,
   type CategoryCode,
@@ -293,25 +300,153 @@ const HONG_KONG_TOP_OVER =
 const HONG_KONG_TOP_SAVED =
   HONG_KONG_DIFFS.filter((row) => row.diff < 0).sort((a, b) => a.diff - b.diff)[0] ?? null;
 
-// ── 03 RECORD — 여행 종료 홈 · 카테고리별 결산 ──────────────────────────────
-/** 실제 화면처럼 8칸을 모두 보여준다. 네 칸만 두면 격자가 잘린 것처럼 보인다. */
-const RECORD_VAULTS: SettlementVault[] = HONG_KONG_ROWS.map((row) => ({
+/** 여행 종료 홈 카테고리별 정산 8칸. NEXT TRIP 장에서 영수증 아래에 둔다. */
+const SETTLEMENT_VAULTS: SettlementVault[] = HONG_KONG_ROWS.map((row) => ({
   categoryId: null,
   ...row,
 }));
 
+// ── 03 RECORD — 여행자금 화면 · 지출 기록 시트 (FUND-01) ─────────────────────
+// ⚠️ 2026-09-17 두 번 바뀌었다.
+//    ① 처음엔 카테고리별 정산 격자였는데, 그건 여행이 끝난 뒤 결산 화면이다 → 04 장으로 옮겼다.
+//    ② 다음엔 여행 중 홈(오늘 쓸 수 있는 돈 · 최근 기록)이었는데, 기록한 **결과**라
+//       "지출을 기록해요" 의 행동이 안 보였다 → **실제로 지출을 입력하는 시트**로 바꿨다.
+//
+// ⚠️ 지출 기록 시트는 app/trips/[tripId]/funds/index.tsx 안에 BottomSheet(Modal)로 들어 있어
+//    컴포넌트로 꺼내 쓸 수 없다. 모달은 미리보기 안에 그릴 수도 없다.
+//    그래서 **같은 부품(Input · CurrencyInput · DateRangeCalendar · Button)과 같은 문구 · 값**으로
+//    시트 모양만 다시 세웠다. 그쪽 화면이 바뀌면 여기도 같이 본다.
+//
+// 예시 — FUND 장의 도쿄 여행 이틀째 점심. 식비 카테고리를 골랐다.
+const RECORD_DATE = '2026-10-13';
+/** 여행 중 여행자금 — 출발 전보다 더 모았고, 항공 · 숙소 · 첫날 · 오늘 아침을 썼다. */
+const RECORD_RAISED = 1_300_000;
+const RECORD_SPENT = 640_000 + 280_000 + 130_000 + 8_000;
+/** 시트 뒤 어두운 막. BottomSheet 의 rgba(17,24,39,0.38) 를 흰 바탕에 얹은 색이다. */
+const SHEET_DIM = 'rgba(17,24,39,0.38)';
+const SHEET_DIM_ON_WHITE = '#A5A7AD';
+
 export function RecordPreview({ size }: { size: PreviewSize }) {
   return (
-    <MiniPage size={size} title={null}>
-      <View className="gap-2.5 px-4 pt-5">
-        {/* 실제 화면(app/trips/[tripId]/index.tsx)의 제목 줄과 같다 */}
-        <View className="flex-row items-end justify-between" style={{ marginHorizontal: 4, marginBottom: 11 }}>
-          <Text className="text-[17px] font-extrabold" style={{ color: HONG_KONG.neutral }}>
-            홍콩 여행, 이렇게 다녀왔어요
-          </Text>
-          <Text className="text-[10px] text-gray-400">카테고리별 정산</Text>
+    <MiniPage size={size} title="여행자금">
+      {/* 시트 뒤 여행자금 화면. 어둡게 덮여 있다 */}
+      <View>
+        <View className="px-4 pt-4 pb-6">
+          <FundSummaryCard
+            theme={TOKYO}
+            raisedAmount={RECORD_RAISED}
+            balanceAmount={RECORD_RAISED - RECORD_SPENT}
+            targetAmount={PLAN_TOTAL}
+            spentAmount={RECORD_SPENT}
+            onRecordDeposit={noop}
+            onRecordExpense={noop}
+          />
         </View>
-        <SettlementVaultGrid theme={HONG_KONG} categories={RECORD_VAULTS} />
+        <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: SHEET_DIM }} />
+      </View>
+
+      {/* 지출 기록 시트 — 실제 BottomSheet 와 같은 여백 · 모서리 · 손잡이 */}
+      <View style={{ backgroundColor: SHEET_DIM_ON_WHITE }}>
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingBottom: 8 }}>
+          <View
+            style={{
+              width: 38,
+              height: 4,
+              borderRadius: 5,
+              backgroundColor: '#d9dde2',
+              alignSelf: 'center',
+              marginTop: 9,
+              marginBottom: 14,
+            }}
+          />
+          <View className="flex-row items-start" style={{ paddingHorizontal: 18 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827' }}>지출 기록</Text>
+              <Text style={{ marginTop: 4, fontSize: 11, lineHeight: 16, color: '#858e9c' }}>
+                여행에서 쓴 금액이에요. 누적 입금은 줄지 않고 쓸 수 있는 자금만 줄어요.
+              </Text>
+            </View>
+            <View
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                backgroundColor: '#f5f6f8',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="close" size={17} color="#66707e" />
+            </View>
+          </View>
+
+          <View style={{ gap: 13, paddingTop: 17, paddingHorizontal: 18 }}>
+            <Input label="거래명" required value="회전초밥 점심" editable={false} />
+            <CurrencyInput label="금액" required value={24_000} onChangeValue={noop} editable={false} />
+
+            <View style={{ gap: 7 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#141b28' }}>예산 카테고리</Text>
+              <View className="flex-row flex-wrap" style={{ gap: 7 }}>
+                {PLAN_AMOUNTS.map(([code]) => {
+                  const active = code === CATEGORY_CODE.FOOD;
+                  return (
+                    <View
+                      key={code}
+                      style={{
+                        paddingHorizontal: 11,
+                        paddingVertical: 8,
+                        borderRadius: 20,
+                        borderWidth: 1,
+                        borderColor: active ? TOKYO.primary : '#e5e8ec',
+                        backgroundColor: active ? TOKYO.primarySoft : '#fff',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: active ? '800' : '400',
+                          color: active ? TOKYO.primary : '#687281',
+                        }}
+                      >
+                        {CATEGORY_CODE_LABEL[code]}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <Text style={{ fontSize: 10, color: '#a3a9b3' }}>
+                지금 안 골라도 돼요. 나중에 거래 상세에서 정할 수 있어요.
+              </Text>
+            </View>
+
+            <View style={{ gap: 7 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#141b28' }}>날짜</Text>
+              <DateRangeCalendar
+                mode="single"
+                startDate={RECORD_DATE}
+                endDate={RECORD_DATE}
+                onChange={noop}
+                disablePast={false}
+                showHint={false}
+              />
+            </View>
+
+            <View style={{ borderRadius: 11, backgroundColor: '#f5f6f8', padding: 11 }}>
+              <Text style={{ fontSize: 10, lineHeight: 15, color: '#687281' }}>
+                10월 13일 자로 기록돼요.{'\n'}고른 카테고리의 실제 사용액에 바로 반영돼요.
+              </Text>
+            </View>
+          </View>
+
+          <View className="flex-row gap-2" style={{ paddingHorizontal: 18, paddingTop: 16 }}>
+            <View style={{ flex: 1 }}>
+              <Button label="취소" variant="secondary" onPress={noop} />
+            </View>
+            <View style={{ flex: 2 }}>
+              <Button label="기록하기" onPress={noop} />
+            </View>
+          </View>
+        </View>
       </View>
     </MiniPage>
   );
@@ -343,6 +478,16 @@ export function NextTripPreview({ size }: { size: PreviewSize }) {
           topOver={HONG_KONG_TOP_OVER}
           topSaved={HONG_KONG_TOP_SAVED}
         />
+        {/* 실제 여행 종료 홈처럼 영수증 아래에 카테고리별 정산 (app/trips/[tripId]/index.tsx) */}
+        <View className="gap-2.5">
+          <View className="flex-row items-end justify-between" style={{ marginHorizontal: 4, marginBottom: 11 }}>
+            <Text className="text-[17px] font-extrabold" style={{ color: HONG_KONG.neutral }}>
+              홍콩 여행, 이렇게 다녀왔어요
+            </Text>
+            <Text className="text-[10px] text-gray-400">카테고리별 정산</Text>
+          </View>
+          <SettlementVaultGrid theme={HONG_KONG} categories={SETTLEMENT_VAULTS} />
+        </View>
       </View>
     </MiniPage>
   );

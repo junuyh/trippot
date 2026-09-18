@@ -28,7 +28,7 @@
 // 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View, type ImageSourcePropType } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import type { CountryTheme } from '@/lib/constants/countryTheme';
@@ -36,6 +36,14 @@ import type { CountryTheme } from '@/lib/constants/countryTheme';
 import type { TravelStoryIllustration } from './travelStoryArt';
 
 export type TravelStoryCardProps = {
+  /**
+   * 엽서 그림 한 장. (2026-09-18)
+   *
+   * 스탬프 · 도시 이름 · 소인선까지 그림 안에 들어 있어서, 이 값이 있으면 카드가 그리던
+   * 엽서 · 수하물 태그 · 스탬프 · 소인선을 **모두 대신한다.** (travelStoryPhoto)
+   * 없으면 예전처럼 직접 그린다.
+   */
+  photo?: ImageSourcePropType | null;
   /** '니스' */
   cityName: string;
   /** 'NICE' */
@@ -128,6 +136,7 @@ export function TravelStamp({
 }
 
 export function TravelStoryCard({
+  photo,
   cityName,
   cityNameEn,
   duration,
@@ -160,6 +169,24 @@ export function TravelStoryCard({
   const Art = illustration.Art;
   const cityFont = Math.round(cityFontSize(cityName) * s);
 
+  /**
+   * 엽서 그림(photo) 자리. 직접 그린 엽서보다 크게 잡는다. (2026-09-18)
+   *
+   * 그림 파일 둘레에 투명 여백이 있어서 같은 크기로 놓으면 작아 보인다. 카드는 그대로 두고
+   * 그림만 키운다. 대신 **다른 요소를 덮지 않게 위아래·좌우를 자른다.**
+   *   · 아래  '여행기 N개' · '보기' 알약 줄 위에서 멈춘다
+   *   · 왼쪽  도시 이름 칸(카드 폭의 48%)을 넘지 않는다
+   */
+  const pillHeight = Math.round(44 * s);
+  const photoRight = Math.round(frameRight * 0.3);
+  const photoTop = Math.round(frameTop * 0.25);
+  /** 알약 줄 위까지만. 3은 그 사이 최소 간격이다. */
+  const photoMaxHeight = height - photoTop - frameTop - pillHeight - 3;
+  /** 왼쪽 글자 칸(48%)과 사이 간격(6)을 뺀 나머지. */
+  const photoMaxWidth = width - Math.round(width * 0.48) - pad - photoRight - 6;
+  const photoHeight = Math.max(0, Math.min(Math.round(height * 0.86), photoMaxHeight));
+  const photoWidth = Math.max(0, Math.min(Math.round(width * 0.56), photoMaxWidth));
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -182,6 +209,22 @@ export function TravelStoryCard({
       }}
     >
       {/* ── 오른쪽: 여행 문서(엽서 · 태그) ─────────────────────────────── */}
+      {/* 그림이 있으면 그 한 장이 엽서 전부다. 카드 높이에 맞춰 놓고 좌우는 비율대로 둔다 */}
+      {photo ? (
+        // 카드 전체가 누름 영역이다. 그림이 그 위를 덮어 터치를 먹지 않게 감싼다
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            right: photoRight,
+            top: photoTop,
+            width: photoWidth,
+            height: photoHeight,
+          }}
+        >
+          <Image source={photo} resizeMode="contain" style={{ width: '100%', height: '100%' }} />
+        </View>
+      ) : (
       <View
         pointerEvents="none"
         style={{ position: 'absolute', right: frameRight, top: frameTop, width: frameWidth, height: frameHeight }}
@@ -210,9 +253,11 @@ export function TravelStoryCard({
           />
         )}
       </View>
+      )}
 
       {/* ── 엽서는 스탬프가 왼쪽 위로 걸치고, 소인선이 그 아래로 흐른다 ──────── */}
-      {illustration.frame === 'postcard' ? (
+      {/* ⚠️ 그림(photo)에는 스탬프 · 소인선이 이미 그려져 있어 여기서 또 그리지 않는다 */}
+      {!photo && illustration.frame === 'postcard' ? (
         <>
           <View
             pointerEvents="none"

@@ -19,7 +19,7 @@
 //
 // 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
-import { Ionicons } from '@expo/vector-icons';
+import { ActionIcon } from '@/components/ui/ActionIcon';
 import { Pressable, Text, View } from 'react-native';
 
 import { TONE } from '@/lib/constants/toneColor';
@@ -48,7 +48,7 @@ export function HomeActionBanner({ action, onPress }: Props) {
       <View className="flex-row items-start">
         {/* ⚠️ icon 은 lib 에서 문자열로 온다. 순수 함수가 @expo/vector-icons 타입을
                물고 오지 않게 한 것이다. ActionRequiredSection 도 같은 방식이다 */}
-        <Ionicons name={action.icon as never} size={20} color={c.fg} style={{ marginTop: 1 }} />
+        <ActionIcon name={action.icon} size={20} color={c.fg} style={{ marginTop: 1 }} />
         <View className="ml-2.5 flex-1">
           <Text style={{ fontSize: 15, fontWeight: '700', lineHeight: 20, color: c.fg }}>
             {action.headline}

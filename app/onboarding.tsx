@@ -43,7 +43,7 @@ export default function ScreenOnboarding() {
 
   return (
     <>
-      {/* 진행 표시 · 건너뛰기를 페이지가 직접 그린다. */}
+      {/* 진행 표시 · 닫기를 페이지가 직접 그린다. */}
       <Stack.Screen options={{ headerShown: false }} />
       <OnboardingView onCreateTrip={handleCreateTrip} onClose={handleClose} />
     </>

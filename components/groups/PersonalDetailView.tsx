@@ -72,6 +72,8 @@ type Props = {
   onPressAllAccounts: () => void;
   /** 하단 CTA — '개인으로 새 여행 만들기'. 화면 파일이 여행 만들기(혼자 가요 선택 상태)로 보낸다. */
   onPressCreateTrip: () => void;
+  // ⚠️ '여행 나가기' 스와이프는 없다. (2026-09-18 최종 정책) 개인 여행은 나가는 개념이 없고
+  //    여행 자체의 취소만 가능하며, 취소는 여행준비홈(다른 담당)이 제공한다. 여기서 다시 붙이지 않는다.
 };
 
 export function PersonalDetailView({

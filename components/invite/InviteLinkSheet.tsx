@@ -93,7 +93,7 @@ export function InviteLinkSheet({
       description={
         hasCandidates
           ? "초대할 사람을 고르면 링크를 보내드려요."
-          : "링크를 받은 사람이 초대를 수락하면, 여행장이 확인 후 승인할 수 있어요."
+          : "링크를 받은 사람이 참여 의사를 보내면, 여행장이 확인하고 수락할 수 있어요."
       }
       footer={
         <View style={{ gap: 8 }}>
@@ -121,7 +121,7 @@ export function InviteLinkSheet({
         <View style={{ gap: 8 }}>
           {candidates.length === 0 ? (
             <Text style={{ fontSize: 12.5, lineHeight: 19, color: "#8B94A2" }}>
-              고를 수 있는 사람이 없어요. 아래 링크를 복사해 보내면 누구나 초대를 수락할 수 있어요.
+              고를 수 있는 사람이 없어요. 아래 링크를 복사해 보내면 누구나 참여 의사를 보낼 수 있어요.
             </Text>
           ) : null}
 

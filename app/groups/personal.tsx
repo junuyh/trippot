@@ -203,6 +203,7 @@ export default function ScreenPersonalTrips() {
         // 계좌를 누르면 어느 여행의 계좌 화면으로 갈지 고른다. 모임 상세와 같다.
         onPressAccount={(account) => setPickingAccount(account)}
         onPressAllAccounts={() => setAllAccountsOpen(true)}
+        // ⚠️ 개인 여행에는 '여행 나가기' 가 없다. 취소는 여행준비홈(다른 담당)에서만. (2026-09-18 최종 정책)
         // 이벤트는 여기서 찍지 않는다. TRIP-01 이 entryPoint 를 읽어 기록한다. (모임 상세와 같다)
         // ⚠️ entryPoint 는 기존 값(group_detail · 모임 탭의 상세 화면군)을 쓴다 — ENTRY_POINT 는 분석 축이라 임의로 늘리지 않는다.
         onPressCreateTrip={() =>

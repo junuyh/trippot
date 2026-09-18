@@ -82,7 +82,7 @@ export function JoinRequestSheet({
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Button label="승인하기" loading={deciding} onPress={onAccept} />
+              <Button label="수락하기" loading={deciding} onPress={onAccept} />
             </View>
           </View>
           <Text
@@ -110,7 +110,7 @@ export function JoinRequestSheet({
         */}
         <BranchNotice
           tone="info"
-          title={`승인하면 ${request.name}님도 이걸 볼 수 있어요`}
+          title={`수락하면 ${request.name}님도 이걸 볼 수 있어요`}
           body={
             accountLabel
               ? `여행 예산과 계획, 함께하는 사람, 그리고 ${accountLabel}의 잔액과 입출금 내역이요.`
@@ -122,11 +122,11 @@ export function JoinRequestSheet({
         {needsNewGroup ? (
           <BranchNotice
             tone="info"
-            title="승인하면 이 여행을 위한 새 모임이 만들어져요"
+            title="수락하면 이 여행을 위한 새 모임이 만들어져요"
             body={
               fromGroupName
-                ? `${request.name}님은 ${fromGroupName} 멤버가 아니라서, 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. ${fromGroupName}의 다른 여행과 멤버는 그대로예요. 모임 이름은 승인할 때 정해요.`
-                : `개인 여행에 다른 사람이 들어오면 모임 여행이 돼요. 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. 모임 이름은 승인할 때 정해요.`
+                ? `${request.name}님은 ${fromGroupName} 멤버가 아니라서, 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. ${fromGroupName}의 다른 여행과 멤버는 그대로예요. 모임 이름은 수락할 때 정해요.`
+                : `개인 여행에 다른 사람이 들어오면 모임 여행이 돼요. 이 여행에 함께하는 사람들과 ${request.name}님으로 새 모임이 만들어져요. 모임 이름은 수락할 때 정해요.`
             }
           />
         ) : null}
