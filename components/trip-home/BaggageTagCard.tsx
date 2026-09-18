@@ -78,6 +78,12 @@ type Props = {
   /** 'MM.dd–MM.dd'. 여행 기간이며 **항공편 시각이 아니다** */
   dateLabel: string | null;
   headcount: number;
+  /** 설정 인원과 실제 참여 멤버 수가 다르면 true. 인원 옆에 깜빡이는 빨간 점을 찍는다 */
+  headcountMismatch?: boolean;
+  /** 빨간 점(인원 칸)을 눌렀을 때. 초대 시트를 연다 */
+  onPressHeadcount?: () => void;
+  /** 여행계 칸을 눌렀을 때. 여행 정보 수정으로 간다. 끝난 여행이면 null */
+  onPressGroup?: (() => void) | null;
   /** 여행계 이름. 없으면 개인 여행 */
   groupLabel: string;
   /** 출발일까지 남은 날짜. 여행 기간 안이면 ongoing 이라 색이 달라진다 */
@@ -123,7 +129,10 @@ export function BaggageTagCard({
   airportCode,
   dateLabel,
   headcount,
+  headcountMismatch = false,
+  onPressHeadcount,
   groupLabel,
+  onPressGroup,
   dDay,
   raisedAmount,
   targetAmount,
@@ -421,8 +430,22 @@ export function BaggageTagCard({
         /* ⚠️ 칸 사이 간격이 없으면 구분선이 다음 칸 글자에 붙는다 (시안의 gap:8) */
       >
         <Field label="DATE" value={dateLabel ?? "—"} divider />
-        <Field label="TRAVELERS" value={`${String(headcount).padStart(2, "0")}명`} divider />
-        <Field label="GROUP" value={groupLabel} />
+        <Field
+          label="TRAVELERS"
+          value={`${String(headcount).padStart(2, "0")}명`}
+          divider
+          alert={headcountMismatch}
+          alertLabel="참여한 멤버 수가 설정 인원과 달라요. 눌러서 멤버를 초대하세요"
+          /* 점이 떠 있을 때만 누를 수 있다. 맞는 여행에서 초대 시트가 열릴 이유가 없다 */
+          onPress={headcountMismatch ? onPressHeadcount : undefined}
+        />
+        <Field
+          label="GROUP"
+          value={groupLabel}
+          /* 연필 버튼만으로는 여기를 고칠 수 있다는 걸 몰랐다. 칸 자체도 누르게 한다 */
+          onPress={onPressGroup ?? undefined}
+          pressLabel="여행 기본 정보 수정"
+        />
         {/*
           일정·인원·여행계를 고친다. 바로 위 세 칸이 정확히 그 세 값이라
           여기 두는 것이 가장 가깝다.
@@ -623,13 +646,40 @@ function Field({
   label,
   value,
   divider,
+  alert,
+  alertLabel,
+  onPress,
+  pressLabel,
 }: {
   label: string;
   value: string;
   divider?: boolean;
+  /** 값 오른쪽 위에 깜빡이는 빨간 점. 확인할 것이 남았다는 표시다 */
+  alert?: boolean;
+  /** 점은 눈으로만 보이므로 스크린리더에는 이 문장을 읽힌다 */
+  alertLabel?: string;
+  /** 칸 전체를 누를 수 있게 한다. 없으면 그냥 글자다 */
+  onPress?: () => void;
+  /** 누를 수 있을 때 스크린리더가 읽을 이름 */
+  pressLabel?: string;
 }) {
+  /**
+   * ⚠️ 누를 수 있는 칸이라고 Pressable 로 **한 겹 더 감싸지 않는다.**
+   *    칸 세 개가 flex:1 로 폭을 똑같이 나누는데, 한 겹이 끼면 그 칸만
+   *    폭 계산이 달라져 DATE 만 넓어졌다. (2026-09-18)
+   *    감싸는 대신 칸 자체를 Pressable 로 바꾼다. 스타일은 그대로다.
+   */
+  const Box = onPress ? Pressable : View;
+
   return (
-    <View
+    <Box
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={
+        onPress
+          ? `${label} ${value}. ${(alert ? alertLabel : pressLabel) ?? ""}`
+          : undefined
+      }
+      onPress={onPress}
       style={{
         flex: 1,
         paddingRight: 8,
@@ -641,10 +691,49 @@ function Field({
       <Text style={{ fontSize: 8, fontWeight: "700", letterSpacing: 0.8, color: LABEL }}>
         {label}
       </Text>
-      <Text numberOfLines={1} style={{ marginTop: 5, fontSize: 12, fontWeight: "700", color: INK }}>
-        {value}
-      </Text>
-    </View>
+      <View style={{ marginTop: 5, flexDirection: "row", alignItems: "flex-start" }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 12, fontWeight: "700", color: INK }}>
+          {value}
+        </Text>
+        {alert ? <BlinkDot /> : null}
+      </View>
+    </Box>
+  );
+}
+
+/**
+ * 깜빡이는 빨간 점.
+ *
+ * 가만히 있는 점은 장식으로 읽혀 그냥 지나쳤다. 천천히 밝기만 오가게 한다.
+ * ⚠️ 크기가 아니라 투명도를 움직인다. 크기를 흔들면 옆 글자가 밀린다.
+ * ⚠️ useNativeDriver 로 돌린다. JS 쪽이 바쁠 때도 끊기지 않는다.
+ */
+function BlinkDot() {
+  const blink = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, { toValue: 0.15, duration: 600, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [blink]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        width: 6,
+        height: 6,
+        marginLeft: 3,
+        borderRadius: 3,
+        backgroundColor: "#EF4444",
+        opacity: blink,
+      }}
+    />
   );
 }
 

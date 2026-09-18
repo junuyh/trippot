@@ -54,7 +54,19 @@ export type TypeIdCardProps = {
   topSavedLabel: string | null;
   /** 살짝 기울여 얹은 느낌. 공유 이미지에서 켠다 */
   tilted?: boolean;
+  /** 모임 여행이면 '우리의', 개인 여행이면 '나의' 로 부른다 */
+  shared?: boolean;
 };
+
+/**
+ * 유형 결과 제목.
+ *
+ * 모임 여행의 결과는 한 사람의 성향이 아니라 그 여행에 함께 쓴 결과다.
+ * '나의' 라고 부르면 같은 카드를 보는 다른 멤버에게 맞지 않는 말이 된다.
+ */
+export function travelTypeHeadline(shared?: boolean): string {
+  return shared ? "우리의 여행 유형은" : "나의 여행 유형은";
+}
 
 export function TypeIdCard({
   code,

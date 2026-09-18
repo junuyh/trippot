@@ -369,21 +369,28 @@ export function PlanItemCard({
           accessibilityRole="button"
           accessibilityLabel="계획 항목 추가"
           onPress={onStartAdd}
-          className="active:bg-gray-50"
+          /**
+           * 이 화면에서 가장 많이 누르는 버튼이라 목록 카드에 묻히면 안 된다.
+           * 모양은 원래대로 사각형을 쓰되, 선·글자·＋ 를 여행지 색으로 올리고
+           * 글자를 키워 버튼으로 보이게 한다. (2026-09-18)
+           *
+           * ⚠️ 점선(dashed)을 쓰지 않는다. iOS 는 모서리를 둥글린 상자에 점선을
+           *    그리지 못해 **테두리가 통째로 사라진다.** 실제로 그 상태라 글자만
+           *    떠 있어 버튼으로 보이지 않았다. 실선으로 그린다.
+           */
+          className="active:opacity-70"
           style={{
-            marginTop: 1,
-            borderWidth: 1,
-            borderStyle: "dashed",
-            borderColor: "#cfd5dc",
+            marginTop: 4,
+            borderWidth: 1.5,
+            borderColor: theme.primary,
             borderRadius: 13,
-            backgroundColor: "#fff",
-            paddingVertical: 14,
+            backgroundColor: theme.primarySoft,
+            paddingVertical: 15,
             alignItems: "center",
           }}
         >
-          <Text style={{ fontSize: 11, fontWeight: "800", color: "#576170" }}>
-            <Text style={{ color: theme.primary }}>＋ </Text>
-            계획 항목 추가
+          <Text style={{ fontSize: 13, fontWeight: "800", color: theme.primary }}>
+            ＋ 계획 항목 추가
           </Text>
         </Pressable>
       ) : null}

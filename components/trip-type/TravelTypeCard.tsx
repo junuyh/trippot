@@ -22,7 +22,7 @@ import Svg, { Circle, Defs, Pattern, Rect } from "react-native-svg";
 import { TRAVEL_TYPE_COPY } from "@/lib/constants/travelTypeCopy";
 import { travelTypeTheme } from "@/lib/constants/travelTypeTheme";
 
-import { TypeIdCard, type TypeIdCardProps } from "./TypeIdCard";
+import { TypeIdCard, travelTypeHeadline, type TypeIdCardProps } from "./TypeIdCard";
 
 /** 열 유형 중 몇 번째인지 표시할 때 쓰는 총 개수 */
 export const TYPE_COUNT = 10;
@@ -32,6 +32,7 @@ type Props = Omit<TypeIdCardProps, "tilted"> & {
 };
 
 export function TravelTypeCard({ onPress, ...card }: Props) {
+  const headline = travelTypeHeadline(card.shared);
   const copy = TRAVEL_TYPE_COPY[card.code];
   const theme = travelTypeTheme(card.code);
 
@@ -73,7 +74,7 @@ export function TravelTypeCard({ onPress, ...card }: Props) {
       </View>
 
       <Text style={{ marginTop: 14, fontSize: 11, fontWeight: "800", color: theme.ink }}>
-        나의 여행자 유형은
+        {headline}
       </Text>
       <Text
         style={{

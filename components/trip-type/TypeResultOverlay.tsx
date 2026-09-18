@@ -34,6 +34,7 @@ import { TRAVEL_TYPE_COPY } from "@/lib/constants/travelTypeCopy";
 import { travelTypeTheme } from "@/lib/constants/travelTypeTheme";
 
 import { TYPE_COUNT } from "./TravelTypeCard";
+import { travelTypeHeadline } from "./TypeIdCard";
 import { TypeIdCard } from "./TypeIdCard";
 
 const GREEN = "#19865f";
@@ -65,6 +66,9 @@ type Props = {
   periodLabel: string | null;
   topSpentLabel: string | null;
   topSavedLabel: string | null;
+  /** 모임 여행이면 '우리의', 개인 여행이면 '나의' 로 부른다 */
+  shared?: boolean;
+
   onClose: () => void;
   /** 이미지 저장. 확정 결과에서만 보인다. 없으면 준비 중 안내를 띄운다 */
   onSaveImage?: () => void;
@@ -85,6 +89,7 @@ export function TypeResultOverlay({
   periodLabel,
   topSpentLabel,
   topSavedLabel,
+  shared,
   evidence,
   onClose,
   onSaveImage,
@@ -170,7 +175,7 @@ export function TypeResultOverlay({
               </Text>
             </View>
             <Text style={{ marginTop: 14, fontSize: 11, fontWeight: "800", color: typeTheme.ink }}>
-              나의 여행자 유형은
+              {travelTypeHeadline(shared)}
             </Text>
             <Text
               style={{
