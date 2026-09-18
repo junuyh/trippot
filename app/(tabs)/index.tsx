@@ -599,7 +599,19 @@ export default function ScreenHOME01() {
    *    도착 화면(COMM-01)이 tip_list_viewed 에 destination 을 담아 이미 기록한다.
    */
   function handlePressDiscovery(nameKo: string) {
-    router.push(`/community?destination=${encodeURIComponent(nameKo)}`);
+    // openedAt — 누를 때마다 값이 달라야 커뮤니티가 매번 이 여행지 칸으로 맞춘다. (community.tsx)
+    router.push({ pathname: '/community', params: { destination: nameKo, openedAt: String(Date.now()) } });
+  }
+
+  /**
+   * '여행자들은 이렇게 다녀왔어요' 의 '전체 보기'. 항상 **전체** 커뮤니티로 보낸다.
+   *
+   * ⚠️ 2026-09-17 destination 을 빈 값으로 **꼭** 넘긴다. 커뮤니티 탭은 화면이 살아 있어서,
+   *    '/community' 로만 보내면 앞서 태그로 넘긴 destination(예: 도쿄)이 그대로 남아
+   *    도쿄 글만 보였다. openedAt 은 같은 버튼을 다시 눌러도 전체로 되돌리려고 붙인다.
+   */
+  function handlePressAllDiscoveries() {
+    router.push({ pathname: '/community', params: { destination: '', openedAt: String(Date.now()) } });
   }
 
   function handlePressCreateTrip(entryPoint: EntryPoint) {
@@ -750,7 +762,7 @@ export default function ScreenHOME01() {
         onPressOnboarding={() => router.push('/onboarding')}
         onPressDiscovery={handlePressDiscovery}
         // 전체 보기는 여행지 필터 없이 커뮤니티 탭 첫 화면이다. (이벤트는 COMM-01 이 기록)
-        onPressAllDiscoveries={() => router.push('/community')}
+        onPressAllDiscoveries={handlePressAllDiscoveries}
         onPressNotifications={handlePressNotifications}
         onLongPressLogo={handleToggleEmptyPreview}
         invitePrompt={invitePrompt}
