@@ -25,6 +25,7 @@ import { ScrollView, useWindowDimensions, View } from 'react-native';
 import { SectionHeader } from './SectionHeader';
 import { TravelStoryCard } from './travelStory/TravelStoryCard';
 import { travelStoryIllustration } from './travelStory/travelStoryArt';
+import { travelStoryPhoto } from './travelStory/travelStoryPhoto';
 import type { DiscoverDestination } from './types';
 
 type Props = {
@@ -106,6 +107,8 @@ export function DiscoverDestinationSection({
             countryCode={destination.theme.code}
             countryKo={destination.countryKo}
             theme={destination.theme}
+            // 등록된 도시는 엽서 그림 한 장을 쓰고, 없으면 아래 illustration 으로 직접 그린다
+            photo={travelStoryPhoto(destination.code)}
             illustration={travelStoryIllustration(
               destination.code,
               destination.theme.nameEn,
