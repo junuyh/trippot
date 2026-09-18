@@ -37,15 +37,19 @@ export function NotificationBellButton({ onPress }: Props) {
   );
 }
 
-/** 안 읽음 점 — 브랜드색, 흰 테두리로 아이콘 선과 분리. 홈 헤더(HomeHeader)와 같은 모양. */
+/**
+ * 안 읽음 점 — 브랜드색, 흰 테두리로 아이콘 선과 분리. 홈 헤더(HomeHeader)와 같은 모양.
+ * 위치는 종의 **왼쪽 위 바깥**(2026-09-18 확정). 36×36 상자 안에서 아이콘(24)은 6..30 에 놓이므로
+ * (1, 1) 에 두면 종 윤곽을 가리지 않으면서 붙어 보인다. 오른쪽 위에 두었을 때는 윤곽을 덮었다.
+ */
 export function UnreadDot() {
   return (
     <View
       pointerEvents="none"
       style={{
         position: 'absolute',
-        top: 6,
-        right: 7,
+        top: 1,
+        left: 1,
         width: 10,
         height: 10,
         borderRadius: 5,
