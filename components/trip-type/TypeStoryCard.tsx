@@ -25,7 +25,7 @@ import type { SpendingProfileType } from '@/lib/constants/status';
 import { TRAVEL_TYPE_COPY } from '@/lib/constants/travelTypeCopy';
 import { travelTypeTheme } from '@/lib/constants/travelTypeTheme';
 
-import { ID_CARD_INK, TypeIdCard } from './TypeIdCard';
+import { ID_CARD_INK, TypeIdCard, travelTypeHeadline } from './TypeIdCard';
 
 /** 미리보기 가로. 세로는 9:16. 캡처는 기기 배율(3x)로 810×1440 이다 */
 export const TYPE_STORY_WIDTH = 270;
@@ -48,6 +48,9 @@ type Props = {
   topSpentLabel: string | null;
   /** 가장 많이 아낀 카테고리. 없으면 null */
   topSavedLabel: string | null;
+  /** 모임 여행이면 '우리의', 개인 여행이면 '나의' 로 부른다 */
+  shared?: boolean;
+
 };
 
 export function TypeStoryCard({
@@ -57,6 +60,7 @@ export function TypeStoryCard({
   periodLabel,
   topSpentLabel,
   topSavedLabel,
+  shared,
 }: Props) {
   const theme = travelTypeTheme(code);
   const copy = TRAVEL_TYPE_COPY[code];
@@ -108,7 +112,7 @@ export function TypeStoryCard({
       {/* ── 제목: 결과 한 줄 ─────────────────────────────────────── */}
       <View style={{ position: 'absolute', top: 48, left: 20, right: 20 }}>
         <Text style={{ fontSize: 11, fontWeight: '800', color: theme.ink }}>
-          나의 여행자 유형은
+          {travelTypeHeadline(shared)}
         </Text>
         <Text
           style={{

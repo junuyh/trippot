@@ -1252,6 +1252,20 @@ export default function ScreenTripHome() {
    */
   const registeredMemberCount = data.members.filter((m) => m.user_id !== null).length;
   const voteTargetCount = Math.max(0, registeredMemberCount - 1);
+  /**
+   * 설정 인원과 실제 참여 멤버 수가 다른가. 다르면 인원 옆에 빨간 점을 찍어
+   * 아직 초대·수락이 남았다는 것을 알린다.
+   *
+   * ⚠️ 가입 멤버(user_id 있음) 기준이다. 초대를 받아 수락해야 늘어나는 수라서
+   *    계정 없는 동행자 행으로는 채워지지 않는다. (registeredMemberCount 와 같은 기준)
+   * ⚠️ 준비 중 · 여행 중에만 본다. 끝났거나 취소 절차 중인 여행은 초대할 일이 없다.
+   * ⚠️ 멤버 조회가 실패하면 빈 배열로 떨어진다. 0 명으로 판정하면 모든 여행에
+   *    점이 찍히므로, 한 명도 못 읽었으면 판정하지 않는다.
+   */
+  const headcountMismatch =
+    (status === TRIP_STATUS.PLANNING || status === TRIP_STATUS.TRAVELING) &&
+    registeredMemberCount > 0 &&
+    registeredMemberCount !== trip.headcount;
   const isCancelRequester = data.cancelRequest?.requested_by === userId;
   const hasVoted = Boolean(
     data.voteProgress?.votes.some((v) => v.user_id === userId),
@@ -2212,6 +2226,8 @@ export default function ScreenTripHome() {
           {shownType ? (
             <View style={{ gap: 8 }}>
               <TravelTypeCard
+                /* 모임 여행이면 '우리의 여행 유형은' 으로 부른다 */
+                shared={Boolean(trip.group_id)}
                 code={shownType.code}
                 accuracyBp={shownType.accuracyBp}
                 periodLabel={tripPeriodLabel}
@@ -2400,6 +2416,7 @@ export default function ScreenTripHome() {
               accuracyBp={shownType.accuracyBp}
               evidence={shownType.evidence as TypeEvidenceRow[]}
               provisional={shownType.provisional}
+              shared={Boolean(trip.group_id)}
               destinationKo={trip.destination ?? "여행"}
               destinationEn={destinationMeta?.nameEn ?? ""}
               periodLabel={tripPeriodLabel}
@@ -2432,6 +2449,7 @@ export default function ScreenTripHome() {
               card={{
                 code: shownType.code,
                 accuracyBp: shownType.accuracyBp,
+                shared: Boolean(trip.group_id),
                 destinationEn: destinationMeta?.nameEn ?? "",
                 periodLabel: tripPeriodLabel,
                 topSpentLabel: record.topSpentLabel,
@@ -2472,7 +2490,11 @@ export default function ScreenTripHome() {
                 : null
             }
             headcount={trip.headcount}
+            headcountMismatch={headcountMismatch}
+            /* 점을 누르면 '여행 멤버 초대하기' 와 같은 초대 시트가 열린다 */
+            onPressHeadcount={() => void invite.startInvite()}
             groupLabel={data.groupName ?? "개인 여행"}
+            onPressGroup={() => router.push(`/trips/${trip.id}/edit`)}
             dDay={dDay}
             raisedAmount={raisedAmount}
             targetAmount={targetAmount}

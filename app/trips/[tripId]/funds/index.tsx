@@ -300,6 +300,22 @@ export default function ScreenFUND01() {
     [runPendingScan],
   );
 
+  /**
+   * '직접 입력' 도 방법 시트가 **완전히 내려간 뒤**에 지출 폼을 연다.
+   *
+   * ⚠️ 방법 시트를 닫는 것과 같은 순간에 폼 시트(또 하나의 Modal)를 열면
+   *    iOS 가 새 Modal 을 띄우지 못한다. 폼이 안 뜨거나 투명한 막이 남아
+   *    화면이 눌리지 않았다. 촬영·앨범(runPendingScan)과 같은 방식으로
+   *    iOS 는 onDismiss, Android 는 타이머로 이어 가고 ref 로 한 번만 연다.
+   *    입금은 방법 시트를 거치지 않아 이 문제가 없었다.
+   */
+  const pendingManualRef = useRef(false);
+  const runPendingManual = useCallback(() => {
+    if (!pendingManualRef.current) return;
+    pendingManualRef.current = false;
+    openSheet(TRANSACTION_TYPE.WITHDRAWAL);
+  }, [openSheet]);
+
   /** 여행 홈 TODAY 카드에서 ?scan=receipt 로 들어오면 바로 방법을 묻는다. 한 번만 */
   const scanParamUsedRef = useRef(false);
   useEffect(() => {
@@ -843,10 +859,15 @@ export default function ScreenFUND01() {
         theme={theme}
         onCamera={() => handleReceipt("camera")}
         onLibrary={() => handleReceipt("library")}
-        onDismiss={() => void runPendingScan()}
+        onDismiss={() => {
+          void runPendingScan();
+          runPendingManual();
+        }}
         onManual={() => {
+          pendingManualRef.current = true;
           setSourceOpen(false);
-          openSheet(TRANSACTION_TYPE.WITHDRAWAL);
+          // Android 폴백. iOS 는 onDismiss 가 먼저 와서 이 타이머는 빈손으로 끝난다
+          setTimeout(runPendingManual, 700);
         }}
       />
       <ReceiptScanningOverlay visible={receiptScan.phase === "scanning"} />
