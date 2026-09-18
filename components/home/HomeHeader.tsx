@@ -32,6 +32,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { UnreadDot } from '@/components/mypage';
+import { useHasUnreadNotifications } from '@/lib/notifications/unreadNotifications';
 
 type Props = {
   /**
@@ -59,6 +61,8 @@ export function HomeHeader({
   onLongPressLogo,
 }: Props) {
   const insets = useSafeAreaInsets();
+  // 안 읽은 알림 점. 판단은 lib 훅 — 이 컴포넌트는 supabase 를 직접 부르지 않는다. (2026-09-18)
+  const hasUnread = useHasUnreadNotifications();
 
   return (
     <View className="bg-white px-4 pb-3" style={{ paddingTop: insets.top + 12 }}>
@@ -98,6 +102,8 @@ export function HomeHeader({
           className="h-9 w-9 items-center justify-center rounded-full active:bg-pot-visual"
         >
           <Ionicons name="notifications-outline" size={24} color="#111827" />
+          {/* 안 읽은 알림 점 — MY 헤더 🔔 와 같은 규칙·모양. (2026-09-18 · lib/notifications/unreadNotifications) */}
+          {hasUnread ? <UnreadDot /> : null}
         </Pressable>
       </View>
 

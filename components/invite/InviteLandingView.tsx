@@ -70,10 +70,10 @@ export function InviteLandingView({
             <InvitePrimaryButton
               label={
                 !signedIn
-                  ? "가입하고 초대 수락하기"
+                  ? "가입하고 참여 의사 보내기"
                   : myState === "LEFT"
-                    ? "다시 초대 수락하기"
-                    : "초대 수락하기"
+                    ? "다시 참여 의사 보내기"
+                    : "참여 의사 보내기"
               }
               loading={requesting}
               onPress={onRequestJoin}
@@ -170,7 +170,7 @@ export function InviteLandingView({
           >
             {myState === "ACTIVE"
               ? "이미 이 여행에 함께하고 있어요"
-              : "초대를 수락하면 여행장이 확인해요.\n승인되면 여행 예산과 함께하는 사람을 볼 수 있어요"}
+              : "참여 의사를 보내면 여행장이 확인해요.\n여행장이 수락하면 여행 준비를 함께할 수 있어요"}
           </Text>
         </View>
 
@@ -185,7 +185,7 @@ export function InviteLandingView({
               textAlign: "center",
             }}
           >
-            지금은 예정 인원이 다 찼어요.{"\n"}수락은 할 수 있고, 여행장이 인원을 늘리면 승인돼요.
+            지금은 예정 인원이 다 찼어요.{"\n"}참여 의사는 보낼 수 있고, 여행장이 인원을 늘리면 수락돼요.
           </Text>
         ) : null}
       </View>

@@ -88,7 +88,7 @@ export function JoinWaitingView({
             textAlign: "center",
           }}
         >
-          초대를 수락했어요
+          참여 의사를 보냈어요
         </Text>
 
         <Text
@@ -100,7 +100,7 @@ export function JoinWaitingView({
             textAlign: "center",
           }}
         >
-          여행장이 확인하고 있어요.{"\n"}승인되면 여행 준비를 함께할 수 있어요.
+          여행장이 확인하고 있어요.{"\n"}수락되면 여행 준비를 함께할 수 있어요.
         </Text>
       </View>
     </InviteShell>
