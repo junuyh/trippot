@@ -10,6 +10,19 @@ export const NAME_MAX_LENGTH = 20;
  */
 export const ENGLISH_NAME_MAX_LENGTH = 40;
 
+/**
+ * 연결된 계정 한 칸. (2026-09-20 · 카카오 / 구글 / 이메일)
+ *   title     `카카오 로그인 · 홍길동` · `Google` · `이메일`
+ *   subtitle  구글 · 이메일은 로그인 이메일. 카카오는 없음(카카오는 이메일을 받지 않는다)
+ *   hint      앱에서 바꿀 수 없다는 안내 — 방식마다 문구가 다르다
+ * ⚠️ 계정 식별자(auth_provider_user_id)는 넣지 않는다. 내부 연동 ID 라 사용자가 알아볼 수 없다.
+ */
+export type ConnectedAccount = {
+  title: string;
+  subtitle: string | null;
+  hint: string;
+};
+
 type Props = {
   /** 입력창에 들어 있는 값. 상태는 화면 파일이 들고 있다. */
   name: string;
@@ -29,11 +42,11 @@ type Props = {
   canSaveEnglishName: boolean;
   savingEnglishName: boolean;
   /**
-   * 연결된 계정 한 줄. 예: `카카오 로그인 · 홍길동`
+   * 연결된 계정. null 이면 영역을 그리지 않는다(아직 못 읽었거나 모르는 방식).
    *
-   * ⚠️ 앱에서 바꿀 수 없는 값이다. 카카오 쪽 정보라 입력창으로 만들지 않는다.
+   * ⚠️ 앱에서 바꿀 수 없는 값이다. 로그인 제공자 쪽 정보라 입력창으로 만들지 않는다.
    */
-  accountLabel: string | null;
+  account: ConnectedAccount | null;
   onChangeName: (next: string) => void;
   onPressSaveName: () => void;
   onChangeEnglishName: (next: string) => void;
@@ -62,7 +75,7 @@ export function AccountView({
   englishNameError,
   canSaveEnglishName,
   savingEnglishName,
-  accountLabel,
+  account,
   onChangeName,
   onPressSaveName,
   onChangeEnglishName,
@@ -71,6 +84,50 @@ export function AccountView({
 }: Props) {
   return (
     <View style={{ paddingHorizontal: 18 }}>
+      {/* 연결된 계정 — 이 화면의 첫 정보. "지금 어떤 계정으로 들어와 있나" 를 먼저 보여준다. (2026-09-20) */}
+      {account ? (
+        <View className="mt-7">
+          <Text
+            className="text-pot-ink"
+            style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.5 }}
+          >
+            연결된 계정
+          </Text>
+
+          <View
+            className="mt-3 rounded-2xl bg-white px-4 py-4"
+            style={{
+              shadowColor: '#000',
+              shadowOpacity: 0.05,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 2,
+            }}
+          >
+            <Text className="text-pot-ink" style={{ fontSize: 14.5, lineHeight: 21 }}>
+              {account.title}
+            </Text>
+            {account.subtitle ? (
+              <Text
+                className="mt-0.5 text-pot-mute"
+                style={{ fontSize: 13.5, lineHeight: 20 }}
+                numberOfLines={1}
+              >
+                {account.subtitle}
+              </Text>
+            ) : null}
+            {/*
+              ⚠️ 계정 식별자(auth_provider_user_id)는 절대 넣지 않는다.
+                 `kakao_1001` 같은 내부 연동 ID 라 사용자가 알아볼 수 없고,
+                 다른 서비스와 대조할 수 있는 값이다.
+            */}
+            <Text className="mt-1 text-pot-faint" style={{ fontSize: 12, lineHeight: 18 }}>
+              {account.hint}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       <View className="mt-7">
         <Text
           className="text-pot-ink"
@@ -159,40 +216,6 @@ export function AccountView({
           </View>
         </View>
       </View>
-
-      {accountLabel ? (
-        <View className="mt-7">
-          <Text
-            className="text-pot-ink"
-            style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.5 }}
-          >
-            연결된 계정
-          </Text>
-
-          <View
-            className="mt-3 rounded-2xl bg-white px-4 py-4"
-            style={{
-              shadowColor: '#000',
-              shadowOpacity: 0.05,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 2,
-            }}
-          >
-            <Text className="text-pot-ink" style={{ fontSize: 14.5, lineHeight: 21 }}>
-              {accountLabel}
-            </Text>
-            {/*
-              ⚠️ 계정 식별자(auth_provider_user_id)는 절대 넣지 않는다.
-                 `kakao_1001` 같은 내부 연동 ID 라 사용자가 알아볼 수 없고,
-                 다른 서비스와 대조할 수 있는 값이다.
-            */}
-            <Text className="mt-1 text-pot-faint" style={{ fontSize: 12, lineHeight: 18 }}>
-              카카오에서 가져온 정보라 앱에서는 바꿀 수 없어요.
-            </Text>
-          </View>
-        </View>
-      ) : null}
 
       {/* 탈퇴. navigation 이 아니라 action 이라 카드에 넣지 않는다.
           로그아웃을 MY-01 에서 다루는 방식과 같다. */}
