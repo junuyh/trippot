@@ -22,8 +22,8 @@
 // ============================================================================
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Alert, InteractionManager, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -74,6 +74,18 @@ export default function ScreenMY01() {
   const [counts, setCounts] = useState<MyTripCounts>({ planning: 0, traveling: 0, past: 0 });
   /** 프로필 사진 업로드 중. 중복 제출을 막는다. */
   const [savingImage, setSavingImage] = useState(false);
+  /**
+   * 사진 고르기 ~ 저장까지 **한 번에 하나만.** (2026-09-20 · 프로필 사진 시트 간헐 오류 대응)
+   *
+   * ⚠️ savingImage 는 사진을 고른 **뒤**에야 true 가 된다. 그 전 — 권한 확인 · 네이티브
+   *    사진 선택기가 뜨는 사이 — 에는 아무 가드가 없어서, 사진 칸과 연필 배지(같은 handler)를
+   *    연달아 누르면 launchImageLibraryAsync 가 두 번 불렸다. expo-image-picker(iOS) 는
+   *    진행 중인 선택을 막지 않고 currentPickingContext 를 덮어쓴 채 present 를 한 번 더
+   *    시도한다(ImagePickerModule.swift presentPickerUI). 그러면 먼저 띄운 선택기의 Promise 는
+   *    영영 돌아오지 않고, 두 번째 present 는 이미 떠 있는 선택기 위에서 조용히 실패한다.
+   *    state 가 아니라 ref 인 이유: setSavingImage 직후 재렌더 전의 탭은 이전 closure 를 본다.
+   */
+  const pickingRef = useRef(false);
   /** 로그아웃 확인창 노출 여부. Alert 대신 Modal 을 쓰는 이유는 아래 주석 참고. */
   const [logoutAsking, setLogoutAsking] = useState(false);
 
@@ -139,16 +151,37 @@ export default function ScreenMY01() {
    * 실패하면 화면을 원래 사진으로 되돌리고, 방금 올린 파일은 정리한다.
    */
   const handleChangeProfileImage = useCallback(async () => {
-    // 중복 제출 방지. 업로드 중에 다시 눌러도 무시한다. (CLAUDE.md 9장)
-    if (savingImage) return;
+    // 중복 제출 방지. 고르는 중 · 업로드 중에 다시 눌러도 무시한다. (CLAUDE.md 9장)
+    if (pickingRef.current || savingImage) return;
+    pickingRef.current = true;
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('사진 접근 권한이 필요해요', '설정에서 사진 접근을 허용해 주세요.');
-      return;
-    }
+    try {
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      // 권한창이 **실제로 떴는지** 를 기억한다. 아래 지연은 그때만 건다.
+      const before = await ImagePicker.getMediaLibraryPermissionsAsync();
+      const permission = before.granted
+        ? before
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('사진 접근 권한이 필요해요', '설정에서 사진 접근을 허용해 주세요.');
+        return;
+      }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+      /**
+       * ⚠️ 시스템 권한창이 **막 내려가는 중**에 사진 선택기를 띄우면 iOS 가 present 를 삼킨다.
+       *    (funds/index.tsx · components/ui/BottomSheet onDismiss 주석과 같은 부류)
+       *    그러면 네이티브 쪽에는 "고르는 중" 컨텍스트만 남고 화면에는 아무것도 없어,
+       *    다음 탭이 그 컨텍스트를 덮어쓸 때까지 눌러도 반응이 없다.
+       *    권한창을 지금 띄웠을 때만 애니메이션이 끝날 여유를 준 뒤 연다.
+       */
+      if (!before.granted) {
+        await new Promise<void>((resolve) => {
+          InteractionManager.runAfterInteractions(() => setTimeout(resolve, 350));
+        });
+      }
+
+      result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
 
       // ⚠️ allowsEditing 을 켜지 않는다. 켜면 iOS 가 구형 UIImagePickerController 로
@@ -176,7 +209,13 @@ export default function ScreenMY01() {
       // ⚠️ base64 를 여기서 받지 않는다. 원본 해상도의 base64 는 문자열이 수 MB 라
       //    브릿지를 건너오는 것만으로 느리다. 업로드에 쓸 base64 는 크기를 줄인
       //    뒤에 얻는다. (lib/image/profileImage.ts)
-    });
+      });
+    } catch {
+      // 선택기 자체를 못 띄운 경우(다른 화면이 뜨거나 내려가는 중 · 권한 모듈 오류).
+      // 전에는 처리되지 않은 rejection 으로 새어 나가 LogBox 만 떴다. 화면은 그대로 쓸 수 있어야 한다.
+      Alert.alert('사진을 열지 못했어요', '잠시 후 다시 시도해 주세요.');
+      return;
+    }
 
     if (result.canceled) return;
 
@@ -238,6 +277,10 @@ export default function ScreenMY01() {
       );
     } finally {
       setSavingImage(false);
+    }
+    } finally {
+      // 어떤 경로로 나가든 다음 탭을 막지 않는다. (선택 · 취소 · 권한 거부 · 예외 · 업로드 성공/실패 모두)
+      pickingRef.current = false;
     }
   }, [savingImage, profile, userId]);
 

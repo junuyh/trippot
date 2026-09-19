@@ -207,6 +207,63 @@ export function toProductAuthProvider(raw: string | null): AuthProvider | null {
 }
 
 /**
+ * 지금 세션이 **어떤 인증 방법**으로 만들어졌나. access token 의 `amr` 청구항이다.
+ *   'password'  이메일+비밀번호      'oauth' · 'oidc'  소셜(구글 · 카카오 Custom OIDC)
+ * 토큰을 로컬에서 디코드할 뿐 네트워크를 타지 않는다. (auth-js getAuthenticatorAssuranceLevel)
+ * 세션이 없거나 amr 이 없으면 null.
+ */
+export async function readSessionAuthMethod(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const methods = data?.currentAuthenticationMethods ?? [];
+    // 시간순 마지막 항목이 이 세션을 만든 방법이다. 문자열 형식(RFC-8176)과 객체 형식 둘 다 온다.
+    const last = methods[methods.length - 1];
+    if (!last) return null;
+    return typeof last === 'string' ? last : last.method;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * **지금 세션이 어떤 방식으로 로그인됐는가.** (2026-09-20 · 계정관리 연결된 계정)
+ *
+ * ⚠️ `app_metadata.provider` 를 쓰지 않는다. trippot-dev 실측(2026-09-20): 그 값은 **처음 만든
+ *    신원**이고, 구글과 이메일이 한 계정으로 이어진 사용자(providers = [email, google])도
+ *    'email' 그대로였다. `identities[].last_sign_in_at` 도 만들 때 시각에서 갱신되지 않았다.
+ *    그래서 "지금 무엇으로 들어왔나" 는 세션 토큰의 인증 방법(amr) 으로만 알 수 있다.
+ *
+ *   amr 'password'            → 이메일 (이메일 신원이 있을 때)
+ *   amr 'oauth' · 'oidc'      → 신원 중 **소셜 하나** (구글 / 카카오). 둘 이상이면 모른다(null)
+ *   amr 없음                  → 신원이 하나뿐이면 그 신원. 여럿이면 모른다(null)
+ *
+ * ⚠️ email 이 있다는 이유로 '이메일 로그인' 이라고 판단하지 않는다. 구글도 email 을 준다.
+ * ⚠️ 모르면 null. 카카오·이메일로 넘겨짚지 않는다. 여러 신원을 나열하지도 않는다 — 이 화면은
+ *    "지금 로그인한 계정 하나" 를 보여주는 곳이다.
+ */
+export function readSessionAuthProvider(
+  user: { identities?: { provider: string; id: string }[] | null },
+  method: string | null,
+): AuthProvider | null {
+  const providers = Array.from(
+    new Set(
+      (user.identities ?? [])
+        .map((identity) => toProductAuthProvider(identity.provider))
+        .filter((p): p is AuthProvider => p !== null),
+    ),
+  );
+  const social = providers.filter((p) => p !== AUTH_PROVIDER.EMAIL);
+
+  if (method === 'password') {
+    return providers.includes(AUTH_PROVIDER.EMAIL) ? AUTH_PROVIDER.EMAIL : null;
+  }
+  if (method === 'oauth' || method === 'oidc') {
+    return social.length === 1 ? social[0] : null;
+  }
+  return providers.length === 1 ? providers[0] : null;
+}
+
+/**
  * 세션에서 프로필을 뽑는다.
  *
  * ⚠️ 키 이름을 하나로 단정하지 않는다. Supabase 는 provider 응답을 정규화하면서

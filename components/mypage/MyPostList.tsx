@@ -48,7 +48,7 @@ type Props = {
 export function MyPostList({ posts, onPressPost, swipeAction }: Props) {
   return (
     <FlatList
-      className="flex-1 bg-brand-soft"
+      className="flex-1 bg-gray-50"
       contentContainerClassName="pb-16 pt-4"
       contentContainerStyle={{ paddingHorizontal: 18 }}
       data={posts}
