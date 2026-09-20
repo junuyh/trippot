@@ -82,7 +82,8 @@ async function resolveInviteReceived(notification: Notification): Promise<Notifi
 
 /**
  * JOIN_REQUESTED — 여행장에게 온 알림. 그 요청이 아직 PENDING 인지 서버 목록으로 확인한다.
- *   PENDING (목록에 있음) → '승인 대기' + [참여 요청 확인하기] (/trips/:tripId/edit)
+ *   PENDING (목록에 있음) → '수락 대기' + [참여 의사 확인하기] (/trips/:tripId/edit)
+ *   ⚠️ 이 CTA 는 이동만 한다. 수락·거절은 여행 정보 수정의 시트에서 하므로 '수락' 을 붙이지 않는다. (2026-09-20)
  *   목록에 없음           → 이미 처리됨. 승인/거절 구분은 앱이 직접 읽지 않는다 → '처리 완료'
  *   NOT_LEADER 등 예외    → 더는 여행장이 아니다 → '처리 완료' + [여행 보기]
  * ⚠️ trip_join_requests 를 앱이 직접 읽지 않는다. (docs/12) 목록 RPC 하나로 판단한다.
@@ -99,7 +100,7 @@ async function resolveJoinRequested(notification: Notification): Promise<Notific
       return {
         statusLabel: '수락 대기',
         // ⚠️ focus=requests — 배너와 같은 자리로 보낸다. 그냥 보내면 캘린더만 보인다
-        cta: { label: '참여 의사 확인 & 수락', href: `/trips/${tripId}/edit?focus=requests` },
+        cta: { label: '참여 의사 확인하기', href: `/trips/${tripId}/edit?focus=requests` },
       };
     }
     return { statusLabel: '처리 완료', cta: tripHome(tripId) };

@@ -223,10 +223,10 @@ export function TripEditForm({
    */
   const inviteDescription = !isGroupTrip
     ? canInvite
-      ? "함께 갈 사람을 부르면\n새로운 모임 여행이 돼요.\n링크를 받은 사람이 초대를 수락하면,\n여행장이 확인 후 승인할 수 있어요."
+      ? "함께 갈 사람을 부르면\n새로운 모임 여행이 돼요.\n링크를 받은 사람이 참여 의사를 보내면,\n여행장이 확인하고 수락할 수 있어요."
       : "함께 갈 사람을 부르면\n새로운 모임 여행이 돼요.\n인원을 늘리고 초대 링크를 보내 보세요."
     : canInvite
-      ? "링크를 받은 사람이 초대를 수락하면,\n여행장이 확인 후 승인할 수 있어요.\n링크는 7일간 쓸 수 있어요."
+      ? "링크를 받은 사람이 참여 의사를 보내면,\n여행장이 확인하고 수락할 수 있어요.\n링크는 7일간 쓸 수 있어요."
       : `인원 ${headcount}명이 모두 참여 중이에요.\n위에서 인원을 늘리면 초대할 수 있어요.`;
 
   /**
@@ -528,14 +528,12 @@ export function TripEditForm({
 
           {/*
             참여 요청 (INV-04 진입점). 초대 자리 바로 아래 — 링크를 보낸 사람이 답을 기다리는 곳이다.
-            ⚠️⚠️ **용어는 두 단어뿐이다.** (2026-09-17 팀 확정)
-                 받는 사람이 링크에 응하는 것 = **초대 수락**
-                 여행장이 들이는 것           = **승인** (안 들이면 거절)
-               한때 받는 쪽을 "참여 요청" 으로 바꿨다가 "초대 수락" 으로 되돌렸다.
-               ⚠️ **여행장의 행동에 '수락' 을 쓰지 않는다.** 양쪽이 모두 '수락'
-                  이면 누가 결정권자인지 사라진다 — 그게 원래 헷갈리던 이유다.
-                  그래서 이 줄은 "초대를 수락했어요"(받는 쪽 사실)이고,
-                  아래 안내와 시트 버튼은 "승인"(여행장 행동)이다.
+            ⚠️⚠️ **용어는 두 단어뿐이다.** (2026-09-20 팀 테스트 후 최종 확정 · tripActions 주석)
+                 받는 사람이 링크에 응하는 것 = **참여 의사 보내기**
+                 여행장이 들이는 것           = **수락** (안 들이면 거절)
+               ⚠️ 받는 쪽에 '수락' 을 쓰지 않는다. "초대를 수락했어요" 는 이미 멤버가
+                  된 것처럼 읽혔다(팀 테스트). 이 줄은 "참여 의사를 보냈어요"(받는 쪽 사실),
+                  아래 안내와 시트 버튼은 "수락"(여행장 행동)이다.
             여행장에게만 데이터가 오므로 다른 멤버 화면엔 아무것도 없다. 누르면 수락·거절 시트.
           */}
           {joinRequests.length > 0 ? (
@@ -553,7 +551,7 @@ export function TripEditForm({
                 <Pressable
                   key={request.requestId}
                   accessibilityRole="button"
-                  accessibilityLabel={`${request.name}님의 초대 수락 보기`}
+                  accessibilityLabel={`${request.name}님의 참여 의사 보기`}
                   onPress={() => onPressJoinRequest(request)}
                   className="flex-row items-center active:opacity-70"
                   style={{
@@ -602,14 +600,14 @@ export function TripEditForm({
                       numberOfLines={1}
                       style={{ fontSize: 13, fontWeight: "800", color: TONE.brand.fg }}
                     >
-                      {request.name}님이 초대를 수락했어요
+                      {request.name}님이 참여 의사를 보냈어요
                     </Text>
                     <Text
                       style={{ marginTop: 3, fontSize: 11, lineHeight: 15, color: TONE.brand.body }}
                     >
                       {request.needsNewGroup
-                        ? "승인하면 새 모임이 만들어져요 · 눌러서 확인"
-                        : "눌러서 승인하거나 거절해요"}
+                        ? "수락하면 새 모임이 만들어져요 · 눌러서 확인"
+                        : "눌러서 수락하거나 거절해요"}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={15} color={TONE.brand.fg} />

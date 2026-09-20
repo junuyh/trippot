@@ -526,7 +526,7 @@ export default function ScreenHOME01() {
     // 미리보기 — 서버에 아무것도 쓰지 않고 결과만 흉내 낸다.
     if (__DEV__ && isPreview) {
       dismissInvite(token);
-      Alert.alert('초대를 수락했어요', '여행장이 승인하면 여행에 함께할 수 있어요.');
+      Alert.alert('참여 의사를 보냈어요', '여행장이 확인하고 있어요. 수락되면 여행 준비를 함께할 수 있어요.');
       return;
     }
 
@@ -534,7 +534,7 @@ export default function ScreenHOME01() {
     try {
       await requestTripJoin(token);
       dismissInvite(token);
-      Alert.alert('초대를 수락했어요', '여행장이 승인하면 여행에 함께할 수 있어요.');
+      Alert.alert('참여 의사를 보냈어요', '여행장이 확인하고 있어요. 수락되면 여행 준비를 함께할 수 있어요.');
     } catch (error) {
       const code = tripJoinErrorCode(error);
       if (code === TRIP_JOIN_ERROR.ALREADY_MEMBER) {
@@ -550,7 +550,7 @@ export default function ScreenHOME01() {
         Alert.alert('초대 링크가 만료됐어요', '초대한 사람에게 새 링크를 받아 주세요.');
       } else {
         // 일시적인 실패일 수 있다. 초대는 남겨 두고 다시 누를 수 있게 한다.
-        Alert.alert('초대 수락을 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
+        Alert.alert('참여 의사를 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
       }
     } finally {
       setRequestingToken(null);

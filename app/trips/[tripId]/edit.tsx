@@ -339,7 +339,7 @@ export default function ScreenTripEdit() {
         } else if (code === TRIP_JOIN_ERROR.LEADER_NOT_CONFIGURED) {
           Alert.alert(
             "여행장 정보가 없어요",
-            "이 여행은 여행장이 지정되지 않아 멤버 승인을 처리할 수 없어요. 운영팀에 알려 주세요.",
+            "이 여행은 여행장이 지정되지 않아 참여 의사를 처리할 수 없어요. 운영팀에 알려 주세요.",
           );
         } else if (code === TRIP_JOIN_ERROR.REQUEST_NOT_PENDING) {
           await afterDecision();

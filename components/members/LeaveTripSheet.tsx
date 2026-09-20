@@ -148,7 +148,7 @@ export function LeaveTripSheet({
           <BranchNotice
             tone="info"
             title="여행장이 하는 일"
-            body="새 멤버를 승인하는 일이요. 초대와 예산 수정은 멤버 누구나 할 수 있어요. 넘긴 뒤에는 되돌릴 수 없어요."
+            body="새 멤버의 참여 의사를 수락하는 일이요. 초대와 예산 수정은 멤버 누구나 할 수 있어요. 넘긴 뒤에는 되돌릴 수 없어요."
           />
         </View>
       </BottomSheet>
