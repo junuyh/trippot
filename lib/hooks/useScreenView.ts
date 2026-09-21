@@ -28,14 +28,26 @@ import type { TripStatus } from '@/lib/constants/status';
  * 값은 `lib/constants/status.ts` 의 `TRIP_STATUS` 상수를 쓴다. 리터럴 금지.
  * 넘기지 않으면 `null` 로 기록된다.
  */
-export function useScreenView(screenName: ScreenName, tripStatus?: TripStatus | null): void {
+export function useScreenView(
+  screenName: ScreenName,
+  tripStatus?: TripStatus | null,
+  options?: {
+    /**
+     * false 면 찍지 않는다. 한 라우트가 상단 탭으로 두 화면을 번갈아 보여줄 때(/groups 의 [여행]/[모임])
+     * 지금 보이는 쪽에서만 기록하려고 둔다. 값이 바뀌면 다시 평가한다. 기본 true. (2026-09-21)
+     */
+    enabled?: boolean;
+  },
+): void {
+  const enabled = options?.enabled ?? true;
   useFocusEffect(
     useCallback(() => {
+      if (!enabled) return;
       track(EVENTS.SCREEN_VIEWED, {
         screen_name: screenName,
         trip_status: tripStatus ?? null,
       });
       // 이탈 시각은 기록하지 않는다. (docs/06 §10 — 뒤로가기·탭 전환은 미기록)
-    }, [screenName, tripStatus]),
+    }, [screenName, tripStatus, enabled]),
   );
 }

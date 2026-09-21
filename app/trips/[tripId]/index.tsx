@@ -305,7 +305,11 @@ export default function ScreenTripHome() {
             parentHref={`/me/trips?filter=${MY_TRIP_FILTERS.includes(filter ?? "") ? filter : "planning"}`}
           />
         )
-      : () => <AppHomeButton />;
+      : from === "groups-trips"
+        ? // 하단 모임 탭의 [여행] 목록에서 왔다. 탭 화면은 스택에 그대로 있으니 back 으로 보던 탭·필터에 돌아간다.
+          // 히스토리가 없을 때(딥링크)만 [여행] 탭으로. (2026-09-21 · 여행/모임 통합 탭)
+          () => <HeaderBackButton fallbackHref="/groups?tab=trips" />
+        : () => <AppHomeButton />;
 
   const [data, setData] = useState<TripHomeData | null>(null);
   /**
