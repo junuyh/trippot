@@ -4,8 +4,8 @@ import type { TripAction } from '@/lib/trip/tripActions';
 
 import { CreateTripFab } from './CreateTripFab';
 import { HomeHeader } from './HomeHeader';
-import { HomeActionBanners } from './HomeActionBanner';
-import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
+import { HomeNoticeCarousel } from './HomeNoticeCarousel';
+import { type InvitePromptProps } from './InvitePrompt';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
 import { PastTripSection } from './PastTripSection';
 import type {
@@ -143,11 +143,15 @@ export function HomeView({
           onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} /> : undefined
         }
       >
-        {/* 답하지 않은 초대는 준비 중인 여행보다 위다. 답할 때까지 남는다. */}
-        <InvitePrompt {...invitePrompt} />
-
-        {/* 답해야 할 일도 준비 중인 여행보다 위다. 답하면 사라진다. */}
-        <HomeActionBanners actions={actions} onPressAction={onPressAction} />
+        {/*
+          답하지 않은 초대와 답해야 할 일. 둘 다 준비 중인 여행보다 위다.
+          한 무더기로 묶어 한 장씩 옆으로 넘긴다. (HomeNoticeCarousel · 2026-09-21)
+        */}
+        <HomeNoticeCarousel
+          {...invitePrompt}
+          actions={actions}
+          onPressAction={onPressAction}
+        />
 
         {/*
           ⚠️ **준비 중인 여행이 없으면 그 사실을 그대로 말한다.** (2026-09-16 되돌림)

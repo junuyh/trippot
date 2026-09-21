@@ -7,8 +7,8 @@ import { CreateTripFab } from './CreateTripFab';
 import { DiscoverDestinationSection } from './DiscoverDestinationSection';
 import { HomeButton } from './HomeButton';
 import { HomeHeader } from './HomeHeader';
-import { HomeActionBanners } from './HomeActionBanner';
-import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
+import { HomeNoticeCarousel } from './HomeNoticeCarousel';
+import { type InvitePromptProps } from './InvitePrompt';
 import { OnboardingEntryCard } from './onboarding/OnboardingEntryCard';
 import type { DiscoverDestination } from './types';
 import { useFabExpand } from './useFabExpand';
@@ -149,8 +149,11 @@ export function HomeEmpty({
         }
       >
         {/* 초대받은 사람은 여행이 없는 신규 사용자일 때가 많다. 기존 홈과 같은 자리에 둔다. */}
-        <InvitePrompt {...invitePrompt} />
-        <HomeActionBanners actions={actions} onPressAction={onPressAction} />
+        <HomeNoticeCarousel
+          {...invitePrompt}
+          actions={actions}
+          onPressAction={onPressAction}
+        />
 
         {/*
           서비스 소개 칸. 신규 사용자 홈에만 둔다 — 이미 여행을 만들어 본 사람에게
