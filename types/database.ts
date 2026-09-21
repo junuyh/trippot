@@ -814,6 +814,7 @@ export type Database = {
           category_confidence: number | null
           category_method: string
           created_at: string
+          created_by_user_id: string | null
           deleted_at: string | null
           financial_account_id: string | null
           id: string
@@ -833,6 +834,7 @@ export type Database = {
           category_confidence?: number | null
           category_method?: string
           created_at?: string
+          created_by_user_id?: string | null
           deleted_at?: string | null
           financial_account_id?: string | null
           id?: string
@@ -852,6 +854,7 @@ export type Database = {
           category_confidence?: number | null
           category_method?: string
           created_at?: string
+          created_by_user_id?: string | null
           deleted_at?: string | null
           financial_account_id?: string | null
           id?: string
@@ -877,6 +880,13 @@ export type Database = {
             columns: ["budget_plan_item_id"]
             isOneToOne: false
             referencedRelation: "budget_plan_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {

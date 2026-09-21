@@ -53,6 +53,8 @@ import {
   ErrorState,
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import { currentBalance, raisedTotal } from "@/lib/fund/fundTotals";
 import { buildSeedDepositRow, isSeedDeposit } from "@/lib/fund/seedDeposit";
 import { SCREENS } from "@/lib/analytics/events";
@@ -109,6 +111,11 @@ type FundData = {
   transactions: Transaction[];
   depositTotal: number;
   withdrawalTotal: number;
+  /**
+   * 참여자 id → 이름. 모임 여행에서 '누가 적었는지' 를 목록에 쓴다.
+   * 개인 여행이면 비어 있다 — 적은 사람이 나 하나라 줄마다 같은 이름이 반복된다.
+   */
+  memberNameById: Map<string, string>;
 };
 
 export default function ScreenFUND01() {
@@ -120,6 +127,7 @@ export default function ScreenFUND01() {
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
   useScreenView(SCREENS.TRANSACTION_LIST);
+  const userId = useCurrentUserId();
 
   const [data, setData] = useState<FundData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,12 +151,25 @@ export default function ScreenFUND01() {
         return;
       }
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, fund, transactions, totals] = await Promise.all([
+      const [categories, fund, transactions, totals, members] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         getTravelFund(trip.id),
         getTransactions(trip.id, { limit: RECENT_LIMIT }),
         getFundTotals(trip.id),
+        /*
+          ⚠️ 모임 여행일 때만 참여자 이름을 읽는다. 개인 여행은 적은 사람이
+             나 하나라 줄마다 같은 이름이 붙을 뿐이다. 실패해도 목록을
+             막지 않는다 — 이름 없이 그린다.
+        */
+        trip.group_id
+          ? listActiveTripMembers(trip.id).catch(() => [])
+          : Promise.resolve([]),
       ]);
+      const memberNameById = new Map(
+        members
+          .filter((member) => member.user_id !== null)
+          .map((member) => [member.user_id as string, member.name]),
+      );
       setData({
         trip,
         budget,
@@ -157,6 +178,7 @@ export default function ScreenFUND01() {
         transactions,
         depositTotal: totals.depositTotal,
         withdrawalTotal: totals.withdrawalTotal,
+        memberNameById,
       });
     } catch {
       setError(true);
@@ -349,6 +371,13 @@ export default function ScreenFUND01() {
         occurred_at: parseISO(occurredOn).toISOString(),
         name,
         amount: draft.amount,
+        /*
+          ⚠️ 누가 적었는지 남긴다. (2026-09-21 테스트) 모임 자금은 여러 사람이
+             같은 목록에 적는 자리라, 날짜와 금액만 남으면 "이 20만원 누가
+             넣었지" 가 반복된다. 계좌에서 들어온 거래는 사람이 적은 게
+             아니라 이 칸을 비운다.
+        */
+        created_by_user_id: userId ?? null,
         /**
          * ⚠️ 입금에는 카테고리를 붙이지 않는다. 예산을 쓴 게 아니라
          *    자금이 들어온 것이다. 붙이면 그 예산의 실제 사용액이 부풀려진다.
@@ -676,6 +705,11 @@ export default function ScreenFUND01() {
                   )?.category_code as CategoryCode | undefined) ?? null)
                 : null,
               needsReview: reviewReason(transaction) !== null,
+              // 누가 적었는지. 모임 여행에서만 채워져 있다
+              authorName: transaction.created_by_user_id
+                ? (data.memberNameById.get(transaction.created_by_user_id) ??
+                  null)
+                : null,
             })),
             ...(seedDeposit && listFilter !== "OUT"
               ? [

@@ -32,8 +32,10 @@ import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   BottomSheet,
   Button,
+  CurrencyInput,
   EmptyState,
   ErrorState,
+  Input,
   Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -46,6 +48,7 @@ import {
   CATEGORY_METHOD,
   MAPPED_BY,
   REFUND_STATUS,
+  TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
   TRIP_STATUS,
   type CategoryCode,
@@ -63,6 +66,7 @@ import {
   deleteTransaction,
   getTransactionById,
   reviewReason,
+  updateManualTransaction,
   updateTransactionMapping,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
@@ -113,6 +117,11 @@ export default function ScreenFUND03() {
   const [editing, setEditing] = useState(false);
   const [linking, setLinking] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** 수기 거래 내용 수정 시트 */
+  const [editingManual, setEditingManual] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftAmount, setDraftAmount] = useState<number | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!tripId || !transactionId) {
@@ -283,6 +292,46 @@ export default function ScreenFUND03() {
   }, [busy, data, load]);
 
   // 삭제는 되돌릴 수 없다. 먼저 확인한다. (NFR-003)
+  /** 수정 시트를 연다. 지금 값을 초안에 담아 둔다 */
+  const openManualEdit = useCallback(() => {
+    if (!data) return;
+    setDraftName(data.transaction.name ?? "");
+    setDraftAmount(data.transaction.amount);
+    setDraftError(null);
+    setEditingManual(true);
+  }, [data]);
+
+  /**
+   * 수기 거래 내용 저장.
+   *
+   * ⚠️ 거래일은 건드리지 않는다. 이번에 여는 것은 이름과 금액이다 —
+   *    테스트에서 고치고 싶다고 한 것이 그 둘이다. 날짜까지 열면 달력
+   *    컴포넌트가 붙고 확인할 것이 늘어난다. 필요해지면 그때 연다.
+   */
+  const handleSaveManual = useCallback(async () => {
+    if (!data || busy) return;
+    const amount = draftAmount ?? 0;
+    if (amount <= 0) {
+      setDraftError("금액을 1원 이상 넣어 주세요.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateManualTransaction(data.transaction.id, {
+        name: draftName.trim() === "" ? null : draftName.trim(),
+        amount,
+        occurredAt: data.transaction.occurred_at,
+      });
+      setEditingManual(false);
+      setToast("수정했어요");
+      await load();
+    } catch {
+      setDraftError("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, data, draftAmount, draftName, load]);
+
   const handleDelete = useCallback(() => {
     if (!data) return;
     const { transaction } = data;
@@ -364,6 +413,16 @@ export default function ScreenFUND03() {
    */
   const settled = (data.trip.status as TripStatus) === TRIP_STATUS.SETTLED;
   const canEdit = !deposit && !settled;
+  /*
+    ⚠️ 직접 적은 거래는 이름·금액·거래일을 고칠 수 있다. (2026-09-21 테스트 —
+       "수기 입력 후 수정 불가") 잘못 적으면 지우고 다시 넣는 수밖에 없었다.
+    ⚠️ 계좌에서 들어온 거래는 못 고친다. 실제 결제 기록이라 앱에서 금액을
+       바꾸면 계좌 내역과 어긋난다. 입금·출금 둘 다 열어 준다 — 모임 입금을
+       손으로 적는 일이 잦다.
+  */
+  const canEditManual =
+    !settled &&
+    transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL;
 
   const rows: [string, string][] = [
     ["거래명", transaction.name ?? "이름 없는 거래"],
@@ -501,8 +560,24 @@ export default function ScreenFUND03() {
           </View>
         ) : null}
 
+        {/*
+          ⚠️ 직접 적은 거래의 '내용 수정'. 입금·출금 둘 다 낸다.
+             카테고리 변경(canEdit)은 출금에만 있어서 그 묶음 밖에 따로 둔다 —
+             모임 입금을 손으로 적어 놓고 못 고치던 것이 이번 지적이다.
+             (2026-09-21 테스트)
+        */}
+        {canEditManual ? (
+          <View style={{ marginTop: 22 }}>
+            <Button
+              label="내용 수정"
+              variant="secondary"
+              onPress={openManualEdit}
+            />
+          </View>
+        ) : null}
+
         {canEdit ? (
-          <View style={{ marginTop: 22, gap: 8 }}>
+          <View style={{ marginTop: 10, gap: 8 }}>
             <View className="flex-row" style={{ gap: 8 }}>
               <View style={{ flex: 1 }}>
                 <Button
@@ -573,6 +648,36 @@ export default function ScreenFUND03() {
           </Text>
         ) : null}
       </ScrollView>
+
+      {/* ── 수기 거래 내용 수정 ── */}
+      <BottomSheet
+        visible={editingManual}
+        title="내용 수정"
+        description="직접 적은 거래라 이름과 금액을 고칠 수 있어요. 거래일은 바꾸지 않아요."
+        onClose={() => setEditingManual(false)}
+      >
+        <View style={{ paddingTop: 12, gap: 12 }}>
+          <Input
+            label="내용"
+            value={draftName}
+            onChangeText={setDraftName}
+            placeholder="예: 8월 회비"
+          />
+          <CurrencyInput
+            label="금액"
+            value={draftAmount}
+            onChangeValue={setDraftAmount}
+          />
+          {draftError ? (
+            <Text style={{ fontSize: 11, color: "#e1394a" }}>{draftError}</Text>
+          ) : null}
+          <Button
+            label="저장"
+            loading={busy}
+            onPress={() => void handleSaveManual()}
+          />
+        </View>
+      </BottomSheet>
 
       {/* ── 계획 항목 연결 ── */}
       <BottomSheet

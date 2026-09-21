@@ -892,6 +892,8 @@ export default function ScreenBUDGET02() {
         name,
         amount: expenseDraft.amount,
         category_method: CATEGORY_METHOD.USER,
+        // 누가 적었는지 남긴다. 모임 여행에서 목록의 일부다 (2026-09-21 테스트)
+        created_by_user_id: userId ?? null,
       });
 
       // actual_amount 는 거래의 합이다. 거래를 넣었으면 함께 올린다.

@@ -141,6 +141,55 @@ export async function deleteTransaction(transactionId: string): Promise<void> {
     await recalcCategoryActual(data.budget_category_id);
 }
 
+/**
+ * 수기로 적은 거래의 이름·금액·거래일을 고친다.
+ *
+ * ⚠️ **직접 입력한 거래만** 고칠 수 있다. 계좌에서 들어온 거래는 실제 결제
+ *    기록이라 앱에서 금액을 바꾸면 계좌 내역과 어긋난다. 호출부가 막고,
+ *    여기서도 source_type 을 다시 확인한다.
+ *
+ * ⚠️ 금액이 바뀌면 그 카테고리의 실제 사용액과 연결된 계획 항목을 다시 센다.
+ *    빼먹으면 예산 화면의 '실제' 가 옛 금액에 머문다.
+ *
+ * ⚠️ 정수 원 단위다. (CLAUDE.md 9장)
+ *
+ * 2026-09-21 테스트 — "수기 입력 후 입력 정보 수정 불가" 로 올라왔다.
+ * 잘못 적으면 지우고 다시 넣는 수밖에 없었고, 지우면 언제 적었는지가 사라진다.
+ */
+export async function updateManualTransaction(
+  transactionId: string,
+  input: { name: string | null; amount: number; occurredAt: string },
+): Promise<Transaction> {
+  const { data: before, error: beforeError } = await supabase
+    .from("transactions")
+    .select("source_type, budget_category_id, budget_plan_item_id")
+    .eq("id", transactionId)
+    .single();
+  if (beforeError) throw beforeError;
+  if (before.source_type !== TRANSACTION_SOURCE_TYPE.MANUAL) {
+    throw new Error("MANUAL_ONLY");
+  }
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .update({
+      name: input.name,
+      amount: input.amount,
+      occurred_at: input.occurredAt,
+    })
+    .eq("id", transactionId)
+    .select()
+    .single();
+  if (error) throw error;
+
+  if (before.budget_category_id)
+    await recalcCategoryActual(before.budget_category_id);
+  if (before.budget_plan_item_id)
+    await recalcPlanItemActual(before.budget_plan_item_id);
+
+  return data;
+}
+
 export async function updateTransactionMapping(
   transactionId: string,
   mapping: {
