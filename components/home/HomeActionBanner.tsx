@@ -28,9 +28,16 @@ import type { TripAction } from '@/lib/trip/tripActions';
 type Props = {
   action: TripAction;
   onPress: () => void;
+  /**
+   * '2/5'. 캐러셀이 넘겨준다. 한 장뿐이면 오지 않는다.
+   *
+   * ⚠️ 배너 **안쪽** 버튼 줄 왼쪽에 둔다. 카드 밖 아래에 두면 배너와 떨어져
+   *    보여서 무엇의 개수인지 읽히지 않는다. (2026-09-21 다빈)
+   */
+  counter?: string;
 };
 
-export function HomeActionBanner({ action, onPress }: Props) {
+export function HomeActionBanner({ action, onPress, counter }: Props) {
   const c = TONE[action.tone];
 
   return (
@@ -60,7 +67,9 @@ export function HomeActionBanner({ action, onPress }: Props) {
         </View>
       </View>
 
-      <View className="mt-3 flex-row justify-end">
+      <View className="mt-3 flex-row items-center justify-between">
+        {/* 번호가 없으면 빈 칸을 둬서 버튼이 오른쪽에 그대로 남게 한다 */}
+        {counter ? <BannerCounter text={counter} color={c.body} /> : <View />}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${action.headline} ${action.ctaLabel}`}
@@ -82,6 +91,24 @@ export function HomeActionBanner({ action, onPress }: Props) {
         </Pressable>
       </View>
     </View>
+  );
+}
+
+/**
+ * 몇 장 중 몇 번째인지. 초대 배너와 **같은 모양**을 쓴다.
+ *
+ * ⚠️ 점이 아니라 숫자다. (2026-09-21 다빈) 여행 카드는 점을 쓰지만 그건
+ *    구경거리라 몇 장인지가 중요하지 않다. 여기는 답할 일이 몇 개 남았는지가
+ *    정보라서 세게 하지 않고 그대로 적는다.
+ */
+export function BannerCounter({ text, color }: { text: string; color: string }) {
+  return (
+    <Text
+      accessibilityLabel={`${text.split('/')[1]}개 중 ${text.split('/')[0]}번째`}
+      style={{ fontSize: 12, fontWeight: '700', color, fontVariant: ['tabular-nums'] }}
+    >
+      {text}
+    </Text>
   );
 }
 

@@ -23,15 +23,7 @@
 //
 // 데이터만 props 로 받는다. supabase / track() 을 직접 부르지 않는다. (CLAUDE.md 9장)
 // ============================================================================
-import { useState } from 'react';
-import {
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  ScrollView,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ScrollView, useWindowDimensions, View } from 'react-native';
 
 import type { TripAction } from '@/lib/trip/tripActions';
 
@@ -75,16 +67,15 @@ export function HomeNoticeCarousel({
   const cardWidth = Math.max(0, width - SCREEN_PADDING);
   const step = cardWidth + CARD_GAP;
 
-  const [page, setPage] = useState(0);
-
   const total = invites.length + actions.length;
 
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (step <= 0) return;
-    const next = Math.round(e.nativeEvent.contentOffset.x / step);
-    // 같은 값을 다시 넣어 불필요한 렌더를 만들지 않는다.
-    setPage((prev) => (prev === next ? prev : next));
-  };
+  /**
+   * 각 장이 자기 번호를 그린다. 한 장뿐이면 없다 — '1/1' 은 알려주는 게 없다.
+   *
+   * ⚠️ 지금 몇 번째인지를 따로 재지 않는다. 보이는 장이 곧 자기 번호를 들고
+   *    있어서 스크롤을 추적할 이유가 없다. 넘기는 도중에도 숫자가 어긋나지 않는다.
+   */
+  const counterAt = (index: number) => (total > 1 ? `${index + 1}/${total}` : undefined);
 
   return (
     <>
@@ -93,8 +84,6 @@ export function HomeNoticeCarousel({
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
             // 한 장씩 딱 멈추게 한다. 배너가 화면보다 좁아서 pagingEnabled 로는 안 맞는다.
             snapToInterval={step}
             decelerationRate="fast"
@@ -102,7 +91,7 @@ export function HomeNoticeCarousel({
             contentContainerStyle={{ gap: CARD_GAP, alignItems: 'flex-start' }}
           >
             {/* 초대가 먼저다. 답하지 않으면 그 여행이 시작되지 않는다. */}
-            {invites.map((invite) => (
+            {invites.map((invite, index) => (
               <View key={`invite:${invite.token}`} style={{ width: cardWidth }}>
                 <InviteBanner
                   invite={invite}
@@ -110,18 +99,22 @@ export function HomeNoticeCarousel({
                   requesting={requestingToken !== null}
                   onRequestJoin={() => onRequestJoin(invite.token)}
                   onDecline={() => onDecline(invite.token)}
+                  counter={counterAt(index)}
                 />
               </View>
             ))}
 
-            {actions.map((action) => (
+            {actions.map((action, index) => (
               <View key={`action:${action.id}`} style={{ width: cardWidth }}>
-                <HomeActionBanner action={action} onPress={() => onPressAction(action)} />
+                <HomeActionBanner
+                  action={action}
+                  onPress={() => onPressAction(action)}
+                  // 초대가 앞에 오므로 그만큼 밀린다.
+                  counter={counterAt(invites.length + index)}
+                />
               </View>
             ))}
           </ScrollView>
-
-          {total > 1 ? <PageCount page={page} total={total} /> : null}
         </View>
       ) : null}
 
@@ -141,36 +134,5 @@ export function HomeNoticeCarousel({
         onClose={onCloseModal}
       />
     </>
-  );
-}
-
-/**
- * 몇 장 중 몇 번째인지.
- *
- * ⚠️ 점이 아니라 숫자다. (2026-09-21 다빈) 여행 카드는 점을 쓰지만 그건
- *    구경거리라 몇 장인지가 중요하지 않다. 여기는 답할 일이 몇 개 남았는지가
- *    정보라서, 점을 세게 하지 않고 그대로 적는다.
- *
- * ⚠️ 한 장뿐이면 부르지 않는다. '1/1' 은 알려주는 게 없다.
- */
-function PageCount({ page, total }: { page: number; total: number }) {
-  // 넘기는 도중 반올림이 범위를 벗어날 수 있다. 화면에 0/3 이나 4/3 을 내보내지 않는다.
-  const current = Math.min(Math.max(page + 1, 1), total);
-
-  return (
-    <View className="mt-2.5 flex-row items-center justify-center">
-      <Text
-        accessibilityRole="text"
-        accessibilityLabel={`답해야 할 일 ${total}개 중 ${current}번째`}
-        style={{
-          fontSize: 12,
-          fontWeight: '700',
-          color: '#6b7280',
-          fontVariant: ['tabular-nums'],
-        }}
-      >
-        {current}/{total}
-      </Text>
-    </View>
   );
 }
