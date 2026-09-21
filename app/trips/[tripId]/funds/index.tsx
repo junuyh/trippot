@@ -53,6 +53,8 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  Toast,
+  useToast,
   Loading, HeaderBackButton } from "@/components/ui";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
@@ -135,6 +137,8 @@ export default function ScreenFUND01() {
   useTripContext(tripId);
   useScreenView(SCREENS.TRANSACTION_LIST);
   const userId = useCurrentUserId();
+  /** 거래 시트의 저장 결과를 알리는 토스트 */
+  const fundToast = useToast();
 
   const [data, setData] = useState<FundData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -210,6 +214,10 @@ export default function ScreenFUND01() {
   const txSheet = useTransactionSheet({
     onChanged: () => load(),
     tripStatus: data?.trip.status,
+    categories: data?.categories ?? [],
+    planItems: data?.planItems ?? [],
+    tripId: data?.trip.id ?? null,
+    onNotice: (message) => fundToast.show(message),
   });
 
   useFocusEffect(
@@ -543,12 +551,6 @@ export default function ScreenFUND01() {
        거래 상세는 이미 막고 있었는데 이 화면의 입금·지출 기록 버튼이
        살아 있어서, 확정된 여행에 거래를 더 넣을 수 있었다. (2026-09-21 2차)
   */
-  const txSheetPlanName = txSheet.transaction?.budget_plan_item_id
-    ? (data.planItems.find(
-        (item) => item.id === txSheet.transaction?.budget_plan_item_id,
-      )?.name ?? "계획에 연결됨")
-    : null;
-
   const settledTrip =
     (data.trip.status as TripStatus) === TRIP_STATUS.SETTLED;
   /** 현재 잔액 = 누적 모금액 − 출금 합계 */
@@ -960,17 +962,8 @@ export default function ScreenFUND01() {
         }}
       />
       {/* 최근 입출금을 누르면 열리는 거래 상세. 수기 거래는 여기서 바로 고친다 */}
-      <TransactionSheet
-        controller={txSheet}
-        theme={theme}
-        categories={data.categories}
-        planName={txSheetPlanName}
-        reviewNote={
-          txSheet.transaction && reviewReason(txSheet.transaction) !== null
-            ? "분류를 확인해 주세요."
-            : null
-        }
-      />
+      <TransactionSheet controller={txSheet} theme={theme} />
+      <Toast state={fundToast.state} />
 
       <ReceiptScanningOverlay visible={receiptScan.phase === "scanning"} />
     </View>

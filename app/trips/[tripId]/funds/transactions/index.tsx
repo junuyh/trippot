@@ -21,6 +21,8 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert, Modal, Pressable, SectionList, Text, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
@@ -30,6 +32,7 @@ import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   TransactionDetailBody,
+  TransactionSheet,
   type TransactionDetail,
 } from "@/components/fund";
 import {
@@ -244,26 +247,14 @@ export default function ScreenFUND01() {
   /** 시트에서 고르는 중인 값. 적용을 눌러야 위 상태로 넘어간다 */
   const [filterDraft, setFilterDraft] = useState<string[] | null>(null);
   /** 계획 연결 시트를 띄울 거래. null 이면 닫는다 */
-  const [linking, setLinking] = useState<Transaction | null>(null);
 
   /** ?transactionId= 로 들어왔을 때 한 번만 상세로 보낸다 */
   const openedRef = useRef(false);
   /** 상세 시트에 띄울 거래. null 이면 닫는다 (시안 v1) */
-  const [detail, setDetail] = useState<Transaction | null>(null);
   /*
     상세 시트가 완전히 닫힌 뒤에 연결 시트를 연다. iOS 는 Modal 위에 Modal 을
     열면 두 번째가 뜨지 않는다. setTimeout 은 안드로이드 폴백이다.
   */
-  /** 연결 시트에서 고른 계획. 저장을 눌러야 실제로 붙는다 */
-  const [pickedPlanId, setPickedPlanId] = useState<string | null>(null);
-  const pendingLinkRef = useRef<Transaction | null>(null);
-  const runPendingLink = useCallback(() => {
-    const target = pendingLinkRef.current;
-    if (!target) return;
-    pendingLinkRef.current = null;
-    setPickedPlanId(null);
-    setLinking(target);
-  }, []);
 
   /**
    * 행별 Swipeable 참조.
@@ -285,184 +276,25 @@ export default function ScreenFUND01() {
    * ⚠️ 카테고리 코드를 화면이 붙여 준다. 컴포넌트가 예산 테이블을 다시 읽지
    *    않게 한다. (CLAUDE.md 9장)
    */
-  const detailProps: TransactionDetail | null = useMemo(() => {
-    if (!detail) return null;
-    const code = detail.budget_category_id
-      ? ((data?.categories.find((c) => c.id === detail.budget_category_id)
-          ?.category_code as CategoryCode | undefined) ?? null)
-      : null;
-    const reason = reviewReason(detail);
-    return {
-      transactionType: detail.transaction_type as TransactionType,
-      refundStatus: detail.refund_status as RefundStatus,
-      categoryCode: code,
-      name: detail.name ?? "이름 없는 거래",
-      dateLabel: format(parseISO(detail.occurred_at), "yyyy년 M월 d일"),
-      amount: detail.amount,
-      fromAccount:
-        detail.source_type !== TRANSACTION_SOURCE_TYPE.MANUAL ||
-        detail.financial_account_id !== null,
-      maskedAccountNumber: data?.maskedAccountNumber ?? null,
-      planName: detail.budget_plan_item_id
-        ? (data?.planItems.find((p) => p.id === detail.budget_plan_item_id)
-            ?.name ?? "계획에 연결됨")
-        : null,
-      needsReview: reason !== null,
-      reviewNote: REVIEW_NOTE[reason ?? "NONE"],
-    };
-  }, [data, detail]);
+
+  /*
+    거래 상세 시트. 여행자금·카테고리 예산과 같은 것을 쓴다.
+    ⚠️ 시트 하나 안에서 상세 · 수정 · 카테고리 · 계획 연결이 모두 끝난다.
+       시트 위에 시트를 열면 iOS 에서 두 번째가 뜨지 않고 화면이 먹통이 된다.
+  */
+  const txSheet = useTransactionSheet({
+    onChanged: () => load(),
+    tripStatus: data?.trip.status,
+    categories: data?.categories ?? [],
+    planItems: data?.planItems ?? [],
+    tripId: data?.trip.id ?? null,
+    onNotice: (message) => setToast(message),
+  });
 
   const [sheetBusy, setSheetBusy] = useState(false);
   /** 카테고리를 바꾸는 중인 거래 */
-  const [editing, setEditing] = useState<Transaction | null>(null);
 
-  const handleChangeCategory = useCallback(
-    async (nextCategoryId: string) => {
-      if (!editing || !data || sheetBusy) return;
-      setSheetBusy(true);
-      try {
-        await updateTransactionMapping(editing.id, {
-          categoryId: nextCategoryId,
-          // 사용자가 직접 고친 분류다. 자동분류 정확도를 재는 기준이 된다
-          categoryMethod: CATEGORY_METHOD.USER,
-        });
-        const nextCode = data.categories.find(
-          (c) => c.id === nextCategoryId,
-        )?.category_code;
-        if (nextCode) {
-          // 자동분류가 틀려서 사용자가 고쳤다는 신호다. (docs/06 §7-3)
-          track(EVENTS.TRANSACTION_CATEGORY_CORRECTED, {
-            trip_id: data.trip.id,
-            category: CATEGORY_CODE_TO_ANALYTICS[nextCode as CategoryCode],
-            mapped_by: MAPPED_BY.USER,
-          });
-        }
-        setEditing(null);
-        await load();
-        setToast("카테고리를 바꿨어요");
-      } catch {
-        setToast("카테고리를 저장하지 못했어요");
-      } finally {
-        setSheetBusy(false);
-      }
-    },
-    [data, editing, load, sheetBusy],
-  );
 
-  /** 계획 연결을 푼다. ⚠️ 여기서만 풀 수 있다 (스펙 9장) */
-  /**
-   * 이 거래를 붙일 수 있는 계획 후보.
-   *
-   * ⚠️ **같은 카테고리**의 계획만 본다. 다른 카테고리 계획에 붙이면
-   *    카테고리별 실제 금액과 계획의 실적이 서로 다른 곳을 가리킨다.
-   *
-   * ⚠️⚠️ **한 계획에 여러 지출을 붙일 수 있다.** (2026-09-21 2차) ⚠️⚠️
-   *
-   *    예전에는 "이미 다른 지출이 붙은 계획" 을 후보에서 뺐다. 금액이
-   *    부풀려진다고 봤는데 **틀린 걱정이었다.** 계획의 실제 금액은
-   *    recalcPlanItemActual() 이 붙은 거래를 **다시 합산해서** 넣는다.
-   *    더해지는 게 맞는 동작이다.
-   *
-   *    그리고 실제 여행이 그렇게 돌아간다 — '편의점 10만원' 계획 하나에
-   *    로손 1만 · 세븐일레븐 2만 · 패밀리마트 4만이 붙으면 실제 7만,
-   *    3만 절약이다. 예전 필터는 첫 지출을 붙인 순간 나머지 둘이 후보에서
-   *    사라지게 만들어, 나머지를 영영 미분류로 남겼다.
-   *
-   *    ⚠️ CLAUDE.md 3장이 막는 것은 **1 거래를 여러 계획에 쪼개는 것**이다.
-   *       (1 거래 = 1 카테고리) 방향이 반대라 여기 해당하지 않는다.
-   */
-  /** 연결 시트 제목에 쓰는 카테고리 이름. 어느 예산의 계획 목록인지 알린다 */
-  const linkingCategoryLabel = useMemo(() => {
-    if (!linking?.budget_category_id) return "";
-    const code = (data?.categories ?? []).find(
-      (c) => c.id === linking.budget_category_id,
-    )?.category_code as CategoryCode | undefined;
-    return code ? `[${CATEGORY_CODE_LABEL[code]}]` : "";
-  }, [data?.categories, linking]);
-
-  const planCandidates = useMemo(() => {
-    if (!linking?.budget_category_id) return [];
-    return (data?.planItems ?? []).filter(
-      (item) => item.budget_category_id === linking.budget_category_id,
-    );
-  }, [data?.planItems, linking]);
-
-  const handleLinkPlan = useCallback(
-    async (planItemId: string) => {
-      if (!linking || sheetBusy) return;
-      setSheetBusy(true);
-      try {
-        await linkTransactionToPlanItem(linking.id, planItemId);
-        setLinking(null);
-        setPickedPlanId(null);
-        setDetail(null);
-        await load();
-        setToast("계획에 연결했어요");
-      } catch {
-        setToast("연결하지 못했어요");
-      } finally {
-        setSheetBusy(false);
-      }
-    },
-    [linking, load, sheetBusy],
-  );
-
-  const handleUnlinkPlan = useCallback(async () => {
-    if (!detail || sheetBusy) return;
-    setSheetBusy(true);
-    const previousPlanId = detail.budget_plan_item_id;
-    try {
-      await updateTransactionMapping(detail.id, {
-        categoryId: detail.budget_category_id,
-        budgetItemId: null,
-        categoryMethod: detail.category_method,
-      });
-      /*
-        ⚠️ 풀기만 하면 계획에는 실적이 남는다. 거래는 떨어져 나갔는데
-           계획은 '결제 완료' 인 상태가 되어 BUDGET-02 가 거짓을 말한다.
-      */
-      if (previousPlanId) await syncPlanItemActual(previousPlanId);
-      setDetail(null);
-      await load();
-      setToast("계획 연결을 풀었어요");
-    } catch {
-      setToast("연결을 풀지 못했어요");
-    } finally {
-      setSheetBusy(false);
-    }
-  }, [detail, load, sheetBusy]);
-
-  /**
-   * 확인 완료. 자동 분류가 맞다고 사용자가 확인한 것이다.
-   *
-   * ⚠️ 카테고리가 없는 거래에는 쓸 수 없다. 무엇으로 확정할지가 없다.
-   *    그때는 카테고리 변경이 먼저다.
-   *
-   * ⚠️ category_method 를 USER 로 올린다. 그래야 reviewReason 이 더는
-   *    '신뢰도 낮음' 으로 잡지 않는다. 자동분류 정확도 지표에도
-   *    '사람이 확인함' 으로 남는다. (docs/06 §7-3)
-   */
-  const handleConfirmReview = useCallback(async () => {
-    if (!detail || sheetBusy) return;
-    if (!detail.budget_category_id) {
-      setToast("먼저 카테고리를 정해 주세요");
-      return;
-    }
-    setSheetBusy(true);
-    try {
-      await updateTransactionMapping(detail.id, {
-        categoryId: detail.budget_category_id,
-        categoryMethod: CATEGORY_METHOD.USER,
-      });
-      setDetail(null);
-      await load();
-      setToast("거래 분류를 완료했어요");
-    } catch {
-      setToast("저장하지 못했어요");
-    } finally {
-      setSheetBusy(false);
-    }
-  }, [detail, load, sheetBusy]);
 
   // 삭제는 되돌릴 수 없다. 먼저 확인한다. (NFR-003)
   const handleDelete = useCallback(
@@ -1037,7 +869,7 @@ export default function ScreenFUND01() {
                 accessibilityLabel={`${transaction.name ?? "이름 없는 거래"} 상세 보기`}
                 /* 상세는 별도 화면이다 (FUND-03) */
                 /* 목록에서는 시트로 연다 (시안 v1). 다른 화면에서 오는 딥링크만 전체 화면 */
-                onPress={() => setDetail(transaction)}
+                onPress={() => txSheet.open(transaction)}
                 className="flex-row items-center gap-3 active:bg-gray-50"
                 style={{
                   paddingHorizontal: 16,
@@ -1136,191 +968,14 @@ export default function ScreenFUND01() {
       />
 
       {/*
-        ── 거래 상세 ── (시안 v1)
-        ⚠️ 목록에서는 **시트**로 연다. 목록을 떠나지 않고 하나씩 확인하는
-           흐름이라, 화면으로 밀면 확인할 거래 5건을 보려고 5번 왕복하게 된다.
-           결산·예산에서 곧장 들어오는 딥링크는 전체 화면을 쓴다
-           (funds/transactions/[transactionId]).
+        ── 거래 상세 ── (2026-09-21 4차)
+
+        ⚠️ 여행자금·카테고리 예산과 **같은 시트**를 쓴다. 예전에는 이 화면만
+           따로 그려서, 여기서는 수정·삭제가 없고 '카테고리 변경' 을 누르면
+           시트 위에 시트를 열다가 화면이 먹통이 됐다.
       */}
-      <BottomSheet
-        visible={detail !== null}
-        title="거래 상세"
-        onClose={() => setDetail(null)}
-        onDismiss={runPendingLink}
-      >
-        {detailProps ? (
-          <View style={{ paddingTop: 8, paddingBottom: 8 }}>
-            <TransactionDetailBody
-              theme={theme}
-              detail={detailProps}
-              busy={sheetBusy}
-              onChangeCategory={() => {
-                const target = detail;
-                setDetail(null);
-                setEditing(target);
-              }}
-              /*
-                ⚠️⚠️ **상세 시트를 먼저 닫고 연결 시트를 연다.** ⚠️⚠️
+      <TransactionSheet controller={txSheet} theme={theme} />
 
-                   iOS 는 Modal 이 열려 있는 동안 다른 Modal 을 열면 두 번째가
-                   그냥 뜨지 않는다. 그래서 '세부 계획에 연결' 을 눌러도 아무
-                   일이 없었다. (2026-09-21 3차) 바로 위 '카테고리 변경' 은
-                   이미 닫고 여는데 이쪽만 빠져 있었다.
-
-                ⚠️ 붙일 계획이 없으면 버튼 자체를 주지 않는다.
-              */
-              onLinkPlan={
-                detail?.budget_category_id
-                  ? () => {
-                      const target = detail;
-                      setDetail(null);
-                      pendingLinkRef.current = target;
-                      setTimeout(runPendingLink, 700);
-                    }
-                  : undefined
-              }
-              onUnlinkPlan={() => void handleUnlinkPlan()}
-              onConfirm={() => void handleConfirmReview()}
-            />
-          </View>
-        ) : null}
-      </BottomSheet>
-
-      {/*
-        ── 세부 계획 연결 ──
-
-        ⚠️ **무슨 거래를 붙이는 중인지 위에 적는다.** (2026-09-21 3차)
-           계획이 스무 개가 되면 "내가 아까 무슨 거래를 눌렀더라" 가 된다.
-           제목에도 카테고리를 넣어 어느 예산의 계획 목록인지 바로 알게 한다.
-
-        ⚠️ **고르고 나서 저장을 누른다.** 예전에는 한 줄을 누르는 즉시 연결됐다.
-           잘못 누르면 그 계획의 실제 금액이 통째로 틀리는데 되돌릴 기회가
-           없었다. 고른 것을 보여 주고 한 번 더 확인받는다.
-      */}
-      <BottomSheet
-        visible={linking !== null}
-        title={`${linkingCategoryLabel} 세부 계획에 연결`}
-        description="이 지출이 어떤 계획의 결제인지 골라 주세요."
-        onClose={() => {
-          setLinking(null);
-          setPickedPlanId(null);
-        }}
-      >
-        {/* 지금 붙이려는 거래. 목록만 보면 무엇을 고르던 중인지 알 수 없다 */}
-        {linking ? (
-          <View
-            style={{
-              marginTop: 12,
-              padding: 13,
-              borderRadius: 12,
-              backgroundColor: "#f5f7f9",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 10, color: "#8b94a2" }}>연결할 지출</Text>
-              <Text
-                numberOfLines={1}
-                style={{
-                  marginTop: 3,
-                  fontSize: 13,
-                  fontWeight: "800",
-                  color: "#121a2a",
-                }}
-              >
-                {linking.name ?? "이름 없는 거래"}
-              </Text>
-              <Text style={{ marginTop: 2, fontSize: 10, color: "#8b94a2" }}>
-                {format(parseISO(linking.occurred_at), "M월 d일")}
-              </Text>
-            </View>
-            <Text
-              style={{ fontSize: 14, fontWeight: "900", color: "#121a2a" }}
-            >
-              {linking.amount.toLocaleString("ko-KR")}원
-            </Text>
-          </View>
-        ) : null}
-
-        {planCandidates.length === 0 ? (
-          <View style={{ paddingTop: 18, paddingBottom: 6 }}>
-            <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
-              연결할 계획이 없어요. 카테고리 예산 화면에서 계획을 먼저
-              추가하면 여기에 나타나요.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <View
-              style={{
-                marginTop: 16,
-                borderWidth: 1,
-                borderColor: "#e5e8ec",
-                borderRadius: 13,
-                overflow: "hidden",
-              }}
-            >
-              {planCandidates.map((item, index) => {
-                const picked = pickedPlanId === item.id;
-                return (
-                  <Pressable
-                    key={item.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: picked }}
-                    accessibilityLabel={`${item.name} 계획 고르기`}
-                    disabled={sheetBusy}
-                    onPress={() => setPickedPlanId(item.id)}
-                    className="flex-row items-center active:bg-gray-50"
-                    style={{
-                      gap: 10,
-                      paddingHorizontal: 14,
-                      paddingVertical: 13,
-                      borderTopWidth: index === 0 ? 0 : 1,
-                      borderColor: "#eceef1",
-                      backgroundColor: picked ? theme.primarySoft : "#fff",
-                    }}
-                  >
-                    <Ionicons
-                      name={picked ? "radio-button-on" : "radio-button-off"}
-                      size={17}
-                      color={picked ? theme.primary : "#c2c8d0"}
-                    />
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        flex: 1,
-                        fontSize: 13,
-                        fontWeight: picked ? "800" : "600",
-                        color: "#121a2a",
-                      }}
-                    >
-                      {item.name}
-                    </Text>
-                    <Text
-                      style={{ fontSize: 12, fontWeight: "700", color: "#5d6674" }}
-                    >
-                      {item.expected_amount.toLocaleString("ko-KR")}원
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <View style={{ marginTop: 14 }}>
-              <Button
-                label="이 계획에 연결"
-                loading={sheetBusy}
-                disabled={pickedPlanId === null}
-                onPress={() => {
-                  if (pickedPlanId) void handleLinkPlan(pickedPlanId);
-                }}
-              />
-            </View>
-          </>
-        )}
-      </BottomSheet>
 
       {/*
         ── 카테고리 필터 ──
@@ -1418,48 +1073,6 @@ export default function ScreenFUND01() {
         </View>
       </BottomSheet>
 
-      {/* ── 카테고리 변경 ── */}
-      <BottomSheet
-        visible={editing !== null}
-        title="예산 카테고리"
-        description="바꾸면 이 카테고리의 실제 사용액에 반영돼요."
-        onClose={() => setEditing(null)}
-      >
-        <View className="flex-row flex-wrap" style={{ gap: 8, paddingTop: 14 }}>
-          {(data?.categories ?? []).map((category) => {
-            const active = category.id === editing?.budget_category_id;
-            return (
-              <Pressable
-                key={category.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                disabled={sheetBusy}
-                onPress={() => void handleChangeCategory(category.id)}
-                className="active:opacity-70"
-                style={{
-                  paddingHorizontal: 13,
-                  paddingVertical: 9,
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  borderColor: active ? theme.primary : "#e5e8ec",
-                  backgroundColor: active ? theme.primarySoft : "#fff",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: active ? "800" : "400",
-                    color: active ? theme.primary : "#687281",
-                  }}
-                >
-                  {CATEGORY_EMOJI[category.category_code as CategoryCode]}{" "}
-                  {CATEGORY_CODE_LABEL[category.category_code as CategoryCode]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </BottomSheet>
     </View>
   );
 }

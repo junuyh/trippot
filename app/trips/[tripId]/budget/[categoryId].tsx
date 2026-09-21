@@ -265,6 +265,11 @@ export default function ScreenBUDGET02() {
   const txSheet = useTransactionSheet({
     onChanged: () => load(),
     tripStatus: data?.trip.status,
+    categories: data?.allCategories ?? [],
+    // 이 카테고리의 계획. 연결 후보는 훅이 카테고리로 한 번 더 거른다
+    planItems: data?.items ?? [],
+    tripId: data?.trip.id ?? null,
+    onNotice: (message) => setToast(message),
   });
 
   useFocusEffect(
@@ -1625,18 +1630,7 @@ export default function ScreenBUDGET02() {
         ⚠️ 직접 입력은 여기서 받는다. 이 카테고리가 이미 정해져 있어 한 번 덜 고른다.
       */}
       {/* 실제 지출 한 건의 상세. 수기 거래는 여기서 바로 고친다 */}
-      <TransactionSheet
-        controller={txSheet}
-        theme={theme}
-        categories={data.allCategories}
-        planName={
-          txSheet.transaction?.budget_plan_item_id
-            ? (plans.find(
-                (item) => item.id === txSheet.transaction?.budget_plan_item_id,
-              )?.name ?? "계획에 연결됨")
-            : null
-        }
-      />
+      <TransactionSheet controller={txSheet} theme={theme} />
 
       <ReceiptSourceSheet
         visible={expenseSourceOpen}
