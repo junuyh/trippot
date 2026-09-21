@@ -4,10 +4,21 @@
 // 기준: docs/10_여행초대정책_v2.md §5 · §13
 //
 // 링크
-//   /invite/{token}. token 은 서버가 만든 값을 그대로 싣는다. (queries/tripInvites)
-//   주소 체계는 expo-linking 이 실행 환경을 보고 정한다. 직접 문자열을 적지 않는다.
-//     Development Build / 배포 앱   trippot://invite/{token}
-//     Expo Go                      exp://…/--/invite/{token}
+//   https://trippot-web.pages.dev/invite/#{token}  (2026-09-21 · 착륙 페이지)
+//   token 은 서버가 만든 값을 그대로 싣는다. (queries/tripInvites)
+//
+//   ⚠️ 이전에는 expo-linking 이 실행 환경을 보고 주소를 정했다
+//      (APK → trippot://…, Expo Go → exp://…). 그래서 **만든 쪽과 여는 쪽의 앱
+//      종류가 같아야만** 열렸다. APK 로 만든 링크는 아이폰 Expo Go 에서 "유효하지
+//      않은 주소" 가 됐다. (2026-09-17 테스트)
+//      지금은 https 착륙 페이지 하나를 보내고, 받는 사람이 페이지에서 자기 환경
+//      버튼(TripPot 앱 / Expo Go / 개발 서버)을 골라 연다. 페이지 원본은 web/invite/.
+//   ⚠️ token 은 ?t= 가 아니라 # 뒤에 둔다. fragment 는 서버로 가지 않아 호스팅
+//      기록에 남지 않는다. 페이지는 token 을 저장하지 않는다.
+//   ⚠️ 앱 안에서 링크를 여는 경로(app/invite/[token].tsx · trippot://invite/{token})
+//      는 그대로다. 페이지의 버튼이 그 주소로 보낸다.
+//   [Future] 도메인 + 유료 애플 계정이 생기면 유니버설 링크/앱 링크로 바꿔
+//      앱이 있을 때 버튼 없이 바로 열리게 한다. 주소 형태는 그대로 쓸 수 있다.
 //
 // 메시지
 //   기존 11종(lib/invite/inviteLink.ts)의 **첫 문장만** 골라 쓴다. 원본은 건드리지
@@ -25,13 +36,21 @@
 //
 // ⚠️ 순수 함수. 네트워크도 스토리지도 없다.
 // ============================================================================
-import * as Linking from 'expo-linking';
-
 import { INVITE_TEMPLATES } from '@/lib/invite/inviteLink';
 
-/** 초대를 받은 사람이 여는 경로. app/invite/[token].tsx */
+/**
+ * 초대 착륙 페이지 주소. 저장소 web/invite/ 가 Cloudflare Pages 로 배포된 것.
+ * 도메인이 바뀌면 여기 한 곳만 고친다. 끝에 / 를 붙이지 않는다.
+ */
+export const TRIP_INVITE_WEB_BASE = 'https://trippot-web.pages.dev/invite';
+
+/**
+ * 초대를 받은 사람에게 보내는 주소. 착륙 페이지 → 환경별 버튼 → app/invite/[token].tsx
+ *
+ * 예) https://trippot-web.pages.dev/invite/#ad90c6…ff3
+ */
 export function buildTripInviteLink(token: string): string {
-  return Linking.createURL(`/invite/${token}`);
+  return `${TRIP_INVITE_WEB_BASE}/#${encodeURIComponent(token)}`;
 }
 
 /**
