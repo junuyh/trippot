@@ -375,7 +375,9 @@ export default function ScreenFUND01() {
   /** 여행 홈 TODAY 카드에서 ?scan=receipt 로 들어오면 바로 방법을 묻는다. 한 번만 */
   const scanParamUsedRef = useRef(false);
   useEffect(() => {
+    // 끝난 여행은 기록 자체를 막으므로 자동으로 열지도 않는다
     if (scanParam !== "receipt" || !data || scanParamUsedRef.current) return;
+    if (isTripEnded(data.trip.status)) return;
     scanParamUsedRef.current = true;
     setSourceOpen(true);
   }, [data, scanParam]);
@@ -550,9 +552,19 @@ export default function ScreenFUND01() {
     ⚠️ 결산이 확정된 여행은 **더 기록할 수 없다.** (IA v2 §2-6-3)
        거래 상세는 이미 막고 있었는데 이 화면의 입금·지출 기록 버튼이
        살아 있어서, 확정된 여행에 거래를 더 넣을 수 있었다. (2026-09-21 2차)
+
+    ⚠️⚠️ **결산 중(ENDED)도 같이 막는다.** (2026-09-21 4차)
+       확정(SETTLED)만 막고 있어서, 지난 여행의 예산 카테고리에서
+       '지출 항목 상세 보기' 로 이 화면에 들어오면 입금·지출을 새로 적고
+       계좌까지 연결할 수 있었다. 예산 화면은 이미 "결산 중이라 예산과 계획은
+       고칠 수 없어요" 라고 말하고 있는데 돈 쪽만 열려 있었다.
+       결산 중에 할 일은 **이미 쓴 것을 확인하고 분류하는 것**이지
+       새로 적는 것이 아니다. 거래 시트(확인 완료·카테고리 변경)는 그대로 둔다.
   */
   const settledTrip =
     (data.trip.status as TripStatus) === TRIP_STATUS.SETTLED;
+  /** 결산 중 + 확정. 새로 기록하거나 계좌를 연결하는 길을 모두 닫는다 */
+  const endedTrip = isTripEnded(data.trip.status);
   /** 현재 잔액 = 누적 모금액 − 출금 합계 */
   const balance = Math.max(0, currentBalance(fundTotals));
   const targetAmount = data.budget?.target_amount ?? 0;
@@ -595,8 +607,13 @@ export default function ScreenFUND01() {
           onRecordDeposit={() => openSheet(TRANSACTION_TYPE.DEPOSIT)}
           /* 지출은 영수증/직접 입력 중에서 고른다. 입금은 영수증이 없으니 바로 폼 */
           onRecordExpense={() => setSourceOpen(true)}
-          /* 확정된 여행은 더 기록할 수 없다. 결산 스냅샷과 어긋난다 */
-          settled={settledTrip}
+          /* 끝난 여행은 더 기록할 수 없다. 결산 스냅샷과 어긋난다 */
+          settled={endedTrip}
+          settledNote={
+            settledTrip
+              ? "정산이 확정돼 더 기록할 수 없어요. 확정 시점의 기록을 보는 화면이에요."
+              : "결산 중이라 입금·지출을 새로 적을 수 없어요. 이미 있는 거래를 확인하고 분류하는 건 그대로 돼요."
+          }
         />
 
         {/*
@@ -605,7 +622,7 @@ export default function ScreenFUND01() {
              먼저 말한다. 연결 버튼만 두면 직접 입력이 임시 상태처럼 읽히는데,
              직접 입력 사용자도 동일한 핵심 기능을 쓴다. (CLAUDE.md 3장)
         */}
-        {connected ? null : (
+        {connected || endedTrip ? null : (
           <View
             style={{
               marginTop: 12,
@@ -632,6 +649,12 @@ export default function ScreenFUND01() {
             </Text>
           </View>
         )}
+        {/*
+          ⚠️ 끝난 여행에서는 계좌를 연결·해제하지 않는다. (2026-09-21 4차)
+             결산 중인 지난 여행에서 계좌를 새로 연결할 수 있었다. 연결하면
+             그 계좌의 거래가 이 여행으로 들어와 결산 금액이 뒤에서 움직인다.
+        */}
+        {endedTrip ? null : (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={connected ? "연결 계좌 관리" : "계좌 연결하기"}
@@ -661,6 +684,7 @@ export default function ScreenFUND01() {
           </View>
           <Ionicons name="chevron-forward" size={15} color="#a8afb9" />
         </Pressable>
+        )}
 
         {/* ── 최근 입출금 ── */}
         <View style={{ marginTop: 26 }}>

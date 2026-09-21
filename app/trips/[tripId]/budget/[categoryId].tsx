@@ -1337,7 +1337,15 @@ export default function ScreenBUDGET02() {
           ⚠️ placement=budget_detail 을 실어 보낸다. 여행 홈 배너와 이 자리 중
              무엇이 전환을 만드는지 나눠 봐야 BM 1 을 키울 수 있다. (docs/06 §7-7)
         */}
-        {code === CATEGORY_CODE.INSURANCE ? (
+        {/*
+          ⚠️ 끝난 여행에는 내지 않는다. (2026-09-21 4차)
+             결산 중인 지난 여행의 보험 카테고리에서 "보험료 얼마인지
+             확인해 볼까요?" 가 떴고, 거기서 고른 상품이 **계획 항목으로
+             들어갔다.** 결산 중에는 계획을 고칠 수 없다고 바로 위에
+             적어 놓고 옆문이 열려 있었다. 이미 다녀온 여행의 보험을
+             지금 파는 것도 말이 안 된다.
+        */}
+        {code === CATEGORY_CODE.INSURANCE && canEditPlan ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="여행자보험 예상 보험료 비교하기"

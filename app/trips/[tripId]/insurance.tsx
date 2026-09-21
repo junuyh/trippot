@@ -400,8 +400,15 @@ export default function ScreenINSURANCE01() {
             ? `/trips/${tripId}/budget/${data.insuranceCategoryId}`
             : null
         }
+        /*
+          ⚠️ 끝난 여행에는 예산 적용을 열지 않는다. (2026-09-21 4차)
+             진입점(예산 상세의 제휴 카드)은 막았지만, 이 화면은 여행 홈
+             배너·딥링크로도 들어온다. 계획을 건드리는 쪽은 여기서 한 번 더 막는다.
+        */
         onApplyToBudget={
-          data.insuranceCategoryId ? handleApplyToBudget : undefined
+          data.insuranceCategoryId && !isTripEnded(data.trip.status)
+            ? handleApplyToBudget
+            : undefined
         }
         applying={applying}
       />

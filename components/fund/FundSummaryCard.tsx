@@ -41,6 +41,11 @@ type Props = {
    *    (2026-09-21 2차) 거래 상세는 이미 같은 이유로 막고 있었다.
    */
   settled?: boolean;
+  /**
+   * 기록을 막은 이유. 결산 중과 확정은 이유가 다르다.
+   * 확정은 "확정 시점의 기록", 결산 중은 "분류는 그대로 된다" 가 핵심이다.
+   */
+  settledNote?: string;
 };
 
 function won(value: number): string {
@@ -56,6 +61,7 @@ export function FundSummaryCard({
   onRecordDeposit,
   onRecordExpense,
   settled = false,
+  settledNote = "정산이 확정돼 더 기록할 수 없어요. 확정 시점의 기록을 보는 화면이에요.",
 }: Props) {
   const needed = Math.max(0, targetAmount - raisedAmount);
 
@@ -182,8 +188,7 @@ export function FundSummaryCard({
           }}
         >
           <Text style={{ fontSize: 11, lineHeight: 17, color: "#5d6674" }}>
-            정산이 확정돼 더 기록할 수 없어요. 확정 시점의 기록을 보는
-            화면이에요.
+            {settledNote}
           </Text>
         </View>
       ) : (
