@@ -26,6 +26,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type * as Notifications from 'expo-notifications';
 
+import { parseSpendReminderTripId } from '@/lib/notifications/spendReminderId';
+
 /** 도착한 알림 한 건. DB notifications 와 무관한 기기 보관용 모양이다. */
 export type StoredPushNotification = {
   /** expo-notifications 의 request.identifier. 같은 알림이 여러 경로로 들어와도 하나다. */
@@ -36,6 +38,12 @@ export type StoredPushNotification = {
   receivedAt: string;
   /** ISO. 목록에서 눌러 읽었거나 OS 알림을 직접 탭한 시각. */
   readAt: string | null;
+  /**
+   * 관련 여행. 알림 상세의 [여행 홈으로 가기] 용 최소 메타데이터. (2026-09-21)
+   * payload data.tripId 가 있으면 그것, 없으면 지출 리마인드 id 규칙(`spend-reminder:{tripId}:{n}`)에서 읽는다.
+   * 둘 다 없으면 null — 상세는 CTA 를 숨긴다. 예전에 저장된 행(필드 없음)도 그대로 읽힌다.
+   */
+  tripId?: string | null;
 };
 
 const STORAGE_KEY_PREFIX = 'trippot:push-inbox:';
@@ -65,7 +73,8 @@ function isStoredPushNotification(value: unknown): value is StoredPushNotificati
     typeof row.title === 'string' &&
     (row.body === null || typeof row.body === 'string') &&
     typeof row.receivedAt === 'string' &&
-    (row.readAt === null || typeof row.readAt === 'string')
+    (row.readAt === null || typeof row.readAt === 'string') &&
+    (row.tripId === undefined || row.tripId === null || typeof row.tripId === 'string')
   );
 }
 
@@ -121,6 +130,11 @@ export function toStoredPushNotification(
 ): StoredPushNotification {
   const { request, date } = notification;
   const receivedAt = toIsoFromNotificationDate(date);
+  const data: unknown = request.content.data;
+  const dataTripId =
+    data !== null && typeof data === 'object' && typeof (data as Record<string, unknown>).tripId === 'string'
+      ? ((data as Record<string, unknown>).tripId as string)
+      : null;
 
   return {
     id: request.identifier,
@@ -128,6 +142,7 @@ export function toStoredPushNotification(
     body: request.content.body?.trim() || null,
     receivedAt,
     readAt: options?.readAt ?? null,
+    tripId: dataTripId ?? parseSpendReminderTripId(request.identifier),
   };
 }
 
@@ -155,6 +170,8 @@ export async function savePushNotification(
   const merged: StoredPushNotification = {
     ...existing,
     readAt: existing.readAt ?? incoming.readAt ?? null,
+    // 예전 행에 tripId 가 없으면 새로 들어온 값으로 채운다. 있으면 지킨다.
+    tripId: existing.tripId ?? incoming.tripId ?? null,
   };
   const next = [...rows];
   next[index] = merged;
@@ -176,6 +193,25 @@ export async function markPushNotificationAsRead(userId: string, id: string): Pr
   next[index] = { ...existing, readAt };
   await writeAll(userId, next);
   return readAt;
+}
+
+/**
+ * 안 읽은 기기 알림 **전부**를 읽음으로 표시한다. 알림센터 [모두 읽음]. (2026-09-20)
+ * 이 사용자 key 만 · readAt 이 null 인 것만 · 이미 읽은 것은 그대로 · id · 순서 · 본문 무변경 ·
+ * 30개 상한은 writeAll 이 그대로 적용한다. 바꿀 것이 없으면 저장하지 않는다.
+ * @returns 이번에 읽음으로 바뀐 건수
+ */
+export async function markAllPushNotificationsAsRead(userId: string): Promise<number> {
+  const rows = await readAll(userId);
+  const readAt = new Date().toISOString();
+  let changed = 0;
+  const next = rows.map((row) => {
+    if (row.readAt) return row;
+    changed += 1;
+    return { ...row, readAt };
+  });
+  if (changed > 0) await writeAll(userId, next);
+  return changed;
 }
 
 /** 한 건 삭제. 되돌릴 수 없다. */

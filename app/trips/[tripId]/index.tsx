@@ -49,7 +49,7 @@ import {
 } from "@/components/trip-home";
 import { AppHomeButton } from "@/components/navigation/AppHomeButton";
 import { dailyAllowance } from "@/lib/budget/dailyAllowance";
-import { scheduleSpendReminders } from "@/lib/notifications/spendReminder";
+import { reconcileSpendReminders, scheduleSpendReminders } from "@/lib/notifications/spendReminder";
 import {
   SettlementVaultGrid,
   TravelTypeCard,
@@ -1350,6 +1350,8 @@ export default function ScreenTripHome() {
       });
       setSheet(null);
       await load();
+      // 취소가 확정됐으면 지출 리마인드 예약을 지금 상태에 맞춘다(알림 계층만). 실패해도 취소는 끝났다. (2026-09-21)
+      if (userId) reconcileSpendReminders(userId).catch(() => undefined);
       // CXL-04. 요청과 확정은 다음 행동이 달라서 Alert 로 뭉뚱그릴 수 없다.
       setDoneKind(result.outcome === "CANCELED" ? "canceled" : "requested");
     } catch {
@@ -1380,6 +1382,8 @@ export default function ScreenTripHome() {
         });
         setSheet(null);
         await load();
+        // 전원 동의로 CANCELED 가 됐을 수 있다. 지출 리마인드 예약을 지금 상태에 맞춘다. (2026-09-21)
+        if (userId) reconcileSpendReminders(userId).catch(() => undefined);
         if (result.outcome === "APPROVED") {
           // 내 동의로 확정됐다. 되돌리기 안내가 필요하니 CXL-04 로 보낸다
           setDoneKind("canceled");
@@ -1425,6 +1429,8 @@ export default function ScreenTripHome() {
     setBusy(true);
     try {
       await restoreCanceledTrip(trip.id);
+      // 되살린 여행의 지출 리마인드를 다시 잡는다(권한이 이미 있으면). (2026-09-21)
+      if (userId) reconcileSpendReminders(userId).catch(() => undefined);
       setSheet(null);
       setDoneKind(null);
       await load();

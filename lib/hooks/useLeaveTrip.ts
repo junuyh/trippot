@@ -38,6 +38,7 @@ import {
   listActiveTripMembers,
 } from '@/lib/supabase/queries/tripMembers';
 import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
+import { cancelSpendReminders } from '@/lib/notifications/spendReminder';
 
 /** 한 번에 하나만 열린다 */
 export type LeaveSheet = null | 'leave' | 'delegate' | 'leaveCancels';
@@ -303,6 +304,8 @@ export function useLeaveTrip(options: Options = {}) {
               alsoLeaveGroup: alsoLeave,
             });
 
+        // 나간 여행의 지출 리마인드 예약을 지운다. 알림 계층만 건드린다. 실패해도 나가기는 끝났다. (2026-09-21)
+        cancelSpendReminders(ctx.trip.id).catch(() => undefined);
         setSheetState(null);
         setDone(
           outcome === 'CANCELED'

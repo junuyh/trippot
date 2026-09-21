@@ -9,12 +9,21 @@
 //   2. 보완      앱을 켰을 때 · background → foreground 로 돌아왔을 때 안 읽은 알림을 다시 본다.
 //                Realtime 이 끊겼거나 앱이 꺼져 있던 동안의 알림을 잡는다. 최신 1건만.
 //
-// 세션 dedupe (docs/14 §8)
-//   보여준 알림 id 를 메모리 Set 에 둔다. 같은 프로세스에서 같은 알림을 두 번 띄우지 않는다.
-//   프로세스가 완전히 꺼지면 Set 도 사라진다 → 여전히 안 읽은 알림은 다음 실행에서 한 번 더 뜬다.
-//   Set 을 DB · AsyncStorage 에 저장하지 않는다.
+// dedupe — 두 겹 (docs/14 §8 · 2026-09-20 수정)
+//   1. 메모리 Set(shownInSession)  같은 프로세스 안에서 Realtime 과 보완 경로가 같은 알림을 두 번
+//                                  띄우지 않게 한다. 프로세스 수명.
+//   2. 기기 저장(bannerPresentation) 사용자별 AsyncStorage. **실제로 배너를 띄우기로 결정한** 알림 id 만.
+//                                  JS 런타임이 다시 시작돼도(앱 종료 · reload) 남는다.
+//   전에는 1 만 있었다. 그래서 앱을 다시 켜거나 reload 한 뒤 로그인하면 보완 경로가 "아직 안 읽은
+//   최신 1건" 을 또 띄웠다 — 팀 테스트의 "로그아웃 → 같은 계정 로그인마다 같은 배너" 가 이것이다.
+//   로그인 확정 시 저장된 id 를 Set 에 먼저 합친 **뒤에** 보완 경로를 돈다.
 //
 // Banner ≠ 읽음. 배너가 떴다고 read_at 을 찍지 않는다. [확인] → 상세 진입 → 거기서 읽음.
+//   "보여줬다" 는 기록(2)은 읽음이 아니다. 목록의 안 읽음 표시 · 아이콘의 점은 그대로 남는다.
+//   기록 시점 = setCurrent 로 띄우기로 결정한 순간. 렌더 완료는 알 수 없어 그보다 앞서 기록한다.
+//   (저장 실패 시 최악의 경우 한 번 더 뜬다. 안 뜨는 쪽 실패는 없다)
+//   초대 화면 위 · 같은 상세 위라서 **생략**한 알림은 저장하지 않는다 — 그 둘은 곧 읽음이 되고,
+//   읽음이면 어차피 후보(read_at is null)가 아니다.
 //
 // 예외 (docs/14 §8)
 //   INVITE_RECEIVED 는 사용자가 초대 링크를 여는 순간 만들어진다. 그때 이미 초대 화면을 보고
@@ -36,6 +45,7 @@ import { NotificationBanner } from '@/components/ui';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { NOTIFICATION_TYPE } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
+import { getShownBannerIds, recordBannerShown } from '@/lib/notifications/bannerPresentation';
 import { notifyNotificationsChanged } from '@/lib/notifications/unreadNotifications';
 import { getUnreadNotifications, type Notification } from '@/lib/supabase/queries/notifications';
 
@@ -45,6 +55,17 @@ const shownInSession = new Set<string>();
 /** 다른 경로(Push 탭 등)가 같은 알림의 배너를 막고 싶을 때. */
 export function markBannerShown(notificationId: string): void {
   shownInSession.add(notificationId);
+}
+
+/** 떠 있는 배너를 내리는 함수. 관찰자가 마운트되면 채운다. */
+let dismissCurrentBanner: (() => void) | null = null;
+
+/**
+ * 지금 떠 있는 배너를 내린다. 알림센터 [모두 읽음] 이 부른다 — 방금 읽음이 된 알림의 배너가
+ * 계속 떠 있으면 "읽었는데 왜 뜨지" 가 된다. 읽음 상태는 건드리지 않는다(이미 화면이 처리했다).
+ */
+export function dismissNotificationBanner(): void {
+  dismissCurrentBanner?.();
 }
 
 /** 배너가 떠 있는 시간. 지나면 조용히 사라진다(읽음 아님). */
@@ -91,7 +112,10 @@ export function NotificationBannerObserver() {
     }
   };
 
-  /** 지금 이 알림을 배너로 띄울지. 띄우든 안 띄우든 Set 에는 넣는다(같은 세션에서 다시 안 뜬다). */
+  /**
+   * 지금 이 알림을 배너로 띄울지. 띄우든 안 띄우든 메모리 Set 에는 넣는다(같은 세션에서 다시 안 뜬다).
+   * **띄우기로 결정한 것만** 기기에 기록한다(파일 머리 · dedupe 2).
+   */
   const offer = useCallback((row: Notification) => {
     if (shownInSession.has(row.id)) return;
     shownInSession.add(row.id);
@@ -105,13 +129,23 @@ export function NotificationBannerObserver() {
     clearTimer();
     setCurrent(row);
     hideTimer.current = setTimeout(() => setCurrent(null), AUTO_HIDE_MS);
+    // 사용자별 기록. 읽음이 아니다. 실패는 안에서 삼킨다.
+    void recordBannerShown(row.user_id, row.id);
   }, []);
 
-  /** 보완 경로 — 안 읽은 것 중 이번 세션에 안 보여준 최신 1건만. 여러 개를 연달아 띄우지 않는다. */
+  /**
+   * 보완 경로 — 안 읽은 것 중 **이 기기에서 아직 배너로 보여준 적 없는** 최신 1건만.
+   * 후보 = read_at is null (DB) ∧ 기록에 없음 (기기 저장 + 메모리 Set). 여러 개를 연달아 띄우지 않는다.
+   * 기기 기록을 먼저 Set 에 합친 뒤 고른다 — 이 순서가 재시작 후 반복 배너를 막는다.
+   */
   const offerLatestUnread = useCallback(
     async (uid: string) => {
       try {
-        const unread = await getUnreadNotifications(uid, 5);
+        const [unread, shownOnDevice] = await Promise.all([
+          getUnreadNotifications(uid, 5),
+          getShownBannerIds(uid).catch(() => new Set<string>()),
+        ]);
+        shownOnDevice.forEach((id) => shownInSession.add(id));
         const next = unread.find((row) => !shownInSession.has(row.id));
         if (next) offer(next);
       } catch {
@@ -188,13 +222,24 @@ export function NotificationBannerObserver() {
     return () => sub.remove();
   }, [userId, offerLatestUnread]);
 
-  // 로그아웃하면 떠 있던 배너도 내린다.
+  // 로그아웃하면 떠 있던 배너도 내린다. (메모리 Set · 기기 기록은 지우지 않는다 — 같은 사용자의 반복 방지)
   useEffect(() => {
     if (!userId) {
       clearTimer();
       setCurrent(null);
     }
   }, [userId]);
+
+  // 바깥(알림센터 [모두 읽음])이 배너를 내릴 수 있게 연다.
+  useEffect(() => {
+    dismissCurrentBanner = () => {
+      clearTimer();
+      setCurrent(null);
+    };
+    return () => {
+      dismissCurrentBanner = null;
+    };
+  }, []);
 
   useEffect(() => clearTimer, []);
 

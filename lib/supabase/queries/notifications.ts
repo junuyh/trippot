@@ -159,6 +159,28 @@ export async function markNotificationAsRead(
 }
 
 /**
+ * 내 안 읽은 알림 **전부**를 읽음으로 표시한다. 알림센터 [모두 읽음]. (2026-09-20)
+ *
+ * 조건: user_id = 나 · read_at is null 인 행만. 이미 읽은 행의 첫 읽은 시각은 지킨다.
+ * 필터(카테고리)와 무관하게 전부다 — 버튼의 뜻이 "현재 탭 읽음" 이 아니다.
+ * 권한: RLS notifications_update_own(user_id = auth.uid()) + read_at 칼럼 UPDATE grant 그대로.
+ *       새 정책 · RPC · 마이그레이션 없음. 기기 보관 알림(pushInbox)은 화면이 따로 처리한다.
+ * @returns 이번에 읽음으로 바뀐 행 수
+ */
+export async function markAllNotificationsAsRead(userId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    // ⚠️ 남의 알림을 읽음 처리할 수 없도록 사용자로 좁힌다. (CLAUDE.md 7장) RLS 가 한 번 더 막는다.
+    .eq('user_id', userId)
+    .is('read_at', null)
+    .select('id');
+
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+/**
  * 알림 하나를 지운다.
  *
  * ⚠️ 되돌릴 수 없다. 행을 실제로 지운다. notifications 에는 deleted_at 이 없다.

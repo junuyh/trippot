@@ -65,6 +65,11 @@ export function NotificationDetailView({ notification, resolving, onPressCta }: 
           <Text className="mt-1 text-pot-ink" style={{ fontSize: 14.5, lineHeight: 21 }}>
             {notification.tripLabel}
           </Text>
+          {notification.tripGroupLabel ? (
+            <Text numberOfLines={1} className="mt-0.5 text-pot-mute" style={{ fontSize: 13, lineHeight: 19 }}>
+              {notification.tripGroupLabel}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 

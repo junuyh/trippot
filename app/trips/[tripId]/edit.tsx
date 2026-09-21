@@ -42,6 +42,7 @@ import * as Clipboard from "expo-clipboard";
 import { Alert, Share, View } from "react-native";
 
 import { useAuth, useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { reconcileSpendReminders } from "@/lib/notifications/spendReminder";
 import {
   InviteLinkSheet,
   JoinRequestSheet,
@@ -249,6 +250,8 @@ export default function ScreenTripEdit() {
         end_date: endDate,
         headcount,
       });
+      // 일정이 바뀌면 옛 날짜의 지출 리마인드 예약이 남는다. OS 예약을 지금 일정에 맞춘다. 실패해도 저장은 끝났다. (2026-09-21)
+      if (userId) reconcileSpendReminders(userId).catch(() => undefined);
       router.back();
     } catch {
       setSaveError("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
