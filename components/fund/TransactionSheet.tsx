@@ -199,17 +199,6 @@ function DetailView({
         </View>
       ) : null}
 
-      {/* 확인이 필요한 거래에만 낸다. 정상 거래에 두면 매번 눌러야 하는 줄 안다 */}
-      {c.reason !== null && !c.settled ? (
-        <View style={{ marginTop: 8 }}>
-          <Button
-            label="확인 완료"
-            loading={c.busy}
-            onPress={() => void c.confirmReview()}
-          />
-        </View>
-      ) : null}
-
       {/* 수정 · 삭제는 두 칸으로 나란히 둔다 */}
       {c.canEdit ? (
         <View className="flex-row" style={{ gap: 8, marginTop: 8 }}>
@@ -268,6 +257,30 @@ function DetailView({
           정산이 확정돼 이 거래는 고칠 수 없어요.
         </Text>
       ) : null}
+
+      {/*
+        ⚠️ **맨 아래에 둔다.** (2026-09-21 4차) 고치는 버튼들 사이에 끼어
+           있으니 '확인 완료' 가 수정·삭제와 같은 줄의 선택지처럼 보였다.
+           이 시트에서 사람이 마지막에 누를 것은 "이대로 맞다" 하나다.
+           고치는 일을 먼저 늘어놓고, 끝내는 일을 끝에 둔다.
+      */}
+      {c.reason !== null && !c.settled ? (
+        <View
+          style={{
+            marginTop: 16,
+            paddingTop: 16,
+            borderTopWidth: 1,
+            borderColor: "#eceef1",
+          }}
+        >
+          <Button
+            label="확인 완료"
+            loading={c.busy}
+            onPress={() => void c.confirmReview()}
+          />
+        </View>
+      ) : null}
+
     </View>
   );
 }

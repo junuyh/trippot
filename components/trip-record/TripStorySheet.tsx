@@ -18,7 +18,7 @@
 //    전부 화면 파일이 한다. 글꼴·크기·선택은 캡처 한 장에만 쓰는 값이라 여기서 든다.
 // ============================================================================
 import { Ionicons } from '@expo/vector-icons';
-import { forwardRef, useCallback, useState, type ComponentProps } from 'react';
+import { forwardRef, useCallback, useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -107,6 +107,23 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
   const scale = isTitle ? titleScale : membersScale;
   const setScale = isTitle ? setTitleScale : setMembersScale;
   const selectedFont = storyFont(fontId);
+  /*
+    ⚠️ '함께 간 사람' 에서는 **한글 글꼴을 앞으로 당긴다.** (2026-09-21 4차)
+       "도시명은 바뀌는데 함께 간 사람은 잘 안 된다" 가 올라왔다. 코드는
+       멀쩡했다 — 목록 앞쪽이 전부 영문 전용 글꼴이고 이름은 한글이라,
+       눌러도 화면이 그대로였던 것이다. 도시명은 TAIPEI 라 바로 바뀐다.
+       고장이 아니라 **고를 수 없는 것을 먼저 보여 준 것**이 문제였다.
+       영문 이름을 쓰는 사람도 있으니 지우지는 않고 뒤로 보내고 흐리게 둔다.
+  */
+  const fontChoices = useMemo(
+    () =>
+      isTitle
+        ? STORY_FONTS
+        : [...STORY_FONTS].sort(
+            (a, b) => Number(b.hangul) - Number(a.hangul),
+          ),
+    [isTitle],
+  );
 
   const handleShare = useCallback(() => {
     // 선택 테두리·커서를 지운 다음 프레임에 캡처한다
@@ -216,7 +233,7 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
               contentContainerClassName="gap-2"
               className="-mx-3 px-3"
             >
-              {STORY_FONTS.map((font) => {
+              {fontChoices.map((font) => {
                 const active = font.id === fontId;
                 return (
                   <Pressable
@@ -229,6 +246,8 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
                     style={{
                       borderColor: active ? theme.primary : '#e5e7eb',
                       backgroundColor: active ? theme.primarySoft : '#fff',
+                      // 한글 이름에 안 먹는 글꼴은 흐리게. 고를 수는 있다 (영문 이름도 쓴다)
+                      opacity: !isTitle && !font.hangul ? 0.5 : 1,
                     }}
                   >
                     <Text
@@ -241,7 +260,7 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
                       }}
                       numberOfLines={1}
                     >
-                      {font.hangul ? '가Aa' : 'Aa'}
+                      {isTitle && !font.hangul ? 'Aa' : '가Aa'}
                     </Text>
                     <Text className="mt-0.5 text-[9px] text-gray-400" numberOfLines={1}>
                       {font.label}
@@ -251,8 +270,8 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
               })}
             </ScrollView>
             {!selectedFont.hangul && !isTitle ? (
-              <Text className="text-[11px] text-gray-400">
-                이 글꼴은 한글이 없어서 한글은 기본 글꼴로 나와요.
+              <Text className="text-[11px] font-bold" style={{ color: '#b4700f' }}>
+                이 글꼴에는 한글이 없어요. 이름이 한글이면 바뀐 게 안 보여요.
               </Text>
             ) : null}
 
