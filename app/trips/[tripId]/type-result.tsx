@@ -21,6 +21,7 @@ import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
   CATEGORY_CODE_LABEL,
+  COMPANION_TYPE,
   TRIP_STATUS,
   type CategoryCode,
 } from "@/lib/constants/status";
@@ -338,9 +339,16 @@ export default function ScreenTYPE01() {
       </Text>
 
       <View style={{ marginTop: 24 }}>
+        {/* 지금 여행의 모임을 함께 넘긴다. 여행 홈의 같은 버튼과 같은 규칙 */}
         <Button
           label="같은 멤버로 다시 여행 만들기"
-          onPress={() => router.push("/trips/new/owner?entryPoint=past_trip")}
+          onPress={() =>
+            router.push(
+              trip.group_id
+                ? `/trips/new/owner?entryPoint=past_trip&preselectedGroupId=${trip.group_id}`
+                : `/trips/new/owner?entryPoint=past_trip&preselectedCompanion=${COMPANION_TYPE.PERSONAL}`,
+            )
+          }
         />
       </View>
     </ScrollView>

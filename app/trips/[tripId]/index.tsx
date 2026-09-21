@@ -79,6 +79,7 @@ import { countryTheme } from "@/lib/constants/countryTheme";
 import { destinationPhoto } from "@/lib/constants/destinationPhoto";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
+  COMPANION_TYPE,
   FUND_SOURCE_TYPE,
   SETTLEMENT_TRIGGER,
   TRANSACTION_TYPE,
@@ -2407,10 +2408,24 @@ export default function ScreenTripHome() {
             </View>
           ) : null}
 
+          {/*
+            ⚠️ 지금 보고 있는 여행의 모임을 함께 넘긴다. (2026-09-21 테스트)
+               '같은 멤버로' 라고 해 놓고 아무것도 안 넘겨서, 1단계에서
+               모임을 처음부터 다시 골라야 했다. 같은 멤버로 가자는 말이
+               화면에서 지켜지지 않았다.
+            ⚠️ 개인 여행이면 넘길 모임이 없다. '혼자 가요' 를 미리 고른다 —
+               모임 상세(GROUP-02)가 개인 여행에 하는 것과 같다.
+          */}
           <Button
             label="같은 멤버로 다시 여행 만들기"
             variant="secondary"
-            onPress={() => router.push("/trips/new/owner?entryPoint=past_trip")}
+            onPress={() =>
+              router.push(
+                trip.group_id
+                  ? `/trips/new/owner?entryPoint=past_trip&preselectedGroupId=${trip.group_id}`
+                  : `/trips/new/owner?entryPoint=past_trip&preselectedCompanion=${COMPANION_TYPE.PERSONAL}`,
+              )
+            }
           />
 
           {/*

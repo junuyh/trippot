@@ -39,6 +39,7 @@ import {
   Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
+import { sortPlansByMatch } from "@/lib/budget/planMatch";
 import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -699,7 +700,16 @@ export default function ScreenFUND03() {
               아직 세부 계획이 없어요. 예산 상세에서 먼저 계획을 만들어 주세요.
             </Text>
           ) : (
-            data.planItems.map((plan) => {
+            /*
+              ⚠️ 이름이 맞을 법한 계획을 위로 올리고 '추천' 을 붙인다.
+                 계획은 '편의점' 인데 지출은 '세븐일레븐' 으로 들어온다.
+                 사람 눈에는 같은 것인데 목록은 그냥 순서대로라 매번 찾아야
+                 했다. (2026-09-21 테스트)
+              ⚠️ **대신 연결하지 않는다.** 잘못 붙은 연결은 그 계획의 실제
+                 금액을 통째로 틀리게 만들고, 사용자는 틀렸다는 것조차
+                 알기 어렵다. 누르는 건 사용자다.
+            */
+            sortPlansByMatch(data.planItems, transaction.name).map(({ plan, score }) => {
               const category = data.categories.find(
                 (c) => c.id === plan.budget_category_id,
               );
@@ -715,7 +725,8 @@ export default function ScreenFUND03() {
                     gap: 10,
                     padding: 13,
                     borderWidth: 1,
-                    borderColor: "#e5e8ec",
+                    borderColor: score > 0 ? theme.primary : "#e5e8ec",
+                    backgroundColor: score > 0 ? theme.primarySoft : "#fff",
                     borderRadius: 12,
                   }}
                 >
@@ -733,6 +744,13 @@ export default function ScreenFUND03() {
                       }}
                     >
                       {plan.name}
+                      {score > 0 ? (
+                        <Text
+                          style={{ fontSize: 10, color: theme.primary }}
+                        >
+                          {"  추천"}
+                        </Text>
+                      ) : null}
                     </Text>
                     <Text
                       style={{ marginTop: 3, fontSize: 10, color: "#858e9c" }}
