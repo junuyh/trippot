@@ -254,11 +254,14 @@ export default function ScreenFUND01() {
     상세 시트가 완전히 닫힌 뒤에 연결 시트를 연다. iOS 는 Modal 위에 Modal 을
     열면 두 번째가 뜨지 않는다. setTimeout 은 안드로이드 폴백이다.
   */
+  /** 연결 시트에서 고른 계획. 저장을 눌러야 실제로 붙는다 */
+  const [pickedPlanId, setPickedPlanId] = useState<string | null>(null);
   const pendingLinkRef = useRef<Transaction | null>(null);
   const runPendingLink = useCallback(() => {
     const target = pendingLinkRef.current;
     if (!target) return;
     pendingLinkRef.current = null;
+    setPickedPlanId(null);
     setLinking(target);
   }, []);
 
@@ -368,6 +371,15 @@ export default function ScreenFUND01() {
    *    ⚠️ CLAUDE.md 3장이 막는 것은 **1 거래를 여러 계획에 쪼개는 것**이다.
    *       (1 거래 = 1 카테고리) 방향이 반대라 여기 해당하지 않는다.
    */
+  /** 연결 시트 제목에 쓰는 카테고리 이름. 어느 예산의 계획 목록인지 알린다 */
+  const linkingCategoryLabel = useMemo(() => {
+    if (!linking?.budget_category_id) return "";
+    const code = (data?.categories ?? []).find(
+      (c) => c.id === linking.budget_category_id,
+    )?.category_code as CategoryCode | undefined;
+    return code ? `[${CATEGORY_CODE_LABEL[code]}]` : "";
+  }, [data?.categories, linking]);
+
   const planCandidates = useMemo(() => {
     if (!linking?.budget_category_id) return [];
     return (data?.planItems ?? []).filter(
@@ -382,6 +394,7 @@ export default function ScreenFUND01() {
       try {
         await linkTransactionToPlanItem(linking.id, planItemId);
         setLinking(null);
+        setPickedPlanId(null);
         setDetail(null);
         await load();
         setToast("계획에 연결했어요");
@@ -1173,13 +1186,64 @@ export default function ScreenFUND01() {
         ) : null}
       </BottomSheet>
 
-      {/* ── 세부 계획 연결 ── */}
+      {/*
+        ── 세부 계획 연결 ──
+
+        ⚠️ **무슨 거래를 붙이는 중인지 위에 적는다.** (2026-09-21 3차)
+           계획이 스무 개가 되면 "내가 아까 무슨 거래를 눌렀더라" 가 된다.
+           제목에도 카테고리를 넣어 어느 예산의 계획 목록인지 바로 알게 한다.
+
+        ⚠️ **고르고 나서 저장을 누른다.** 예전에는 한 줄을 누르는 즉시 연결됐다.
+           잘못 누르면 그 계획의 실제 금액이 통째로 틀리는데 되돌릴 기회가
+           없었다. 고른 것을 보여 주고 한 번 더 확인받는다.
+      */}
       <BottomSheet
         visible={linking !== null}
-        title="세부 계획에 연결"
+        title={`${linkingCategoryLabel} 세부 계획에 연결`}
         description="이 지출이 어떤 계획의 결제인지 골라 주세요."
-        onClose={() => setLinking(null)}
+        onClose={() => {
+          setLinking(null);
+          setPickedPlanId(null);
+        }}
       >
+        {/* 지금 붙이려는 거래. 목록만 보면 무엇을 고르던 중인지 알 수 없다 */}
+        {linking ? (
+          <View
+            style={{
+              marginTop: 12,
+              padding: 13,
+              borderRadius: 12,
+              backgroundColor: "#f5f7f9",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 10, color: "#8b94a2" }}>연결할 지출</Text>
+              <Text
+                numberOfLines={1}
+                style={{
+                  marginTop: 3,
+                  fontSize: 13,
+                  fontWeight: "800",
+                  color: "#121a2a",
+                }}
+              >
+                {linking.name ?? "이름 없는 거래"}
+              </Text>
+              <Text style={{ marginTop: 2, fontSize: 10, color: "#8b94a2" }}>
+                {format(parseISO(linking.occurred_at), "M월 d일")}
+              </Text>
+            </View>
+            <Text
+              style={{ fontSize: 14, fontWeight: "900", color: "#121a2a" }}
+            >
+              {linking.amount.toLocaleString("ko-KR")}원
+            </Text>
+          </View>
+        ) : null}
+
         {planCandidates.length === 0 ? (
           <View style={{ paddingTop: 18, paddingBottom: 6 }}>
             <Text style={{ fontSize: 12, lineHeight: 18, color: "#5d6674" }}>
@@ -1188,40 +1252,73 @@ export default function ScreenFUND01() {
             </Text>
           </View>
         ) : (
-          <View style={{ paddingTop: 14, gap: 9 }}>
-            {planCandidates.map((item) => (
-              <Pressable
-                key={item.id}
-                accessibilityRole="button"
-                accessibilityLabel={`${item.name} 계획에 연결`}
-                disabled={sheetBusy}
-                onPress={() => void handleLinkPlan(item.id)}
-                className="flex-row items-center active:bg-gray-50"
-                style={{
-                  gap: 12,
-                  padding: 14,
-                  borderWidth: 1,
-                  borderColor: "#e5e8ec",
-                  borderRadius: 13,
-                  opacity: sheetBusy ? 0.6 : 1,
+          <>
+            <View
+              style={{
+                marginTop: 16,
+                borderWidth: 1,
+                borderColor: "#e5e8ec",
+                borderRadius: 13,
+                overflow: "hidden",
+              }}
+            >
+              {planCandidates.map((item, index) => {
+                const picked = pickedPlanId === item.id;
+                return (
+                  <Pressable
+                    key={item.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: picked }}
+                    accessibilityLabel={`${item.name} 계획 고르기`}
+                    disabled={sheetBusy}
+                    onPress={() => setPickedPlanId(item.id)}
+                    className="flex-row items-center active:bg-gray-50"
+                    style={{
+                      gap: 10,
+                      paddingHorizontal: 14,
+                      paddingVertical: 13,
+                      borderTopWidth: index === 0 ? 0 : 1,
+                      borderColor: "#eceef1",
+                      backgroundColor: picked ? theme.primarySoft : "#fff",
+                    }}
+                  >
+                    <Ionicons
+                      name={picked ? "radio-button-on" : "radio-button-off"}
+                      size={17}
+                      color={picked ? theme.primary : "#c2c8d0"}
+                    />
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        flex: 1,
+                        fontSize: 13,
+                        fontWeight: picked ? "800" : "600",
+                        color: "#121a2a",
+                      }}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 12, fontWeight: "700", color: "#5d6674" }}
+                    >
+                      {item.expected_amount.toLocaleString("ko-KR")}원
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={{ marginTop: 14 }}>
+              <Button
+                label="이 계획에 연결"
+                loading={sheetBusy}
+                disabled={pickedPlanId === null}
+                onPress={() => {
+                  if (pickedPlanId) void handleLinkPlan(pickedPlanId);
                 }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{ fontSize: 13, fontWeight: "800", color: "#121a2a" }}
-                  >
-                    {item.name}
-                  </Text>
-                  <Text
-                    style={{ marginTop: 4, fontSize: 11, color: "#8b94a2" }}
-                  >
-                    예상 {item.expected_amount.toLocaleString("ko-KR")}원
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 15, color: "#c2c8d0" }}>›</Text>
-              </Pressable>
-            ))}
-          </View>
+              />
+            </View>
+          </>
         )}
       </BottomSheet>
 

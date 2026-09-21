@@ -24,6 +24,7 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, View } from "react-native";
 
@@ -139,6 +140,8 @@ export default function ScreenFUND03() {
 
   const [editing, setEditing] = useState(false);
   const [linking, setLinking] = useState(false);
+  /** 연결 시트에서 고른 계획. 저장을 눌러야 실제로 붙는다 */
+  const [pickedPlanId, setPickedPlanId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /** 수기 거래 내용 수정 시트 */
   const [editingManual, setEditingManual] = useState(false);
@@ -461,6 +464,16 @@ export default function ScreenFUND03() {
       )
     : [];
 
+  /** 연결 시트 제목의 카테고리. 어느 예산의 계획 목록인지 알린다 */
+  const linkingCategoryLabel = transaction.budget_category_id
+    ? (() => {
+        const code = data.categories.find(
+          (c) => c.id === transaction.budget_category_id,
+        )?.category_code as CategoryCode | undefined;
+        return code ? `[${CATEGORY_CODE_LABEL[code]}]` : "";
+      })()
+    : "";
+
   const canEditManual =
     !settled &&
     transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL;
@@ -736,95 +749,146 @@ export default function ScreenFUND03() {
         </View>
       </BottomSheet>
 
-      {/* ── 계획 항목 연결 ── */}
+      {/*
+        ── 계획 항목 연결 ──
+        ⚠️ 무슨 거래를 붙이는 중인지 위에 적고, 제목에 카테고리를 넣는다.
+           고른 뒤 저장을 눌러야 붙는다. 전체 내역 화면의 시트와 같은 방식이다.
+      */}
       <BottomSheet
         visible={linking}
-        title="계획 항목에 연결"
-        description="연결하면 그 계획의 카테고리로 함께 옮겨요. 계획에는 실제 결제 금액이 표시돼요."
-        onClose={() => setLinking(false)}
+        title={`${linkingCategoryLabel} 세부 계획에 연결`}
+        description="연결하면 그 계획에 이 결제 금액이 실제 사용으로 잡혀요."
+        onClose={() => {
+          setLinking(false);
+          setPickedPlanId(null);
+        }}
       >
-        <View style={{ paddingTop: 12, gap: 8 }}>
-          {planCandidates.length === 0 ? (
+        <View
+          style={{
+            marginTop: 12,
+            padding: 13,
+            borderRadius: 12,
+            backgroundColor: "#f5f7f9",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 10, color: "#8b94a2" }}>연결할 지출</Text>
             <Text
+              numberOfLines={1}
               style={{
-                fontSize: 11,
-                color: "#858e9c",
-                paddingVertical: 20,
-                textAlign: "center",
+                marginTop: 3,
+                fontSize: 13,
+                fontWeight: "800",
+                color: "#121a2a",
               }}
             >
-              아직 세부 계획이 없어요. 예산 상세에서 먼저 계획을 만들어 주세요.
+              {transaction.name ?? "이름 없는 거래"}
             </Text>
-          ) : (
-            /*
-              ⚠️ 이름이 맞을 법한 계획을 위로 올리고 '추천' 을 붙인다.
-                 계획은 '편의점' 인데 지출은 '세븐일레븐' 으로 들어온다.
-                 사람 눈에는 같은 것인데 목록은 그냥 순서대로라 매번 찾아야
-                 했다. (2026-09-21 테스트)
-              ⚠️ **대신 연결하지 않는다.** 잘못 붙은 연결은 그 계획의 실제
-                 금액을 통째로 틀리게 만들고, 사용자는 틀렸다는 것조차
-                 알기 어렵다. 누르는 건 사용자다.
-            */
-            sortPlansByMatch(planCandidates, transaction.name).map(({ plan, score }) => {
-              const category = data.categories.find(
-                (c) => c.id === plan.budget_category_id,
-              );
-              return (
-                <Pressable
-                  key={plan.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${plan.name} 에 연결`}
-                  disabled={busy}
-                  onPress={() => void handleLinkPlan(plan.id)}
-                  className="flex-row items-center active:bg-gray-50"
-                  style={{
-                    gap: 10,
-                    padding: 13,
-                    borderWidth: 1,
-                    borderColor: score > 0 ? theme.primary : "#e5e8ec",
-                    backgroundColor: score > 0 ? theme.primarySoft : "#fff",
-                    borderRadius: 12,
-                  }}
-                >
-                  <Text style={{ fontSize: 18 }}>
-                    {category
-                      ? CATEGORY_EMOJI[category.category_code as CategoryCode]
-                      : "📌"}
-                  </Text>
-                  <View style={{ flex: 1 }}>
-                    <Text
+            <Text style={{ marginTop: 2, fontSize: 10, color: "#8b94a2" }}>
+              {format(parseISO(transaction.occurred_at), "M월 d일")}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: "900", color: "#121a2a" }}>
+            {transaction.amount.toLocaleString("ko-KR")}원
+          </Text>
+        </View>
+
+        {planCandidates.length === 0 ? (
+          <Text
+            style={{
+              fontSize: 11,
+              color: "#858e9c",
+              paddingVertical: 20,
+              textAlign: "center",
+            }}
+          >
+            이 카테고리에 연결할 세부 계획이 없어요. 예산 상세에서 먼저 계획을
+            만들어 주세요.
+          </Text>
+        ) : (
+          <>
+            <View
+              style={{
+                marginTop: 16,
+                borderWidth: 1,
+                borderColor: "#e5e8ec",
+                borderRadius: 13,
+                overflow: "hidden",
+              }}
+            >
+              {sortPlansByMatch(planCandidates, transaction.name).map(
+                ({ plan, score }, index) => {
+                  const picked = pickedPlanId === plan.id;
+                  return (
+                    <Pressable
+                      key={plan.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: picked }}
+                      accessibilityLabel={`${plan.name} 계획 고르기`}
+                      disabled={busy}
+                      onPress={() => setPickedPlanId(plan.id)}
+                      className="flex-row items-center active:bg-gray-50"
                       style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: "#141b28",
+                        gap: 10,
+                        paddingHorizontal: 14,
+                        paddingVertical: 13,
+                        borderTopWidth: index === 0 ? 0 : 1,
+                        borderColor: "#eceef1",
+                        backgroundColor: picked ? theme.primarySoft : "#fff",
                       }}
                     >
-                      {plan.name}
-                      {score > 0 ? (
+                      <Ionicons
+                        name={picked ? "radio-button-on" : "radio-button-off"}
+                        size={17}
+                        color={picked ? theme.primary : "#c2c8d0"}
+                      />
+                      <View style={{ flex: 1 }}>
                         <Text
-                          style={{ fontSize: 10, color: theme.primary }}
+                          numberOfLines={1}
+                          style={{
+                            fontSize: 13,
+                            fontWeight: picked ? "800" : "600",
+                            color: "#121a2a",
+                          }}
                         >
-                          {"  추천"}
+                          {plan.name}
+                          {score > 0 ? (
+                            <Text style={{ fontSize: 10, color: theme.primary }}>
+                              {"  추천"}
+                            </Text>
+                          ) : null}
                         </Text>
-                      ) : null}
-                    </Text>
-                    <Text
-                      style={{ marginTop: 3, fontSize: 10, color: "#858e9c" }}
-                    >
-                      {category
-                        ? CATEGORY_CODE_LABEL[
-                            category.category_code as CategoryCode
-                          ]
-                        : "카테고리 없음"}
-                      {" · 예상 "}
-                      {plan.expected_amount.toLocaleString("ko-KR")}원
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })
-          )}
-        </View>
+                      </View>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "700",
+                          color: "#5d6674",
+                        }}
+                      >
+                        {plan.expected_amount.toLocaleString("ko-KR")}원
+                      </Text>
+                    </Pressable>
+                  );
+                },
+              )}
+            </View>
+
+            <View style={{ marginTop: 14 }}>
+              <Button
+                label="이 계획에 연결"
+                loading={busy}
+                disabled={pickedPlanId === null}
+                onPress={() => {
+                  if (pickedPlanId) void handleLinkPlan(pickedPlanId);
+                }}
+              />
+            </View>
+          </>
+        )}
       </BottomSheet>
 
       {/* ── 카테고리 변경 ── */}

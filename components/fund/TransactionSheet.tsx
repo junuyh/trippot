@@ -13,6 +13,7 @@
 // ⚠️ 본문은 TransactionDetailBody 를 그대로 쓴다. 전체 내역 화면의 시트와
 //    같은 글·같은 줄이어야 한다. 여기서 따로 그리면 두 곳이 갈린다.
 // ============================================================================
+import { Ionicons } from "@expo/vector-icons";
 import { format, parseISO } from "date-fns";
 import { Alert, Pressable, Text, View } from "react-native";
 
@@ -164,18 +165,19 @@ export function TransactionSheet({
                 onPress={controller.startEdit}
               />
               {/*
-                ⚠️ 삭제는 되돌릴 수 없으니 한 번 묻는다. 그리고 눈에 덜 띄는
-                   글자 버튼으로 둔다 — 수정 옆에 같은 크기 버튼으로 두면
-                   잘못 누르기 쉽다. (거래 상세 화면이 쓰는 방식과 같다)
-                ⚠️ 실제로는 행을 지우지 않고 deleted_at 을 채운다.
+                ⚠️ 삭제도 **버튼으로 보이게** 둔다. (2026-09-21 3차)
+                   회색 글자 한 줄로 뒀더니 있는 줄도 몰랐다. 되돌릴 수 없는
+                   일이라 눈에 띄어야 하고, 대신 빨간 테두리로 성격을 알린다.
+                ⚠️ 한 번 묻는다. 실제로는 행을 지우지 않고 deleted_at 을 채운다.
               */}
-              <Text
+              <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="이 거래 삭제"
+                disabled={controller.busy}
                 onPress={() =>
                   Alert.alert(
                     "이 거래를 지울까요?",
-                    "지우면 예산의 실제 사용액에서도 빠져요.",
+                    "지우면 예산의 실제 사용액에서도 빠져요. 되돌릴 수 없어요.",
                     [
                       { text: "취소", style: "cancel" },
                       {
@@ -186,16 +188,22 @@ export function TransactionSheet({
                     ],
                   )
                 }
+                className="h-12 flex-row items-center justify-center rounded-xl active:opacity-70"
                 style={{
-                  marginTop: 2,
-                  textAlign: "center",
-                  fontSize: 11,
-                  fontWeight: "700",
-                  color: "#a8afb9",
+                  gap: 6,
+                  borderWidth: 1,
+                  borderColor: "#f1c2c7",
+                  backgroundColor: "#fff6f7",
+                  opacity: controller.busy ? 0.5 : 1,
                 }}
               >
-                이 거래 삭제
-              </Text>
+                <Ionicons name="trash-outline" size={15} color="#d93346" />
+                <Text
+                  style={{ fontSize: 13, fontWeight: "800", color: "#d93346" }}
+                >
+                  이 거래 삭제
+                </Text>
+              </Pressable>
             </View>
           ) : controller.settled ? (
             <Text
