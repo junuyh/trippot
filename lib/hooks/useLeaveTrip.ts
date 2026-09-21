@@ -26,6 +26,7 @@ import type { LeaveMode, TripMemberItem } from '@/components/members';
 import { FUND_SOURCE_TYPE } from '@/lib/constants/status';
 import { resolveVoteOutcome } from '@/lib/trip/cancelPolicy';
 import { canLeaveTrip, leaveModeOf } from '@/lib/trip/tripLeader';
+import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 import { getTravelFund } from '@/lib/supabase/queries/funds';
 import {
   getActiveCancelRequest,
@@ -150,6 +151,24 @@ export function useLeaveTrip(options: Options = {}) {
       try {
         const trip = await getTripById(tripId);
         if (!trip) throw new Error('NOT_FOUND');
+
+        /**
+         * 나갈 수 있는 상태인가. **시트를 열기 전에** 본다. (2026-09-21)
+         *
+         * 전에는 보지 않아서, 여행 중이거나 끝난 여행에서도 시트가 열리고
+         * 위임 대상까지 고른 뒤에야 서버가 TRIP_NOT_LEAVABLE 로 거절했다.
+         * 사용자는 "나가지 못했어요" 만 보고 왜인지 알 수 없었다.
+         *
+         * ⚠️ 판정은 화면 여덟 곳이 이미 쓰는 isTripBeforeDeparture() 다.
+         *    여기서 `status === 'PLANNING'` 이라고 다시 적지 않는다 —
+         *    그렇게 적은 곳마다 CANCEL_PENDING 이 빠졌다. (CLAUDE.md §7)
+         *    SQL 쪽 짝은 is_trip_leavable_status() 다. (migration 20260921000011)
+         */
+        if (!isTripBeforeDeparture(trip.status)) {
+          // finally 가 setLoading(false) 를 한다
+          setError('이미 출발했거나 끝난 여행은 나갈 수 없어요.');
+          return;
+        }
 
         /**
          * ⚠️ 예산·거래·카테고리를 더 읽지 않는다. 취소 자금 스냅샷을 만들 때만
@@ -319,8 +338,21 @@ export function useLeaveTrip(options: Options = {}) {
               : { variant: 'left', alsoLeftGroup: alsoLeave },
         );
         onLeft?.();
-      } catch {
-        setError('나가지 못했어요. 잠시 후 다시 시도해 주세요.');
+      } catch (e) {
+        /*
+          ⚠️ 위에서 막아도 여기서 또 난다. 시트를 열어 둔 사이 출발일이 지나거나
+             다른 기기에서 상태가 바뀔 수 있다. 서버가 마지막 판정이다.
+             진입에서 막힐 때와 같은 문장을 쓴다 — 다르면 다른 문제로 읽힌다.
+        */
+        const notLeavable =
+          typeof (e as { message?: unknown })?.message === 'string' &&
+          (e as { message: string }).message.includes('TRIP_NOT_LEAVABLE');
+
+        setError(
+          notLeavable
+            ? '이미 출발했거나 끝난 여행은 나갈 수 없어요.'
+            : '나가지 못했어요. 잠시 후 다시 시도해 주세요.',
+        );
         setBusy(false);
       }
     },
