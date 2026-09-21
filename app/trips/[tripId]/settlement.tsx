@@ -46,12 +46,13 @@ import {
 } from "@/components/settlement";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
-import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
+import { BottomSheet, Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { track } from "@/lib/analytics/track";
 import {
+  CATEGORY_CODE_LABEL,
   SETTLEMENT_TRIGGER,
   FUND_SOURCE_TYPE,
   TRIP_STATUS,
@@ -78,6 +79,7 @@ import {
   toReportCategories,
 } from "@/lib/settlement/report";
 import { buildSettlementReportHtml } from "@/lib/settlement/reportHtml";
+import { won } from "@/lib/settlement/format";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
   getFundTotals,
@@ -279,6 +281,17 @@ export default function ScreenSETTLE01() {
   //
   // 한 버튼에서 둘 중 하나를 고른다. 카드(이미지) / 명세서(PDF).
   // 쓰임이 달라서 한 버튼에 묶지 않는다.
+  /*
+    지출이 연결되지 않은 계획 목록 시트.
+
+    ⚠️ 예전에는 이 줄을 누르면 **첫 번째 계획의 카테고리**로 곧장 갔다.
+       "15건" 이라고 적어 놓고 그중 하나가 여행자보험이면 여행자보험 예산으로
+       튀었다. 나머지 14건이 어디 있는지 알 길이 없고, 15건의 기준도 화면
+       어디에도 없었다. 입출금 내역에서 찾아본 사람도 있었는데 이건 거래가
+       아니라 **계획** 이라 거기에는 원래 없다. (2026-09-21 테스트)
+       그래서 세는 것과 보여 주는 것을 같게 맞춘다 — 목록을 그대로 편다.
+  */
+  const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState<"card" | "pdf" | null>(null);
   const cardRef = useRef<ViewShot>(null);
@@ -709,11 +722,7 @@ export default function ScreenSETTLE01() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`지출이 연결되지 않은 계획 ${checklist.unlinkedPlans.length}건 보기`}
-              onPress={() =>
-                router.push(
-                  `/trips/${data.trip.id}/budget/${checklist.unlinkedPlans[0].categoryId}`,
-                )
-              }
+              onPress={() => setUnlinkedOpen(true)}
               className="flex-row items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"
             >
               <Text style={{ fontSize: 20 }}>📄</Text>
@@ -730,7 +739,7 @@ export default function ScreenSETTLE01() {
                   {checklist.unlinkedPlans.length > 1
                     ? ` 외 ${checklist.unlinkedPlans.length - 1}건`
                     : ""}
-                  {" · 결제하지 않았다면 그대로 두어도 괜찮아요."}
+                  {" · 눌러서 전체를 볼 수 있어요. 결제하지 않았다면 그대로 두어도 괜찮아요."}
                 </Text>
               </View>
               <Text className="text-base text-gray-300">›</Text>
@@ -822,6 +831,61 @@ export default function ScreenSETTLE01() {
         </View>
       )}
     </ScrollView>
+
+      {/*
+        ── 지출이 연결되지 않은 계획 ──
+
+        ⚠️ 세는 값과 보여 주는 값을 하나로 둔다. 윗줄의 N 이 이 목록의 길이다.
+           카테고리 이름을 함께 적는다 — 계획 이름만으로는 '이게 어느 예산의
+           계획인가' 에 답할 수 없어서, 눌렀을 때 엉뚱한 예산으로 간 것처럼
+           읽혔다. (2026-09-21 테스트)
+      */}
+      <BottomSheet
+        visible={unlinkedOpen}
+        title={`지출이 연결되지 않은 계획 ${checklist.unlinkedPlans.length}건`}
+        description="계획은 세웠는데 실제 지출이 아직 붙지 않은 항목이에요. 결제하지 않았다면 그대로 두어도 괜찮아요."
+        onClose={() => setUnlinkedOpen(false)}
+      >
+        <View style={{ paddingTop: 12, gap: 8 }}>
+          {checklist.unlinkedPlans.map((plan) => {
+            const code = categoryCodeById.get(plan.categoryId) ?? null;
+            return (
+              <Pressable
+                key={plan.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${plan.name} 계획이 있는 예산으로 가기`}
+                onPress={() => {
+                  setUnlinkedOpen(false);
+                  router.push(
+                    `/trips/${data.trip.id}/budget/${plan.categoryId}`,
+                  );
+                }}
+                className="flex-row items-center active:bg-gray-50"
+                style={{
+                  gap: 10,
+                  paddingHorizontal: 13,
+                  paddingVertical: 12,
+                  borderWidth: 1,
+                  borderColor: "#e2e6eb",
+                  borderRadius: 12,
+                  backgroundColor: "#fff",
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text className="text-sm font-semibold text-gray-900">
+                    {plan.name}
+                  </Text>
+                  <Text className="mt-1 text-xs text-gray-500">
+                    {code ? `${CATEGORY_CODE_LABEL[code]} · ` : ""}
+                    계획 {won(plan.expectedAmount)}
+                  </Text>
+                </View>
+                <Text className="text-base text-gray-300">›</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </BottomSheet>
 
       {report ? (
         <ShareReportSheet

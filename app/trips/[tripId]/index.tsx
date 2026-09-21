@@ -100,6 +100,7 @@ import {
   countPlanItems,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import { raisedTotal } from "@/lib/fund/fundTotals";
 import { getGroupById, getGroupMembers } from "@/lib/supabase/queries/groups";
 import {
   getFundReadyAt,
@@ -1309,11 +1310,18 @@ export default function ScreenTripHome() {
      *    여행의 스냅샷이 **0원으로 굳는다.** 취소 화면이 "직접 입력한 여행자금
      *    0원" 이라고 말했다. (2026-09-13 시뮬레이터에서 확인)
      *
+     * ⚠️ 반대로 둘 중 하나만 고르지도 않는다. 예전에는 입금이 하나라도 있으면
+     *    등록금액을 버렸다. 등록 80만 · 입금 200만 인 여행에서 홈은 200만,
+     *    자금 화면은 280만을 띄웠다. (2026-09-21 테스트) 둘을 더한다.
+     *    식은 lib/fund/fundTotals.ts 한 곳에만 둔다.
+     *
      * ⚠️ raisedAmount 를 그대로 쓰지 못한다. 그건 이 함수보다 아래에서
      *    만들어지는데 cancelSnapshot 이 렌더 도중 이 함수를 부른다.
      */
-    const savedTotal =
-      data.depositTotal > 0 ? data.depositTotal : (fund?.current_amount ?? 0);
+    const savedTotal = raisedTotal({
+      registeredAmount: fund?.current_amount ?? 0,
+      depositTotal: data.depositTotal,
+    });
     const remaining = cancelRemainingAmount({
       fundKind,
       currentBalance: fund?.current_amount ?? 0,
@@ -1578,9 +1586,10 @@ export default function ScreenTripHome() {
       //    들어와서(POL-CXL-012) 그대로 두면 취소된 여행의 숫자가 혼자 움직인다.
       //    위 취소 시점 기록과 아래 티켓이 다른 말을 하면 안 된다. (POL-CXL-011)
       cancelSnapshot.total_saved
-    : data.depositTotal > 0
-      ? data.depositTotal
-      : (fund?.current_amount ?? 0);
+    : raisedTotal({
+        registeredAmount: fund?.current_amount ?? 0,
+        depositTotal: data.depositTotal,
+      });
   const actualTotal = isCanceled
     ? cancelSnapshot.actual_spent
     : data.categories.reduce((sum, c) => sum + c.actual_amount, 0);
@@ -2497,6 +2506,8 @@ export default function ScreenTripHome() {
             onPressGroup={() => router.push(`/trips/${trip.id}/edit`)}
             dDay={dDay}
             raisedAmount={raisedAmount}
+            /* 모은 금액과 쓴 금액을 함께 낸다. 모은 금액은 결제로 줄지 않는다 */
+            spentAmount={actualTotal}
             targetAmount={targetAmount}
             progress={progress}
             /* 금액 영역 전체가 FUND-01 로 가는 하나의 버튼이다 (시안 v4) */

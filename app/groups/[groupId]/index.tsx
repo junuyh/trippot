@@ -106,6 +106,17 @@ export default function ScreenGROUP02() {
 
   /** 나간 여행 카드를 눌렀을 때 띄우는 안내. 이동하지 않는다. */
   const [leftNoticeOpen, setLeftNoticeOpen] = useState(false);
+  /*
+    이 모임의 여행이지만 내가 그 여행의 참가자가 아닐 때 띄우는 안내.
+
+    ⚠️ 모임 멤버라고 모든 여행에 들어갈 수 있는 것은 아니다. (2026-09-09 확정)
+       group_members = 모임 여행을 **볼** 권한, trip_members = 그 여행을 **고칠**
+       권한이다. 여행 상세에는 수정 진입점이 여럿인데 참가자 검사가 없어서,
+       비참가자를 들여보내면 남의 여행을 고칠 수 있게 된다.
+    ⚠️ 정책은 그대로 두고 **말만 붙인다.** 지금까지는 카드가 아예 안 눌려서
+       "모임에서 여행 홈 진입이 안 된다" 는 고장으로 읽혔다. (2026-09-21 테스트)
+  */
+  const [notParticipantNoticeOpen, setNotParticipantNoticeOpen] = useState(false);
 
   // ── 모임 이름 수정 ─────────────────────────────────────────────────────
   // 헤더 연필 → GroupRenameModal(기존) → updateGroup(기존). 새 UI 를 만들지 않는다.
@@ -504,6 +515,8 @@ export default function ScreenGROUP02() {
         onPressLeaveTrip={(trip) => void leave.open(trip.tripId, userId)}
         // 나간 여행은 열 수 없다(확정 정책). "눌렀는데 아무 일도 없음" 대신 이유를 알린다.
         onPressLeftTrip={() => setLeftNoticeOpen(true)}
+        // 참가자가 아닌 여행도 마찬가지다. 조용히 죽어 있지 않게 한다.
+        onPressNonParticipantTrip={() => setNotParticipantNoticeOpen(true)}
       />
 
       {/*
@@ -521,6 +534,18 @@ export default function ScreenGROUP02() {
         busy={false}
         onCancel={() => setLeftNoticeOpen(false)}
         onConfirm={() => setLeftNoticeOpen(false)}
+      />
+
+      {/* 참가자가 아닌 여행 안내. 들어갈 수 없는 이유와 들어가는 방법을 함께 적는다. */}
+      <ConfirmModal
+        visible={notParticipantNoticeOpen}
+        title="아직 참여하지 않은 여행이에요"
+        description="모임 여행이라 정보는 보이지만, 여행 홈은 참여한 사람만 열 수 있어요. 여행장에게 초대를 받으면 들어갈 수 있어요."
+        confirmLabel="확인"
+        hideCancel
+        busy={false}
+        onCancel={() => setNotParticipantNoticeOpen(false)}
+        onConfirm={() => setNotParticipantNoticeOpen(false)}
       />
 
       {/* 메인에서 계좌를 누르면 열린다. 여행이 하나뿐이어도 거친다. */}

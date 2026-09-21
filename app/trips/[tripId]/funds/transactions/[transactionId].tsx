@@ -133,11 +133,23 @@ export default function ScreenFUND03() {
       }
 
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, planItems, accounts] = await Promise.all([
+      const [categories, accounts] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
-        budget ? getBudgetPlanItems(budget.id) : Promise.resolve([]),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
       ]);
+
+      /*
+        ⚠️ 세부 계획은 **카테고리마다** 읽는다. getBudgetPlanItems 가 거르는 칸은
+           budget_category_id 다. 여기서 budget.id 를 넘기고 있어서 결과가 늘
+           0건이었고, 계획이 있어도 연결 시트에 "아직 세부 계획이 없어요" 가 떴다.
+           거래를 계획에 붙이는 길 자체가 막혀 있었다. (2026-09-21 테스트)
+           FUND-01 목록(transactions/index.tsx)이 읽는 방식과 같게 맞춘다.
+      */
+      const planItems = (
+        await Promise.all(
+          categories.map((category) => getBudgetPlanItems(category.id)),
+        )
+      ).flat();
 
       setData({
         trip,

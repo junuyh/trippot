@@ -53,6 +53,7 @@ import {
   ErrorState,
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
+import { currentBalance, raisedTotal } from "@/lib/fund/fundTotals";
 import { SCREENS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -473,10 +474,18 @@ export default function ScreenFUND01() {
   /**
    * 누적 모금액 = 등록 금액 + 입금 합계. (IA v2 §2-4-1)
    * 결제로 줄지 않는다. 잘못 넣은 입금을 지우면 그때 다시 계산된다.
+   *
+   * ⚠️ 식을 여기 쓰지 않는다. 여행 홈이 다른 식을 쓰고 있어서 같은 여행의
+   *    금액이 두 화면에서 달랐다. lib/fund/fundTotals.ts 한 곳만 본다.
    */
-  const raisedAmount = (data.fund?.current_amount ?? 0) + data.depositTotal;
+  const fundTotals = {
+    registeredAmount: data.fund?.current_amount ?? 0,
+    depositTotal: data.depositTotal,
+    withdrawalTotal: data.withdrawalTotal,
+  };
+  const raisedAmount = raisedTotal(fundTotals);
   /** 현재 잔액 = 누적 모금액 − 출금 합계 */
-  const balance = Math.max(0, raisedAmount - data.withdrawalTotal);
+  const balance = Math.max(0, currentBalance(fundTotals));
   const targetAmount = data.budget?.target_amount ?? 0;
   const connected =
     data.fund?.source_type === FUND_SOURCE_TYPE.MOCK ||

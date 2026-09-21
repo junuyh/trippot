@@ -143,6 +143,25 @@ export function FundSummaryCard({
         </View>
       </View>
 
+      {/*
+        ⚠️ 목표 여행비를 적는다. 이 화면에 목표가 없어서 '앞으로 필요한 금액'
+           이 어떤 숫자에서 나왔는지 알 수 없었다. (2026-09-21 테스트)
+           계산식을 그대로 적어 세 숫자가 서로 어떻게 이어지는지 보이게 한다.
+      */}
+      {targetAmount > 0 ? (
+        <Text
+          style={{
+            paddingHorizontal: 18,
+            paddingBottom: 13,
+            marginTop: -4,
+            fontSize: 10,
+            color: "#949daa",
+          }}
+        >
+          목표 여행비 {won(targetAmount)} − 누적 입금 {won(raisedAmount)}
+        </Text>
+      ) : null}
+
       <View
         style={{
           flexDirection: "row",

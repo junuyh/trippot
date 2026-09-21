@@ -64,6 +64,15 @@ type Props = {
    * 눌러도 아무 일이 없는 카드를 두지 않기 위해서다. (2026-09-12)
    */
   onPressLeftTrip: (trip: MyTripItem) => void;
+  /**
+   * 이 모임의 여행이지만 **내가 그 여행의 참가자가 아닐 때.**
+   *
+   * ⚠️ 예전에는 onPress 에 null 을 넘겨 카드를 죽여 뒀다. 눌러도 아무 일이
+   *    없으니 화면이 고장 난 것처럼 보였다 — 테스트에서 "모임에서 여행 홈으로
+   *    진입이 안 된다" 로 올라온 것이 이것이다. (2026-09-21)
+   *    들여보내지 않는 정책(2026-09-09)은 그대로 두고 이유만 알려 준다.
+   */
+  onPressNonParticipantTrip: (trip: MyTripItem) => void;
 };
 
 /** 섹션 제목 + 본문. 상세 화면의 블록이 전부 같은 리듬을 갖게 한다. */
@@ -172,6 +181,7 @@ export function GroupDetailView({
   onPressAllAccounts,
   onPressLeaveTrip,
   onPressLeftTrip,
+  onPressNonParticipantTrip,
 }: Props) {
   // 이 화면은 (tabs) 밖 Stack 화면이라 FloatingTabBar 가 없다.
   // 대신 홈 인디케이터 자리는 직접 비켜 준다.
@@ -342,11 +352,12 @@ export function GroupDetailView({
                 미참여(participant 아님)는 접근 범위가 미확정이라 그대로 둔다 — 눌리지 않는다.
                 취소된 여행은 MY-02 와 같이 그대로 연다 — 복구·72시간 처리는 다른 담당.
               */
+              // 셋 다 누를 수 있다. 들어갈 수 없는 두 경우는 이유를 알려 준다.
               const onPress = trip.left
                 ? () => onPressLeftTrip(trip)
                 : participant
                   ? onPressTrip
-                  : null;
+                  : () => onPressNonParticipantTrip(trip);
 
               const card = (
                 <MyTripCard trip={trip} onPress={onPress} showGroupName={false} />
