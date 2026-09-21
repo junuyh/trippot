@@ -108,6 +108,35 @@ export function PlanSuggestionBox({
         여행지·일정·인원을 보고, 현재 계획에 없는 항목만 추천해요.
       </Text>
 
+      {/*
+        ⚠️ **참고값이라고 못박는다.** (2026-09-21 4차)
+           추천 금액은 여행지별 실제 시세가 아니라 일정·인원으로 계산한
+           대략값이다. 도시별 숙소 카탈로그가 없어 "침사추이 3박" 같은
+           구체적인 추천을 못 한다. 그런데 화면은 금액을 딱 떨어지게 적어
+           두니 조사한 값처럼 읽힌다. 테스터가 그걸 믿고 예산을 정하면
+           우리가 틀린 값을 확정시킨 것이 된다.
+           고치는 것은 카탈로그를 갖춘 뒤의 일이고, 그전까지는 말을 맞춘다.
+      */}
+      <View
+        className="flex-row items-start"
+        style={{
+          marginTop: 9,
+          gap: 6,
+          borderRadius: 9,
+          backgroundColor: "#fffaf0",
+          paddingHorizontal: 9,
+          paddingVertical: 7,
+        }}
+      >
+        <Ionicons name="information-circle-outline" size={12} color="#b4700f" />
+        <Text
+          style={{ flex: 1, fontSize: 9, lineHeight: 14, color: "#8a6420" }}
+        >
+          금액은 일정·인원으로 계산한 참고값이에요. 실제 시세를 조회한
+          값이 아니니 확인하고 고쳐서 쓰세요.
+        </Text>
+      </View>
+
       {loading ? (
         <View style={{ paddingVertical: 34, alignItems: "center" }}>
           <ActivityIndicator color={theme.primary} />
