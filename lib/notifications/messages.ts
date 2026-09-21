@@ -105,6 +105,12 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, NotificationMessage
     title: '멤버가 여행에서 나갔어요',
     body: `${personName}님이 ${tripLabel}에서 나갔어요.`,
   }),
+  // 기존 모임의 새 여행에 자동 합류 → 본인. DB(migration 20260921000013)가 같은 문자열로 만든다.
+  // 두 번째 인자 = 모임명. 날짜 문장(" 9월 21일부터 9월 25일까지예요.")은 DB 가 일정이 있을 때만 붙인다.
+  [NOTIFICATION_TYPE.TRIP_AUTO_JOINED]: (tripLabel, groupName = '모임') => ({
+    title: '새 여행에 함께하게 됐어요',
+    body: `${groupName}의 ${tripLabel}에 함께하게 됐어요.`,
+  }),
   // OWNER_DELEGATED 는 받는 사람에 따라 문구가 갈린다.
   // 아래는 **새 여행장용**. 나머지 멤버용은 DB 함수에만 있다:
   //   제목: 여행장이 바뀌었어요

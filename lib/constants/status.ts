@@ -309,6 +309,8 @@ export const NOTIFICATION_TYPE = {
   MEMBER_LEFT: "MEMBER_LEFT",
   /** 여행장 위임 → 새 여행장 */
   OWNER_DELEGATED: "OWNER_DELEGATED",
+  /** 기존 모임으로 새 여행이 만들어져 초대 없이 자동 합류 → 합류당한 본인 (2026-09-21 · migration 20260921000013) */
+  TRIP_AUTO_JOINED: "TRIP_AUTO_JOINED",
 
   // ── 여행 취소 (CXL) ──────────────────────────────────────────────────
   /** 취소 요청 발생 → 동의 대상 전원 */

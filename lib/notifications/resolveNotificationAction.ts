@@ -142,6 +142,9 @@ export async function resolveNotificationAction(
         return await resolveJoinRequested(notification);
       case NOTIFICATION_TYPE.JOIN_ACCEPTED:
         return await resolveJoinAccepted(notification, currentUserId);
+      case NOTIFICATION_TYPE.TRIP_AUTO_JOINED:
+        // 자동 합류도 결과는 '참여 중' 이다. 그새 나갔으면 LEFT 정책 그대로. (2026-09-21)
+        return await resolveJoinAccepted(notification, currentUserId);
       case NOTIFICATION_TYPE.JOIN_REJECTED:
         // 거절 사유는 노출하지 않는다. (POL-INV-051) 갈 곳도 없다.
         return { statusLabel: '거절됨', cta: null };
