@@ -15,6 +15,7 @@ import {
   TRIP_OWNER_TYPE,
 } from "@/lib/constants/status";
 import { supabase } from "@/lib/supabase/client";
+import { createUuidV4 } from "@/lib/uuid";
 import type { Tables, TablesInsert, TablesUpdate } from "@/types/database";
 
 export type FundSource = Tables<"fund_sources">;
@@ -163,13 +164,26 @@ export async function updateTravelFund(
 export async function convertToAccount(
   tripId: string,
   financialAccountId: string,
+  /**
+   * 계좌 잔액을 이미 아는 경우 넘긴다. 그러면 계좌를 다시 읽지 않는다.
+   *
+   * ⚠️ **개인 여행에서는 읽을 수가 없다.** financial_accounts 의 SELECT
+   *    정책은 "모임원이거나, 그 계좌를 가리키는 fund_source 가 있을 것" 이다.
+   *    방금 만든 개인 여행 계좌는 group_id 가 없고 아직 연결 전이라 둘 다
+   *    아니라서, 이 조회가 0건을 내고 연결이 통째로 실패했다. (2026-09-21 4차)
+   */
+  knownBalance?: number,
 ): Promise<FundSource> {
-  const { data: account, error: accountError } = await supabase
-    .from("financial_accounts")
-    .select("current_balance")
-    .eq("id", financialAccountId)
-    .single();
-  if (accountError) throw accountError;
+  let balance = knownBalance;
+  if (balance === undefined) {
+    const { data: account, error: accountError } = await supabase
+      .from("financial_accounts")
+      .select("current_balance")
+      .eq("id", financialAccountId)
+      .single();
+    if (accountError) throw accountError;
+    balance = account.current_balance;
+  }
 
   /**
    * ⚠️ 수기로 넣은 입금 거래를 **함께 지운다.**
@@ -189,18 +203,84 @@ export async function convertToAccount(
     .update({ deleted_at: new Date().toISOString() })
     .eq("trip_id", tripId)
     .eq("transaction_type", TRANSACTION_TYPE.DEPOSIT)
-    .eq("source_type", TRANSACTION_SOURCE_TYPE.MANUAL)
+    /*
+      ⚠️ source_type 을 가리지 않는다. (2026-09-21 3차) 예전에는 MANUAL 만
+         지웠는데, 이제 계좌 연결도 입금 거래를 하나 남긴다. 계좌를 바꿔 다시
+         연결하면 옛 잔액이 그대로 남아 두 배가 된다.
+    */
     .is("deleted_at", null);
   if (purgeError) throw purgeError;
+
+  /*
+    ⚠️ 계좌 잔액을 **입금 거래 한 건으로 남긴다.** (2026-09-21 3차)
+
+       예전에는 fund_sources.current_amount 에만 넣었다. 그래서 누적 모금액에는
+       잡히는데 입출금 내역에는 아무것도 없었다. "84,000원이 어디서 왔는지
+       내역에 없다" 가 이것이다. 합계와 목록이 서로 다른 말을 하면 안 된다.
+
+    ⚠️ current_amount 는 0 으로 둔다. 둘 다 채우면 같은 돈이 두 번 잡힌다.
+       누적 모금액 = current_amount + 입금 합계 이기 때문이다.
+
+    ⚠️ 거래일은 **계좌를 연결한 날**이다. 그 날 그만큼을 확보한 것이 맞다.
+  */
+  await createInitialFundDeposit({
+    tripId,
+    amount: balance,
+    sourceType: TRANSACTION_SOURCE_TYPE.MOCK,
+    financialAccountId,
+  });
 
   // ⚠️ 더하지 않는다. 대체한다. (CLAUDE.md 3장 — 단일 소스)
   return updateTravelFund(tripId, {
     source_type: FUND_SOURCE_TYPE.ACCOUNT,
-    current_amount: account.current_balance,
+    current_amount: 0,
     financial_account_id: financialAccountId,
     switched_from_manual_at: new Date().toISOString(),
     last_synced_at: new Date().toISOString(),
   });
+}
+
+/** 입출금 내역에 찍히는 초기 자본의 이름. 여기 하나만 고치면 화면이 따라온다 */
+export const INITIAL_FUND_NAME = "초기 자본";
+
+/**
+ * 여행을 시작할 때 확보한 돈을 **입금 거래 한 건**으로 남긴다.
+ *
+ * ⚠️ 왜 거래로 남기나 (2026-09-21 3차 테스트)
+ *    여행을 만들 때 적은 모음 금액과 연결 계좌 잔액이 fund_sources 에만
+ *    들어가 있어서, 누적 모금액에는 더해지는데 입출금 내역에는 없었다.
+ *    화면이 임시로 한 줄 그려 넣는 방식도 써 봤지만 그 줄은 고칠 수도
+ *    지울 수도 없고 모든 필터에 늘 따라붙었다. 진짜 거래로 남긴다.
+ *
+ * ⚠️ 부르는 쪽이 fund_sources.current_amount 를 0 으로 둬야 한다.
+ *    둘 다 채우면 같은 돈이 두 번 잡힌다.
+ *
+ * ⚠️ 0원 이하면 아무것도 만들지 않는다. 0원짜리 입금은 기록이 아니라 잡음이다.
+ */
+export async function createInitialFundDeposit(input: {
+  tripId: string;
+  amount: number;
+  /** 여행 생성은 MANUAL, 계좌 연결은 MOCK */
+  sourceType: string;
+  financialAccountId?: string | null;
+  /** 이 돈을 적은 사람. 계좌에서 온 것이면 넘기지 않는다 */
+  createdByUserId?: string | null;
+  /** 거래일. 없으면 지금 */
+  occurredAt?: string;
+}): Promise<void> {
+  if (input.amount <= 0) return;
+
+  const { error } = await supabase.from("transactions").insert({
+    trip_id: input.tripId,
+    financial_account_id: input.financialAccountId ?? null,
+    source_type: input.sourceType,
+    transaction_type: TRANSACTION_TYPE.DEPOSIT,
+    occurred_at: input.occurredAt ?? new Date().toISOString(),
+    name: INITIAL_FUND_NAME,
+    amount: input.amount,
+    created_by_user_id: input.createdByUserId ?? null,
+  });
+  if (error) throw error;
 }
 
 /**
@@ -240,6 +320,45 @@ export const MOCK_BANK = {
   balance: 4_800_000,
 } as const;
 
+export type MockBank = {
+  institutionCode: string;
+  accountName: string;
+  maskedAccountNumber: string;
+  balance: number;
+};
+
+/**
+ * 테스트 빌드에서 보여 주는 가상 계좌.
+ *
+ * ⚠️ 테스터가 계좌 연동을 눌러 볼 수 있어야 시연이 끝까지 돈다. 은행이 하나
+ *    뿐이면 "계좌를 고른다" 는 경험이 안 나온다. 카카오뱅크·토스뱅크 각
+ *    100만원으로 둘을 둔다. (2026-09-21 테스트)
+ *
+ * ⚠️ 가입 시점에 만들지 않는다. financial_accounts 는 group_id 로 잠겨 있어
+ *    (financial_accounts_select) 모임 없이 만든 행은 본인도 못 읽는다.
+ *    연결 화면에서 그 모임 것으로 만든다 — 테스터 눈에는 이미 있던 계좌를
+ *    조회한 것과 같다.
+ */
+export const TEST_BUILD_BANKS: readonly MockBank[] = [
+  {
+    institutionCode: "090",
+    accountName: "테스트 입출금통장",
+    maskedAccountNumber: "3333-**-1000100",
+    balance: 1_000_000,
+  },
+  {
+    institutionCode: "092",
+    accountName: "테스트 모임통장",
+    maskedAccountNumber: "1000-**-2000200",
+    balance: 1_000_000,
+  },
+] as const;
+
+/** 연결 화면에 낼 계좌 목록. 테스트 빌드면 둘, 아니면 기존 하나. */
+export function mockBanksForBuild(isTestBuild: boolean): readonly MockBank[] {
+  return isTestBuild ? TEST_BUILD_BANKS : [MOCK_BANK];
+}
+
 /** 연결과 함께 따라 들어오는 기존 결제. 항공권은 보통 가장 먼저 결제한다 */
 const MOCK_IMPORTED_SPEND = {
   name: "대한항공",
@@ -264,37 +383,53 @@ export type MockConnectResult = {
 export async function connectMockAccount(
   tripId: string,
   groupId: string | null,
+  /** 어느 계좌를 붙일지. 안 넘기면 기존 한 개짜리 시연 계좌다 */
+  bank: MockBank = MOCK_BANK,
 ): Promise<MockConnectResult> {
   // ── 계좌 (있으면 재사용) ────────────────────────────────────────────────
   let accountId: string | null = null;
-  const { data: existing, error: findError } = await supabase
+  let find = supabase
     .from("financial_accounts")
     .select("id")
-    .eq("masked_account_number", MOCK_BANK.maskedAccountNumber)
-    .eq("institution_code", MOCK_BANK.institutionCode)
-    .limit(1);
+    .eq("masked_account_number", bank.maskedAccountNumber)
+    .eq("institution_code", bank.institutionCode);
+  /*
+    ⚠️ 같은 모임 안에서만 찾는다. 예전에는 계좌번호만 보고 찾아서, 다른 모임이
+       먼저 만든 같은 번호의 시연 계좌를 집어 올 수 있었다. 그 계좌는
+       financial_accounts_select 가 막아 목록에서 보이지도 않는다.
+  */
+  find = groupId ? find.eq("group_id", groupId) : find.is("group_id", null);
+  const { data: existing, error: findError } = await find.limit(1);
   if (findError) throw findError;
   accountId = existing?.[0]?.id ?? null;
 
   if (!accountId) {
-    const { data: created, error: createError } = await supabase
+    /*
+      ⚠️ id 를 **앱에서 만들어 넣는다.** `.select("id")` 로 돌려받지 않는다.
+         insert 는 통과해도 돌려받는 건 SELECT 정책을 탄다. 개인 여행 계좌는
+         group_id 가 없고 아직 fund_source 도 안 붙어 있어 그 정책에 걸린다.
+         넣기는 됐는데 읽지 못해 연결이 실패했다. (2026-09-21 4차)
+         모임 여행은 모임원이라 보였기 때문에 지금까지 드러나지 않았다.
+    */
+    const newId = createUuidV4();
+    const { error: createError } = await supabase
       .from("financial_accounts")
       .insert({
+        id: newId,
         group_id: groupId,
-        institution_code: MOCK_BANK.institutionCode,
-        masked_account_number: MOCK_BANK.maskedAccountNumber,
-        current_balance: MOCK_BANK.balance,
+        institution_code: bank.institutionCode,
+        masked_account_number: bank.maskedAccountNumber,
+        current_balance: bank.balance,
         is_mock: true,
         connected_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+      });
     if (createError) throw createError;
-    accountId = created.id;
+    accountId = newId;
   }
 
   // ── 연결 ────────────────────────────────────────────────────────────────
-  const fund = await convertToAccount(tripId, accountId);
+  // 잔액은 이미 안다. 같은 이유로 계좌를 다시 읽지 않는다.
+  const fund = await convertToAccount(tripId, accountId, bank.balance);
 
   // ── 계좌에 있던 결제 1건을 가져온다 ────────────────────────────────────
   //    ⚠️ 이미 가져왔으면 다시 넣지 않는다. 연결을 두 번 해도 중복되면 안 된다.

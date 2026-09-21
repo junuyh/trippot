@@ -18,7 +18,7 @@
 //    전부 화면 파일이 한다. 글꼴·크기·선택은 캡처 한 장에만 쓰는 값이라 여기서 든다.
 // ============================================================================
 import { Ionicons } from '@expo/vector-icons';
-import { forwardRef, useCallback, useState, type ComponentProps } from 'react';
+import { forwardRef, useCallback, useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -89,12 +89,41 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
   const [membersScale, setMembersScale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
 
-  const isTitle = selected === STORY_TEXT.TITLE;
+  /*
+    ⚠️ 글꼴·크기 패널을 **항상 띄운다.** (2026-09-21 테스트)
+
+       예전에는 카드 위 글자를 먼저 눌러야(selected) 패널이 나왔다. 그래서
+       시트를 열자마자 글꼴을 고를 수 없었고, "폰트가 바로 적용되지 않는다 ·
+       도시명이나 사람 이름을 꼭 먼저 선택해야만 된다" 로 올라왔다.
+       무엇을 꾸미는 중인지는 아래 칩으로 직접 고를 수 있게 한다.
+
+    ⚠️ selected 는 그대로 둔다. 카드 위 선택 테두리와 캡처 직전 해제에 쓰인다.
+       패널이 무엇을 바꾸는지는 target 이 정한다. 아무것도 안 골랐으면 도시명이다.
+  */
+  const target = selected ?? STORY_TEXT.TITLE;
+  const isTitle = target === STORY_TEXT.TITLE;
   const fontId = isTitle ? titleFontId : membersFontId;
   const setFontId = isTitle ? setTitleFontId : setMembersFontId;
   const scale = isTitle ? titleScale : membersScale;
   const setScale = isTitle ? setTitleScale : setMembersScale;
   const selectedFont = storyFont(fontId);
+  /*
+    ⚠️ '함께 간 사람' 에서는 **한글 글꼴을 앞으로 당긴다.** (2026-09-21 4차)
+       "도시명은 바뀌는데 함께 간 사람은 잘 안 된다" 가 올라왔다. 코드는
+       멀쩡했다 — 목록 앞쪽이 전부 영문 전용 글꼴이고 이름은 한글이라,
+       눌러도 화면이 그대로였던 것이다. 도시명은 TAIPEI 라 바로 바뀐다.
+       고장이 아니라 **고를 수 없는 것을 먼저 보여 준 것**이 문제였다.
+       영문 이름을 쓰는 사람도 있으니 지우지는 않고 뒤로 보내고 흐리게 둔다.
+  */
+  const fontChoices = useMemo(
+    () =>
+      isTitle
+        ? STORY_FONTS
+        : [...STORY_FONTS].sort(
+            (a, b) => Number(b.hangul) - Number(a.hangul),
+          ),
+    [isTitle],
+  );
 
   const handleShare = useCallback(() => {
     // 선택 테두리·커서를 지운 다음 프레임에 캡처한다
@@ -146,13 +175,40 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
           </View>
         </GestureHandlerRootView>
 
-        {/* ── 선택한 텍스트의 글꼴·크기 ────────────────────────────── */}
-        {selected ? (
-          <View className="w-full gap-3 rounded-2xl bg-gray-50 p-3">
+        {/* ── 글꼴·크기. 카드를 누르지 않아도 바로 쓸 수 있다 ──────────── */}
+        <View className="w-full gap-3 rounded-2xl bg-gray-50 p-3">
             <View className="flex-row items-center justify-between">
-              <Text className="text-[13px] font-bold text-gray-900">
-                {isTitle ? '도시명' : '함께 간 사람'}
-              </Text>
+              {/* 무엇을 꾸미는 중인지 직접 고른다. 카드를 누르는 것과 같은 효과 */}
+              <View className="flex-row gap-1.5">
+                {[
+                  { key: STORY_TEXT.TITLE, label: '도시명' },
+                  { key: STORY_TEXT.MEMBERS, label: '함께 간 사람' },
+                ].map((tab) => {
+                  const on = target === tab.key;
+                  return (
+                    <Pressable
+                      key={tab.label}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`${tab.label} 꾸미기`}
+                      onPress={() => setSelected(tab.key)}
+                      className="rounded-full px-3 py-1.5"
+                      style={{
+                        borderWidth: 1,
+                        borderColor: on ? theme.primary : '#e5e7eb',
+                        backgroundColor: on ? theme.primarySoft : '#fff',
+                      }}
+                    >
+                      <Text
+                        className="text-[11px] font-bold"
+                        style={{ color: on ? theme.primary : '#6b7280' }}
+                      >
+                        {tab.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               {!isTitle && memberPresets.length > 0 ? (
                 <View className="flex-row gap-1.5">
                   {memberPresets.map((preset) => (
@@ -177,7 +233,7 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
               contentContainerClassName="gap-2"
               className="-mx-3 px-3"
             >
-              {STORY_FONTS.map((font) => {
+              {fontChoices.map((font) => {
                 const active = font.id === fontId;
                 return (
                   <Pressable
@@ -190,6 +246,8 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
                     style={{
                       borderColor: active ? theme.primary : '#e5e7eb',
                       backgroundColor: active ? theme.primarySoft : '#fff',
+                      // 한글 이름에 안 먹는 글꼴은 흐리게. 고를 수는 있다 (영문 이름도 쓴다)
+                      opacity: !isTitle && !font.hangul ? 0.5 : 1,
                     }}
                   >
                     <Text
@@ -202,7 +260,7 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
                       }}
                       numberOfLines={1}
                     >
-                      {font.hangul ? '가Aa' : 'Aa'}
+                      {isTitle && !font.hangul ? 'Aa' : '가Aa'}
                     </Text>
                     <Text className="mt-0.5 text-[9px] text-gray-400" numberOfLines={1}>
                       {font.label}
@@ -212,8 +270,8 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
               })}
             </ScrollView>
             {!selectedFont.hangul && !isTitle ? (
-              <Text className="text-[11px] text-gray-400">
-                이 글꼴은 한글이 없어서 한글은 기본 글꼴로 나와요.
+              <Text className="text-[11px] font-bold" style={{ color: '#b4700f' }}>
+                이 글꼴에는 한글이 없어요. 이름이 한글이면 바뀐 게 안 보여요.
               </Text>
             ) : null}
 
@@ -243,7 +301,6 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
               </View>
             </View>
           </View>
-        ) : null}
 
         <View className="w-full gap-2">
           <Pressable

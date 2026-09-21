@@ -46,12 +46,13 @@ import {
 } from "@/components/settlement";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
-import { Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
+import { BottomSheet, Button, EmptyState, ErrorState, Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { track } from "@/lib/analytics/track";
 import {
+  CATEGORY_CODE_LABEL,
   SETTLEMENT_TRIGGER,
   FUND_SOURCE_TYPE,
   TRIP_STATUS,
@@ -78,6 +79,7 @@ import {
   toReportCategories,
 } from "@/lib/settlement/report";
 import { buildSettlementReportHtml } from "@/lib/settlement/reportHtml";
+import { won } from "@/lib/settlement/format";
 import { useTripContext } from '@/lib/hooks/useTripContext';
 import {
   getFundTotals,
@@ -199,10 +201,23 @@ export default function ScreenSETTLE01() {
       } | null;
       const rows = snapshot?.categories ?? [];
       if (rows.length > 0) {
+        /*
+          ⚠️ 스냅샷에는 카테고리 id 가 없다. 코드로 지금 카테고리를 찾아 잇는다.
+             (2026-09-21 2차)
+
+             예전에는 id 를 null 로 둬서 **확정된 여행은 카테고리 줄이 아예
+             안 눌렸다.** 눌러도 아무 일이 없으니 고장으로 읽혔다.
+
+          ⚠️ 화면에 그리는 **숫자는 스냅샷 그대로다.** 이어 주는 건 '그 카테고리
+             상세로 가는 길' 뿐이다. 확정 시점의 기록과 지금 예산이 다를 수
+             있는데, 그건 카테고리 상세가 알아서 지금 값을 보여 주면 된다.
+             여기 숫자를 지금 값으로 바꾸면 확정 기록이 흔들린다.
+        */
+        const idByCode = new Map(
+          data.categories.map((category) => [category.category_code, category.id]),
+        );
         return rows.map((row) => ({
-          // ⚠️ 스냅샷에는 카테고리 id 가 없다. 그래서 확정 후에는 눌리지 않는다.
-          //    지금 예산으로 이어 주면 확정 시점의 기록과 다른 화면이 열린다.
-          categoryId: null,
+          categoryId: idByCode.get(row.category_code) ?? null,
           categoryCode: row.category_code as CategoryCode,
           plannedAmount: row.planned_amount,
           actualAmount: row.actual_amount,
@@ -279,6 +294,17 @@ export default function ScreenSETTLE01() {
   //
   // 한 버튼에서 둘 중 하나를 고른다. 카드(이미지) / 명세서(PDF).
   // 쓰임이 달라서 한 버튼에 묶지 않는다.
+  /*
+    지출이 연결되지 않은 계획 목록 시트.
+
+    ⚠️ 예전에는 이 줄을 누르면 **첫 번째 계획의 카테고리**로 곧장 갔다.
+       "15건" 이라고 적어 놓고 그중 하나가 여행자보험이면 여행자보험 예산으로
+       튀었다. 나머지 14건이 어디 있는지 알 길이 없고, 15건의 기준도 화면
+       어디에도 없었다. 입출금 내역에서 찾아본 사람도 있었는데 이건 거래가
+       아니라 **계획** 이라 거기에는 원래 없다. (2026-09-21 테스트)
+       그래서 세는 것과 보여 주는 것을 같게 맞춘다 — 목록을 그대로 편다.
+  */
+  const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState<"card" | "pdf" | null>(null);
   const cardRef = useRef<ViewShot>(null);
@@ -578,6 +604,12 @@ export default function ScreenSETTLE01() {
         confirmedCount={data.funds.confirmedCount}
         /* 확인할 거래가 남아 있으면 '완료' 라고 말하지 않는다 */
         allConfirmed={checklist.reviewCount === 0}
+        /*
+          ⚠️ 확정 전에만 낸다. 확인이 끝났다는 말 바로 아래에 다음 걸음을 둔다.
+             화면 맨 아래 버튼은 그대로다 — 카테고리를 다 보고 내려온 자리다.
+        */
+        onConfirm={settled ? undefined : handleConfirmPress}
+        confirming={confirming}
       />
 
       {/*
@@ -611,7 +643,7 @@ export default function ScreenSETTLE01() {
           <Text
             accessibilityRole="button"
             onPress={() =>
-              router.push(`/trips/${data.trip.id}/funds/transactions`)
+              router.push(`/trips/${data.trip.id}/funds/transactions?from=settlement`)
             }
             className="text-xs font-semibold"
             style={{ color: theme.primary }}
@@ -625,7 +657,7 @@ export default function ScreenSETTLE01() {
             categories={comparisons}
             /* 확정 후 스냅샷에는 카테고리 id 가 없어 눌리지 않는다 */
             onSelect={(categoryId) =>
-              router.push(`/trips/${data.trip.id}/budget/${categoryId}`)
+              router.push(`/trips/${data.trip.id}/budget/${categoryId}?from=settlement`)
             }
           />
         ) : (
@@ -648,7 +680,7 @@ export default function ScreenSETTLE01() {
             accessibilityRole="button"
             onPress={() =>
               router.push(
-                `/trips/${data.trip.id}/funds/transactions?filter=spend`,
+                `/trips/${data.trip.id}/funds/transactions?filter=spend&from=settlement`,
               )
             }
             className="text-xs font-semibold"
@@ -660,8 +692,9 @@ export default function ScreenSETTLE01() {
         <MajorExpenseList
           expenses={majorExpenses}
           onSelect={(transactionId) =>
+            // 결산에서 왔다는 걸 넘긴다. 뒤로가면 결산으로 돌아와야 한다
             router.push(
-              `/trips/${data.trip.id}/funds/transactions/${transactionId}`,
+              `/trips/${data.trip.id}/funds/transactions/${transactionId}?from=settlement`,
             )
           }
         />
@@ -676,10 +709,31 @@ export default function ScreenSETTLE01() {
       */}
       {!settled &&
       (checklist.reviewCount > 0 || checklist.unlinkedPlans.length > 0) ? (
-        <View className="gap-2.5">
-          <Text className="text-base font-semibold text-gray-900">
-            확정 전에 확인해요
-          </Text>
+        /*
+          ⚠️ 눈에 띄게 둔다. (2026-09-21 테스트 — "확정 전에 확인해요가 아예
+             안 보임") 예전에는 다른 본문과 같은 회색 글씨 한 줄이라 긴 결산
+             화면을 내리는 동안 그냥 지나쳤다. 여기서 놓치면 미분류 거래가
+             그대로 결산에 들어간다. 테두리와 바탕을 줘서 한 덩어리로 세운다.
+        */
+        <View
+          className="gap-2.5"
+          style={{
+            borderWidth: 1,
+            borderColor: "#f3c9a0",
+            backgroundColor: "#fff9f2",
+            borderRadius: 14,
+            padding: 14,
+          }}
+        >
+          <View className="flex-row items-center" style={{ gap: 6 }}>
+            <Ionicons name="alert-circle" size={17} color="#c9761f" />
+            <Text
+              className="text-base font-bold"
+              style={{ color: "#8a4d10" }}
+            >
+              확정 전에 확인해요
+            </Text>
+          </View>
 
           {checklist.reviewCount > 0 ? (
             <Pressable
@@ -687,7 +741,7 @@ export default function ScreenSETTLE01() {
               accessibilityLabel={`확인할 거래 ${checklist.reviewCount}건 보기`}
               onPress={() =>
                 router.push(
-                  `/trips/${data.trip.id}/funds/transactions?filter=review`,
+                  `/trips/${data.trip.id}/funds/transactions?filter=review&from=settlement`,
                 )
               }
               className="flex-row items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"
@@ -709,11 +763,7 @@ export default function ScreenSETTLE01() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`지출이 연결되지 않은 계획 ${checklist.unlinkedPlans.length}건 보기`}
-              onPress={() =>
-                router.push(
-                  `/trips/${data.trip.id}/budget/${checklist.unlinkedPlans[0].categoryId}`,
-                )
-              }
+              onPress={() => setUnlinkedOpen(true)}
               className="flex-row items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"
             >
               <Text style={{ fontSize: 20 }}>📄</Text>
@@ -730,7 +780,7 @@ export default function ScreenSETTLE01() {
                   {checklist.unlinkedPlans.length > 1
                     ? ` 외 ${checklist.unlinkedPlans.length - 1}건`
                     : ""}
-                  {" · 결제하지 않았다면 그대로 두어도 괜찮아요."}
+                  {" · 눌러서 전체를 볼 수 있어요. 결제하지 않았다면 그대로 두어도 괜찮아요."}
                 </Text>
               </View>
               <Text className="text-base text-gray-300">›</Text>
@@ -822,6 +872,61 @@ export default function ScreenSETTLE01() {
         </View>
       )}
     </ScrollView>
+
+      {/*
+        ── 지출이 연결되지 않은 계획 ──
+
+        ⚠️ 세는 값과 보여 주는 값을 하나로 둔다. 윗줄의 N 이 이 목록의 길이다.
+           카테고리 이름을 함께 적는다 — 계획 이름만으로는 '이게 어느 예산의
+           계획인가' 에 답할 수 없어서, 눌렀을 때 엉뚱한 예산으로 간 것처럼
+           읽혔다. (2026-09-21 테스트)
+      */}
+      <BottomSheet
+        visible={unlinkedOpen}
+        title={`지출이 연결되지 않은 계획 ${checklist.unlinkedPlans.length}건`}
+        description="계획은 세웠는데 실제 지출이 아직 붙지 않은 항목이에요. 결제하지 않았다면 그대로 두어도 괜찮아요."
+        onClose={() => setUnlinkedOpen(false)}
+      >
+        <View style={{ paddingTop: 12, gap: 8 }}>
+          {checklist.unlinkedPlans.map((plan) => {
+            const code = categoryCodeById.get(plan.categoryId) ?? null;
+            return (
+              <Pressable
+                key={plan.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${plan.name} 계획이 있는 예산으로 가기`}
+                onPress={() => {
+                  setUnlinkedOpen(false);
+                  router.push(
+                    `/trips/${data.trip.id}/budget/${plan.categoryId}?from=settlement`,
+                  );
+                }}
+                className="flex-row items-center active:bg-gray-50"
+                style={{
+                  gap: 10,
+                  paddingHorizontal: 13,
+                  paddingVertical: 12,
+                  borderWidth: 1,
+                  borderColor: "#e2e6eb",
+                  borderRadius: 12,
+                  backgroundColor: "#fff",
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text className="text-sm font-semibold text-gray-900">
+                    {plan.name}
+                  </Text>
+                  <Text className="mt-1 text-xs text-gray-500">
+                    {code ? `${CATEGORY_CODE_LABEL[code]} · ` : ""}
+                    계획 {won(plan.expectedAmount)}
+                  </Text>
+                </View>
+                <Text className="text-base text-gray-300">›</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </BottomSheet>
 
       {report ? (
         <ShareReportSheet

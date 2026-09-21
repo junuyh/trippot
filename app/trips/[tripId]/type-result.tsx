@@ -339,6 +339,7 @@ export default function ScreenTYPE01() {
       </Text>
 
       <View style={{ marginTop: 24 }}>
+        {/* 지금 여행의 모임을 함께 넘긴다. 여행 홈의 같은 버튼과 같은 규칙 */}
         <Button
           label="같은 멤버로 다시 여행 만들기"
           onPress={() => router.push(buildRecreateTripHref(trip.group_id))}

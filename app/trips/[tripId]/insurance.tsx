@@ -31,9 +31,9 @@
 //      insurance_cta_clicked     넘어간 사람   ← 분자
 //    SCREENS.INSURANCE 는 docs/06 을 v4 로 올리면서 추가했다. (§7-0)
 // ============================================================================
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 
 import { InsuranceDetailSheet } from '@/components/insurance/InsuranceDetailSheet';
 import { InsuranceQuoteList } from '@/components/insurance/InsuranceQuoteList';
@@ -53,8 +53,11 @@ import {
 } from '@/lib/constants/status';
 import { buildInsuranceQuote, type PartnerQuote } from '@/lib/insurance/quote';
 import {
+  createBudgetPlanItem,
   getBudgetByTripId,
   getBudgetCategories,
+  getBudgetPlanItems,
+  updateBudgetPlanItem,
 } from '@/lib/supabase/queries/budgets';
 import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
 import { useScreenView } from '@/lib/hooks/useScreenView';
@@ -81,6 +84,11 @@ type Loaded = {
   trip: Trip;
   /** 예산에 잡아 둔 여행자보험 금액. 예산이 없으면 null */
   budgetAmount: number | null;
+  /**
+   * 여행자보험 예산 카테고리 id. 견적을 예산에 반영하러 갈 곳이다.
+   * 예산을 안 짠 여행이면 null 이고, 그때는 링크를 내지 않는다.
+   */
+  insuranceCategoryId: string | null;
 };
 
 export default function ScreenINSURANCE01() {
@@ -115,6 +123,8 @@ export default function ScreenINSURANCE01() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState(false);
 
+  /** 견적을 예산 계획으로 넣는 중. 중복 제출 방지 */
+  const [applying, setApplying] = useState(false);
   const [coverage, setCoverage] = useState<InsuranceCoverage>(INSURANCE_COVERAGE.STANDARD);
   /**
    * 고른 견적의 제휴사 id.
@@ -149,20 +159,24 @@ export default function ScreenINSURANCE01() {
         비교 줄만 빠진다.
       */
       let budgetAmount: number | null = null;
+      let insuranceCategoryId: string | null = null;
       try {
         const budget = await getBudgetByTripId(tripId);
         if (budget) {
           const categories = await getBudgetCategories(budget.id);
-          budgetAmount =
-            categories.find((c) => c.category_code === CATEGORY_CODE.INSURANCE)
-              ?.planned_amount ?? null;
+          const insurance = categories.find(
+            (c) => c.category_code === CATEGORY_CODE.INSURANCE,
+          );
+          budgetAmount = insurance?.planned_amount ?? null;
+          insuranceCategoryId = insurance?.id ?? null;
         }
       } catch {
         // 예산 조회 실패로 화면을 막지 않는다. 비교 줄만 없는 채로 간다.
         budgetAmount = null;
+        insuranceCategoryId = null;
       }
 
-      setData({ trip, budgetAmount });
+      setData({ trip, budgetAmount, insuranceCategoryId });
     } catch {
       setError(true);
     } finally {
@@ -200,6 +214,58 @@ export default function ScreenINSURANCE01() {
    *
    * ⚠️ 로그를 먼저 남기고 이동한다. 이동 뒤에 남기면 이탈한 사용자가 빠진다.
    */
+  /**
+   * 고른 견적을 **보험 예산의 세부 계획으로 남긴다.**
+   *
+   * ⚠️ 왜 (2026-09-21 2차 테스트)
+   *    예전에는 보험 예산 화면으로 보내기만 했다. 거기 도착한 사람은 방금 고른
+   *    "메리츠화재 여행자보험 53,000원" 을 다시 손으로 적어야 했다. 고른 것이
+   *    기록되지 않으면 고른 의미가 없다.
+   *
+   * ⚠️ **planned_amount 를 여기서 바꾸지 않는다.** (CLAUDE.md 4장)
+   *    계획 항목만 남긴다. 설정 예산은 카테고리 화면이 계획 합계에 맞춰
+   *    다시 계산하고, 최종 확정은 사용자가 그 화면에서 한다.
+   *
+   * ⚠️ 같은 제휴사 계획이 이미 있으면 더 만들지 않는다. 견적을 몇 번 눌러도
+   *    계획이 쌓이면 안 된다.
+   */
+  const handleApplyToBudget = useCallback(
+    async (row: PartnerQuote) => {
+      if (!data?.insuranceCategoryId || applying) return;
+      setApplying(true);
+      try {
+        const name = `${row.partner.name} 여행자보험`;
+        const existing = await getBudgetPlanItems(data.insuranceCategoryId);
+        const already = existing.find((item) => item.name === name);
+
+        if (already) {
+          await updateBudgetPlanItem(already.id, {
+            expected_amount: row.totalPremium,
+          });
+        } else {
+          await createBudgetPlanItem({
+            budget_category_id: data.insuranceCategoryId,
+            name,
+            expected_amount: row.totalPremium,
+            sort_order: existing.length + 1,
+          });
+        }
+
+        router.push(
+          `/trips/${tripId}/budget/${data.insuranceCategoryId}?from=insurance`,
+        );
+      } catch {
+        Alert.alert(
+          "예산에 넣지 못했어요",
+          "잠시 뒤 다시 시도해 주세요.",
+        );
+      } finally {
+        setApplying(false);
+      }
+    },
+    [applying, data?.insuranceCategoryId, tripId],
+  );
+
   const handleGoToPartner = useCallback(
     (row: PartnerQuote) => {
       track(EVENTS.INSURANCE_CTA_CLICKED, {
@@ -320,6 +386,31 @@ export default function ScreenINSURANCE01() {
         theme={theme}
         selected={selected}
         onPress={() => selected && handleGoToPartner(selected)}
+        /*
+          ⚠️ 제휴사로 가는 버튼(BM 1 의 유일한 전환 지점)은 그대로 둔다.
+             견적을 고른 사람이 다음에 하고 싶은 일이 하나 더 있다 — 그 금액을
+             자기 보험 예산에 넣는 것이다. 지금은 예산까지 스스로 찾아가야 했다.
+             (2026-09-21 테스트 — "선택한 견적을 누르면 보험 예산 항목으로
+             들어갔으면 좋겠음") 보조 링크로 붙인다.
+          ⚠️ 금액을 대신 확정하지 않는다. 예산 화면으로 보내기만 한다.
+             (CLAUDE.md 4장 — planned_amount 는 사용자 확정 행동으로만)
+        */
+        budgetHref={
+          data.insuranceCategoryId
+            ? `/trips/${tripId}/budget/${data.insuranceCategoryId}`
+            : null
+        }
+        /*
+          ⚠️ 끝난 여행에는 예산 적용을 열지 않는다. (2026-09-21 4차)
+             진입점(예산 상세의 제휴 카드)은 막았지만, 이 화면은 여행 홈
+             배너·딥링크로도 들어온다. 계획을 건드리는 쪽은 여기서 한 번 더 막는다.
+        */
+        onApplyToBudget={
+          data.insuranceCategoryId && !isTripEnded(data.trip.status)
+            ? handleApplyToBudget
+            : undefined
+        }
+        applying={applying}
       />
 
       <InsuranceDetailSheet

@@ -23,6 +23,14 @@ export type RecentFundItem = IconInput & {
   occurredAt: string;
   /** 확인이 필요한 거래인가 */
   needsReview: boolean;
+  /**
+   * 이 거래를 손으로 적은 사람의 이름. 날짜 아래에 붙는다.
+   *
+   * ⚠️ 모임 여행에서만 채운다. 개인 여행은 적은 사람이 나 하나라 이름이
+   *    줄마다 반복될 뿐이다. 계좌에서 들어온 거래와 옛 기록은 null 이다 —
+   *    모르는 것을 지어내지 않는다. (2026-09-21 테스트)
+   */
+  authorName?: string | null;
 };
 
 type Props = {
@@ -104,6 +112,7 @@ export function RecentFundList({ theme, transactions, onSelect }: Props) {
             </Text>
             <Text style={{ marginTop: 3, fontSize: 10, color: "#858e9c" }}>
               {format(parseISO(item.occurredAt), "M월 d일")}
+              {item.authorName ? ` · ${item.authorName}` : ""}
             </Text>
           </View>
 
@@ -118,16 +127,19 @@ export function RecentFundList({ theme, transactions, onSelect }: Props) {
               {amountSign(item)}
               {item.amount.toLocaleString("ko-KR")}원
             </Text>
-            <Text
-              style={{
-                marginTop: 3,
-                fontSize: 9,
-                fontWeight: "700",
-                color: item.needsReview ? "#e83d4d" : "#a3a9b3",
-              }}
-            >
-              {statusLabel(item)}
-            </Text>
+            {/* 할 일이 있는 줄에만 말이 붙는다. 아무 일 없으면 비워 둔다 */}
+            {statusLabel(item) ? (
+              <Text
+                style={{
+                  marginTop: 3,
+                  fontSize: 9,
+                  fontWeight: "700",
+                  color: item.needsReview ? "#e83d4d" : "#a3a9b3",
+                }}
+              >
+                {statusLabel(item)}
+              </Text>
+            ) : null}
           </View>
         </Pressable>
       ))}

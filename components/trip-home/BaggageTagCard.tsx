@@ -91,6 +91,14 @@ type Props = {
 
   /** 누적 모금액. 결제로 잔액이 줄어도 이 값은 줄지 않는다 */
   raisedAmount: number;
+  /**
+   * 지금까지 쓴 금액(카테고리 실제 사용액 합계).
+   *
+   * ⚠️ raisedAmount 는 **결제로 줄지 않는다.** 큰 숫자만 보면 "지출했는데
+   *    왜 그대로냐" 로 읽힌다. 쓴 금액을 한 줄 적어 두 값이 각각 무엇인지
+   *    화면에서 바로 답하게 한다. (2026-09-21 테스트)
+   */
+  spentAmount: number;
   targetAmount: number;
   /** 0~100. 비행기가 도착지를 지나치지 않게 넘겨받기 전에 잘라둔다 */
   progress: number;
@@ -135,6 +143,7 @@ export function BaggageTagCard({
   onPressGroup,
   dDay,
   raisedAmount,
+  spentAmount,
   targetAmount,
   progress,
   onPressFund,
@@ -181,6 +190,7 @@ export function BaggageTagCard({
   const percent = Math.round(Math.max(0, Math.min(100, progress)));
   const shortage = Math.max(0, targetAmount - raisedAmount);
   const raised = amount(raisedAmount);
+  const spent = amount(spentAmount);
   const goal = amount(targetAmount);
   const need = amount(shortage);
 
@@ -531,7 +541,7 @@ export function BaggageTagCard({
         */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`여행자금 현황 보기. 현재 ${raised.body}원, 목표 ${goal.body}원, ${percent}퍼센트 달성`}
+          accessibilityLabel={`여행자금 현황 보기. 모은 금액 ${raised.body}원, 쓴 금액 ${spent.body}원, 목표 ${goal.body}원, ${percent}퍼센트 달성`}
           onPress={onPressFund}
           style={{ borderRadius: 8, paddingHorizontal: 10, paddingTop: 12, paddingBottom: 13 }}
           className="active:bg-gray-50"
@@ -544,7 +554,12 @@ export function BaggageTagCard({
               color: LABEL,
             }}
           >
-            현재 여행자금
+            {/*
+              ⚠️ "현재 여행자금" 이 아니다. 이 값은 지금까지 **모은** 금액이라
+                 결제해도 줄지 않는다. 옛 라벨은 잔액으로 읽혀서, 지출한 뒤에도
+                 숫자가 그대로인 것이 고장처럼 보였다. (2026-09-21 테스트)
+            */}
+            모은 여행자금
           </Text>
           <View
             className="flex-row items-baseline justify-between"
@@ -585,6 +600,19 @@ export function BaggageTagCard({
               {percent}%
             </Text>
           </View>
+
+          {/* 쓴 금액. 위 숫자가 왜 줄지 않는지에 대한 답이다. */}
+          <Text
+            style={{
+              marginTop: 8,
+              fontSize: 10,
+              fontWeight: "700",
+              color: "#89929e",
+            }}
+          >
+            쓴 금액 {spent.body}
+            {spent.unit}
+          </Text>
 
           <View className="flex-row" style={{ marginTop: 17 }}>
             <View style={{ flex: 1, paddingRight: 12 }}>

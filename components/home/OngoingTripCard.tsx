@@ -94,7 +94,8 @@ export function OngoingTripCard({ trip, onPress }: Props) {
       <View className="flex-row items-end justify-between">
         <View>
           <Text className="text-pot-faint" style={{ fontSize: 10 }}>
-            현재 여행자금
+            {/* 결제로 줄지 않는 누적 모금액이다. 여행 홈 카드와 같은 말을 쓴다 */}
+            모은 여행자금
           </Text>
           <Text
             className="mt-0.5 font-black text-pot-ink"

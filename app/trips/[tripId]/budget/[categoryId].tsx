@@ -50,6 +50,8 @@ import {
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { ReceiptSourceSheet, TransactionSheet } from "@/components/fund";
+import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import { DateRangeCalendar } from "@/components/trip-create";
@@ -136,10 +138,38 @@ const RECENT_EXPENSE_LIMIT = 10;
 export default function ScreenBUDGET02() {
   // 로그인한 사용자. 개인 여행의 개인화 범위를 정할 때 소유자가 비어 있으면 대신 쓴다.
   const userId = useCurrentUserId();
-  const { tripId, categoryId } = useLocalSearchParams<{
+  const { tripId, categoryId, from } = useLocalSearchParams<{
     tripId: string;
     categoryId: string;
+    /**
+     * 어디서 들어왔는가. 뒤로 갈 곳을 정한다.
+     *   'home'       여행 홈의 금고·카테고리 줄
+     *   'settlement' 결산 화면
+     *   'insurance'  여행자보험 견적에서 '예산으로 적용'
+     *   없음          예산 전체 (기본)
+     */
+    from?: string;
   }>();
+
+  /*
+    ⚠️ 뒤로가기는 **들어온 곳**으로 돌려보낸다. (2026-09-21 테스트)
+
+       예전에는 어디서 들어오든 예산 전체로 갔다. 여행 홈에서 교통 예산을
+       바로 열었는데 뒤로 누르면 본 적 없는 예산 전체가 나와서, 사용자는
+       자기가 어디 있는지 다시 찾아야 했다.
+
+    ⚠️ router.back() 으로 바꾸지 않는다. 같은 화면이 여러 경로로 열려
+       스택에 사본이 쌓인다. 여행자보험(INSURANCE-01)이 쓰는 방식과 같게
+       진입점을 param 으로 받아 부모를 계산한다.
+  */
+  const parentHref =
+    from === "home"
+      ? `/trips/${tripId}`
+      : from === "settlement"
+        ? `/trips/${tripId}/settlement`
+        : from === "insurance"
+          ? `/trips/${tripId}/insurance?placement=budget_detail&fromCategory=${categoryId}`
+          : `/trips/${tripId}/budget`;
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -227,6 +257,20 @@ export default function ScreenBUDGET02() {
       setLoading(false);
     }
   }, [categoryId, tripId]);
+
+  /*
+    거래 상세 바텀시트. '실제 지출' 한 건을 누르면 열린다.
+    ⚠️ 저장이 끝나면 다시 읽는다. 금액을 고치면 이 카테고리의 실제 사용액도 바뀐다.
+  */
+  const txSheet = useTransactionSheet({
+    onChanged: () => load(),
+    tripStatus: data?.trip.status,
+    categories: data?.allCategories ?? [],
+    // 이 카테고리의 계획. 연결 후보는 훅이 카테고리로 한 번 더 거른다
+    planItems: data?.items ?? [],
+    tripId: data?.trip.id ?? null,
+    onNotice: (message) => setToast(message),
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -450,6 +494,25 @@ export default function ScreenBUDGET02() {
       const spent = data.transactions.reduce((sum, t) => sum + t.amount, 0);
       if (spent > 0) return;
 
+      /*
+        ⚠️⚠️ **계획을 전부 지웠다고 예산을 0원으로 만들지 않는다.** ⚠️⚠️
+
+           여행을 만들 때 설정 예산과 계획 합계가 같은 값으로 들어온다.
+           (예산 구성에서 고른 상품이 그대로 계획이 된다) 그래서 여유 예산이
+           0이고, 그 하나뿐인 계획을 지우면 `계획 0 + 여유 0` 으로 설정
+           예산까지 0원이 됐다.
+
+           숙소 계획을 지웠다고 숙소에 쓸 돈이 없어지는 것은 아니다. 게다가
+           예산이 0이 되면 '계획 추가' 가 기준 삼을 금액이 사라져 추천도
+           나오지 않았다 — 테스트에서 "도미토리를 지우니 새 숙소가 추천되지
+           않는다" 로 올라온 것이 이것이다. (2026-09-21)
+
+           계획이 하나도 남지 않으면 지금 예산을 그대로 둔다. 예산을 줄이는
+           것은 사용자가 금액을 직접 고칠 때만 한다. (CLAUDE.md 4장 —
+           planned_amount 는 사용자 확정 행동으로만 바뀐다)
+      */
+      if (nextPlans.length === 0) return;
+
       const before = plans.reduce((sum, item) => sum + item.expectedAmount, 0);
       const reserve = Math.max(0, data.category.planned_amount - before);
       const after = nextPlans.reduce(
@@ -602,9 +665,32 @@ export default function ScreenBUDGET02() {
   }, [data, plans]);
 
   const handleOpenSuggestions = useCallback(() => {
+    /*
+      ⚠️ 여행자보험 예산에서 계획이 **하나도 없을 때**는 일반 추천 대신
+         견적 안내를 먼저 띄운다. (2026-09-21 2차)
+
+         보험은 우리가 카탈로그로 지어낼 값이 아니다. 기간·인원으로 계산한
+         실제 제휴사 견적이 INSURANCE-01 에 있는데, 여기서 '조식 추가' 같은
+         일반 추천을 내면 그 화면에 닿을 길이 없다.
+
+      ⚠️ 계획이 이미 있으면 그대로 일반 추천이다. 보험을 이미 챙긴 사람에게
+         같은 안내를 다시 들이밀지 않는다.
+    */
+    if (data?.category.category_code === CATEGORY_CODE.INSURANCE) {
+      /*
+        ⚠️ 계획이 있든 없든 **먼저 묻는다.** (2026-09-21 3차)
+           보험은 우리가 카탈로그로 지어낼 값이 아니다. 기간·인원으로 계산한
+           실제 제휴사 견적이 INSURANCE-01 에 있다.
+             '3개 견적 확인하기' → 견적 화면 (추천 목록은 내지 않는다)
+             '나중에'            → 일반 추천 목록
+      */
+      pendingSuggestAfterPromoRef.current = true;
+      setPromoOpen(true);
+      return;
+    }
     setSuggestOpen(true);
     void loadSuggestions();
-  }, [loadSuggestions]);
+  }, [data?.category.category_code, loadSuggestions]);
 
   /**
    * 추천 카드를 눌렀을 때. 세부 계획에 **즉시** 반영한다. (시안 v3)
@@ -813,9 +899,42 @@ export default function ScreenBUDGET02() {
    */
   const [promoOpen, setPromoOpen] = useState(false);
   const promoShownRef = useRef(false);
+  /*
+    '계획 항목 추가' → 보험 안내 팝업에서 '나중에' 를 골랐을 때만 추천 목록을
+    연다. '견적 확인하기' 로 나가면 추천을 내지 않는다 — 견적 화면으로 갔는데
+    돌아왔을 때 추천 목록이 열려 있으면 뭘 고르던 중이었는지 헷갈린다.
+
+    ⚠️ 팝업이 완전히 닫힌 뒤에 연다. iOS 는 Modal 위에 Modal 을 못 연다.
+  */
+  const pendingSuggestAfterPromoRef = useRef(false);
+  const runPendingSuggest = useCallback(() => {
+    if (!pendingSuggestAfterPromoRef.current) return;
+    pendingSuggestAfterPromoRef.current = false;
+    setSuggestOpen(true);
+    void loadSuggestions();
+  }, [loadSuggestions]);
 
   // ── 지출 직접 입력 (로컬) ─────────────────────────────────────────────
   const [addingExpense, setAddingExpense] = useState(false);
+  /** 지출 기록 방법 묻기 — 촬영 · 앨범 · 직접 입력 */
+  const [expenseSourceOpen, setExpenseSourceOpen] = useState(false);
+  /*
+    ⚠️⚠️ **시트가 완전히 닫힌 뒤에 다음 시트를 연다.** ⚠️⚠️
+
+       iOS 는 Modal 이 닫히는 도중에 다른 Modal 을 열면 두 번째가 그냥 뜨지
+       않는다. 그래서 '직접 입력' 을 눌러도 아무 일이 없었다. (2026-09-21 2차)
+       자산 화면(FUND-01)이 쓰는 방식과 같게 맞춘다 — 누른 사실만 ref 에
+       적어 두고 onDismiss 에서 연다.
+
+    ⚠️ setTimeout 은 안드로이드 폴백이다. iOS 는 onDismiss 가 먼저 와서
+       타이머가 빈손으로 끝난다.
+  */
+  const pendingExpenseManualRef = useRef(false);
+  const runPendingExpenseManual = useCallback(() => {
+    if (!pendingExpenseManualRef.current) return;
+    pendingExpenseManualRef.current = false;
+    setAddingExpense(true);
+  }, []);
   const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft>(() => ({
     name: "",
     amount: null,
@@ -848,6 +967,8 @@ export default function ScreenBUDGET02() {
         name,
         amount: expenseDraft.amount,
         category_method: CATEGORY_METHOD.USER,
+        // 누가 적었는지 남긴다. 모임 여행에서 목록의 일부다 (2026-09-21 테스트)
+        created_by_user_id: userId ?? null,
       });
 
       // actual_amount 는 거래의 합이다. 거래를 넣었으면 함께 올린다.
@@ -934,7 +1055,20 @@ export default function ScreenBUDGET02() {
    * ⚠️ 계획 항목은 여행 중에도 열어 둔다. 현지에서 예정에 없던 지출을
    *    계획에 붙이는 일이 실제로 일어난다.
    */
-  const canEditBudget = tripStatus === TRIP_STATUS.PLANNING;
+  /*
+    ⚠️ **여행 중에도 설정 예산을 고칠 수 있다.** (2026-09-21 2차)
+
+       예전에는 준비 중(PLANNING)에서만 허용했다. 그래서 여행을 떠난 뒤
+       식비가 모자라도 예산을 못 고쳤고, 계획 항목을 더 넣어 설정 예산을
+       밀어 올리는 수밖에 없었다 — 그 방식으로는 **예산을 줄일 수 없고**,
+       여유 예산을 넉넉히 두려면 가짜 계획 항목을 만들어야 했다.
+
+    ⚠️ 끝난 여행(ENDED·SETTLED)은 그대로 막는다. 결산은 그 시점의 예산과
+       실제를 비교하는 일이라, 비교 대상이 뒤에서 움직이면 안 된다.
+
+    ⚠️ 취소 요청 중(CANCEL_PENDING)도 준비 중이다. (lib/trip/tripStatus)
+  */
+  const canEditBudget = !isTripEnded(tripStatus);
   /** 실제 지출을 넣거나 분류할 수 있는가. 결산 중에도 열어 둔다 */
   const canEditSpending = !settled;
   const spentTotal = useMemo(
@@ -954,7 +1088,7 @@ export default function ScreenBUDGET02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <Loading message="불러오는 중…" />
@@ -966,7 +1100,7 @@ export default function ScreenBUDGET02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <EmptyState
@@ -984,7 +1118,7 @@ export default function ScreenBUDGET02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <ErrorState message="불러오지 못했어요." onRetry={() => void load()} />
@@ -1034,7 +1168,7 @@ export default function ScreenBUDGET02() {
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: label }} />
 
@@ -1203,7 +1337,15 @@ export default function ScreenBUDGET02() {
           ⚠️ placement=budget_detail 을 실어 보낸다. 여행 홈 배너와 이 자리 중
              무엇이 전환을 만드는지 나눠 봐야 BM 1 을 키울 수 있다. (docs/06 §7-7)
         */}
-        {code === CATEGORY_CODE.INSURANCE ? (
+        {/*
+          ⚠️ 끝난 여행에는 내지 않는다. (2026-09-21 4차)
+             결산 중인 지난 여행의 보험 카테고리에서 "보험료 얼마인지
+             확인해 볼까요?" 가 떴고, 거기서 고른 상품이 **계획 항목으로
+             들어갔다.** 결산 중에는 계획을 고칠 수 없다고 바로 위에
+             적어 놓고 옆문이 열려 있었다. 이미 다녀온 여행의 보험을
+             지금 파는 것도 말이 안 된다.
+        */}
+        {code === CATEGORY_CODE.INSURANCE && canEditPlan ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="여행자보험 예상 보험료 비교하기"
@@ -1317,9 +1459,28 @@ export default function ScreenBUDGET02() {
           <ExpenseCard
             expenses={expenses}
             theme={theme}
+            /*
+              ⚠️ 바로 직접 입력 시트를 열지 않는다. 자산 화면(FUND-01)처럼
+                 촬영 · 앨범 · 직접 입력 셋을 먼저 묻는다. 여기서만 손으로
+                 적게 두니 "카테고리 예산에서도 영수증으로 넣을 수 있어야 한다"
+                 가 올라왔다. (2026-09-21 테스트)
+              ⚠️ 여행 중이 아니어도 낸다. 미리 결제한 항공권·숙소 영수증이
+                 여행 전에 더 많다.
+            */
             onStartAdd={
-              canEditSpending ? () => setAddingExpense(true) : undefined
+              canEditSpending ? () => setExpenseSourceOpen(true) : undefined
             }
+            /*
+              ⚠️ 지출 한 건을 누르면 바텀시트로 거래 상세를 연다. (2026-09-21 2차)
+                 여기 보이는 지출을 계획에 연결하려면 자산 화면까지 돌아가야
+                 했다. 예산을 보던 자리에서 바로 하게 한다.
+            */
+            onPressExpense={(transactionId) => {
+              const picked = data.transactions.find(
+                (row) => row.id === transactionId,
+              );
+              if (picked) txSheet.open(picked);
+            }}
             onPressMore={
               hasMoreExpenses
                 ? () =>
@@ -1467,6 +1628,37 @@ export default function ScreenBUDGET02() {
           </View>
         </View>
       </BottomSheet>
+
+      {/*
+        ── 지출 기록 방법 ── 촬영 · 앨범 · 직접 입력
+
+        ⚠️ 촬영·앨범은 자산 화면(FUND-01)의 영수증 읽기로 보낸다. 읽기·미리보기·
+           재시도까지 한 벌인 흐름이라 여기에 한 벌 더 만들면 두 곳이 갈린다.
+           읽고 나면 카테고리를 고르는 자리가 그 화면에 있다.
+        ⚠️ 직접 입력은 여기서 받는다. 이 카테고리가 이미 정해져 있어 한 번 덜 고른다.
+      */}
+      {/* 실제 지출 한 건의 상세. 수기 거래는 여기서 바로 고친다 */}
+      <TransactionSheet controller={txSheet} theme={theme} />
+
+      <ReceiptSourceSheet
+        visible={expenseSourceOpen}
+        onClose={() => setExpenseSourceOpen(false)}
+        theme={theme}
+        onCamera={() => {
+          setExpenseSourceOpen(false);
+          router.push(`/trips/${tripId}/funds?scan=receipt`);
+        }}
+        onLibrary={() => {
+          setExpenseSourceOpen(false);
+          router.push(`/trips/${tripId}/funds?scan=receipt`);
+        }}
+        onManual={() => {
+          pendingExpenseManualRef.current = true;
+          setExpenseSourceOpen(false);
+          setTimeout(runPendingExpenseManual, 700);
+        }}
+        onDismiss={runPendingExpenseManual}
+      />
 
       {/* ── 지출 직접 입력 ── */}
       <BottomSheet
@@ -1630,8 +1822,15 @@ export default function ScreenBUDGET02() {
       {promoQuote ? (
         <InsurancePromoModal
           visible={promoOpen}
-          onClose={() => setPromoOpen(false)}
+          /* '나중에' — 닫히고 나면 일반 추천 목록을 연다 */
+          onClose={() => {
+            setPromoOpen(false);
+            setTimeout(runPendingSuggest, 700);
+          }}
+          onDismiss={runPendingSuggest}
           onCompare={() => {
+            // 견적 보러 나가면 추천 목록은 내지 않는다
+            pendingSuggestAfterPromoRef.current = false;
             setPromoOpen(false);
             router.push(`/trips/${tripId}/insurance?placement=budget_detail&fromCategory=${categoryId}`);
           }}

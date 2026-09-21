@@ -33,6 +33,7 @@ import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
 import {
   getCanceledTrips,
   getLeftTrips,
+  advanceTripStatuses,
   getMyParticipatingTripsWithSummary,
   type Trip,
   type TripWithSummary,
@@ -187,7 +188,8 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
           getCanceledTrips(userId),
           getLeftTrips(userId),
         ]);
-        setTrips(nextTrips);
+        // 홈과 같다 — 날짜가 지난 여행의 상태를 목록에 뜨기 전에 올린다. (2026-09-21 · develop 5f44425 를 그대로 옮김)
+        setTrips(await advanceTripStatuses(nextTrips).catch(() => nextTrips));
         setGroups(nextGroups);
         setCanceledTrips(nextCanceled);
         setLeftTrips(nextLeft);

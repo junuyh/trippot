@@ -47,10 +47,22 @@ export function isValidEmail(value: string): boolean {
 export async function signUpWithEmail(
   email: string,
   password: string,
+  /**
+   * 앱에서 보일 이름. 가입 화면에서 받는다.
+   *
+   * ⚠️ **user_metadata 에 싣는다.** 카카오·구글은 닉네임을 거기 담아 주는데
+   *    이메일 가입만 아무것도 없어서 전부 '여행자' 가 됐다. 모임 멤버 목록도
+   *    입금 기록자도 다 같은 이름이라 누가 누군지 구분이 안 됐다.
+   *    (2026-09-21 테스트) 같은 칸에 넣으면 ensureUserProfile 이 카카오·구글과
+   *    똑같이 읽어 간다. users 표를 따로 건드리지 않는다.
+   */
+  name: string,
 ): Promise<EmailAuthResult> {
+  const trimmed = name.trim();
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
+    options: trimmed === '' ? undefined : { data: { name: trimmed } },
   });
   if (error) throw error;
   return data.session ? 'signedIn' : 'needsVerification';

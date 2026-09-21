@@ -32,8 +32,9 @@ export function EndedTripCard({ trip, onPress }: Props) {
     trip.ownerType === TRIP_OWNER_TYPE.GROUP
       ? (trip.groupName ?? TRIP_OWNER_TYPE_LABEL.GROUP)
       : TRIP_OWNER_TYPE_LABEL.PERSONAL;
+  // 금액이 없으면 빈칸으로 둔다. '—' 는 값이 있는데 비어 보이게 한다 (2026-09-21 2차)
   const amount =
-    trip.finalAmount === null ? '—' : `${trip.finalAmount.toLocaleString('ko-KR')}원`;
+    trip.finalAmount === null ? '' : `${trip.finalAmount.toLocaleString('ko-KR')}원`;
 
   // ENDED 는 아직 결산 전이라 최종 여행비가 확정되지 않았다.
   const beforeSettlement = trip.status === TRIP_STATUS.ENDED && trip.finalAmount === null;

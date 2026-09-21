@@ -272,6 +272,8 @@ export function FundPreview({ size }: { size: PreviewSize }) {
           groupLabel="개인 여행"
           dDay={{ label: 'D-24', ongoing: false }}
           raisedAmount={FUND_RAISED}
+          /* 온보딩 미리보기는 아직 아무것도 쓰지 않은 여행이다 */
+          spentAmount={0}
           targetAmount={PLAN_TOTAL}
           progress={Math.round((FUND_RAISED / PLAN_TOTAL) * 100)}
           onPressFund={noop}

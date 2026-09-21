@@ -309,7 +309,14 @@ export function TypeResultOverlay({
               </Text>
             </View>
           ) : (
-            <View className="flex-row" style={{ gap: 10, marginTop: 20 }}>
+            /*
+              ⚠️ 카카오톡 보내기 버튼을 뺐다. (2026-09-21 테스트)
+                 네이티브 SDK 라 Expo Go·테스트 빌드에서 동작하지 않아 눌러도
+                 "곧 만나요" 안내만 떴다. 되지 않는 버튼을 두면 사용자는
+                 고장으로 읽는다. 이미지 공유는 OS 공유 시트로 카카오톡까지
+                 보낼 수 있어서 이 하나로 충분하다.
+            */
+            <View style={{ marginTop: 20 }}>
               <ShareAction
                 icon="image-outline"
                 label="이미지로 공유"
@@ -320,16 +327,6 @@ export function TypeResultOverlay({
                       "곧 만나요",
                       `${destinationKo} 여행 유형을 이미지로 저장하는 기능을 준비하고 있어요.`,
                     ))
-                }
-              />
-              <ShareAction
-                icon="chatbubble-ellipses-outline"
-                label="카카오톡으로 보내기"
-                onPress={() =>
-                  Alert.alert(
-                    "곧 만나요",
-                    "카카오톡 공유는 개발 빌드에서만 동작해요. 연동 준비가 끝나면 알려드릴게요.",
-                  )
                 }
               />
             </View>
@@ -366,20 +363,25 @@ function ShareAction({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${label}. 준비 중인 기능이에요`}
+      accessibilityLabel={label}
       onPress={onPress}
-      className="flex-1 items-center justify-center active:opacity-70"
+      /*
+        ⚠️ 카카오톡 버튼을 빼면서 혼자 남아 폭을 다 차지했고, 높이 74 짜리가
+           통째로 커져 화면을 눌렀다. (2026-09-21 2차) 한 줄짜리 가로 버튼으로
+           줄인다. 이 결과지에서 가장 중요한 건 유형과 근거지 공유 버튼이 아니다.
+      */
+      className="flex-row items-center justify-center active:opacity-70"
       style={{
         gap: 6,
-        height: 74,
-        borderRadius: 14,
+        height: 44,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: "#e5e8ec",
         backgroundColor: "#fff",
       }}
     >
-      <Ionicons name={icon} size={18} color="#3d4654" />
-      <Text style={{ fontSize: 11, fontWeight: "800", color: "#3d4654" }}>
+      <Ionicons name={icon} size={16} color="#3d4654" />
+      <Text style={{ fontSize: 12, fontWeight: "800", color: "#3d4654" }}>
         {label}
       </Text>
     </Pressable>

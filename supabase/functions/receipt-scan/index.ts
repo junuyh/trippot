@@ -29,6 +29,7 @@
 //   요청 본문에 { "debug": true } 를 넣으면 실패 사유가 응답에 함께 온다.
 // ============================================================================
 import { identifyCaller, unauthorized } from "../_shared/auth.ts";
+import { checkAndRecordUsage, limitExceeded } from "../_shared/usage.ts";
 
 const BASE_URL = (Deno.env.get("LLM_BASE_URL") ?? "https://api.openai.com/v1").replace(
   /\/+$/,
@@ -75,6 +76,10 @@ Deno.serve(async (request) => {
   // ⚠️ 로그인한 사용자만 부른다. anon 키만으로는 통과하지 못한다. (_shared/auth.ts)
   const caller = await identifyCaller(request);
   if (!caller) return unauthorized(CORS);
+
+  // ⚠️ 하루 한도. 사람이 부른 것만 센다. (_shared/usage.ts)
+  const usage = await checkAndRecordUsage(caller, "receipt_scan");
+  if (!usage.allowed) return limitExceeded(CORS, usage);
 
   const failures: string[] = [];
   let debugMode = false;

@@ -58,7 +58,25 @@ async function createSessionFromUrl(url: string): Promise<void> {
   const { params, errorCode } = getQueryParams(url);
   if (errorCode) throw new Error(errorCode);
 
-  const { access_token, refresh_token } = params;
+  /*
+    ⚠️ **돌아오는 방식이 두 가지다.** (2026-09-21 4차)
+
+       implicit  주소에 access_token · refresh_token 이 그대로 실려 온다
+       PKCE      code 하나만 오고, 그것을 토큰으로 바꾸는 호출을 한 번 더 한다
+
+    supabase-js v2 는 flowType 을 안 적으면 **PKCE** 다. 우리는 토큰만 꺼내
+    쓰고 있어서, code 로 돌아오는 경우 "로그인 응답에 토큰이 없습니다" 로
+    끝났다. 카카오(Custom OIDC)가 이 경우다.
+
+    ⚠️ code 를 먼저 본다. 둘 다 없을 때만 오류다.
+  */
+  const { code, access_token, refresh_token } = params;
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    return;
+  }
+
   if (!access_token || !refresh_token) {
     throw new Error('로그인 응답에 토큰이 없습니다.');
   }
