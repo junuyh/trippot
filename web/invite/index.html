@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>TripPot 여행 초대</title>
+<!--
+  초대 착륙 페이지 (2026-09-21)
+
+  초대 링크를 https 주소 하나로 통일하기 위한 페이지다.
+  앱 종류(APK · 개발용 빌드 · Expo Go · 시뮬레이터)마다 열 수 있는 주소가 달라서,
+  여는 사람이 자기 환경 버튼을 고르게 한다. 초대는 토큰으로 DB 에서 확인하니
+  어느 환경에서 열어도 같은 초대로 이어진다.
+
+  ⚠️ 토큰은 ?t= 가 아니라 # 뒤에 둔다. fragment 는 서버로 전송되지 않아
+     호스팅 로그에 남지 않는다.   예) https://…/invite/#<token>
+  ⚠️ 분석 스크립트를 넣지 않는다. 외부 요청은 폰트뿐이다.
+  ⚠️ EXPO_PROJECT_ID · runtime-version · channel 은 app.json / eas.json 과 같아야 한다.
+     app.json 의 version 을 올리면 runtime-version 도 함께 바꾼다.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --ground: #F5F7FA; --surface: #FFFFFF; --ink: #111827; --mute: #5F6673; --faint: #8B94A2;
+    --line: #E5E8EC; --brand: #64139E; --brand-pressed: #521080; --brand-soft: #F6F0FA; --on-brand: #FFFFFF;
+    --warn-bg: #FDF1F1; --warn-ink: #9B2226;
+    --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ground: #110E16; --surface: #1B1722; --ink: #EFEBF5; --mute: #B3ACBF; --faint: #8C8499;
+            --line: #2E2838; --brand-soft: #2A1E38; --warn-bg: #2E1A1C; --warn-ink: #F2A3A6; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); padding: 24px 16px 48px; }
+  main { max-width: 480px; margin: 0 auto; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 24px 20px; }
+  .eyebrow { font-size: 12px; letter-spacing: .08em; color: var(--brand); font-weight: 700; text-transform: uppercase; }
+  h1 { font-size: 22px; margin: 6px 0 8px; line-height: 1.3; }
+  p { margin: 0 0 12px; line-height: 1.6; color: var(--mute); font-size: 15px; }
+  .btn { display: block; width: 100%; padding: 15px 16px; border-radius: 14px; border: 1px solid var(--line);
+         background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; font-size: 16px;
+         text-align: left; text-decoration: none; cursor: pointer; margin-top: 10px; }
+  .btn .sub { display: block; font-size: 13px; font-weight: 400; color: var(--mute); margin-top: 3px; }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+  .btn.primary .sub { color: rgba(255,255,255,.8); }
+  .btn.primary:active { background: var(--brand-pressed); }
+  .btn:active { background: var(--brand-soft); }
+  .warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.5; }
+  .section { margin-top: 22px; }
+  .section h2 { font-size: 14px; color: var(--faint); font-weight: 600; margin: 0 0 8px; }
+  details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; font-size: 14px; color: var(--mute); }
+  code { font-size: 12px; word-break: break-all; color: var(--faint); }
+  footer { text-align: center; font-size: 12px; color: var(--faint); margin-top: 20px; line-height: 1.6; }
+  footer a { color: var(--faint); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <div class="eyebrow">TripPot · Invitation</div>
+    <h1>여행에 초대됐어요</h1>
+    <p>지금 쓰는 앱에 맞는 버튼을 눌러 초대를 확인하고 참여 의사를 보내 주세요. 여행장이 수락하면 참여가 확정돼요. 초대 링크는 만든 날부터 7일 동안 쓸 수 있어요.</p>
+
+    <div id="no-token" class="warn" hidden>
+      초대 토큰이 없어요. 받은 링크를 그대로 다시 열어 주세요. 링크 끝의 <b>#</b> 뒤 글자까지 있어야 해요.
+    </div>
+
+    <div id="buttons" hidden>
+      <a id="btn-app" class="btn primary" href="#">
+        TripPot 앱으로 열기
+        <span class="sub">안드로이드 설치 파일(APK)로 TripPot을 깐 폰</span>
+      </a>
+      <a id="btn-go" class="btn" href="#">
+        Expo Go로 열기
+        <span class="sub">아이폰 · Expo Go에 팀 계정으로 로그인한 폰</span>
+      </a>
+      <a id="btn-install" class="btn" href="/install/">
+        아직 앱이 없어요
+        <span class="sub">설치 안내 페이지로 가요</span>
+      </a>
+
+      <details>
+        <summary>팀원용 · 시뮬레이터에서 열기</summary>
+        <a id="btn-dev" class="btn" href="#">
+          내 컴퓨터 개발 서버로 열기
+          <span class="sub">이 컴퓨터에서 <code>npx expo start</code> 가 켜져 있을 때 (포트 8081)</span>
+        </a>
+        <p style="margin-top:10px;font-size:13px">주소를 직접 쓰려면: <code id="raw"></code></p>
+      </details>
+    </div>
+
+    <div class="section">
+      <h2>버튼을 눌러도 안 열리면</h2>
+      <p>아이폰은 Expo Go 앱을 먼저 열어 팀 계정으로 로그인한 뒤 다시 눌러 주세요. 안드로이드는 TripPot이 설치돼 있는지 확인해 주세요. 그래도 안 되면 링크를 보낸 사람에게 알려 주세요.</p>
+    </div>
+  </div>
+  <footer>TripPot 팀 · 테스트용 페이지 · 이 페이지는 초대 정보를 저장하지 않아요<br><a href="/install/">설치 · 참여 안내</a></footer>
+</main>
+
+<script>
+  // app.json · eas.json 과 같은 값이어야 한다.
+  const EXPO_PROJECT_ID = "7971a07a-f0f0-4ac8-a575-2dea8a16ff8b";
+  const RUNTIME_VERSION = "1.0.0";
+  const CHANNEL = "preview";
+
+  const token = decodeURIComponent(location.hash.replace(/^#/, "")).trim();
+  const valid = /^[a-f0-9]{32,128}$/i.test(token);
+
+  document.getElementById("no-token").hidden = valid;
+  document.getElementById("buttons").hidden = !valid;
+
+  if (valid) {
+    const path = "invite/" + token;
+    const app = "trippot:///" + path;
+    const go = "exp://u.expo.dev/" + EXPO_PROJECT_ID + "/--/" + path +
+               "?runtime-version=" + encodeURIComponent(RUNTIME_VERSION) +
+               "&channel-name=" + encodeURIComponent(CHANNEL);
+    const dev = "exp://127.0.0.1:8081/--/" + path;
+    document.getElementById("btn-app").href = app;
+    document.getElementById("btn-go").href = go;
+    document.getElementById("btn-dev").href = dev;
+    document.getElementById("raw").textContent = go;
+  }
+</script>
+</body>
+</html>
