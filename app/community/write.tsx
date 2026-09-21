@@ -51,8 +51,14 @@ import {
 } from '@/lib/supabase/queries/community';
 import { getTrips, type Trip } from '@/lib/supabase/queries/trips';
 
-const TITLE_MIN = 2;
-const CONTENT_MIN = 10;
+/*
+ * 최소 글자수 제한을 두지 않는다. (2026-09-21)
+ *
+ * 전에는 제목 2자 · 본문 10자를 넘겨야 올릴 수 있었다. 짧은 글을 막을 이유가 없다 —
+ * "여기 좋았어요" 한 줄도 팁이고, 길이로 글의 값어치를 가를 수 없다.
+ * 빈 글만 막는다. 상한(제목 80 · 본문 2000 · PostWriteForm)은 목록 카드
+ * 레이아웃을 지키려고 남긴다.
+ */
 
 /** 이 화면에서 쓰고 고칠 수 있는 유형인가. (자유·여행 팁) */
 function isWritableType(value: string): value is WritablePostType {
@@ -221,14 +227,8 @@ export default function ScreenCOMM04() {
     const t = title.trim();
     const c = content.trim();
 
-    const nextTitleError =
-      t.length === 0 ? '제목을 입력해 주세요.' : t.length < TITLE_MIN ? '제목이 너무 짧아요.' : null;
-    const nextContentError =
-      c.length === 0
-        ? '내용을 입력해 주세요.'
-        : c.length < CONTENT_MIN
-          ? `내용을 ${CONTENT_MIN}자 이상 적어주세요.`
-          : null;
+    const nextTitleError = t.length === 0 ? '제목을 입력해 주세요.' : null;
+    const nextContentError = c.length === 0 ? '내용을 입력해 주세요.' : null;
 
     setTitleError(nextTitleError);
     setContentError(nextContentError);
@@ -376,9 +376,6 @@ export default function ScreenCOMM04() {
       <Stack.Screen options={{ title: screenTitle, headerTitleAlign: 'center' }} />
       <PostWriteForm
         submitLabel={editing ? '수정 완료' : '게시하기'}
-        // 제목·내용이 최소 길이를 넘겨야 버튼이 검게 켜진다.
-        // 켜진 버튼을 눌렀는데 오류가 나는 일이 없도록 저장 조건과 같은 기준을 쓴다.
-        canSubmit={title.trim().length >= TITLE_MIN && content.trim().length >= CONTENT_MIN}
         typeOptions={TYPE_OPTIONS}
         postType={postType}
         onChangeType={(value) => setPostType(value as WritablePostType)}

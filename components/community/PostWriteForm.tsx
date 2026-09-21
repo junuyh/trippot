@@ -57,12 +57,14 @@ type Props = {
   /** 저장 중이면 버튼이 잠기고 스피너가 뜬다. (중복 제출 방지) */
   submitting: boolean;
   /**
-   * 지금 올릴 수 있는 상태인가.
+   * 게시 · 수정 버튼.
    *
-   * 아니면 버튼이 연회색으로 잠긴다. 길이 기준은 화면 파일이 갖고 있어
-   * 판단도 거기서 하고 결과만 받는다. (CLAUDE.md 9장)
+   * ⚠️ 이 버튼은 **비어 있어도 잠기지 않는다.** (2026-09-21)
+   *    전에는 제목·내용이 차기 전까지 연회색으로 잠겨 있었는데, 잠긴 버튼은
+   *    '왜 못 누르는지' 를 말해주지 않는다. 눌러야 화면이 무엇이 빠졌는지
+   *    알려준다 — 화면 파일의 validate() 가 titleError · contentError 를
+   *    채우고, 그 문구가 해당 입력칸 아래에 뜬다.
    */
-  canSubmit: boolean;
   onSubmit: () => void;
   /**
    * 버튼에 적을 말. 새 글이면 '게시하기', 고치는 중이면 '수정 완료'.
@@ -106,7 +108,6 @@ export function PostWriteForm({
   onPickImages,
   onRemoveImage,
   submitting,
-  canSubmit,
   onSubmit,
   submitLabel = '게시하기',
 }: Props) {
@@ -322,21 +323,18 @@ export function PostWriteForm({
       <View className="mt-7">
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: !canSubmit || submitting, busy: submitting }}
-          disabled={!canSubmit || submitting}
+          accessibilityState={{ disabled: submitting, busy: submitting }}
+          // 저장 중에만 잠근다. 중복 제출 방지다. (CLAUDE.md 9장)
+          disabled={submitting}
           onPress={onSubmit}
-          className={`w-full flex-row items-center justify-center rounded-xl px-5 py-3.5 ${
-            canSubmit ? 'bg-brand active:bg-brand-pressed' : 'bg-pot-visual'
-          } ${submitting ? 'opacity-40' : ''}`}
+          className={`w-full flex-row items-center justify-center rounded-xl bg-brand px-5 py-3.5 active:bg-brand-pressed ${
+            submitting ? 'opacity-40' : ''
+          }`}
         >
           {submitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text
-              className={`text-base font-semibold ${canSubmit ? 'text-white' : 'text-pot-faint'}`}
-            >
-              {submitLabel}
-            </Text>
+            <Text className="text-base font-semibold text-white">{submitLabel}</Text>
           )}
         </Pressable>
       </View>

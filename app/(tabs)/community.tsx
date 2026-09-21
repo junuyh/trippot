@@ -71,14 +71,21 @@ const DEST_PREFIX = 'dest:';
 /**
  * 유형 칸. 전체 바로 다음에 온다.
  *
- * ⚠️ 2026-09-03 '여행 팁' 칸을 뺐다.
- *    여행 팁은 대부분 여행지 이야기라 여행지 칸과 내용이 겹친다.
- *    같은 글이 두 칸에 걸쳐 있으면 어느 칸을 눌러야 할지 알 수 없다.
- *    여행 팁은 여행지 칸에서 찾고, 유형은 카드 배지로 구분한다.
+ * ⚠️ 2026-09-21 '여행 팁' 칸을 **다시 넣었다.**
+ *    2026-09-03 에 뺐던 이유는 "여행 팁은 대부분 여행지 이야기라 여행지 칸과
+ *    겹친다" 였다. 겹치는 것은 맞지만, 그때 놓친 것이 두 가지다.
+ *      ① 여행지 칸은 **12개 목적지 중 글이 있는 곳만** 나온다. 목적지를 고르지
+ *         않은 팁(여행에 연결하지 않고 쓴 글)은 '전체' 말고 갈 칸이 없었다.
+ *      ② 팁만 모아 읽고 싶을 때 여행지를 하나씩 눌러 다녀야 했다. 여행지 칸은
+ *         '어디' 로 좁히는 칸이지 '무엇' 으로 좁히는 칸이 아니다.
+ *    겹침은 문제가 아니다 — '여행 팁'(무엇)과 '도쿄'(어디)는 좁히는 축이 달라서,
+ *    같은 글이 두 칸에 나오는 것이 자연스럽다. '자유' 와 여행지 칸의 관계와 같다.
  *
- * ⚠️ [문서와 어긋남] docs/09_IA_v2.md §4-2 는 '여행 팁 목록' 을 이 화면의
- *    필터로 두라고 적고 있다. 그 칸이 없어졌다. 다만 팁 글이 사라진 것은 아니고
- *    전체·여행지 칸에서 그대로 읽힌다. 문서를 임의로 고치지 않았다. (CLAUDE.md 1-1)
+ * ⚠️ 이 칸은 **목적지와 무관하게 모든 팁**을 보여준다. 여행지 칸은 그 여행지의
+ *    팁만 보여준다. (toQuery)
+ *
+ * ⚠️ [문서와 맞음] docs/09_IA_v2.md §4-2 가 '여행 팁 목록' 을 이 화면의 필터로
+ *    두라고 적고 있다. 2026-09-03~09-21 사이에만 어긋나 있었고 이제 문서대로다.
  *
  * ⚠️ 유료 팁과 여행 유형 공유(TYPE_SHARE)도 칸에 없다.
  *    유료는 2026-08-31 팀 결정, TYPE_SHARE 는 아직 쓸 수 있는 글이 없다
@@ -87,6 +94,7 @@ const DEST_PREFIX = 'dest:';
  */
 const TYPE_CATEGORIES: { postType: PostType; label: string }[] = [
   { postType: POST_TYPE.POST, label: '자유' },
+  { postType: POST_TYPE.FREE_TIP, label: '여행 팁' },
 ];
 
 /** 고른 카테고리 키를 조회 조건으로 바꾼다. */
@@ -241,8 +249,6 @@ export default function ScreenCOMM01() {
     title: post.title,
     postType: post.postType,
     postTypeLabel: POST_TYPE_DISPLAY_LABEL[post.postType],
-    authorName: post.authorName,
-    authorImageUrl: post.authorImageUrl,
     destination: post.destination,
     publishedLabel: formatPublished(post.publishedAt),
     contentPreview: post.content,
@@ -259,13 +265,15 @@ export default function ScreenCOMM01() {
     imageUrls: post.imageUrls,
   }));
 
-  // 제목·본문·목적지·작성자 어디에 있어도 찾는다.
+  // 제목·본문·목적지 어디에 있어도 찾는다.
+  // ⚠️ 작성자는 찾지 않는다. 커뮤니티는 익명이라 모든 글의 작성자가 같은 말이다.
+  //    남겨 두면 "익명" 한 번에 전체 글이 걸린다. (2026-09-21)
   const keyword = query.trim().toLowerCase();
   const shown =
     keyword.length === 0
       ? cards
       : cards.filter((card) =>
-          [card.title, card.contentPreview, card.destination, card.authorName]
+          [card.title, card.contentPreview, card.destination]
             .filter(Boolean)
             .some((text) => (text as string).toLowerCase().includes(keyword)),
         );

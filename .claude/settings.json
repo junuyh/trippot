@@ -4,10 +4,8 @@
       "Read(**)",
       "Edit(**)",
       "Write(**)",
-
       "Bash(pnpm:*)",
       "Bash(npx:*)",
-
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -16,27 +14,6 @@
       "Bash(git branch:*)",
       "Bash(git checkout:*)"
     ],
-
-    "ask": [
-      "Bash(git push:*)",
-      "Bash(git reset:*)",
-      "Bash(git rebase:*)",
-      "Bash(git merge:*)",
-      "Bash(git checkout .)",
-      "Bash(git checkout --:*)",
-      "Bash(git clean:*)",
-
-      "Bash(npx supabase db push:*)",
-      "Bash(npx supabase db reset:*)",
-      "Bash(pnpm supabase db push:*)",
-      "Bash(pnpm supabase db reset:*)",
-      "Bash(supabase db push:*)",
-      "Bash(supabase db reset:*)",
-
-      "Bash(rm:*)",
-      "Bash(rmdir:*)"
-    ],
-
     "deny": [
       "Read(.env)",
       "Read(.env.local)",
@@ -46,17 +23,34 @@
       "Read(.env.*.local)",
       "Read(**/.env)",
       "Read(**/.env.local)",
-
       "Bash(cat .env:*)",
       "Bash(cat .env.local:*)",
-
       "Bash(npm install:*)",
       "Bash(npm i:*)",
       "Bash(npm ci:*)",
-
       "Bash(eas build:*)",
       "Bash(npx eas build:*)",
       "Bash(pnpm eas build:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git merge:*)",
+      "Bash(git checkout .)",
+      "Bash(git checkout --:*)",
+      "Bash(git clean:*)",
+      "Bash(npx supabase db push:*)",
+      "Bash(npx supabase db reset:*)",
+      "Bash(pnpm supabase db push:*)",
+      "Bash(pnpm supabase db reset:*)",
+      "Bash(supabase db push:*)",
+      "Bash(supabase db reset:*)",
+      "Bash(rm:*)",
+      "Bash(rmdir:*)"
     ]
+  },
+  "enabledPlugins": {
+    "claude-code-setup@claude-plugins-official": true
   }
 }
