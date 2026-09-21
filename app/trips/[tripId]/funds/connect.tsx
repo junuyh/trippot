@@ -143,7 +143,9 @@ export default function ScreenFUND02() {
         getFundTotals(trip.id),
       ]);
       setData({ trip, fund, accounts, previous, depositTotal: totals.depositTotal });
-    } catch {
+    } catch (e) {
+      // 무엇이 막혔는지 남긴다. 삼키면 RLS 인지 네트워크인지 알 수 없다
+      if (__DEV__) console.error("[funds/connect] load 실패", e);
       setError(true);
     } finally {
       setLoading(false);

@@ -15,6 +15,7 @@ import {
   TRIP_OWNER_TYPE,
 } from "@/lib/constants/status";
 import { supabase } from "@/lib/supabase/client";
+import { createUuidV4 } from "@/lib/uuid";
 import type { Tables, TablesInsert, TablesUpdate } from "@/types/database";
 
 export type FundSource = Tables<"fund_sources">;
@@ -163,13 +164,26 @@ export async function updateTravelFund(
 export async function convertToAccount(
   tripId: string,
   financialAccountId: string,
+  /**
+   * 계좌 잔액을 이미 아는 경우 넘긴다. 그러면 계좌를 다시 읽지 않는다.
+   *
+   * ⚠️ **개인 여행에서는 읽을 수가 없다.** financial_accounts 의 SELECT
+   *    정책은 "모임원이거나, 그 계좌를 가리키는 fund_source 가 있을 것" 이다.
+   *    방금 만든 개인 여행 계좌는 group_id 가 없고 아직 연결 전이라 둘 다
+   *    아니라서, 이 조회가 0건을 내고 연결이 통째로 실패했다. (2026-09-21 4차)
+   */
+  knownBalance?: number,
 ): Promise<FundSource> {
-  const { data: account, error: accountError } = await supabase
-    .from("financial_accounts")
-    .select("current_balance")
-    .eq("id", financialAccountId)
-    .single();
-  if (accountError) throw accountError;
+  let balance = knownBalance;
+  if (balance === undefined) {
+    const { data: account, error: accountError } = await supabase
+      .from("financial_accounts")
+      .select("current_balance")
+      .eq("id", financialAccountId)
+      .single();
+    if (accountError) throw accountError;
+    balance = account.current_balance;
+  }
 
   /**
    * ⚠️ 수기로 넣은 입금 거래를 **함께 지운다.**
@@ -211,7 +225,7 @@ export async function convertToAccount(
   */
   await createInitialFundDeposit({
     tripId,
-    amount: account.current_balance,
+    amount: balance,
     sourceType: TRANSACTION_SOURCE_TYPE.MOCK,
     financialAccountId,
   });
@@ -390,24 +404,32 @@ export async function connectMockAccount(
   accountId = existing?.[0]?.id ?? null;
 
   if (!accountId) {
-    const { data: created, error: createError } = await supabase
+    /*
+      ⚠️ id 를 **앱에서 만들어 넣는다.** `.select("id")` 로 돌려받지 않는다.
+         insert 는 통과해도 돌려받는 건 SELECT 정책을 탄다. 개인 여행 계좌는
+         group_id 가 없고 아직 fund_source 도 안 붙어 있어 그 정책에 걸린다.
+         넣기는 됐는데 읽지 못해 연결이 실패했다. (2026-09-21 4차)
+         모임 여행은 모임원이라 보였기 때문에 지금까지 드러나지 않았다.
+    */
+    const newId = createUuidV4();
+    const { error: createError } = await supabase
       .from("financial_accounts")
       .insert({
+        id: newId,
         group_id: groupId,
         institution_code: bank.institutionCode,
         masked_account_number: bank.maskedAccountNumber,
         current_balance: bank.balance,
         is_mock: true,
         connected_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+      });
     if (createError) throw createError;
-    accountId = created.id;
+    accountId = newId;
   }
 
   // ── 연결 ────────────────────────────────────────────────────────────────
-  const fund = await convertToAccount(tripId, accountId);
+  // 잔액은 이미 안다. 같은 이유로 계좌를 다시 읽지 않는다.
+  const fund = await convertToAccount(tripId, accountId, bank.balance);
 
   // ── 계좌에 있던 결제 1건을 가져온다 ────────────────────────────────────
   //    ⚠️ 이미 가져왔으면 다시 넣지 않는다. 연결을 두 번 해도 중복되면 안 된다.
