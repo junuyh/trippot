@@ -29,10 +29,7 @@ export type PostCardData = {
   postType: PostType;
   /** 이미 라벨로 바꿔서 넘긴다. (POST_TYPE_LABEL) */
   postTypeLabel: string;
-  /** 작성자 이름. 없으면 카드가 대체 문구를 쓴다. */
-  authorName: string | null;
-  /** 작성자 프로필 사진. 없으면 기본 아바타(회색 실루엣)를 그린다. */
-  authorImageUrl: string | null;
+  /* ⚠️ 작성자 이름 · 사진이 없다. 커뮤니티는 익명이다. (label.ts ANONYMOUS_AUTHOR · 2026-09-21) */
   /** 이 글이 나온 여행의 목적지. 없으면 표시하지 않는다. */
   destination: string | null;
   /** 'N일 전' 처럼 이미 사람이 읽을 문자열로 바꿔서 넘긴다. */
@@ -122,10 +119,7 @@ export type CommunityCategory = {
  */
 export type PostCommentItem = {
   commentId: string;
-  /** 작성자 이름. 없으면 컴포넌트가 대체 문구를 쓴다. */
-  authorName: string | null;
-  /** 작성자 프로필 사진. 없으면 기본 아바타(회색 실루엣)를 그린다. */
-  authorImageUrl: string | null;
+  /* ⚠️ 작성자 이름 · 사진이 없다. 커뮤니티는 익명이다. (label.ts ANONYMOUS_AUTHOR · 2026-09-21) */
   content: string;
   /** '3일 전' 처럼 이미 사람이 읽을 문자열. */
   createdLabel: string;

@@ -27,6 +27,7 @@ import {
 import { TRAVEL_TYPE_COPY } from "@/lib/constants/travelTypeCopy";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import { useTripContext } from "@/lib/hooks/useTripContext";
+import { buildRecreateTripHref } from "@/lib/trip/tripCreateEntry";
 import {
   getTripTypeResult,
   type TripTypeResult,
@@ -340,7 +341,7 @@ export default function ScreenTYPE01() {
       <View style={{ marginTop: 24 }}>
         <Button
           label="같은 멤버로 다시 여행 만들기"
-          onPress={() => router.push("/trips/new/owner?entryPoint=past_trip")}
+          onPress={() => router.push(buildRecreateTripHref(trip.group_id))}
         />
       </View>
     </ScrollView>

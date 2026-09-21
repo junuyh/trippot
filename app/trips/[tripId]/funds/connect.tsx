@@ -30,6 +30,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { ConfirmModal } from "@/components/mypage";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   BottomSheet,
@@ -159,6 +160,12 @@ export default function ScreenFUND02() {
   const [pending, setPending] = useState<FinancialAccount | null>(null);
   const [busy, setBusy] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  /*
+    연결 해제 확인 모달. (NFR-003 · 2026-09-21)
+    되돌릴 수 없는 동작인데 버튼 한 번에 바로 풀렸다. 결산 확정·전환·나가기처럼
+    한 번 묻고, 무엇이 남고 무엇이 바뀌는지를 적는다.
+  */
+  const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
   /** 은행 고르기 시트 */
   const [bankOpen, setBankOpen] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -236,8 +243,10 @@ export default function ScreenFUND02() {
     setDisconnecting(true);
     try {
       await disconnectAccount(data.trip.id);
+      setDisconnectConfirmOpen(false);
       router.dismissTo(`/trips/${data.trip.id}/funds` as never);
     } catch {
+      setDisconnectConfirmOpen(false);
       setError(true);
     } finally {
       setDisconnecting(false);
@@ -517,7 +526,7 @@ export default function ScreenFUND02() {
               label="연결 해제"
               variant="secondary"
               loading={disconnecting}
-              onPress={() => void handleDisconnect()}
+              onPress={() => setDisconnectConfirmOpen(true)}
             />
           </View>
         ) : null}
@@ -704,6 +713,18 @@ export default function ScreenFUND02() {
           </View>
         ) : null}
       </BottomSheet>
+
+      {/* 연결 해제 확인. 잔액은 직접 입력으로 이어받는다는 것을 함께 적는다. */}
+      <ConfirmModal
+        visible={disconnectConfirmOpen}
+        title="계좌 연결을 해제할까요?"
+        description="지금 잔액은 직접 입력 금액으로 그대로 이어받아요. 해제한 뒤에는 계좌 거래가 더 이상 들어오지 않아요."
+        confirmLabel="연결 해제"
+        destructive
+        busy={disconnecting}
+        onCancel={() => setDisconnectConfirmOpen(false)}
+        onConfirm={() => void handleDisconnect()}
+      />
     </View>
   );
 }

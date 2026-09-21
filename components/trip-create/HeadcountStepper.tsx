@@ -12,10 +12,18 @@ type Props = {
   onChange: (value: number) => void;
   /** 숫자 왼쪽에 붙는 한 줄 설명. 모임 인원에서 자동으로 채웠다는 안내 등 */
   hint?: string;
+  /**
+   * 내릴 수 있는 하한. 기본 1.
+   *
+   * 기존 모임 여행은 그 모임 멤버가 만들자마자 전원 들어와서, 인원을 그보다
+   * 적게 잡으면 정원이 이미 찬 여행이 된다. (2026-09-21 팀 합의)
+   */
+  min?: number;
 };
 
-export function HeadcountStepper({ value, onChange, hint }: Props) {
-  const canDecrease = value > MIN;
+export function HeadcountStepper({ value, onChange, hint, min }: Props) {
+  const lowerBound = Math.max(MIN, min ?? MIN);
+  const canDecrease = value > lowerBound;
   const canIncrease = value < MAX;
 
   return (

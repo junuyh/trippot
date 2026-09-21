@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Dimensions, Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Avatar } from './Avatar';
+import { ANONYMOUS_AUTHOR } from './label';
 import { BRAND } from '@/lib/constants/brandColor';
 import type { PostDetailData } from './types';
 
@@ -70,12 +71,12 @@ export function PostDetailView({
     <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-16">
       {/* 작성자 */}
       <View className="flex-row items-center px-5 pt-4">
-        <Avatar imageUrl={post.authorImageUrl} size={40} />
+        <Avatar imageUrl={null} size={40} />
 
         <View className="ml-3 flex-1">
           <View className="flex-row items-center">
             <Text className="font-bold text-pot-ink" style={{ fontSize: 15 }} numberOfLines={1}>
-              {post.authorName ?? '알 수 없음'}
+              {ANONYMOUS_AUTHOR}
             </Text>
             {post.publishedLabel ? (
               <Text className="ml-2 text-pot-faint" style={{ fontSize: 13 }}>

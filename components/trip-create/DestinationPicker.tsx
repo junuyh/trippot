@@ -163,9 +163,6 @@ function CountryRow({
   onSelectDestination: (destination: Destination) => void;
   isFirst: boolean;
 }) {
-  // 홍콩처럼 나라 이름과 도시 이름이 같으면 라벨이 군더더기다.
-  const showLabel = !(destinations.length === 1 && destinations[0].nameKo === countryKo);
-
   return (
     <View
       className={`flex-row items-start gap-1.5 px-2.5 py-2.5 ${
@@ -173,17 +170,13 @@ function CountryRow({
       }`}
     >
       {/*
-        홍콩처럼 나라 이름과 도시 이름이 같으면 라벨을 그리지 않는다.
-        다만 칸은 비워 둔다. 라벨이 없다고 칸까지 없애면 그 줄의 도시만 왼쪽으로
-        튀어나와, 세로로 훑을 때 다른 도시들과 줄이 맞지 않는다.
+        홍콩처럼 나라 이름과 도시 이름이 같아도 국가 라벨을 그린다. 한 줄만
+        라벨이 비어 있으면 그 줄만 분류에서 빠진 것처럼 보인다. 같은 단어가
+        두 번 나오는 군더더기보다 국가 구분이 일관된 쪽을 택한다.
       */}
       <View className="w-[74px] flex-row items-center gap-1 pt-2.5">
-        {showLabel ? (
-          <>
-            <Text className="text-sm">{destinations[0].flag}</Text>
-            <Text className="text-xs font-bold text-gray-500">{countryKo}</Text>
-          </>
-        ) : null}
+        <Text className="text-sm">{destinations[0].flag}</Text>
+        <Text className="text-xs font-bold text-gray-500">{countryKo}</Text>
       </View>
       <View className="flex-1 flex-row flex-wrap gap-1.5">
         {destinations.map((destination) => (
