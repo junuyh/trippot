@@ -50,7 +50,7 @@ export function JoinWaitingView({
               accessibilityRole="button"
             >
               <Text className="text-base font-semibold" style={{ color: INVITE_THEME.ink }}>
-                수락 취소하기
+                참여 의사 취소하기
               </Text>
             </View>
           ) : null}

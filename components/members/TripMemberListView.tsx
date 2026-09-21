@@ -134,7 +134,7 @@ export function TripMemberListView({
         {/* 여행장만 — 참여 요청 */}
         {isLeaderView && pendingRequests.length > 0 ? (
           <>
-            <SectionTitle>승인 대기 {pendingRequests.length}건</SectionTitle>
+            <SectionTitle>참여 의사 {pendingRequests.length}건</SectionTitle>
             <View className="overflow-hidden rounded-2xl bg-white">
               {pendingRequests.map((request, index) => (
                 <View
@@ -159,7 +159,7 @@ export function TripMemberListView({
                   </View>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${request.name} 초대 수락 보기`}
+                    accessibilityLabel={`${request.name} 참여 의사 보기`}
                     onPress={() => onOpenRequest(request.requestId)}
                     className="rounded-lg bg-brand px-3 py-2 active:bg-brand-pressed"
                   >
@@ -177,7 +177,7 @@ export function TripMemberListView({
             <SectionTitle>초대 보냄</SectionTitle>
             <View className="rounded-2xl bg-white px-4 py-3.5">
               <Text style={{ fontSize: 12.5, lineHeight: 19, color: "#8B94A2" }}>
-                초대 링크를 보냈어요 · 7일간 유효해요. 상대가 초대를 수락하면 여기에 표시돼요.
+                초대 링크를 보냈어요 · 7일간 유효해요. 상대가 참여 의사를 보내면 여기에 표시돼요.
               </Text>
             </View>
           </>

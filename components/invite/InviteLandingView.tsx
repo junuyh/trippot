@@ -89,7 +89,7 @@ export function InviteLandingView({
                 textAlign: "center",
               }}
             >
-              TripPot이 처음이시죠? 간단한 가입 후 수락이 전달돼요.
+              TripPot이 처음이시죠? 간단한 가입 후 참여 의사가 전달돼요.
             </Text>
           ) : null}
           <InviteGhostButton label="괜찮아요" disabled={requesting} onPress={onDecline} />
