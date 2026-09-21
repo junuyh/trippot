@@ -4,7 +4,7 @@
 //   ▬▬ ▬▬ ▭▭ ▭▭                     닫기   ← 진행 표시 · 언제든 나간다
 //   ┌──────────────────────────┐
 //   │ 01 · PLAN                │          ← 한 장씩 넘긴다 (OnboardingCard)
-//  (<)  실제 페이지를 줄인 화면  (>)        ← 양쪽 이전 · 다음 화살표
+// (<) │ 실제 페이지를 줄인 화면 │ (>)     ← 화살표는 카드 밖에 선다
 //   └──────────────────────────┘
 //                  마지막 장에만 [ 첫 여행 만들기 → ]   ← 아래 '다음' 버튼은 없다
 //
@@ -56,10 +56,17 @@ type Props = {
   onClose: () => void;
 };
 
-/** 페이지 좌우 여백. */
+/** 페이지 좌우 여백. 위 진행 표시 · 아래 버튼이 쓴다. */
 const SIDE = 16;
+/**
+ * 카드 좌우 여백. (2026-09-21)
+ *
+ * ⚠️ 화살표가 들어갈 자리다. 전에는 카드가 화면 폭을 거의 다 써서 화살표가 카드 위에 얹혔고,
+ *    미리보기 그림과 겹쳐 답답했다. 카드를 양쪽으로 그만큼 좁혀 화살표를 카드 **밖**에 둔다.
+ */
+const CARD_SIDE = 40;
 /** 이전 · 다음 화살표 버튼 지름. */
-const ARROW_SIZE = 36;
+const ARROW_SIZE = 32;
 /**
  * 장마다 카드 아래에 두는 여백. 마지막 장에 떠 있는 '첫 여행 만들기' 버튼
  * (버튼 52 + 위아래 여백 28)이 카드 끝을 가리지 않을 만큼이다.
@@ -87,7 +94,8 @@ function ArrowButton({
       style={{
         position: 'absolute',
         top,
-        [side]: SIDE - ARROW_SIZE / 2 + 2,
+        // 카드 밖, 화면 가장자리와 카드 사이에 놓는다
+        [side]: Math.round((CARD_SIDE - ARROW_SIZE) / 2),
         width: ARROW_SIZE,
         height: ARROW_SIZE,
         borderRadius: ARROW_SIZE / 2,
@@ -154,7 +162,7 @@ export function OnboardingView({ onCreateTrip, onClose }: Props) {
   /** 넘기는 칸의 실제 높이. 장마다 세로 스크롤 칸의 높이로 쓴다. */
   const [pagerHeight, setPagerHeight] = useState(0);
 
-  const cardWidth = Math.max(0, width - SIDE * 2);
+  const cardWidth = Math.max(0, width - CARD_SIDE * 2);
   const previewSize: PreviewSize = {
     width: Math.max(0, cardWidth - CARD_PADDING * 2 - STAGE_PADDING * 2),
   };
@@ -241,7 +249,7 @@ export function OnboardingView({ onCreateTrip, onClose }: Props) {
             <ScrollView
               key={slide.label}
               style={{ width, height: pagerHeight || undefined }}
-              contentContainerStyle={{ paddingHorizontal: SIDE, paddingBottom: CTA_SPACE + insets.bottom }}
+              contentContainerStyle={{ paddingHorizontal: CARD_SIDE, paddingBottom: CTA_SPACE + insets.bottom }}
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
             >
