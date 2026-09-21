@@ -25,14 +25,23 @@ import { Pressable, Text, View } from 'react-native';
 import { TONE } from '@/lib/constants/toneColor';
 import type { TripAction } from '@/lib/trip/tripActions';
 
+/**
+ * 번호를 문장이 시작하는 세로줄에 맞추기 위한 들여쓰기. 아이콘 20 + ml-2.5(10).
+ *
+ * ⚠️ 아이콘 크기나 그 옆 간격을 바꾸면 이 값도 바꾼다. 두 배너가 같이 쓴다.
+ */
+export const COUNTER_INDENT = 30;
+
 type Props = {
   action: TripAction;
   onPress: () => void;
   /**
    * '2/5'. 캐러셀이 넘겨준다. 한 장뿐이면 오지 않는다.
    *
-   * ⚠️ 배너 **안쪽** 버튼 줄 왼쪽에 둔다. 카드 밖 아래에 두면 배너와 떨어져
-   *    보여서 무엇의 개수인지 읽히지 않는다. (2026-09-21 다빈)
+   * ⚠️ 배너 **안쪽 오른쪽 위**다. (2026-09-21 다빈)
+   *    카드 밖 아래 → 배너와 떨어져 보여서 무엇의 개수인지 읽히지 않았다.
+   *    버튼 줄 왼쪽 → 버튼과 같은 줄이라 둘이 서로 눈길을 다퉜다.
+   *    제목 줄 끝은 비어 있고, 읽기 시작하는 자리라 몇 장인지 먼저 눈에 든다.
    */
   counter?: string;
 };
@@ -67,9 +76,21 @@ export function HomeActionBanner({ action, onPress, counter }: Props) {
         </View>
       </View>
 
-      <View className="mt-3 flex-row items-center justify-between">
-        {/* 번호가 없으면 빈 칸을 둬서 버튼이 오른쪽에 그대로 남게 한다 */}
-        {counter ? <BannerCounter text={counter} color={c.body} /> : <View />}
+      {/*
+        번호는 버튼과 **같은 줄**이다. 아래 한 줄을 더 쓰면 배너가 높아지는데,
+        캐러셀로 바꾼 이유가 배너가 화면 위쪽을 다 먹는 걸 줄이려던 것이라
+        그걸 되돌리는 꼴이 된다. (2026-09-21 다빈)
+
+        ⚠️ 왼쪽 끝이 아니라 **문장이 시작하는 세로줄**에 맞춘다(COUNTER_INDENT).
+           제목·부제와 한 줄기로 읽힌다.
+
+        ⚠️ 배너 정중앙에 두지 않는다. 초대 배너는 버튼이 둘이라 오른쪽에서
+           가운데를 넘어와 거기서 겹친다.
+      */}
+      <View className="mt-3 flex-row items-center">
+        <View style={{ width: COUNTER_INDENT }} />
+        {counter ? <BannerCounter text={counter} color={c.body} /> : null}
+        <View className="flex-1" />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${action.headline} ${action.ctaLabel}`}
@@ -105,7 +126,12 @@ export function BannerCounter({ text, color }: { text: string; color: string }) 
   return (
     <Text
       accessibilityLabel={`${text.split('/')[1]}개 중 ${text.split('/')[0]}번째`}
-      style={{ fontSize: 12, fontWeight: '700', color, fontVariant: ['tabular-nums'] }}
+      style={{
+        fontSize: 12,
+        fontWeight: '700',
+        color,
+        fontVariant: ['tabular-nums'],
+      }}
     >
       {text}
     </Text>
