@@ -145,6 +145,7 @@ export default function ScreenBUDGET02() {
      * 어디서 들어왔는가. 뒤로 갈 곳을 정한다.
      *   'home'       여행 홈의 금고·카테고리 줄
      *   'settlement' 결산 화면
+     *   'insurance'  여행자보험 견적에서 '예산으로 적용'
      *   없음          예산 전체 (기본)
      */
     from?: string;
@@ -166,7 +167,9 @@ export default function ScreenBUDGET02() {
       ? `/trips/${tripId}`
       : from === "settlement"
         ? `/trips/${tripId}/settlement`
-        : `/trips/${tripId}/budget`;
+        : from === "insurance"
+          ? `/trips/${tripId}/insurance?placement=budget_detail&fromCategory=${categoryId}`
+          : `/trips/${tripId}/budget`;
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 

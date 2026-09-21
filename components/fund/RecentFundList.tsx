@@ -127,16 +127,19 @@ export function RecentFundList({ theme, transactions, onSelect }: Props) {
               {amountSign(item)}
               {item.amount.toLocaleString("ko-KR")}원
             </Text>
-            <Text
-              style={{
-                marginTop: 3,
-                fontSize: 9,
-                fontWeight: "700",
-                color: item.needsReview ? "#e83d4d" : "#a3a9b3",
-              }}
-            >
-              {statusLabel(item)}
-            </Text>
+            {/* 할 일이 있는 줄에만 말이 붙는다. 아무 일 없으면 비워 둔다 */}
+            {statusLabel(item) ? (
+              <Text
+                style={{
+                  marginTop: 3,
+                  fontSize: 9,
+                  fontWeight: "700",
+                  color: item.needsReview ? "#e83d4d" : "#a3a9b3",
+                }}
+              >
+                {statusLabel(item)}
+              </Text>
+            ) : null}
           </View>
         </Pressable>
       ))}

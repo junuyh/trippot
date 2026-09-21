@@ -1141,19 +1141,22 @@ export default function ScreenFUND01() {
                     {sign}
                     {transaction.amount.toLocaleString("ko-KR")}원
                   </Text>
-                  <Text
-                    style={{
-                      marginTop: 4,
-                      fontSize: 9,
-                      fontWeight: "700",
-                      color: reason ? "#e83d4d" : "#a3a9b3",
-                    }}
-                  >
-                    {statusLabel({
-                      ...iconInput,
-                      needsReview: reason !== null,
-                    })}
-                  </Text>
+                  {/* 할 일이 있는 줄에만 말이 붙는다 */}
+                  {statusLabel({ ...iconInput, needsReview: reason !== null }) ? (
+                    <Text
+                      style={{
+                        marginTop: 4,
+                        fontSize: 9,
+                        fontWeight: "700",
+                        color: reason ? "#e83d4d" : "#a3a9b3",
+                      }}
+                    >
+                      {statusLabel({
+                        ...iconInput,
+                        needsReview: reason !== null,
+                      })}
+                    </Text>
+                  ) : null}
                 </View>
               </Pressable>
             </Swipeable>
