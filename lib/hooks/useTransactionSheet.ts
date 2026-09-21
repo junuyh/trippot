@@ -138,11 +138,18 @@ export function useTransactionSheet({
     setPickedPlanId(null);
   }, []);
 
+  /*
+    ⚠️ 카테고리도 함께 들고 들어간다. (2026-09-21 4차)
+       금액과 카테고리를 같이 고치려면 '내용 수정' 한 번, '카테고리 변경'
+       한 번 — 두 번 저장해야 했다. 지출을 처음 적을 때는 한 화면에서
+       다 받으면서, 고칠 때만 둘로 갈라 놓을 이유가 없다.
+  */
   const startEdit = useCallback(() => {
     if (!transaction) return;
     setDraftName(transaction.name ?? "");
     setDraftAmount(transaction.amount);
     setDraftDate(transaction.occurred_at.slice(0, 10));
+    setPickedCategoryId(transaction.budget_category_id);
     setError(null);
     setMode("edit");
   }, [transaction]);
@@ -180,11 +187,32 @@ export function useTransactionSheet({
     }
     setBusy(true);
     try {
-      const next = await updateManualTransaction(transaction.id, {
+      let next = await updateManualTransaction(transaction.id, {
         name: draftName.trim() === "" ? null : draftName.trim(),
         amount,
         occurredAt: `${draftDate}T12:00:00+09:00`,
       });
+      /*
+        카테고리를 함께 고쳤으면 이어서 반영한다.
+        ⚠️ 바뀌지 않았으면 부르지 않는다. 이 호출은 계획 연결을 푼다
+           (옮긴 카테고리의 계획이 아니게 되므로). 그대로인 거래의 연결까지
+           풀어 버리면 사용자는 건드린 적 없는 것을 잃는다.
+      */
+      if (canMap && pickedCategoryId !== transaction.budget_category_id) {
+        next = await updateTransactionMapping(transaction.id, {
+          categoryId: pickedCategoryId,
+          categoryMethod: CATEGORY_METHOD.USER,
+        });
+        const code = categories.find((c) => c.id === pickedCategoryId)
+          ?.category_code as CategoryCode | undefined;
+        if (code) {
+          track(EVENTS.TRANSACTION_CATEGORY_CORRECTED, {
+            trip_id: tripId,
+            category: CATEGORY_CODE_TO_ANALYTICS[code],
+            mapped_by: MAPPED_BY.USER,
+          });
+        }
+      }
       setTransaction(next);
       setMode("detail");
       await onChanged();
@@ -194,7 +222,19 @@ export function useTransactionSheet({
     } finally {
       setBusy(false);
     }
-  }, [busy, draftAmount, draftDate, draftName, onChanged, onNotice, transaction]);
+  }, [
+    busy,
+    canMap,
+    categories,
+    draftAmount,
+    draftDate,
+    draftName,
+    onChanged,
+    onNotice,
+    pickedCategoryId,
+    transaction,
+    tripId,
+  ]);
 
   /**
    * 예산 카테고리를 바꾼다.

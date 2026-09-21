@@ -112,7 +112,7 @@ export function TransactionSheet({
           {c.mode === "detail" ? (
             <DetailView c={c} theme={theme} masked={maskedAccountNumber} />
           ) : c.mode === "edit" ? (
-            <EditView c={c} />
+            <EditView c={c} theme={theme} />
           ) : c.mode === "category" ? (
             <CategoryView c={c} theme={theme} />
           ) : (
@@ -286,7 +286,13 @@ function DetailView({
 }
 
 // ── 내용 수정 ───────────────────────────────────────────────────────────────
-function EditView({ c }: { c: TransactionSheetController }) {
+function EditView({
+  c,
+  theme,
+}: {
+  c: TransactionSheetController;
+  theme: CountryTheme;
+}) {
   return (
     <View style={{ paddingTop: 14, gap: 12 }}>
       <Input
@@ -301,6 +307,37 @@ function EditView({ c }: { c: TransactionSheetController }) {
         value={c.draftAmount}
         onChangeValue={c.setDraftAmount}
       />
+      {/*
+        ⚠️ 카테고리를 여기서 같이 고른다. (2026-09-21 4차)
+           금액과 카테고리를 둘 다 고치려면 저장을 두 번 해야 했다.
+           처음 적을 때는 한 화면에서 다 받으면서 고칠 때만 갈라 둘 이유가 없다.
+        ⚠️ 입금에는 카테고리가 없다. canMap 이 가린다.
+      */}
+      {c.canMap ? (
+        <View>
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: "700",
+              color: "#111827",
+              marginBottom: 8,
+            }}
+          >
+            예산 카테고리
+          </Text>
+          <CategoryChips c={c} theme={theme} />
+          {c.pickedCategoryId !== null &&
+          c.transaction?.budget_plan_item_id &&
+          c.pickedCategoryId !== c.transaction.budget_category_id ? (
+            <Text
+              style={{ marginTop: 8, fontSize: 11, color: "#b4700f" }}
+            >
+              카테고리를 옮기면 연결된 계획은 풀려요. 그 계획은 지금 카테고리의
+              것이라서요.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       <View>
         <Text
           style={{
@@ -333,8 +370,9 @@ function EditView({ c }: { c: TransactionSheetController }) {
   );
 }
 
-// ── 카테고리 고르기 ─────────────────────────────────────────────────────────
-function CategoryView({
+// 카테고리 칩. **'카테고리 변경' 과 '내용 수정' 이 같은 것을 쓴다.**
+// 두 벌로 그리면 한쪽만 고쳐져 같은 목록이 다르게 보인다.
+function CategoryChips({
   c,
   theme,
 }: {
@@ -342,8 +380,7 @@ function CategoryView({
   theme: CountryTheme;
 }) {
   return (
-    <View style={{ paddingTop: 14 }}>
-      <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+    <View className="flex-row flex-wrap" style={{ gap: 8 }}>
         {c.categories.map((category) => {
           const picked = c.pickedCategoryId === category.id;
           const code = category.category_code as CategoryCode;
@@ -379,6 +416,20 @@ function CategoryView({
           );
         })}
       </View>
+  );
+}
+
+// ── 카테고리 고르기 ─────────────────────────────────────────────────────────
+function CategoryView({
+  c,
+  theme,
+}: {
+  c: TransactionSheetController;
+  theme: CountryTheme;
+}) {
+  return (
+    <View style={{ paddingTop: 14 }}>
+      <CategoryChips c={c} theme={theme} />
       <Footer
         c={c}
         confirmLabel="이 카테고리로"
