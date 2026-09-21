@@ -101,6 +101,7 @@ import {
 } from '@/lib/supabase/queries/community';
 import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
 import {
+  advanceTripStatuses,
   getMyParticipatingTripsWithSummary,
   type TripWithSummary,
 } from '@/lib/supabase/queries/trips';
@@ -242,12 +243,22 @@ export default function ScreenHOME01() {
         getMyGroups(userId),
         getUserProfile(userId),
       ]);
-      setTrips(nextTrips);
+      /*
+        ⚠️ 목록에 뜨기 전에 상태를 올린다. (2026-09-21 테스트)
+           지금까지는 여행 홈에 들어가야만 올라가서, 이미 떠났거나 끝난
+           여행이 PLANNING 인 채로 '준비 중인 여행' 칸에 D+5 를 달고 남았다.
+           날짜가 지난 여행만 건드린다 — 홈을 열 때마다 여행 수만큼 쓰기가
+           나가면 안 된다.
+      */
+      const advanced = await advanceTripStatuses(nextTrips).catch(
+        () => nextTrips,
+      );
+      setTrips(advanced);
       setGroups(nextGroups);
       setProfile(nextProfile);
 
       // 준비 중이거나 여행 중인 여행이 하나라도 있는가.
-      const hasOngoing = nextTrips.some(
+      const hasOngoing = advanced.some(
         (trip) =>
           // ⚠️ 취소 요청 중도 진행 중이다. 빼면 요청받은 사람 홈에서 사라진다
           isTripOngoing(trip.status),

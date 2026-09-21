@@ -46,6 +46,7 @@ import { getMyGroups, type Group } from '@/lib/supabase/queries/groups';
 import {
   getCanceledTrips,
   getLeftTrips,
+  advanceTripStatuses,
   getMyParticipatingTripsWithSummary,
   type Trip,
   type TripWithSummary,
@@ -192,7 +193,8 @@ export default function ScreenMY02() {
         getCanceledTrips(userId),
         getLeftTrips(userId),
       ]);
-      setTrips(nextTrips);
+      // 홈과 같다 — 날짜가 지난 여행의 상태를 목록에 뜨기 전에 올린다. (2026-09-21)
+      setTrips(await advanceTripStatuses(nextTrips).catch(() => nextTrips));
       setGroups(nextGroups);
       setCanceledTrips(nextCanceled);
       setLeftTrips(nextLeft);
