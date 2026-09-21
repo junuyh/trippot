@@ -8,6 +8,7 @@ import { initAnalytics } from '@/lib/analytics/track';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthProvider';
 import { NotificationBannerObserver } from '@/lib/notifications/NotificationBannerObserver';
 import { PushInboxObserver } from '@/lib/notifications/PushInboxObserver';
+import { SpendReminderReconciler } from '@/lib/notifications/SpendReminderReconciler';
 
 import '../global.css';
 
@@ -154,6 +155,8 @@ export default function RootLayout() {
       <AuthProvider>
         {/* 기기에 도착한 알림을 사용자별로 보관한다. 화면을 그리지 않는다. (lib/notifications) */}
         <PushInboxObserver />
+        {/* 지출 리마인드 OS 예약을 지금 DB(일정 · 멤버십)에 맞춘다. 로그인 · 복귀 시. 화면을 그리지 않는다. */}
+        <SpendReminderReconciler />
         <AuthGate>
           <RootStack />
         </AuthGate>

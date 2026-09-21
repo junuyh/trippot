@@ -6,7 +6,13 @@
 //
 // source=db   public.notifications 한 행. 진입하면 읽음(read_at) — 사용자의 실제 확인 행동이다.
 //             상태·CTA 는 lib/notifications/resolveNotificationAction 이 현재 domain 을 다시 물어 정한다.
-// source=push 기기 보관 알림(generic Push fallback). 문맥이 없어 CTA 없음. 진입하면 읽음.
+// source=push 기기 보관 알림(generic Push fallback). 진입하면 읽음.
+//             지출 리마인드(id `spend-reminder:{tripId}:{n}` · data.tripId)만 [여행 홈으로 가기] CTA 를 붙인다. (2026-09-21)
+//             tripId 는 payload/id 규칙에서만 읽고(제목 파싱 없음), 아래 조건을 **모두** 만족할 때만 보여준다:
+//               · getTripById 성공  · 현재 사용자가 그 여행의 ACTIVE 멤버(getMyParticipatingTripIds — 모임 멤버·리더라서
+//                 여행이 읽히는 경우(RLS can_access_trip)는 제외)  · 여행이 CANCELED/DELETED 아님
+//             LEFT · 멤버 아님 · 취소된 여행은 본문만. ENDED/SETTLED 는 여행 홈이 정산 등을 보여주므로 그대로 연다.
+//             관련 여행 카드에는 모임명(개인 여행은 '개인 여행')을 한 줄 더 붙인다 — 같은 여행지 여행이 여럿일 때 가른다.
 //
 // ⚠️ 알림 id 만으로 조회하지 않는다. userId 로 함께 좁혀 남의 알림을 열 수 없다.
 // ⚠️ useScreenView 를 부르지 않는다. (SCREENS 상수 없음 · events.ts 는 공유 파일)
@@ -19,13 +25,17 @@ import { View } from 'react-native';
 import { NotificationDetailView, type NotificationDetailItem } from '@/components/mypage';
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
+import { TRIP_STATUS } from '@/lib/constants/status';
 import { fromDbNotification, fromPushNotification } from '@/lib/notifications/listItem';
 import { toTripLabel } from '@/lib/notifications/messages';
 import { getPushInbox, markPushNotificationAsRead } from '@/lib/notifications/pushInbox';
+import { parseSpendReminderTripId } from '@/lib/notifications/spendReminderId';
 import { notifyNotificationsChanged } from '@/lib/notifications/unreadNotifications';
 import { resolveNotificationAction } from '@/lib/notifications/resolveNotificationAction';
 import { getNotification, markNotificationAsRead } from '@/lib/supabase/queries/notifications';
-import { getTripById } from '@/lib/supabase/queries/trips';
+import { toTripGroupLabel } from '@/lib/notifications/listItem';
+import { getGroupById } from '@/lib/supabase/queries/groups';
+import { getMyParticipatingTripIds, getTripById } from '@/lib/supabase/queries/trips';
 
 type LoadState = 'loading' | 'ready' | 'missing' | 'error';
 
@@ -78,6 +88,30 @@ export default function ScreenNotificationDetail() {
           cta: null,
         });
         setLoadState('ready');
+
+        // 지출 리마인드 → 관련 여행 홈. tripId 는 저장된 메타데이터 또는 id 규칙에서만. 여행을 지금 읽을 수 있을 때만 CTA.
+        const reminderTripId = row.tripId ?? parseSpendReminderTripId(row.id);
+        if (reminderTripId) {
+          setResolving(true);
+          const [trip, participating] = await Promise.all([
+            getTripById(reminderTripId).catch(() => null),
+            getMyParticipatingTripIds(userId).catch(() => new Set<string>()),
+          ]);
+          const group = trip?.group_id ? await getGroupById(trip.group_id).catch(() => null) : null;
+          const isActiveMember = participating.has(reminderTripId);
+          const isOpen = trip !== null && trip.status !== TRIP_STATUS.CANCELED && trip.status !== TRIP_STATUS.DELETED;
+          setItem((prev) =>
+            prev && trip
+              ? {
+                  ...prev,
+                  tripLabel: toTripLine(trip.destination, trip.start_date, trip.end_date),
+                  tripGroupLabel: toTripGroupLabel({ owner_type: trip.owner_type, groupName: group?.name ?? null }),
+                  cta: isActiveMember && isOpen ? { label: '여행 홈으로 가기', href: `/trips/${trip.id}` } : null,
+                }
+              : prev,
+          );
+          setResolving(false);
+        }
         return;
       }
 

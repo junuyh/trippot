@@ -252,6 +252,31 @@ export async function getMyTripCount(userId: string): Promise<number> {
 }
 
 /** 잘못된 tripId 면 null 을 반환한다. 화면은 Empty/Error 로 처리한다. */
+/** 알림센터가 쓰는 여행 요약 — 여행 + 모임명 한 번에. (2026-09-21) */
+export type TripContextRow = Pick<
+  Trip,
+  "id" | "destination" | "start_date" | "end_date" | "status" | "owner_type" | "group_id"
+> & { groupName: string | null };
+
+/**
+ * 여러 여행을 한 번에 읽는다(알림센터 목록의 지출 리마인드 보조 정보용). 모임명은 groups 를 임베드해 같이 온다.
+ * ⚠️ 행 단위 N+1 을 피하려고 목록 한 번에 ids 를 모아 부른다. RLS 로 못 보는 여행은 그냥 빠진다(오류 아님).
+ * ⚠️ 이 결과로 멤버십을 판단하지 않는다 — 여행 조회 권한(can_access_trip)은 모임 멤버·리더에게도 열려 있다.
+ */
+export async function getTripsByIds(tripIds: readonly string[]): Promise<TripContextRow[]> {
+  if (tripIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("trips")
+    .select("id, destination, start_date, end_date, status, owner_type, group_id, groups(name)")
+    .in("id", [...tripIds]);
+  if (error) throw error;
+  return (data ?? []).map((row) => {
+    const { groups, ...trip } = row as typeof row & { groups: { name: string } | { name: string }[] | null };
+    const group = Array.isArray(groups) ? groups[0] ?? null : groups;
+    return { ...trip, groupName: group?.name ?? null };
+  });
+}
+
 export async function getTripById(tripId: string): Promise<Trip | null> {
   // maybeSingle() 이라 없으면 null 이다. 잘못된 tripId 로 들어와도 던지지 않는다.
   // 화면은 null 을 Empty/Error 로 처리한다. (CLAUDE.md 9장)
