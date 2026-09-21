@@ -479,6 +479,30 @@ export async function closeTripIfEnded(trip: Trip): Promise<Trip> {
 //    (unique 제약 추가는 초대·재참여 구현 시 별도 hardening 대상)
 
 /**
+ * 기존 모임으로 만든 여행에 그 모임 멤버를 참여시킨다. **여행 생성 직후 1회.**
+ *
+ * 앱이 trip_members 에 직접 넣지 못해서 RPC 를 경유한다 —
+ * trip_members_insert_self 정책이 본인 행만 허용한다. 남을 ACTIVE 로 넣는 길은
+ * 승인 RPC 뿐이라는 원칙을 풀지 않으려고, 자동 합류만 하는 함수를 따로 뒀다.
+ * (migration 20260921000010 · 2026-09-21 팀 합의)
+ *
+ * 서버가 하는 일
+ *   · 부르는 사람이 여행장이고 그 모임 ACTIVE 멤버인지 확인
+ *   · 모임 ACTIVE 멤버 중 아직 안 들어온 사람만 추림 (탈퇴 계정 제외)
+ *   · 정원(headcount) 이 모자라면 먼저 올림
+ *
+ * @returns 새로 참여시킨 사람 수. 개인 여행이거나 넣을 사람이 없으면 0.
+ */
+export async function addGroupMembersToTrip(tripId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("add_group_members_to_trip", {
+    p_trip_id: tripId,
+  });
+
+  if (error) throw error;
+  return data ?? 0;
+}
+
+/**
  * 내가 지금 참가 중인 여행 id 집합.
  *
  * ⚠️ **한 번의 질의로 끝낸다.** 여행마다 참가 여부를 묻지 않는다(N+1 금지).
