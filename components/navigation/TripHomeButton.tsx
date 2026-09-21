@@ -15,9 +15,13 @@
 //
 // ⚠️ 탭 홈(/)이 아니라 **여행 홈**으로 간다. 여행 안에서 길을 잃었을 때
 //    앱 첫 화면까지 밀어내면 하던 일이 통째로 끊긴다.
+//
+// ⚠️ 2026-09-21 테스트 · 그림 하나만 두니 **버튼인 줄 몰랐다.** 테두리를 두르고
+//    '여행 홈' 이라고 적는다. 헤더 아이콘은 눌러 보기 전에는 장식과 구분되지
+//    않는다. 이 버튼은 여행 안에서 길을 잃었을 때의 유일한 탈출구라 놓치면 안 된다.
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Pressable } from "react-native";
+import { Pressable, Text } from "react-native";
 
 type Props = {
   tripId: string;
@@ -44,9 +48,18 @@ export function TripHomeButton({ tripId, ended = false }: Props) {
         }
         router.replace(href);
       }}
-      className="h-9 w-9 items-center justify-center rounded-full active:bg-gray-100"
+      className="h-8 flex-row items-center justify-center rounded-full active:bg-gray-100"
+      style={{
+        gap: 4,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: "#dfe3e8",
+      }}
     >
-      <Ionicons name={ended ? "receipt-outline" : "airplane-outline"} size={20} color="#111827" />
+      <Ionicons name={ended ? "receipt-outline" : "airplane-outline"} size={15} color="#111827" />
+      <Text style={{ fontSize: 11, fontWeight: "700", color: "#111827" }}>
+        여행 홈
+      </Text>
     </Pressable>
   );
 }

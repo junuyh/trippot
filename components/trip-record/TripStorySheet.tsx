@@ -89,7 +89,19 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
   const [membersScale, setMembersScale] = useState(1);
   const [mapScale, setMapScale] = useState(1);
 
-  const isTitle = selected === STORY_TEXT.TITLE;
+  /*
+    ⚠️ 글꼴·크기 패널을 **항상 띄운다.** (2026-09-21 테스트)
+
+       예전에는 카드 위 글자를 먼저 눌러야(selected) 패널이 나왔다. 그래서
+       시트를 열자마자 글꼴을 고를 수 없었고, "폰트가 바로 적용되지 않는다 ·
+       도시명이나 사람 이름을 꼭 먼저 선택해야만 된다" 로 올라왔다.
+       무엇을 꾸미는 중인지는 아래 칩으로 직접 고를 수 있게 한다.
+
+    ⚠️ selected 는 그대로 둔다. 카드 위 선택 테두리와 캡처 직전 해제에 쓰인다.
+       패널이 무엇을 바꾸는지는 target 이 정한다. 아무것도 안 골랐으면 도시명이다.
+  */
+  const target = selected ?? STORY_TEXT.TITLE;
+  const isTitle = target === STORY_TEXT.TITLE;
   const fontId = isTitle ? titleFontId : membersFontId;
   const setFontId = isTitle ? setTitleFontId : setMembersFontId;
   const scale = isTitle ? titleScale : membersScale;
@@ -146,13 +158,40 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
           </View>
         </GestureHandlerRootView>
 
-        {/* ── 선택한 텍스트의 글꼴·크기 ────────────────────────────── */}
-        {selected ? (
-          <View className="w-full gap-3 rounded-2xl bg-gray-50 p-3">
+        {/* ── 글꼴·크기. 카드를 누르지 않아도 바로 쓸 수 있다 ──────────── */}
+        <View className="w-full gap-3 rounded-2xl bg-gray-50 p-3">
             <View className="flex-row items-center justify-between">
-              <Text className="text-[13px] font-bold text-gray-900">
-                {isTitle ? '도시명' : '함께 간 사람'}
-              </Text>
+              {/* 무엇을 꾸미는 중인지 직접 고른다. 카드를 누르는 것과 같은 효과 */}
+              <View className="flex-row gap-1.5">
+                {[
+                  { key: STORY_TEXT.TITLE, label: '도시명' },
+                  { key: STORY_TEXT.MEMBERS, label: '함께 간 사람' },
+                ].map((tab) => {
+                  const on = target === tab.key;
+                  return (
+                    <Pressable
+                      key={tab.label}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`${tab.label} 꾸미기`}
+                      onPress={() => setSelected(tab.key)}
+                      className="rounded-full px-3 py-1.5"
+                      style={{
+                        borderWidth: 1,
+                        borderColor: on ? theme.primary : '#e5e7eb',
+                        backgroundColor: on ? theme.primarySoft : '#fff',
+                      }}
+                    >
+                      <Text
+                        className="text-[11px] font-bold"
+                        style={{ color: on ? theme.primary : '#6b7280' }}
+                      >
+                        {tab.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               {!isTitle && memberPresets.length > 0 ? (
                 <View className="flex-row gap-1.5">
                   {memberPresets.map((preset) => (
@@ -243,7 +282,6 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
               </View>
             </View>
           </View>
-        ) : null}
 
         <View className="w-full gap-2">
           <Pressable

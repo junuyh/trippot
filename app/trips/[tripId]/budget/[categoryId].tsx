@@ -450,6 +450,25 @@ export default function ScreenBUDGET02() {
       const spent = data.transactions.reduce((sum, t) => sum + t.amount, 0);
       if (spent > 0) return;
 
+      /*
+        ⚠️⚠️ **계획을 전부 지웠다고 예산을 0원으로 만들지 않는다.** ⚠️⚠️
+
+           여행을 만들 때 설정 예산과 계획 합계가 같은 값으로 들어온다.
+           (예산 구성에서 고른 상품이 그대로 계획이 된다) 그래서 여유 예산이
+           0이고, 그 하나뿐인 계획을 지우면 `계획 0 + 여유 0` 으로 설정
+           예산까지 0원이 됐다.
+
+           숙소 계획을 지웠다고 숙소에 쓸 돈이 없어지는 것은 아니다. 게다가
+           예산이 0이 되면 '계획 추가' 가 기준 삼을 금액이 사라져 추천도
+           나오지 않았다 — 테스트에서 "도미토리를 지우니 새 숙소가 추천되지
+           않는다" 로 올라온 것이 이것이다. (2026-09-21)
+
+           계획이 하나도 남지 않으면 지금 예산을 그대로 둔다. 예산을 줄이는
+           것은 사용자가 금액을 직접 고칠 때만 한다. (CLAUDE.md 4장 —
+           planned_amount 는 사용자 확정 행동으로만 바뀐다)
+      */
+      if (nextPlans.length === 0) return;
+
       const before = plans.reduce((sum, item) => sum + item.expectedAmount, 0);
       const reserve = Math.max(0, data.category.planned_amount - before);
       const after = nextPlans.reduce(

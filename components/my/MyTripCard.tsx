@@ -242,8 +242,13 @@ export function MyTripCard({
               최종 여행비
             </Text>
             <Text className="font-black text-pot-ink" style={{ fontSize: 13, ...NUM }}>
+              {/*
+                ⚠️ '결산 전' 을 여기 또 적지 않는다. 카드 위 배지가 이미 상태를
+                   말하고 있어서 같은 말이 한 카드에 두 번 나왔다.
+                   (2026-09-21 테스트) 금액 자리에는 금액만 둔다.
+              */}
               {trip.finalAmount === null
-                ? '결산 전'
+                ? '—'
                 : `${trip.finalAmount.toLocaleString('ko-KR')}원`}
             </Text>
           </View>

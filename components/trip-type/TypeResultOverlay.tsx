@@ -309,7 +309,14 @@ export function TypeResultOverlay({
               </Text>
             </View>
           ) : (
-            <View className="flex-row" style={{ gap: 10, marginTop: 20 }}>
+            /*
+              ⚠️ 카카오톡 보내기 버튼을 뺐다. (2026-09-21 테스트)
+                 네이티브 SDK 라 Expo Go·테스트 빌드에서 동작하지 않아 눌러도
+                 "곧 만나요" 안내만 떴다. 되지 않는 버튼을 두면 사용자는
+                 고장으로 읽는다. 이미지 공유는 OS 공유 시트로 카카오톡까지
+                 보낼 수 있어서 이 하나로 충분하다.
+            */
+            <View style={{ marginTop: 20 }}>
               <ShareAction
                 icon="image-outline"
                 label="이미지로 공유"
@@ -320,16 +327,6 @@ export function TypeResultOverlay({
                       "곧 만나요",
                       `${destinationKo} 여행 유형을 이미지로 저장하는 기능을 준비하고 있어요.`,
                     ))
-                }
-              />
-              <ShareAction
-                icon="chatbubble-ellipses-outline"
-                label="카카오톡으로 보내기"
-                onPress={() =>
-                  Alert.alert(
-                    "곧 만나요",
-                    "카카오톡 공유는 개발 빌드에서만 동작해요. 연동 준비가 끝나면 알려드릴게요.",
-                  )
                 }
               />
             </View>

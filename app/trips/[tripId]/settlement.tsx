@@ -689,10 +689,31 @@ export default function ScreenSETTLE01() {
       */}
       {!settled &&
       (checklist.reviewCount > 0 || checklist.unlinkedPlans.length > 0) ? (
-        <View className="gap-2.5">
-          <Text className="text-base font-semibold text-gray-900">
-            확정 전에 확인해요
-          </Text>
+        /*
+          ⚠️ 눈에 띄게 둔다. (2026-09-21 테스트 — "확정 전에 확인해요가 아예
+             안 보임") 예전에는 다른 본문과 같은 회색 글씨 한 줄이라 긴 결산
+             화면을 내리는 동안 그냥 지나쳤다. 여기서 놓치면 미분류 거래가
+             그대로 결산에 들어간다. 테두리와 바탕을 줘서 한 덩어리로 세운다.
+        */
+        <View
+          className="gap-2.5"
+          style={{
+            borderWidth: 1,
+            borderColor: "#f3c9a0",
+            backgroundColor: "#fff9f2",
+            borderRadius: 14,
+            padding: 14,
+          }}
+        >
+          <View className="flex-row items-center" style={{ gap: 6 }}>
+            <Ionicons name="alert-circle" size={17} color="#c9761f" />
+            <Text
+              className="text-base font-bold"
+              style={{ color: "#8a4d10" }}
+            >
+              확정 전에 확인해요
+            </Text>
+          </View>
 
           {checklist.reviewCount > 0 ? (
             <Pressable
