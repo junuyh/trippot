@@ -604,6 +604,12 @@ export default function ScreenSETTLE01() {
         confirmedCount={data.funds.confirmedCount}
         /* 확인할 거래가 남아 있으면 '완료' 라고 말하지 않는다 */
         allConfirmed={checklist.reviewCount === 0}
+        /*
+          ⚠️ 확정 전에만 낸다. 확인이 끝났다는 말 바로 아래에 다음 걸음을 둔다.
+             화면 맨 아래 버튼은 그대로다 — 카테고리를 다 보고 내려온 자리다.
+        */
+        onConfirm={settled ? undefined : handleConfirmPress}
+        confirming={confirming}
       />
 
       {/*

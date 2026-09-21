@@ -10,3 +10,4 @@ export {
 } from "./TransactionDetailBody";
 export { ReceiptSourceSheet } from "./ReceiptSourceSheet";
 export { ReceiptScanningOverlay } from "./ReceiptScanningOverlay";
+export { TransactionSheet } from "./TransactionSheet";

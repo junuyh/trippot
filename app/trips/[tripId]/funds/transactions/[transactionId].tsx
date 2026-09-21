@@ -443,6 +443,24 @@ export default function ScreenFUND03() {
        바꾸면 계좌 내역과 어긋난다. 입금·출금 둘 다 열어 준다 — 모임 입금을
        손으로 적는 일이 잦다.
   */
+  /**
+   * 이 거래를 붙일 수 있는 계획 후보.
+   *
+   * ⚠️ **같은 카테고리**의 계획만 본다. (2026-09-21 2차) 예전에는 여덟
+   *    카테고리의 계획이 전부 나와서, 식비 지출을 항공 계획에 붙일 수
+   *    있었다. 붙으면 그 거래가 항공 카테고리로 통째로 옮겨 간다.
+   *    전체 내역 화면(transactions/index.tsx)이 쓰는 기준과 같게 맞춘다.
+   *
+   * ⚠️ 한 계획에 여러 지출이 붙는 것은 **막지 않는다.** '편의점' 계획 하나에
+   *    로손·세븐일레븐·패밀리마트가 모두 붙는 게 맞다. 계획의 실제 금액은
+   *    붙은 거래를 다시 합산해서 넣는다.
+   */
+  const planCandidates = transaction.budget_category_id
+    ? data.planItems.filter(
+        (item) => item.budget_category_id === transaction.budget_category_id,
+      )
+    : [];
+
   const canEditManual =
     !settled &&
     transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL;
@@ -628,9 +646,11 @@ export default function ScreenFUND03() {
                          다시 닫게 하는 건 한 걸음이 헛돈다. 눌린 자리에서
                          바로 답한다.
                     */
-                    if (data.planItems.length === 0) {
+                    if (planCandidates.length === 0) {
                       floatingToast.show(
-                        "연결할 세부 계획이 없어요. 예산 상세에서 계획을 먼저 만들어 주세요.",
+                        transaction.budget_category_id
+                          ? "이 카테고리에 연결할 세부 계획이 없어요. 예산 상세에서 계획을 먼저 만들어 주세요."
+                          : "카테고리를 먼저 정해 주세요. 그 카테고리의 계획에만 연결할 수 있어요.",
                       );
                       return;
                     }
@@ -724,7 +744,7 @@ export default function ScreenFUND03() {
         onClose={() => setLinking(false)}
       >
         <View style={{ paddingTop: 12, gap: 8 }}>
-          {data.planItems.length === 0 ? (
+          {planCandidates.length === 0 ? (
             <Text
               style={{
                 fontSize: 11,
@@ -745,7 +765,7 @@ export default function ScreenFUND03() {
                  금액을 통째로 틀리게 만들고, 사용자는 틀렸다는 것조차
                  알기 어렵다. 누르는 건 사용자다.
             */
-            sortPlansByMatch(data.planItems, transaction.name).map(({ plan, score }) => {
+            sortPlansByMatch(planCandidates, transaction.name).map(({ plan, score }) => {
               const category = data.categories.find(
                 (c) => c.id === plan.budget_category_id,
               );

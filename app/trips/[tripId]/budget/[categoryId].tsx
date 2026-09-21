@@ -50,7 +50,8 @@ import {
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
-import { ReceiptSourceSheet } from "@/components/fund";
+import { ReceiptSourceSheet, TransactionSheet } from "@/components/fund";
+import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import { DateRangeCalendar } from "@/components/trip-create";
@@ -253,6 +254,15 @@ export default function ScreenBUDGET02() {
       setLoading(false);
     }
   }, [categoryId, tripId]);
+
+  /*
+    거래 상세 바텀시트. '실제 지출' 한 건을 누르면 열린다.
+    ⚠️ 저장이 끝나면 다시 읽는다. 금액을 고치면 이 카테고리의 실제 사용액도 바뀐다.
+  */
+  const txSheet = useTransactionSheet({
+    onChanged: () => load(),
+    tripStatus: data?.trip.status,
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -1394,6 +1404,17 @@ export default function ScreenBUDGET02() {
             onStartAdd={
               canEditSpending ? () => setExpenseSourceOpen(true) : undefined
             }
+            /*
+              ⚠️ 지출 한 건을 누르면 바텀시트로 거래 상세를 연다. (2026-09-21 2차)
+                 여기 보이는 지출을 계획에 연결하려면 자산 화면까지 돌아가야
+                 했다. 예산을 보던 자리에서 바로 하게 한다.
+            */
+            onPressExpense={(transactionId) => {
+              const picked = data.transactions.find(
+                (row) => row.id === transactionId,
+              );
+              if (picked) txSheet.open(picked);
+            }}
             onPressMore={
               hasMoreExpenses
                 ? () =>
@@ -1550,6 +1571,20 @@ export default function ScreenBUDGET02() {
            읽고 나면 카테고리를 고르는 자리가 그 화면에 있다.
         ⚠️ 직접 입력은 여기서 받는다. 이 카테고리가 이미 정해져 있어 한 번 덜 고른다.
       */}
+      {/* 실제 지출 한 건의 상세. 수기 거래는 여기서 바로 고친다 */}
+      <TransactionSheet
+        controller={txSheet}
+        theme={theme}
+        categories={data.allCategories}
+        planName={
+          txSheet.transaction?.budget_plan_item_id
+            ? (plans.find(
+                (item) => item.id === txSheet.transaction?.budget_plan_item_id,
+              )?.name ?? "계획에 연결됨")
+            : null
+        }
+      />
+
       <ReceiptSourceSheet
         visible={expenseSourceOpen}
         onClose={() => setExpenseSourceOpen(false)}

@@ -355,22 +355,27 @@ export default function ScreenFUND01() {
    * ⚠️ **같은 카테고리**의 계획만 본다. 다른 카테고리 계획에 붙이면
    *    카테고리별 실제 금액과 계획의 실적이 서로 다른 곳을 가리킨다.
    *
-   * ⚠️ 이미 다른 지출이 붙은 계획은 뺀다. 한 계획에 결제가 둘 얹히면
-   *    그 계획의 실제 금액이 부풀려진다.
+   * ⚠️⚠️ **한 계획에 여러 지출을 붙일 수 있다.** (2026-09-21 2차) ⚠️⚠️
+   *
+   *    예전에는 "이미 다른 지출이 붙은 계획" 을 후보에서 뺐다. 금액이
+   *    부풀려진다고 봤는데 **틀린 걱정이었다.** 계획의 실제 금액은
+   *    recalcPlanItemActual() 이 붙은 거래를 **다시 합산해서** 넣는다.
+   *    더해지는 게 맞는 동작이다.
+   *
+   *    그리고 실제 여행이 그렇게 돌아간다 — '편의점 10만원' 계획 하나에
+   *    로손 1만 · 세븐일레븐 2만 · 패밀리마트 4만이 붙으면 실제 7만,
+   *    3만 절약이다. 예전 필터는 첫 지출을 붙인 순간 나머지 둘이 후보에서
+   *    사라지게 만들어, 나머지를 영영 미분류로 남겼다.
+   *
+   *    ⚠️ CLAUDE.md 3장이 막는 것은 **1 거래를 여러 계획에 쪼개는 것**이다.
+   *       (1 거래 = 1 카테고리) 방향이 반대라 여기 해당하지 않는다.
    */
   const planCandidates = useMemo(() => {
     if (!linking?.budget_category_id) return [];
-    const linkedElsewhere = new Set(
-      (data?.transactions ?? [])
-        .filter((t) => t.budget_plan_item_id && t.id !== linking.id)
-        .map((t) => t.budget_plan_item_id as string),
-    );
     return (data?.planItems ?? []).filter(
-      (item) =>
-        item.budget_category_id === linking.budget_category_id &&
-        !linkedElsewhere.has(item.id),
+      (item) => item.budget_category_id === linking.budget_category_id,
     );
-  }, [data?.planItems, data?.transactions, linking]);
+  }, [data?.planItems, linking]);
 
   const handleLinkPlan = useCallback(
     async (planItemId: string) => {

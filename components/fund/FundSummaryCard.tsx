@@ -149,27 +149,28 @@ export function FundSummaryCard({
                 ? won(needed)
                 : "다 모았어요"}
           </Text>
+          {/*
+            ⚠️ 계산식은 '앞으로 필요한 금액' **바로 아래**에 붙인다.
+               (2026-09-21 2차) 처음에는 카드 맨 밑에 왼쪽 정렬로 뒀는데,
+               위 숫자와 떨어져 있어서 그 숫자의 근거라는 게 읽히지 않았다.
+               같은 칸 · 같은 정렬이어야 한 덩어리로 보인다.
+          */}
+          {targetAmount > 0 ? (
+            <Text
+              style={{
+                marginTop: 4,
+                fontSize: 9,
+                lineHeight: 13,
+                color: "#a2aab5",
+                textAlign: "right",
+              }}
+            >
+              목표 {won(targetAmount)}
+              {"\n"}− 입금 {won(raisedAmount)}
+            </Text>
+          ) : null}
         </View>
       </View>
-
-      {/*
-        ⚠️ 목표 여행비를 적는다. 이 화면에 목표가 없어서 '앞으로 필요한 금액'
-           이 어떤 숫자에서 나왔는지 알 수 없었다. (2026-09-21 테스트)
-           계산식을 그대로 적어 세 숫자가 서로 어떻게 이어지는지 보이게 한다.
-      */}
-      {targetAmount > 0 ? (
-        <Text
-          style={{
-            paddingHorizontal: 18,
-            paddingBottom: 13,
-            marginTop: -4,
-            fontSize: 10,
-            color: "#949daa",
-          }}
-        >
-          목표 여행비 {won(targetAmount)} − 누적 입금 {won(raisedAmount)}
-        </Text>
-      ) : null}
 
       {settled ? (
         <View

@@ -383,7 +383,13 @@ export default function ScreenGROUP02() {
   // 진행 중이든 지난 여행이든 같은 곳으로 간다.  // 진행 중이든 지난 여행이든 같은 곳으로 간다.
   // 도착 화면이 trip.status 로 TRIP-HOME-01 / TRIP-HOME-02 를 가른다. (docs/04_v3 §5)
   function handlePressTrip(tripId: string) {
-    router.push(`/trips/${tripId}`);
+    /*
+      ⚠️ 어디서 왔는지 함께 넘긴다. (2026-09-21 2차) 여행 홈 헤더 왼쪽이
+         집(앱 홈)이 아니라 '<' 로 이 모임에 돌아가게 하려고. 모임의 여행
+         목록을 훑는 사람을 앱 홈으로 밀어내면 모임을 다시 찾아야 한다.
+         내 여행(MY-02)에서 들어올 때와 같은 방식이다.
+    */
+    router.push(`/trips/${tripId}?from=group&fromGroupId=${groupId}`);
   }
 
   function handlePressCreateTrip() {

@@ -363,20 +363,25 @@ function ShareAction({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${label}. 준비 중인 기능이에요`}
+      accessibilityLabel={label}
       onPress={onPress}
-      className="flex-1 items-center justify-center active:opacity-70"
+      /*
+        ⚠️ 카카오톡 버튼을 빼면서 혼자 남아 폭을 다 차지했고, 높이 74 짜리가
+           통째로 커져 화면을 눌렀다. (2026-09-21 2차) 한 줄짜리 가로 버튼으로
+           줄인다. 이 결과지에서 가장 중요한 건 유형과 근거지 공유 버튼이 아니다.
+      */
+      className="flex-row items-center justify-center active:opacity-70"
       style={{
         gap: 6,
-        height: 74,
-        borderRadius: 14,
+        height: 44,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: "#e5e8ec",
         backgroundColor: "#fff",
       }}
     >
-      <Ionicons name={icon} size={18} color="#3d4654" />
-      <Text style={{ fontSize: 11, fontWeight: "800", color: "#3d4654" }}>
+      <Ionicons name={icon} size={16} color="#3d4654" />
+      <Text style={{ fontSize: 12, fontWeight: "800", color: "#3d4654" }}>
         {label}
       </Text>
     </Pressable>

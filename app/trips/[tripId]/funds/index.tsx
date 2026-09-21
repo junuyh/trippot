@@ -40,6 +40,7 @@ import {
   ReceiptScanningOverlay,
   ReceiptSourceSheet,
   RecentFundList,
+  TransactionSheet,
   type FundDraft,
 } from "@/components/fund";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
@@ -54,6 +55,7 @@ import {
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
 import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import { currentBalance, raisedTotal } from "@/lib/fund/fundTotals";
 import { buildSeedDepositRow, isSeedDeposit } from "@/lib/fund/seedDeposit";
@@ -86,7 +88,9 @@ import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
   getBudgetByTripId,
   getBudgetCategories,
+  getBudgetPlanItems,
   type BudgetCategory,
+  type BudgetPlanItem,
   type TripBudget,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
@@ -109,6 +113,8 @@ type FundData = {
   budget: TripBudget | null;
   /** 지출 기록에서 고를 카테고리 목록 */
   categories: BudgetCategory[];
+  /** 거래 시트가 '연결된 계획' 이름을 그리는 데 쓴다 */
+  planItems: BudgetPlanItem[];
   fund: FundSource | null;
   transactions: Transaction[];
   depositTotal: number;
@@ -167,6 +173,13 @@ export default function ScreenFUND01() {
           ? listActiveTripMembers(trip.id).catch(() => [])
           : Promise.resolve([]),
       ]);
+      // 계획 항목은 카테고리별로 나뉘어 있어 한 번에 모은다. 전체 내역 화면과 같다
+      const planItems = (
+        await Promise.all(
+          categories.map((category) => getBudgetPlanItems(category.id)),
+        )
+      ).flat();
+
       const memberNameById = new Map(
         members
           .filter((member) => member.user_id !== null)
@@ -176,6 +189,7 @@ export default function ScreenFUND01() {
         trip,
         budget,
         categories,
+        planItems,
         fund,
         transactions,
         depositTotal: totals.depositTotal,
@@ -189,6 +203,15 @@ export default function ScreenFUND01() {
       setRefreshing(false);
     }
   }, [tripId]);
+
+  /*
+    거래 상세 바텀시트. 최근 입출금을 누르면 여기서 열린다.
+    ⚠️ 저장이 끝나면 목록을 다시 읽는다. 금액을 고치면 누적·잔액도 바뀐다.
+  */
+  const txSheet = useTransactionSheet({
+    onChanged: () => load(),
+    tripStatus: data?.trip.status,
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -523,6 +546,12 @@ export default function ScreenFUND01() {
        거래 상세는 이미 막고 있었는데 이 화면의 입금·지출 기록 버튼이
        살아 있어서, 확정된 여행에 거래를 더 넣을 수 있었다. (2026-09-21 2차)
   */
+  const txSheetPlanName = txSheet.transaction?.budget_plan_item_id
+    ? (data.planItems.find(
+        (item) => item.id === txSheet.transaction?.budget_plan_item_id,
+      )?.name ?? "계획에 연결됨")
+    : null;
+
   const settledTrip =
     (data.trip.status as TripStatus) === TRIP_STATUS.SETTLED;
   /** 현재 잔액 = 누적 모금액 − 출금 합계 */
@@ -732,12 +761,18 @@ export default function ScreenFUND01() {
                 ]
               : []),
             ]}
+            /*
+              ⚠️ 화면으로 밀지 않고 **시트**로 연다. (2026-09-21 2차)
+                 고치려고 상세 화면까지 들어가면 목록으로 돌아오는 데 또
+                 한 걸음이 든다. 한 건씩 확인하는 흐름이 매번 끊겼다.
+              ⚠️ 초기자본은 진짜 거래가 아니라 열 것이 없다.
+            */
             onSelect={(transactionId) => {
-              // 초기자본은 진짜 거래가 아니라 상세 화면이 없다
               if (isSeedDeposit(transactionId)) return;
-              router.push(
-                `/trips/${data.trip.id}/funds/transactions/${transactionId}`,
+              const picked = data.transactions.find(
+                (row) => row.id === transactionId,
               );
+              if (picked) txSheet.open(picked);
             }}
           />
         </View>
@@ -945,6 +980,19 @@ export default function ScreenFUND01() {
           setTimeout(runPendingManual, 700);
         }}
       />
+      {/* 최근 입출금을 누르면 열리는 거래 상세. 수기 거래는 여기서 바로 고친다 */}
+      <TransactionSheet
+        controller={txSheet}
+        theme={theme}
+        categories={data.categories}
+        planName={txSheetPlanName}
+        reviewNote={
+          txSheet.transaction && reviewReason(txSheet.transaction) !== null
+            ? "분류를 확인해 주세요."
+            : null
+        }
+      />
+
       <ReceiptScanningOverlay visible={receiptScan.phase === "scanning"} />
     </View>
   );

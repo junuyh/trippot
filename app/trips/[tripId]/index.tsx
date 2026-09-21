@@ -23,6 +23,8 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -61,7 +63,7 @@ import {
   type TypeEvidenceRow,
 } from "@/components/trip-type";
 import { TripStorySheet, TripStoryTeaser } from "@/components/trip-record";
-import { Button, EmptyState, ErrorState, HeaderBackButton, Loading } from "@/components/ui";
+import { Button, EmptyState, ErrorState, HeaderBackButton, Loading, Toast, useToast } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { allocateVault } from "@/lib/budget/vault";
@@ -267,7 +269,14 @@ export default function ScreenTripHome() {
    *    '마지막 1명이라 못 나감 → 여행 취소하기' 를 여기로 보낸다.
    *    바로 취소하지 않는다. CXL-01(사유)부터 연다. (POL-CXL-060)
    */
-  const { tripId, cancel, cxl, from, filter } = useLocalSearchParams<{
+  const {
+    tripId,
+    cancel,
+    cxl,
+    from,
+    filter,
+    fromGroupId,
+  } = useLocalSearchParams<{
     tripId: string;
     cancel?: string;
     /**
@@ -281,6 +290,8 @@ export default function ScreenTripHome() {
     cxl?: string;
     from?: string;
     filter?: string;
+    /** from=group 일 때 돌아갈 모임 id */
+    fromGroupId?: string;
   }>();
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
@@ -297,6 +308,12 @@ export default function ScreenTripHome() {
    *    맞아야 거기로 걷어내므로, 내 여행도 탭을 바꿀 때 params 를 맞춰 둔다.
    *    (app/me/trips.tsx)
    */
+  /*
+    ⚠️ 모임 상세에서 들어와도 '<' 로 그 모임에 돌아간다. (2026-09-21 2차)
+       모임의 여행 목록을 훑다가 한 여행을 열어 본 사람의 다음 할 일은
+       그 모임의 다른 여행을 여는 것이다. 앱 홈으로 밀어내면 모임을 다시
+       찾아 들어가야 한다. 내 여행(MY-02)과 같은 이유·같은 방식이다.
+  */
   const renderHeaderLeft =
     from === "my-trips"
       ? () => (
@@ -304,7 +321,9 @@ export default function ScreenTripHome() {
             parentHref={`/me/trips?filter=${MY_TRIP_FILTERS.includes(filter ?? "") ? filter : "planning"}`}
           />
         )
-      : () => <AppHomeButton />;
+      : from === "group" && fromGroupId
+        ? () => <HeaderBackButton parentHref={`/groups/${fromGroupId}`} />
+        : () => <AppHomeButton />;
 
   const [data, setData] = useState<TripHomeData | null>(null);
   /**
@@ -456,6 +475,8 @@ export default function ScreenTripHome() {
   /** 여행 유형 공유 시트. 확정된 유형에서만 연다 */
   const [typeStoryOpen, setTypeStoryOpen] = useState(false);
   const [typeStoryBusy, setTypeStoryBusy] = useState(false);
+  /** 유형 이미지 복사 결과를 알리는 토스트 */
+  const typeToast = useToast();
   const typeStoryRef = useRef<ViewShot>(null);
   /**
    * TYPE-01 오버레이 열림 여부. (시안 v3)
@@ -1051,6 +1072,41 @@ export default function ScreenTripHome() {
    * 유형 결과지를 캡처해서 공유 시트로 넘긴다.
    * ⚠️ [검토 필요] 공유 완료 이벤트. events.ts 에 없어서 아직 track() 하지 않는다.
    */
+  /**
+   * 유형 이미지를 **클립보드에 복사**한다.
+   *
+   * ⚠️ 왜 복사인가 (2026-09-21 2차 테스트)
+   *    '이미지로 공유' 를 눌렀는데 또 시트가 뜨고 거기서 같은 버튼을 한 번 더
+   *    눌러야 실제 공유가 됐다. 같은 말이 적힌 버튼을 두 번 누르게 하면
+   *    두 번째가 왜 필요한지 알 수 없다.
+   *    이제 첫 번째 누름이 **바로 이미지를 복사**하고, 시트는 미리보기와
+   *    다시 복사용으로 남는다. 붙여 넣을 곳은 사용자가 고른다.
+   *
+   * ⚠️ 시트가 열리고 한 박자 뒤에 찍는다. ViewShot 이 화면에 올라오기 전에
+   *    부르면 캡처가 빈손으로 온다.
+   */
+  const copyTypeStoryImage = useCallback(async () => {
+    if (typeStoryBusy) return;
+    setTypeStoryBusy(true);
+    try {
+      /*
+        ⚠️ ViewShot 의 options 는 컴포넌트에 걸려 있다(format png · quality 1).
+           capture() 는 인자를 받지 않는다. 파일 uri 로 받아 base64 로 읽는다.
+      */
+      const uri = await typeStoryRef.current?.capture?.();
+      if (!uri) throw new Error("capture failed");
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: "base64",
+      });
+      await Clipboard.setImageAsync(base64);
+      typeToast.show("이미지를 복사했어요. 원하는 곳에 붙여 넣으세요.");
+    } catch {
+      typeToast.show("이미지를 복사하지 못했어요. 아래 버튼으로 다시 시도해 주세요.");
+    } finally {
+      setTypeStoryBusy(false);
+    }
+  }, [typeStoryBusy, typeToast]);
+
   const handleShareTypeStory = useCallback(async () => {
     if (typeStoryBusy) return;
     setTypeStoryBusy(true);
@@ -2457,6 +2513,8 @@ export default function ScreenTripHome() {
                   : () => {
                       setTypeOpen(false);
                       setTypeStoryOpen(true);
+                      // 시트가 화면에 올라온 뒤에 찍는다. 그 전이면 빈손으로 온다
+                      setTimeout(() => void copyTypeStoryImage(), 550);
                     }
               }
             />
@@ -2466,6 +2524,8 @@ export default function ScreenTripHome() {
           {shownType && !shownType.provisional ? (
             <TypeStorySheet
               ref={typeStoryRef}
+              /* 첫 누름이 이미 복사했다. 여기 버튼은 다시 복사하는 자리다 */
+              onCopy={() => void copyTypeStoryImage()}
               visible={typeStoryOpen}
               onClose={() => setTypeStoryOpen(false)}
               busy={typeStoryBusy}
@@ -2708,6 +2768,8 @@ export default function ScreenTripHome() {
         </>
       )}
       </View>
+      {/* 유형 이미지 복사 결과. ScrollView 위에 떠서 몇 초 뒤 사라진다 */}
+      <Toast state={typeToast.state} />
     </ScrollView>
   );
 }

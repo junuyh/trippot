@@ -147,35 +147,37 @@ export function TransactionDetailBody({
         <Text style={{ fontSize: 14, letterSpacing: 0 }}>원</Text>
       </Text>
 
-      {/* 상태 안내. 확정된 거래에도 한 줄은 둔다 — 지금 어떤 상태인지가 답이다 */}
-      <View
-        style={{
-          marginTop: 12,
-          borderRadius: 10,
-          padding: 11,
-          backgroundColor: detail.needsReview
-            ? "#fff4f5"
-            : refunded
-              ? "#eff9f4"
-              : "#f5f7f9",
-        }}
-      >
-        <Text
+      {/*
+        상태 안내.
+
+        ⚠️ **분류를 확인해야 하거나 환불된 거래에만 낸다.** (2026-09-21 2차)
+           정상 거래에까지 "분류를 확인한 거래예요" 를 적어 두니, 사용자는
+           자기가 뭘 확정한 적이 있나 되짚게 됐다. 아무 할 일이 없으면
+           아무 말도 하지 않는 게 맞다.
+      */}
+      {detail.needsReview || refunded ? (
+        <View
           style={{
-            fontSize: 10,
-            lineHeight: 15,
-            color: detail.needsReview ? RED : refunded ? GREEN : "#687587",
+            marginTop: 12,
+            borderRadius: 10,
+            padding: 11,
+            backgroundColor: detail.needsReview ? "#fff4f5" : "#eff9f4",
           }}
         >
-          {detail.reviewNote ??
-            (refunded
-              ? "환불 금액을 반영했어요. 이 거래는 지출 합계에서 빠져요."
-              : // ⚠️ "확정된 거래예요" 는 무엇이 확정됐다는 건지 읽히지 않았다.
-                //    (2026-09-21 테스트 — "확정이라는 단어가 무엇을 뜻하는지
-                //    모르겠음") 확정 대상은 **분류** 다. 그대로 적는다.
-                "분류를 확인한 거래예요. 결산에 이대로 반영돼요.")}
-        </Text>
-      </View>
+          <Text
+            style={{
+              fontSize: 10,
+              lineHeight: 15,
+              color: detail.needsReview ? RED : GREEN,
+            }}
+          >
+            {detail.reviewNote ??
+              (refunded
+                ? "환불 금액을 반영했어요. 이 거래는 지출 합계에서 빠져요."
+                : "분류를 확인해 주세요.")}
+          </Text>
+        </View>
+      ) : null}
 
       <View
         style={{ marginTop: 16, borderTopWidth: 1, borderColor: "#e6e9ed" }}

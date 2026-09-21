@@ -15,6 +15,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
+import { Button } from "@/components/ui";
+
 type Props = {
   targetAmount: number;
   actualAmount: number;
@@ -23,6 +25,16 @@ type Props = {
   confirmedCount: number;
   /** 아직 확인할 거래가 남았는지. 남아 있으면 초록 배너를 그리지 않는다 */
   allConfirmed: boolean;
+  /**
+   * '정산 확정하기' 를 여기에도 낸다. 확정 전이고 확인이 끝났을 때만 넘긴다.
+   *
+   * ⚠️ 왜 (2026-09-21 2차) — "모든 지출 확인이 완료됐어요" 를 읽고 나면
+   *    다음에 뭘 해야 하는지가 바로 나와야 한다. 확정 버튼이 긴 결산 화면
+   *    맨 아래에만 있어서, 확인이 끝났는데도 뭘 눌러야 할지 몰랐다.
+   *    아래 버튼은 그대로 둔다 — 카테고리를 다 보고 내려온 사람 자리다.
+   */
+  onConfirm?: () => void;
+  confirming?: boolean;
 };
 
 const SAVED = "#18865e";
@@ -39,6 +51,8 @@ export function SettlementSummaryCard({
   headcount,
   confirmedCount,
   allConfirmed,
+  onConfirm,
+  confirming = false,
 }: Props) {
   const difference = actualAmount - targetAmount;
   const saved = difference < 0;
@@ -159,6 +173,16 @@ export function SettlementSummaryCard({
           <Text style={{ fontSize: 11, fontWeight: "700", color: "#1c6f4f" }}>
             모든 지출 확인이 완료됐어요
           </Text>
+        </View>
+      ) : null}
+
+      {allConfirmed && onConfirm ? (
+        <View style={{ marginTop: 10 }}>
+          <Button
+            label="정산 확정하기"
+            loading={confirming}
+            onPress={onConfirm}
+          />
         </View>
       ) : null}
     </View>

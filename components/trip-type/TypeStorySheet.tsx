@@ -23,6 +23,13 @@ type Props = {
   onClose: () => void;
   card: ComponentProps<typeof TypeStoryCard>;
   onShare: () => void;
+  /**
+   * 이미지를 클립보드에 다시 복사한다.
+   *
+   * ⚠️ 시트를 열 때 이미 한 번 복사했다. 여기 버튼은 **다시 복사**하는
+   *    자리다. 같은 말이 적힌 버튼을 두 번 누르게 하지 않는다. (2026-09-21 2차)
+   */
+  onCopy?: () => void;
   /** 캡처·공유 중. 중복 제출 방지 */
   busy: boolean;
 };
@@ -32,7 +39,7 @@ type Props = {
  *    캡처 대상은 미리보기로 보여주는 그 카드 그대로다.
  */
 export const TypeStorySheet = forwardRef<ViewShot, Props>(function TypeStorySheet(
-  { visible, onClose, card, onShare, busy },
+  { visible, onClose, card, onShare, onCopy, busy },
   ref,
 ) {
   const theme = travelTypeTheme(card.code);
@@ -52,6 +59,22 @@ export const TypeStorySheet = forwardRef<ViewShot, Props>(function TypeStoryShee
           </ViewShot>
         </View>
 
+        {onCopy ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="여행 유형 이미지 다시 복사하기"
+            disabled={busy}
+            onPress={onCopy}
+            className="h-11 w-full flex-row items-center justify-center gap-1.5 rounded-xl border active:opacity-80"
+            style={{ borderColor: '#dfe3e8', opacity: busy ? 0.6 : 1 }}
+          >
+            <Ionicons name="copy-outline" size={15} color="#3d4654" />
+            <Text className="text-[12px] font-bold text-[#3d4654]">
+              이미지 다시 복사
+            </Text>
+          </Pressable>
+        ) : null}
+
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="여행 유형 이미지로 공유하기"
@@ -65,7 +88,7 @@ export const TypeStorySheet = forwardRef<ViewShot, Props>(function TypeStoryShee
           ) : (
             <Ionicons name="share-outline" size={16} color="#fff" />
           )}
-          <Text className="text-[13px] font-bold text-white">이미지로 공유</Text>
+          <Text className="text-[13px] font-bold text-white">다른 앱으로 공유</Text>
         </Pressable>
       </ScrollView>
     </BottomSheet>
