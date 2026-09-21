@@ -50,6 +50,7 @@ import {
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { ReceiptSourceSheet } from "@/components/fund";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import { DateRangeCalendar } from "@/components/trip-create";
@@ -860,6 +861,8 @@ export default function ScreenBUDGET02() {
 
   // ── 지출 직접 입력 (로컬) ─────────────────────────────────────────────
   const [addingExpense, setAddingExpense] = useState(false);
+  /** 지출 기록 방법 묻기 — 촬영 · 앨범 · 직접 입력 */
+  const [expenseSourceOpen, setExpenseSourceOpen] = useState(false);
   const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft>(() => ({
     name: "",
     amount: null,
@@ -1363,8 +1366,16 @@ export default function ScreenBUDGET02() {
           <ExpenseCard
             expenses={expenses}
             theme={theme}
+            /*
+              ⚠️ 바로 직접 입력 시트를 열지 않는다. 자산 화면(FUND-01)처럼
+                 촬영 · 앨범 · 직접 입력 셋을 먼저 묻는다. 여기서만 손으로
+                 적게 두니 "카테고리 예산에서도 영수증으로 넣을 수 있어야 한다"
+                 가 올라왔다. (2026-09-21 테스트)
+              ⚠️ 여행 중이 아니어도 낸다. 미리 결제한 항공권·숙소 영수증이
+                 여행 전에 더 많다.
+            */
             onStartAdd={
-              canEditSpending ? () => setAddingExpense(true) : undefined
+              canEditSpending ? () => setExpenseSourceOpen(true) : undefined
             }
             onPressMore={
               hasMoreExpenses
@@ -1513,6 +1524,32 @@ export default function ScreenBUDGET02() {
           </View>
         </View>
       </BottomSheet>
+
+      {/*
+        ── 지출 기록 방법 ── 촬영 · 앨범 · 직접 입력
+
+        ⚠️ 촬영·앨범은 자산 화면(FUND-01)의 영수증 읽기로 보낸다. 읽기·미리보기·
+           재시도까지 한 벌인 흐름이라 여기에 한 벌 더 만들면 두 곳이 갈린다.
+           읽고 나면 카테고리를 고르는 자리가 그 화면에 있다.
+        ⚠️ 직접 입력은 여기서 받는다. 이 카테고리가 이미 정해져 있어 한 번 덜 고른다.
+      */}
+      <ReceiptSourceSheet
+        visible={expenseSourceOpen}
+        onClose={() => setExpenseSourceOpen(false)}
+        theme={theme}
+        onCamera={() => {
+          setExpenseSourceOpen(false);
+          router.push(`/trips/${tripId}/funds?scan=receipt`);
+        }}
+        onLibrary={() => {
+          setExpenseSourceOpen(false);
+          router.push(`/trips/${tripId}/funds?scan=receipt`);
+        }}
+        onManual={() => {
+          setExpenseSourceOpen(false);
+          setAddingExpense(true);
+        }}
+      />
 
       {/* ── 지출 직접 입력 ── */}
       <BottomSheet
