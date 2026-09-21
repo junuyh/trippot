@@ -40,12 +40,14 @@ import {
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { institutionName } from "@/lib/constants/bank";
+import { IS_TEST_BUILD } from "@/lib/constants/testBuild";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { FUND_SOURCE_TYPE } from "@/lib/constants/status";
 import {
-  MOCK_BANK,
   connectMockAccount,
+  mockBanksForBuild,
+  type MockBank,
   convertToAccount,
   disconnectAccount,
   getGroupAccounts,
@@ -161,6 +163,8 @@ export default function ScreenFUND02() {
   const [disconnecting, setDisconnecting] = useState(false);
   /** 은행 고르기 시트 */
   const [bankOpen, setBankOpen] = useState(false);
+  /** 연결 시트에 낼 계좌. 테스트 빌드면 둘, 아니면 기존 하나 */
+  const banks = mockBanksForBuild(IS_TEST_BUILD);
   const [linking, setLinking] = useState(false);
 
   const manualAmount =
@@ -214,12 +218,12 @@ export default function ScreenFUND02() {
    * ⚠️ 실제 오픈뱅킹 인증이 아니다. 은행을 고르면 준비된 계좌가 조회된 것처럼
    *    나오고, 누르면 연결과 동시에 그 계좌의 결제 1건이 따라 들어온다.
    */
-  const handleConnectBank = useCallback(async () => {
+  const handleConnectBank = useCallback(async (bank: MockBank) => {
     if (!data || linking) return;
     setLinking(true);
     track(EVENTS.FUND_CONVERSION_CONFIRMED, { agreed: true });
     try {
-      await connectMockAccount(data.trip.id, data.trip.group_id);
+      await connectMockAccount(data.trip.id, data.trip.group_id, bank);
       track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "success" });
       setBankOpen(false);
       router.dismissTo(`/trips/${data.trip.id}/funds` as never);
@@ -547,63 +551,71 @@ export default function ScreenFUND02() {
         onClose={() => setBankOpen(false)}
       >
         <View style={{ paddingTop: 14, gap: 10 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${institutionName(MOCK_BANK.institutionCode)} ${MOCK_BANK.accountName} 연결하기`}
-            disabled={linking}
-            onPress={() => void handleConnectBank()}
-            className="flex-row items-center active:bg-gray-50"
-            style={{
-              gap: 12,
-              padding: 15,
-              borderWidth: 1,
-              borderColor: "#e8eaee",
-              borderRadius: 14,
-              opacity: linking ? 0.6 : 1,
-            }}
-          >
-            <View
-              className="items-center justify-center"
+          {/*
+            ⚠️ 테스트 빌드에서는 두 개를 낸다. 은행이 하나뿐이면 "계좌를 고른다"
+               는 경험이 안 나와서 시연이 거기서 멈춘다. (2026-09-21 테스트)
+               목록은 lib/supabase/queries/funds.ts 가 정한다.
+          */}
+          {banks.map((bank) => (
+            <Pressable
+              key={`${bank.institutionCode}-${bank.maskedAccountNumber}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${institutionName(bank.institutionCode)} ${bank.accountName} 연결하기`}
+              disabled={linking}
+              onPress={() => void handleConnectBank(bank)}
+              className="flex-row items-center active:bg-gray-50"
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                backgroundColor: "#e8f3ff",
+                gap: 12,
+                padding: 15,
+                borderWidth: 1,
+                borderColor: "#e8eaee",
+                borderRadius: 14,
+                opacity: linking ? 0.6 : 1,
               }}
             >
-              <Ionicons name="wallet-outline" size={19} color="#1868d6" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}
-              >
-                {institutionName(MOCK_BANK.institutionCode)}
-              </Text>
-              <Text style={{ marginTop: 3, fontSize: 11, color: "#5d6674" }}>
-                {MOCK_BANK.accountName}
-              </Text>
-              <Text style={{ marginTop: 2, fontSize: 10, color: "#a8afb9" }}>
-                {MOCK_BANK.maskedAccountNumber}
-              </Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text
-                style={{ fontSize: 14, fontWeight: "900", color: "#141b28" }}
-              >
-                {won(MOCK_BANK.balance)}
-              </Text>
-              <Text
+              <View
+                className="items-center justify-center"
                 style={{
-                  marginTop: 3,
-                  fontSize: 10,
-                  fontWeight: "800",
-                  color: theme.primary,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  backgroundColor: "#e8f3ff",
                 }}
               >
-                {linking ? "연결하는 중…" : "연결하기"}
-              </Text>
-            </View>
-          </Pressable>
+                <Ionicons name="wallet-outline" size={19} color="#1868d6" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}
+                >
+                  {institutionName(bank.institutionCode)}
+                </Text>
+                <Text style={{ marginTop: 3, fontSize: 11, color: "#5d6674" }}>
+                  {bank.accountName}
+                </Text>
+                <Text style={{ marginTop: 2, fontSize: 10, color: "#a8afb9" }}>
+                  {bank.maskedAccountNumber}
+                </Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text
+                  style={{ fontSize: 14, fontWeight: "900", color: "#141b28" }}
+                >
+                  {won(bank.balance)}
+                </Text>
+                <Text
+                  style={{
+                    marginTop: 3,
+                    fontSize: 10,
+                    fontWeight: "800",
+                    color: theme.primary,
+                  }}
+                >
+                  {linking ? "연결하는 중…" : "연결하기"}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
 
           <View
             style={{

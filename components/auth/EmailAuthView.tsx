@@ -32,11 +32,20 @@ type Props = {
   password: string;
   onChangePassword: (value: string) => void;
   passwordConfirm: string;
+  /** 가입할 때만 쓴다. 앱에서 보일 이름 */
+  nickname: string;
+  onChangeNickname: (value: string) => void;
   onChangePasswordConfirm: (value: string) => void;
   code: string;
   onChangeCode: (value: string) => void;
   /** 칸별 검증 문구. 화면이 정한다 */
-  errors: { email?: string | null; password?: string | null; passwordConfirm?: string | null; code?: string | null };
+  errors: {
+    email?: string | null;
+    password?: string | null;
+    passwordConfirm?: string | null;
+    nickname?: string | null;
+    code?: string | null;
+  };
   /** 칸에 속하지 않는 실패 한 줄 */
   errorMessage: string | null;
   /** 안내 한 줄 (코드를 다시 보냈어요 등) */
@@ -68,6 +77,8 @@ export function EmailAuthView({
   password,
   onChangePassword,
   passwordConfirm,
+  nickname,
+  onChangeNickname,
   onChangePasswordConfirm,
   code,
   onChangeCode,
@@ -133,6 +144,23 @@ export function EmailAuthView({
             />
           ) : (
             <>
+              {/*
+                ⚠️ 닉네임을 이메일보다 먼저 묻는다. 카카오·구글은 닉네임을
+                   주는데 이메일 가입만 없어서 users.name 이 전부 '여행자' 가
+                   됐다. 모임 멤버 목록에서 서로를 구분할 수 없었다.
+                   (2026-09-21 테스트) 나중에 계정 관리에서 바꿀 수 있다.
+              */}
+              {mode === 'signUp' ? (
+                <Input
+                  label="이름"
+                  value={nickname}
+                  onChangeText={onChangeNickname}
+                  maxLength={20}
+                  placeholder="모임 멤버에게 보일 이름"
+                  error={errors.nickname}
+                  editable={!loading}
+                />
+              ) : null}
               <Input
                 label="이메일"
                 value={email}

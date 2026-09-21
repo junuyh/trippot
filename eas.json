@@ -14,7 +14,10 @@
       "android": {
         "buildType": "apk"
       },
-      "channel": "preview"
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_TEST_BUILD": "1"
+      }
     },
     "production": {
       "autoIncrement": true,

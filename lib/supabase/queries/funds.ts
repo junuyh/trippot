@@ -240,6 +240,45 @@ export const MOCK_BANK = {
   balance: 4_800_000,
 } as const;
 
+export type MockBank = {
+  institutionCode: string;
+  accountName: string;
+  maskedAccountNumber: string;
+  balance: number;
+};
+
+/**
+ * 테스트 빌드에서 보여 주는 가상 계좌.
+ *
+ * ⚠️ 테스터가 계좌 연동을 눌러 볼 수 있어야 시연이 끝까지 돈다. 은행이 하나
+ *    뿐이면 "계좌를 고른다" 는 경험이 안 나온다. 카카오뱅크·토스뱅크 각
+ *    100만원으로 둘을 둔다. (2026-09-21 테스트)
+ *
+ * ⚠️ 가입 시점에 만들지 않는다. financial_accounts 는 group_id 로 잠겨 있어
+ *    (financial_accounts_select) 모임 없이 만든 행은 본인도 못 읽는다.
+ *    연결 화면에서 그 모임 것으로 만든다 — 테스터 눈에는 이미 있던 계좌를
+ *    조회한 것과 같다.
+ */
+export const TEST_BUILD_BANKS: readonly MockBank[] = [
+  {
+    institutionCode: "090",
+    accountName: "테스트 입출금통장",
+    maskedAccountNumber: "3333-**-1000100",
+    balance: 1_000_000,
+  },
+  {
+    institutionCode: "092",
+    accountName: "테스트 모임통장",
+    maskedAccountNumber: "1000-**-2000200",
+    balance: 1_000_000,
+  },
+] as const;
+
+/** 연결 화면에 낼 계좌 목록. 테스트 빌드면 둘, 아니면 기존 하나. */
+export function mockBanksForBuild(isTestBuild: boolean): readonly MockBank[] {
+  return isTestBuild ? TEST_BUILD_BANKS : [MOCK_BANK];
+}
+
 /** 연결과 함께 따라 들어오는 기존 결제. 항공권은 보통 가장 먼저 결제한다 */
 const MOCK_IMPORTED_SPEND = {
   name: "대한항공",
@@ -264,15 +303,23 @@ export type MockConnectResult = {
 export async function connectMockAccount(
   tripId: string,
   groupId: string | null,
+  /** 어느 계좌를 붙일지. 안 넘기면 기존 한 개짜리 시연 계좌다 */
+  bank: MockBank = MOCK_BANK,
 ): Promise<MockConnectResult> {
   // ── 계좌 (있으면 재사용) ────────────────────────────────────────────────
   let accountId: string | null = null;
-  const { data: existing, error: findError } = await supabase
+  let find = supabase
     .from("financial_accounts")
     .select("id")
-    .eq("masked_account_number", MOCK_BANK.maskedAccountNumber)
-    .eq("institution_code", MOCK_BANK.institutionCode)
-    .limit(1);
+    .eq("masked_account_number", bank.maskedAccountNumber)
+    .eq("institution_code", bank.institutionCode);
+  /*
+    ⚠️ 같은 모임 안에서만 찾는다. 예전에는 계좌번호만 보고 찾아서, 다른 모임이
+       먼저 만든 같은 번호의 시연 계좌를 집어 올 수 있었다. 그 계좌는
+       financial_accounts_select 가 막아 목록에서 보이지도 않는다.
+  */
+  find = groupId ? find.eq("group_id", groupId) : find.is("group_id", null);
+  const { data: existing, error: findError } = await find.limit(1);
   if (findError) throw findError;
   accountId = existing?.[0]?.id ?? null;
 
@@ -281,9 +328,9 @@ export async function connectMockAccount(
       .from("financial_accounts")
       .insert({
         group_id: groupId,
-        institution_code: MOCK_BANK.institutionCode,
-        masked_account_number: MOCK_BANK.maskedAccountNumber,
-        current_balance: MOCK_BANK.balance,
+        institution_code: bank.institutionCode,
+        masked_account_number: bank.maskedAccountNumber,
+        current_balance: bank.balance,
         is_mock: true,
         connected_at: new Date().toISOString(),
       })

@@ -50,6 +50,7 @@ export default function ScreenLogin() {
   /** null 이면 소셜 로그인 화면, 값이 있으면 이메일 화면이다. */
   const [emailMode, setEmailMode] = useState<EmailAuthMode | null>(null);
   const [email, setEmail] = useState('');
+  const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [code, setCode] = useState('');
@@ -57,6 +58,7 @@ export default function ScreenLogin() {
     email?: string | null;
     password?: string | null;
     passwordConfirm?: string | null;
+    nickname?: string | null;
     code?: string | null;
   }>({});
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
@@ -110,6 +112,7 @@ export default function ScreenLogin() {
 
   function closeEmail() {
     setEmailMode(null);
+    setNickname('');
     setPassword('');
     setPasswordConfirm('');
     setCode('');
@@ -138,9 +141,18 @@ export default function ScreenLogin() {
     if (mode === 'signUp') {
       next.passwordConfirm =
         password === passwordConfirm ? null : '비밀번호가 서로 달라요.';
+      /*
+        ⚠️ 닉네임을 받는다. 없으면 users.name 이 전부 '여행자' 가 돼서 모임
+           멤버 목록에서도 입금 기록자에서도 서로 구분이 안 됐다.
+           (2026-09-21 테스트) 카카오·구글은 닉네임을 주므로 이 칸이 없다.
+      */
+      next.nickname =
+        nickname.trim().length > 0 ? null : '앱에서 보일 이름을 정해 주세요.';
     }
     setFieldErrors(next);
-    return !next.email && !next.password && !next.passwordConfirm;
+    return (
+      !next.email && !next.password && !next.passwordConfirm && !next.nickname
+    );
   }
 
   async function handleEmailSubmit() {
@@ -159,7 +171,7 @@ export default function ScreenLogin() {
 
       const result =
         emailMode === 'signUp'
-          ? await signUpWithEmail(email, password)
+          ? await signUpWithEmail(email, password, nickname)
           : await signInWithEmail(email, password);
 
       // 인증을 켠 프로젝트면 메일로 코드가 간다. 코드 화면으로 넘어간다.
@@ -196,7 +208,10 @@ export default function ScreenLogin() {
   const canSubmitEmail =
     emailMode === 'verify'
       ? code.trim().length > 0
-      : email.trim().length > 0 && password.length > 0;
+      : email.trim().length > 0 &&
+        password.length > 0 &&
+        // 가입은 이름까지 채워야 보낼 수 있다
+        (emailMode !== 'signUp' || nickname.trim().length > 0);
 
   if (emailMode !== null) {
     return (
@@ -206,6 +221,8 @@ export default function ScreenLogin() {
           mode={emailMode}
           email={email}
           onChangeEmail={setEmail}
+          nickname={nickname}
+          onChangeNickname={setNickname}
           password={password}
           onChangePassword={setPassword}
           passwordConfirm={passwordConfirm}
