@@ -657,9 +657,27 @@ export default function ScreenBUDGET02() {
   }, [data, plans]);
 
   const handleOpenSuggestions = useCallback(() => {
+    /*
+      ⚠️ 여행자보험 예산에서 계획이 **하나도 없을 때**는 일반 추천 대신
+         견적 안내를 먼저 띄운다. (2026-09-21 2차)
+
+         보험은 우리가 카탈로그로 지어낼 값이 아니다. 기간·인원으로 계산한
+         실제 제휴사 견적이 INSURANCE-01 에 있는데, 여기서 '조식 추가' 같은
+         일반 추천을 내면 그 화면에 닿을 길이 없다.
+
+      ⚠️ 계획이 이미 있으면 그대로 일반 추천이다. 보험을 이미 챙긴 사람에게
+         같은 안내를 다시 들이밀지 않는다.
+    */
+    if (
+      data?.category.category_code === CATEGORY_CODE.INSURANCE &&
+      plans.length === 0
+    ) {
+      setPromoOpen(true);
+      return;
+    }
     setSuggestOpen(true);
     void loadSuggestions();
-  }, [loadSuggestions]);
+  }, [data?.category.category_code, loadSuggestions, plans.length]);
 
   /**
    * 추천 카드를 눌렀을 때. 세부 계획에 **즉시** 반영한다. (시안 v3)
@@ -1010,7 +1028,20 @@ export default function ScreenBUDGET02() {
    * ⚠️ 계획 항목은 여행 중에도 열어 둔다. 현지에서 예정에 없던 지출을
    *    계획에 붙이는 일이 실제로 일어난다.
    */
-  const canEditBudget = tripStatus === TRIP_STATUS.PLANNING;
+  /*
+    ⚠️ **여행 중에도 설정 예산을 고칠 수 있다.** (2026-09-21 2차)
+
+       예전에는 준비 중(PLANNING)에서만 허용했다. 그래서 여행을 떠난 뒤
+       식비가 모자라도 예산을 못 고쳤고, 계획 항목을 더 넣어 설정 예산을
+       밀어 올리는 수밖에 없었다 — 그 방식으로는 **예산을 줄일 수 없고**,
+       여유 예산을 넉넉히 두려면 가짜 계획 항목을 만들어야 했다.
+
+    ⚠️ 끝난 여행(ENDED·SETTLED)은 그대로 막는다. 결산은 그 시점의 예산과
+       실제를 비교하는 일이라, 비교 대상이 뒤에서 움직이면 안 된다.
+
+    ⚠️ 취소 요청 중(CANCEL_PENDING)도 준비 중이다. (lib/trip/tripStatus)
+  */
+  const canEditBudget = !isTripEnded(tripStatus);
   /** 실제 지출을 넣거나 분류할 수 있는가. 결산 중에도 열어 둔다 */
   const canEditSpending = !settled;
   const spentTotal = useMemo(

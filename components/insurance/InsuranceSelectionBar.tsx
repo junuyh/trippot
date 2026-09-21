@@ -28,6 +28,15 @@ type Props = {
    * 예산을 안 짠 여행이면 null 이고, 그때는 링크를 그리지 않는다.
    */
   budgetHref?: string | null;
+  /**
+   * 고른 견적을 보험 예산의 세부 계획으로 넣는다.
+   *
+   * ⚠️ 넘기면 budgetHref 대신 이쪽을 쓴다. 예산 화면으로 보내기만 하면
+   *    거기서 방금 고른 금액을 손으로 다시 적어야 했다. (2026-09-21 2차)
+   */
+  onApplyToBudget?: (row: PartnerQuote) => void;
+  /** 예산에 넣는 중. 중복 제출 방지 */
+  applying?: boolean;
   disabled?: boolean;
 };
 
@@ -40,6 +49,8 @@ export function InsuranceSelectionBar({
   selected,
   onPress,
   budgetHref = null,
+  onApplyToBudget,
+  applying = false,
   disabled = false,
 }: Props) {
   const diff = selected?.budgetDiff ?? null;
@@ -101,15 +112,23 @@ export function InsuranceSelectionBar({
            스스로 찾아가야 했다. (2026-09-21 테스트)
         ⚠️ 금액을 대신 확정하지 않는다. 예산 화면으로 보내기만 한다.
       */}
-      {selected && budgetHref ? (
+      {selected && (onApplyToBudget || budgetHref) ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="보험 예산 항목으로 가기"
-          onPress={() => router.push(budgetHref as never)}
+          accessibilityLabel="고른 견적을 보험 예산 계획으로 넣기"
+          disabled={applying}
+          onPress={() => {
+            if (onApplyToBudget) {
+              onApplyToBudget(selected);
+              return;
+            }
+            if (budgetHref) router.push(budgetHref as never);
+          }}
           className="mt-2 h-9 items-center justify-center active:opacity-60"
+          style={{ opacity: applying ? 0.5 : 1 }}
         >
           <Text className="text-[12px] font-bold" style={{ color: theme.primary }}>
-            이 금액으로 보험 예산 정하기 →
+            {applying ? '예산에 넣는 중…' : '이 보험을 예산으로 적용 →'}
           </Text>
         </Pressable>
       ) : null}
