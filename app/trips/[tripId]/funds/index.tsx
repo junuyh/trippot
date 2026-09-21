@@ -58,7 +58,6 @@ import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
 import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import { currentBalance, raisedTotal } from "@/lib/fund/fundTotals";
-import { buildSeedDepositRow, isSeedDeposit } from "@/lib/fund/seedDeposit";
 import { SCREENS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -539,8 +538,6 @@ export default function ScreenFUND01() {
     withdrawalTotal: data.withdrawalTotal,
   };
   const raisedAmount = raisedTotal(fundTotals);
-  /** 입출금 내역 맨 아래에 붙는 '초기자본' 줄. 계좌 여행·0원이면 null */
-  const seedDeposit = buildSeedDepositRow(data.fund);
   /*
     ⚠️ 결산이 확정된 여행은 **더 기록할 수 없다.** (IA v2 §2-6-3)
        거래 상세는 이미 막고 있었는데 이 화면의 입금·지출 기록 버튼이
@@ -723,15 +720,9 @@ export default function ScreenFUND01() {
             })}
           </View>
 
-          {/*
-            ⚠️ 목록 끝에 '초기자본' 한 줄을 붙인다. 여행을 만들 때 적은 모음
-               금액은 거래로 남지 않아 내역에서 보이지 않았다. 누적 모금액에는
-               더해지는데 목록에는 없어서 합계와 목록이 다른 말을 했다.
-               (2026-09-21 테스트) 진짜 거래가 아니므로 누를 수 없다.
-          */}
           <RecentFundList
             theme={theme}
-            transactions={[...visibleTransactions.map((transaction) => ({
+            transactions={visibleTransactions.map((transaction) => ({
               id: transaction.id,
               name: transaction.name,
               amount: transaction.amount,
@@ -750,25 +741,13 @@ export default function ScreenFUND01() {
                 ? (data.memberNameById.get(transaction.created_by_user_id) ??
                   null)
                 : null,
-            })),
-            ...(seedDeposit && listFilter !== "OUT"
-              ? [
-                  {
-                    ...seedDeposit,
-                    transactionType: seedDeposit.transactionType as TransactionType,
-                    refundStatus: seedDeposit.refundStatus as RefundStatus,
-                  },
-                ]
-              : []),
-            ]}
+            }))}
             /*
               ⚠️ 화면으로 밀지 않고 **시트**로 연다. (2026-09-21 2차)
                  고치려고 상세 화면까지 들어가면 목록으로 돌아오는 데 또
                  한 걸음이 든다. 한 건씩 확인하는 흐름이 매번 끊겼다.
-              ⚠️ 초기자본은 진짜 거래가 아니라 열 것이 없다.
             */
             onSelect={(transactionId) => {
-              if (isSeedDeposit(transactionId)) return;
               const picked = data.transactions.find(
                 (row) => row.id === transactionId,
               );

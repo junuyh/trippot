@@ -63,7 +63,7 @@ import {
   type TypeEvidenceRow,
 } from "@/components/trip-type";
 import { TripStorySheet, TripStoryTeaser } from "@/components/trip-record";
-import { Button, EmptyState, ErrorState, HeaderBackButton, Loading, Toast, useToast } from "@/components/ui";
+import { Button, EmptyState, ErrorState, HeaderBackButton, Loading, useToast } from "@/components/ui";
 import { EVENTS, SCREENS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { allocateVault } from "@/lib/budget/vault";
@@ -1980,9 +1980,14 @@ export default function ScreenTripHome() {
             ? CANCEL_REASON_LABEL[data.cancelRequest.reason as CancelReasonCode] ?? null
             : null
         }
+        /*
+          ⚠️ current_amount 가 아니라 누적 모금액을 쓴다. (2026-09-21 3차)
+             계좌 잔액을 입금 거래로 옮기면서 current_amount 는 0 이 됐다.
+             그대로 두면 계좌 연결 여행의 잔액 안내가 통째로 사라진다.
+        */
         fundBalanceLabel={
-          fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT && fund.current_amount > 0
-            ? `${fund.current_amount.toLocaleString("ko-KR")}원`
+          fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT && raisedAmount > 0
+            ? `${raisedAmount.toLocaleString("ko-KR")}원`
             : null
         }
         onAgree={() => void handleVote("AGREE")}
@@ -2524,8 +2529,8 @@ export default function ScreenTripHome() {
           {shownType && !shownType.provisional ? (
             <TypeStorySheet
               ref={typeStoryRef}
-              /* 첫 누름이 이미 복사했다. 여기 버튼은 다시 복사하는 자리다 */
-              onCopy={() => void copyTypeStoryImage()}
+              /* 복사 결과는 시트 안에 띄운다. 화면 토스트는 시트 뒤로 가려진다 */
+              notice={typeToast.state.message}
               visible={typeStoryOpen}
               onClose={() => setTypeStoryOpen(false)}
               busy={typeStoryBusy}
@@ -2768,8 +2773,6 @@ export default function ScreenTripHome() {
         </>
       )}
       </View>
-      {/* 유형 이미지 복사 결과. ScrollView 위에 떠서 몇 초 뒤 사라진다 */}
-      <Toast state={typeToast.state} />
     </ScrollView>
   );
 }

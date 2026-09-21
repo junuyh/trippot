@@ -671,16 +671,21 @@ export default function ScreenBUDGET02() {
       ⚠️ 계획이 이미 있으면 그대로 일반 추천이다. 보험을 이미 챙긴 사람에게
          같은 안내를 다시 들이밀지 않는다.
     */
-    if (
-      data?.category.category_code === CATEGORY_CODE.INSURANCE &&
-      plans.length === 0
-    ) {
+    if (data?.category.category_code === CATEGORY_CODE.INSURANCE) {
+      /*
+        ⚠️ 계획이 있든 없든 **먼저 묻는다.** (2026-09-21 3차)
+           보험은 우리가 카탈로그로 지어낼 값이 아니다. 기간·인원으로 계산한
+           실제 제휴사 견적이 INSURANCE-01 에 있다.
+             '3개 견적 확인하기' → 견적 화면 (추천 목록은 내지 않는다)
+             '나중에'            → 일반 추천 목록
+      */
+      pendingSuggestAfterPromoRef.current = true;
       setPromoOpen(true);
       return;
     }
     setSuggestOpen(true);
     void loadSuggestions();
-  }, [data?.category.category_code, loadSuggestions, plans.length]);
+  }, [data?.category.category_code, loadSuggestions]);
 
   /**
    * 추천 카드를 눌렀을 때. 세부 계획에 **즉시** 반영한다. (시안 v3)
@@ -889,6 +894,20 @@ export default function ScreenBUDGET02() {
    */
   const [promoOpen, setPromoOpen] = useState(false);
   const promoShownRef = useRef(false);
+  /*
+    '계획 항목 추가' → 보험 안내 팝업에서 '나중에' 를 골랐을 때만 추천 목록을
+    연다. '견적 확인하기' 로 나가면 추천을 내지 않는다 — 견적 화면으로 갔는데
+    돌아왔을 때 추천 목록이 열려 있으면 뭘 고르던 중이었는지 헷갈린다.
+
+    ⚠️ 팝업이 완전히 닫힌 뒤에 연다. iOS 는 Modal 위에 Modal 을 못 연다.
+  */
+  const pendingSuggestAfterPromoRef = useRef(false);
+  const runPendingSuggest = useCallback(() => {
+    if (!pendingSuggestAfterPromoRef.current) return;
+    pendingSuggestAfterPromoRef.current = false;
+    setSuggestOpen(true);
+    void loadSuggestions();
+  }, [loadSuggestions]);
 
   // ── 지출 직접 입력 (로컬) ─────────────────────────────────────────────
   const [addingExpense, setAddingExpense] = useState(false);
@@ -1801,8 +1820,15 @@ export default function ScreenBUDGET02() {
       {promoQuote ? (
         <InsurancePromoModal
           visible={promoOpen}
-          onClose={() => setPromoOpen(false)}
+          /* '나중에' — 닫히고 나면 일반 추천 목록을 연다 */
+          onClose={() => {
+            setPromoOpen(false);
+            setTimeout(runPendingSuggest, 700);
+          }}
+          onDismiss={runPendingSuggest}
           onCompare={() => {
+            // 견적 보러 나가면 추천 목록은 내지 않는다
+            pendingSuggestAfterPromoRef.current = false;
             setPromoOpen(false);
             router.push(`/trips/${tripId}/insurance?placement=budget_detail&fromCategory=${categoryId}`);
           }}

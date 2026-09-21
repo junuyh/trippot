@@ -17,6 +17,7 @@ import { useCallback, useState } from "react";
 
 import { TRANSACTION_SOURCE_TYPE, TRIP_STATUS } from "@/lib/constants/status";
 import {
+  deleteTransaction,
   updateManualTransaction,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
@@ -37,6 +38,8 @@ export function useTransactionSheet({
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftAmount, setDraftAmount] = useState<number | null>(null);
+  /** 'yyyy-MM-dd'. 달력에서 고른 거래일 */
+  const [draftDate, setDraftDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -70,6 +73,7 @@ export function useTransactionSheet({
     if (!transaction) return;
     setDraftName(transaction.name ?? "");
     setDraftAmount(transaction.amount);
+    setDraftDate(transaction.occurred_at.slice(0, 10));
     setError(null);
     setEditing(true);
   }, [transaction]);
@@ -80,10 +84,10 @@ export function useTransactionSheet({
   }, []);
 
   /**
-   * 이름·금액을 저장한다.
+   * 이름·금액·거래일을 저장한다.
    *
-   * ⚠️ 거래일은 건드리지 않는다. 고치고 싶다고 한 것이 이름과 금액이다.
-   *    날짜까지 열면 달력이 붙고 시트가 화면만큼 길어진다.
+   * ⚠️ 거래일은 **정오로 저장한다.** date 만 받아 자정으로 넣으면 시간대
+   *    경계에서 하루가 밀린다. 지출 직접 입력이 쓰는 방식과 같다.
    */
   const save = useCallback(async () => {
     if (!transaction || busy) return;
@@ -92,12 +96,16 @@ export function useTransactionSheet({
       setError("금액을 1원 이상 넣어 주세요.");
       return;
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draftDate)) {
+      setError("거래일을 골라 주세요.");
+      return;
+    }
     setBusy(true);
     try {
       const next = await updateManualTransaction(transaction.id, {
         name: draftName.trim() === "" ? null : draftName.trim(),
         amount,
-        occurredAt: transaction.occurred_at,
+        occurredAt: `${draftDate}T12:00:00+09:00`,
       });
       setTransaction(next);
       setEditing(false);
@@ -107,7 +115,30 @@ export function useTransactionSheet({
     } finally {
       setBusy(false);
     }
-  }, [busy, draftAmount, draftName, onChanged, transaction]);
+  }, [busy, draftAmount, draftDate, draftName, onChanged, transaction]);
+
+  /**
+   * 거래를 지운다.
+   *
+   * ⚠️ 물리 삭제가 아니라 deleted_at 을 채운다. 실제로 일어난 거래를 지우면
+   *    나중에 계좌 내역과 대조할 수 없다. (queries/transactions)
+   * ⚠️ 지운 뒤 카테고리·계획의 실제 금액이 다시 계산된다. 목록도 다시 읽는다.
+   * ⚠️ 확인은 부르는 화면이 받는다. 훅이 Alert 를 띄우지 않는다.
+   */
+  const remove = useCallback(async () => {
+    if (!transaction || busy) return;
+    setBusy(true);
+    try {
+      await deleteTransaction(transaction.id);
+      setTransaction(null);
+      setEditing(false);
+      await onChanged();
+    } catch {
+      setError("삭제하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, onChanged, transaction]);
 
   return {
     transaction,
@@ -122,6 +153,9 @@ export function useTransactionSheet({
     setDraftName,
     draftAmount,
     setDraftAmount,
+    draftDate,
+    setDraftDate,
+    remove,
     error,
     busy,
     save,

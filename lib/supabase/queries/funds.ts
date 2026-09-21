@@ -189,18 +189,84 @@ export async function convertToAccount(
     .update({ deleted_at: new Date().toISOString() })
     .eq("trip_id", tripId)
     .eq("transaction_type", TRANSACTION_TYPE.DEPOSIT)
-    .eq("source_type", TRANSACTION_SOURCE_TYPE.MANUAL)
+    /*
+      ⚠️ source_type 을 가리지 않는다. (2026-09-21 3차) 예전에는 MANUAL 만
+         지웠는데, 이제 계좌 연결도 입금 거래를 하나 남긴다. 계좌를 바꿔 다시
+         연결하면 옛 잔액이 그대로 남아 두 배가 된다.
+    */
     .is("deleted_at", null);
   if (purgeError) throw purgeError;
+
+  /*
+    ⚠️ 계좌 잔액을 **입금 거래 한 건으로 남긴다.** (2026-09-21 3차)
+
+       예전에는 fund_sources.current_amount 에만 넣었다. 그래서 누적 모금액에는
+       잡히는데 입출금 내역에는 아무것도 없었다. "84,000원이 어디서 왔는지
+       내역에 없다" 가 이것이다. 합계와 목록이 서로 다른 말을 하면 안 된다.
+
+    ⚠️ current_amount 는 0 으로 둔다. 둘 다 채우면 같은 돈이 두 번 잡힌다.
+       누적 모금액 = current_amount + 입금 합계 이기 때문이다.
+
+    ⚠️ 거래일은 **계좌를 연결한 날**이다. 그 날 그만큼을 확보한 것이 맞다.
+  */
+  await createInitialFundDeposit({
+    tripId,
+    amount: account.current_balance,
+    sourceType: TRANSACTION_SOURCE_TYPE.MOCK,
+    financialAccountId,
+  });
 
   // ⚠️ 더하지 않는다. 대체한다. (CLAUDE.md 3장 — 단일 소스)
   return updateTravelFund(tripId, {
     source_type: FUND_SOURCE_TYPE.ACCOUNT,
-    current_amount: account.current_balance,
+    current_amount: 0,
     financial_account_id: financialAccountId,
     switched_from_manual_at: new Date().toISOString(),
     last_synced_at: new Date().toISOString(),
   });
+}
+
+/** 입출금 내역에 찍히는 초기 자본의 이름. 여기 하나만 고치면 화면이 따라온다 */
+export const INITIAL_FUND_NAME = "초기 자본";
+
+/**
+ * 여행을 시작할 때 확보한 돈을 **입금 거래 한 건**으로 남긴다.
+ *
+ * ⚠️ 왜 거래로 남기나 (2026-09-21 3차 테스트)
+ *    여행을 만들 때 적은 모음 금액과 연결 계좌 잔액이 fund_sources 에만
+ *    들어가 있어서, 누적 모금액에는 더해지는데 입출금 내역에는 없었다.
+ *    화면이 임시로 한 줄 그려 넣는 방식도 써 봤지만 그 줄은 고칠 수도
+ *    지울 수도 없고 모든 필터에 늘 따라붙었다. 진짜 거래로 남긴다.
+ *
+ * ⚠️ 부르는 쪽이 fund_sources.current_amount 를 0 으로 둬야 한다.
+ *    둘 다 채우면 같은 돈이 두 번 잡힌다.
+ *
+ * ⚠️ 0원 이하면 아무것도 만들지 않는다. 0원짜리 입금은 기록이 아니라 잡음이다.
+ */
+export async function createInitialFundDeposit(input: {
+  tripId: string;
+  amount: number;
+  /** 여행 생성은 MANUAL, 계좌 연결은 MOCK */
+  sourceType: string;
+  financialAccountId?: string | null;
+  /** 이 돈을 적은 사람. 계좌에서 온 것이면 넘기지 않는다 */
+  createdByUserId?: string | null;
+  /** 거래일. 없으면 지금 */
+  occurredAt?: string;
+}): Promise<void> {
+  if (input.amount <= 0) return;
+
+  const { error } = await supabase.from("transactions").insert({
+    trip_id: input.tripId,
+    financial_account_id: input.financialAccountId ?? null,
+    source_type: input.sourceType,
+    transaction_type: TRANSACTION_TYPE.DEPOSIT,
+    occurred_at: input.occurredAt ?? new Date().toISOString(),
+    name: INITIAL_FUND_NAME,
+    amount: input.amount,
+    created_by_user_id: input.createdByUserId ?? null,
+  });
+  if (error) throw error;
 }
 
 /**

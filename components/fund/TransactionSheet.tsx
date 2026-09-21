@@ -14,9 +14,10 @@
 //    같은 글·같은 줄이어야 한다. 여기서 따로 그리면 두 곳이 갈린다.
 // ============================================================================
 import { format, parseISO } from "date-fns";
-import { Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
 
 import { TransactionDetailBody } from "@/components/fund/TransactionDetailBody";
+import { DateRangeCalendar } from "@/components/trip-create";
 import { BottomSheet, Button, CurrencyInput, Input } from "@/components/ui";
 import type { CountryTheme } from "@/lib/constants/countryTheme";
 import {
@@ -76,6 +77,29 @@ export function TransactionSheet({
             value={controller.draftAmount}
             onChangeValue={controller.setDraftAmount}
           />
+
+          <View>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "700",
+                color: "#111827",
+                marginBottom: 6,
+              }}
+            >
+              거래 날짜
+            </Text>
+            {/* 이미 일어난 거래라 과거 날짜를 고를 수 있어야 한다 */}
+            <DateRangeCalendar
+              mode="single"
+              disablePast={false}
+              startDate={controller.draftDate}
+              endDate={controller.draftDate}
+              onChange={(next) => {
+                if (next.startDate) controller.setDraftDate(next.startDate);
+              }}
+            />
+          </View>
           {controller.error ? (
             <Text style={{ fontSize: 11, color: "#e1394a" }}>
               {controller.error}
@@ -133,12 +157,45 @@ export function TransactionSheet({
                비어 있으면 왜 못 고치는지 알 길이 없다.
           */}
           {controller.canEdit ? (
-            <View style={{ marginTop: 14 }}>
+            <View style={{ marginTop: 14, gap: 9 }}>
               <Button
                 label="내용 수정"
                 variant="secondary"
                 onPress={controller.startEdit}
               />
+              {/*
+                ⚠️ 삭제는 되돌릴 수 없으니 한 번 묻는다. 그리고 눈에 덜 띄는
+                   글자 버튼으로 둔다 — 수정 옆에 같은 크기 버튼으로 두면
+                   잘못 누르기 쉽다. (거래 상세 화면이 쓰는 방식과 같다)
+                ⚠️ 실제로는 행을 지우지 않고 deleted_at 을 채운다.
+              */}
+              <Text
+                accessibilityRole="button"
+                accessibilityLabel="이 거래 삭제"
+                onPress={() =>
+                  Alert.alert(
+                    "이 거래를 지울까요?",
+                    "지우면 예산의 실제 사용액에서도 빠져요.",
+                    [
+                      { text: "취소", style: "cancel" },
+                      {
+                        text: "삭제",
+                        style: "destructive",
+                        onPress: () => void controller.remove(),
+                      },
+                    ],
+                  )
+                }
+                style={{
+                  marginTop: 2,
+                  textAlign: "center",
+                  fontSize: 11,
+                  fontWeight: "700",
+                  color: "#a8afb9",
+                }}
+              >
+                이 거래 삭제
+              </Text>
             </View>
           ) : controller.settled ? (
             <Text
