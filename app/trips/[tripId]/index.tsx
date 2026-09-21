@@ -91,6 +91,7 @@ import { markInviteNudgeShown, wasInviteNudgeShown } from "@/lib/invite/inviteNu
 import { useTripInvite } from "@/lib/hooks/useTripInvite";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import { useTripContext } from "@/lib/hooks/useTripContext";
+import { buildRecreateTripHref } from "@/lib/trip/tripCreateEntry";
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -2401,7 +2402,8 @@ export default function ScreenTripHome() {
           <Button
             label="같은 멤버로 다시 여행 만들기"
             variant="secondary"
-            onPress={() => router.push("/trips/new/owner?entryPoint=past_trip")}
+            /* 지난 여행의 동행 구성을 미리 골라 둔 채로 연다 */
+            onPress={() => router.push(buildRecreateTripHref(trip.group_id))}
           />
 
           {/*
