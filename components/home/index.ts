@@ -16,6 +16,7 @@ export { OnboardingEntryCard } from './onboarding/OnboardingEntryCard';
 export { OnboardingView } from './onboarding/OnboardingView';
 export { HomeActionBanners } from './HomeActionBanner';
 export { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
+export { HomeNoticeCarousel } from './HomeNoticeCarousel';
 export { NextTripCard } from './NextTripCard';
 export { OngoingTripCard } from './OngoingTripCard';
 export { OngoingTripCarousel } from './OngoingTripCarousel';
