@@ -63,12 +63,21 @@ export function amountSign(input: IconInput): "+" | "−" {
 }
 
 /** 금액 오른쪽 아래 작은 상태 문구 */
+/**
+ * 목록 줄 끝에 붙는 상태 한 마디. **할 일이 있을 때만 준다.**
+ *
+ * ⚠️ 아무 일 없는 거래에는 null 을 준다. (2026-09-21 2차 테스트)
+ *    예전에는 "확정" 이라고 적었는데, 무엇이 확정됐다는 건지 읽히지 않았고
+ *    ("확정이라는 단어가 무엇을 뜻하는지 모르겠음") 목록의 거의 모든 줄에
+ *    같은 말이 붙어 정작 '분류 필요' 가 묻혔다.
+ *    말이 붙은 줄 = 손볼 것이 있는 줄, 로 읽히게 한다.
+ */
 export function statusLabel(
   input: IconInput & { needsReview: boolean },
-): string {
+): string | null {
   if (input.refundStatus === REFUND_STATUS.REFUNDED) return "환불 완료";
   if (input.refundStatus === REFUND_STATUS.CANCELED) return "결제 취소";
   if (input.refundStatus === REFUND_STATUS.PENDING) return "환불 예정";
   if (input.needsReview) return "분류 필요";
-  return "확정";
+  return null;
 }

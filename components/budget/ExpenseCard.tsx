@@ -41,6 +41,13 @@ type Props = {
   onStartAdd?: () => void;
   /** 지출 항목 상세 보기. 연결 계좌와 거래 정보는 거기서 확인한다 */
   onPressDetail?: () => void;
+  /**
+   * 거래 한 건을 눌렀을 때. 화면이 바텀시트로 거래 상세를 연다.
+   *
+   * ⚠️ 없으면 줄이 눌리지 않는다. 예전에는 아예 눌리지 않아서, 여기 보이는
+   *    지출을 계획에 연결하려면 자산 화면까지 돌아가야 했다. (2026-09-21 2차)
+   */
+  onPressExpense?: (transactionId: string) => void;
   /** 더 있는 거래가 있으면 전체 내역으로 보낸다 */
   onPressMore?: () => void;
 };
@@ -50,6 +57,7 @@ export function ExpenseCard({
   theme,
   onStartAdd,
   onPressDetail,
+  onPressExpense,
   onPressMore,
 }: Props) {
   return (
@@ -64,9 +72,15 @@ export function ExpenseCard({
       {/* 거래 목록 */}
       {expenses.length > 0 ? (
         expenses.map((expense, index) => (
-          <View
+          <Pressable
             key={expense.id}
-            className="flex-row items-center gap-2.5"
+            accessibilityRole={onPressExpense ? "button" : undefined}
+            accessibilityLabel={
+              onPressExpense ? `${expense.name} 거래 상세` : undefined
+            }
+            disabled={!onPressExpense}
+            onPress={() => onPressExpense?.(expense.id)}
+            className={onPressExpense ? "flex-row items-center gap-2.5 active:bg-gray-50" : "flex-row items-center gap-2.5"}
             style={{
               padding: 14,
               borderTopWidth: index === 0 ? 0 : 1,
@@ -113,7 +127,10 @@ export function ExpenseCard({
                 </Text>
               ) : null}
             </View>
-          </View>
+            {onPressExpense ? (
+              <Text style={{ fontSize: 13, color: "#c2c8d0" }}>›</Text>
+            ) : null}
+          </Pressable>
         ))
       ) : (
         <View style={{ padding: 20, borderColor: "#e7e9ed" }}>

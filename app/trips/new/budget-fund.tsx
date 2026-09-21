@@ -77,6 +77,7 @@ import {
   CATEGORY_CODE_TO_ANALYTICS,
   COMPANION_TYPE,
   FUND_SOURCE_TYPE,
+  TRANSACTION_SOURCE_TYPE,
   FUND_SOURCE_TYPE_TO_ANALYTICS,
   OWNER_TYPE_TO_ANALYTICS,
   TRAVEL_STYLE_LABEL,
@@ -89,7 +90,11 @@ import {
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import { useTripDraft } from '@/lib/hooks/useTripDraft';
 import { createGroup } from '@/lib/supabase/queries/groups';
-import { getGroupAccounts, type FinancialAccount } from '@/lib/supabase/queries/funds';
+import {
+  createInitialFundDeposit,
+  getGroupAccounts,
+  type FinancialAccount,
+} from '@/lib/supabase/queries/funds';
 import {
   deviationBp,
   getSpendingProfile,
@@ -1213,12 +1218,33 @@ export default function ScreenTRIP03() {
         ),
         fund: {
           source_type: fundType,
-          current_amount: currentAmount,
+          /*
+            ⚠️ **0 으로 둔다.** 모은 금액은 바로 아래에서 입금 거래 한 건으로
+               남긴다. (2026-09-21 3차) 둘 다 채우면 같은 돈이 두 번 잡힌다 —
+               누적 모금액 = current_amount + 입금 합계 이기 때문이다.
+               거래로 남겨야 입출금 내역에 보이고, 고치거나 지울 수도 있다.
+          */
+          current_amount: 0,
           financial_account_id: fundType === FUND_SOURCE_TYPE.MOCK ? accountId : null,
           last_synced_at: fundType === FUND_SOURCE_TYPE.MOCK ? new Date().toISOString() : null,
         },
       });
 
+      /*
+        여행을 시작할 때 확보한 돈을 '초기 자본' 입금으로 남긴다.
+        ⚠️ 실패해도 여행 생성을 되돌리지 않는다. 자금은 나중에 손으로 넣을 수
+           있는데 이것 때문에 여행이 통째로 안 만들어지면 손해가 더 크다.
+      */
+      await createInitialFundDeposit({
+        tripId: trip.id,
+        amount: currentAmount,
+        sourceType:
+          fundType === FUND_SOURCE_TYPE.MOCK
+            ? TRANSACTION_SOURCE_TYPE.MOCK
+            : TRANSACTION_SOURCE_TYPE.MANUAL,
+        financialAccountId: fundType === FUND_SOURCE_TYPE.MOCK ? accountId : null,
+        createdByUserId: userId,
+      }).catch(() => undefined);
       /**
        * 기존 모임 멤버를 이 여행에 참여시킨다. (2026-09-21 팀 합의)
        *

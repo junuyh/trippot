@@ -23,6 +23,14 @@ type Props = {
   onClose: () => void;
   card: ComponentProps<typeof TypeStoryCard>;
   onShare: () => void;
+  /**
+   * 이미지 복사 결과 알림. 몇 초 뒤 사라진다. 없으면 그리지 않는다.
+   *
+   * ⚠️ **시트 안에 그린다.** (2026-09-21 3차) 화면 쪽 토스트로 띄웠더니
+   *    이 시트(Modal) 뒤에 가려 보이지 않았다. 사용자가 보고 있는 면은
+   *    시트다. 알림도 거기 있어야 한다.
+   */
+  notice?: string | null;
   /** 캡처·공유 중. 중복 제출 방지 */
   busy: boolean;
 };
@@ -32,7 +40,7 @@ type Props = {
  *    캡처 대상은 미리보기로 보여주는 그 카드 그대로다.
  */
 export const TypeStorySheet = forwardRef<ViewShot, Props>(function TypeStorySheet(
-  { visible, onClose, card, onShare, busy },
+  { visible, onClose, card, onShare, notice = null, busy },
   ref,
 ) {
   const theme = travelTypeTheme(card.code);
@@ -44,6 +52,15 @@ export const TypeStorySheet = forwardRef<ViewShot, Props>(function TypeStoryShee
           정산을 확정한 시점의 결과로 만들어요. 스토리에 올리면 친구도 자기 유형을
           확인하러 올 수 있어요.
         </Text>
+
+        {notice ? (
+          <View
+            className="self-stretch rounded-xl px-3.5 py-2.5"
+            style={{ backgroundColor: 'rgba(20, 27, 40, 0.92)' }}
+          >
+            <Text className="text-[12px] leading-[17px] text-white">{notice}</Text>
+          </View>
+        ) : null}
 
         {/* 미리보기 = 캡처 대상 */}
         <View className="overflow-hidden rounded-2xl" style={{ elevation: 4 }}>
@@ -65,7 +82,7 @@ export const TypeStorySheet = forwardRef<ViewShot, Props>(function TypeStoryShee
           ) : (
             <Ionicons name="share-outline" size={16} color="#fff" />
           )}
-          <Text className="text-[13px] font-bold text-white">이미지로 공유</Text>
+          <Text className="text-[13px] font-bold text-white">이미지 공유하기</Text>
         </Pressable>
       </ScrollView>
     </BottomSheet>

@@ -14,6 +14,7 @@ import {
 } from "@/lib/constants/status";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 
+import { raisedTotal } from "@/lib/fund/fundTotals";
 import { supabase } from "@/lib/supabase/client";
 import {
   createBudgetCategories,
@@ -194,10 +195,20 @@ export async function getTripsWithSummary(
   for (const row of deposits.data ?? []) {
     depositByTrip.set(row.trip_id, (depositByTrip.get(row.trip_id) ?? 0) + row.amount);
   }
+  /*
+    ⚠️ 등록 금액과 입금 합계를 **더한다.** 둘 중 하나를 고르지 않는다.
+       예전에는 입금이 하나라도 있으면 등록 금액을 버려서, 등록 80만 ·
+       입금 200만 인 여행이 목록에서 200만으로 보이고 여행자금 화면에서는
+       280만으로 보였다. (2026-09-21 테스트)
+       식은 lib/fund/fundTotals.ts 한 곳에만 둔다.
+  */
   const currentByTrip = new Map(
     (funds.data ?? []).map((r) => [
       r.trip_id,
-      depositByTrip.get(r.trip_id) ?? r.current_amount,
+      raisedTotal({
+        registeredAmount: r.current_amount,
+        depositTotal: depositByTrip.get(r.trip_id) ?? 0,
+      }),
     ]),
   );
   // 자금 소스가 아직 없어도 입금이 있으면 그 합계를 쓴다
@@ -489,6 +500,72 @@ export async function closeTripIfEnded(trip: Trip): Promise<Trip> {
   }
 
   return trip;
+}
+
+/**
+ * 목록에 뜨는 여행들의 상태를 한 번에 올린다.
+ *
+ * ⚠️⚠️ 왜 필요한가 (2026-09-21 테스트) ⚠️⚠️
+ *
+ *    closeTripIfEnded() 를 여행 홈에 들어갈 때만 불렀다. 그래서 앱 홈에서는
+ *    **이미 떠났거나 끝난 여행이 PLANNING 인 채로** '준비 중인 여행' 칸에
+ *    남았다. 9/16–9/19 여행이 9/21 에도 'D+5' 배지를 달고 준비 중 칸에 있었다.
+ *    "홈에서 지금 여행 중인 여행이 안 보인다" 가 이것이다 — 안 보인 게 아니라
+ *    준비 중인 여행인 척 섞여 있었다.
+ *
+ * ⚠️ **날짜가 지난 것만 건드린다.** 목록에 있는 모든 여행에 UPDATE 를 날리지
+ *    않는다. 홈을 열 때마다 여행 수만큼 쓰기가 나가면 안 된다.
+ *
+ * ⚠️ 실패해도 목록을 막지 않는다. 그 여행은 옛 상태 그대로 그린다. 다음에
+ *    여행 홈에 들어가면 그때 올라간다.
+ *
+ * ⚠️ ENDED 까지만 올린다. SETTLED 는 사용자가 확정한다. (closeTripIfEnded 주석)
+ */
+export async function advanceTripStatuses<T extends Trip>(
+  trips: T[],
+): Promise<T[]> {
+  const today = new Date();
+
+  const needsAdvance = (trip: Trip): boolean => {
+    if (
+      trip.status !== TRIP_STATUS.PLANNING &&
+      trip.status !== TRIP_STATUS.TRAVELING
+    ) {
+      return false;
+    }
+    if (
+      trip.end_date &&
+      differenceInCalendarDays(today, parseISO(trip.end_date)) > 0
+    ) {
+      return true;
+    }
+    return (
+      trip.status === TRIP_STATUS.PLANNING &&
+      trip.start_date !== null &&
+      differenceInCalendarDays(today, parseISO(trip.start_date)) >= 0
+    );
+  };
+
+  const targets = trips.filter(needsAdvance);
+  if (targets.length === 0) return trips;
+
+  const statusById = new Map<string, string>();
+  await Promise.all(
+    targets.map(async (trip) => {
+      try {
+        const next = await closeTripIfEnded(trip);
+        statusById.set(trip.id, next.status);
+      } catch {
+        // 그 여행만 옛 상태로 둔다. 목록 전체를 실패로 만들지 않는다.
+      }
+    }),
+  );
+
+  return trips.map((trip) =>
+    statusById.has(trip.id)
+      ? { ...trip, status: statusById.get(trip.id) as string }
+      : trip,
+  );
 }
 
 // ── 여행 참가자 (trip_members) ───────────────────────────────────────────────

@@ -40,6 +40,7 @@ import {
   ReceiptScanningOverlay,
   ReceiptSourceSheet,
   RecentFundList,
+  TransactionSheet,
   type FundDraft,
 } from "@/components/fund";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
@@ -52,7 +53,13 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  Toast,
+  useToast,
   Loading, HeaderBackButton } from "@/components/ui";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
+import { currentBalance, raisedTotal } from "@/lib/fund/fundTotals";
 import { SCREENS } from "@/lib/analytics/events";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -62,9 +69,11 @@ import {
   CATEGORY_METHOD,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
+  TRIP_STATUS,
   type CategoryCode,
   type RefundStatus,
   type TransactionType,
+  type TripStatus,
 } from "@/lib/constants/status";
 import {
   receiptAmountKrw,
@@ -80,7 +89,9 @@ import { useTripContext } from "@/lib/hooks/useTripContext";
 import {
   getBudgetByTripId,
   getBudgetCategories,
+  getBudgetPlanItems,
   type BudgetCategory,
+  type BudgetPlanItem,
   type TripBudget,
 } from "@/lib/supabase/queries/budgets";
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
@@ -103,10 +114,17 @@ type FundData = {
   budget: TripBudget | null;
   /** 지출 기록에서 고를 카테고리 목록 */
   categories: BudgetCategory[];
+  /** 거래 시트가 '연결된 계획' 이름을 그리는 데 쓴다 */
+  planItems: BudgetPlanItem[];
   fund: FundSource | null;
   transactions: Transaction[];
   depositTotal: number;
   withdrawalTotal: number;
+  /**
+   * 참여자 id → 이름. 모임 여행에서 '누가 적었는지' 를 목록에 쓴다.
+   * 개인 여행이면 비어 있다 — 적은 사람이 나 하나라 줄마다 같은 이름이 반복된다.
+   */
+  memberNameById: Map<string, string>;
 };
 
 export default function ScreenFUND01() {
@@ -118,6 +136,9 @@ export default function ScreenFUND01() {
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
   useScreenView(SCREENS.TRANSACTION_LIST);
+  const userId = useCurrentUserId();
+  /** 거래 시트의 저장 결과를 알리는 토스트 */
+  const fundToast = useToast();
 
   const [data, setData] = useState<FundData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,20 +162,42 @@ export default function ScreenFUND01() {
         return;
       }
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, fund, transactions, totals] = await Promise.all([
+      const [categories, fund, transactions, totals, members] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         getTravelFund(trip.id),
         getTransactions(trip.id, { limit: RECENT_LIMIT }),
         getFundTotals(trip.id),
+        /*
+          ⚠️ 모임 여행일 때만 참여자 이름을 읽는다. 개인 여행은 적은 사람이
+             나 하나라 줄마다 같은 이름이 붙을 뿐이다. 실패해도 목록을
+             막지 않는다 — 이름 없이 그린다.
+        */
+        trip.group_id
+          ? listActiveTripMembers(trip.id).catch(() => [])
+          : Promise.resolve([]),
       ]);
+      // 계획 항목은 카테고리별로 나뉘어 있어 한 번에 모은다. 전체 내역 화면과 같다
+      const planItems = (
+        await Promise.all(
+          categories.map((category) => getBudgetPlanItems(category.id)),
+        )
+      ).flat();
+
+      const memberNameById = new Map(
+        members
+          .filter((member) => member.user_id !== null)
+          .map((member) => [member.user_id as string, member.name]),
+      );
       setData({
         trip,
         budget,
         categories,
+        planItems,
         fund,
         transactions,
         depositTotal: totals.depositTotal,
         withdrawalTotal: totals.withdrawalTotal,
+        memberNameById,
       });
     } catch {
       setError(true);
@@ -163,6 +206,19 @@ export default function ScreenFUND01() {
       setRefreshing(false);
     }
   }, [tripId]);
+
+  /*
+    거래 상세 바텀시트. 최근 입출금을 누르면 여기서 열린다.
+    ⚠️ 저장이 끝나면 목록을 다시 읽는다. 금액을 고치면 누적·잔액도 바뀐다.
+  */
+  const txSheet = useTransactionSheet({
+    onChanged: () => load(),
+    tripStatus: data?.trip.status,
+    categories: data?.categories ?? [],
+    planItems: data?.planItems ?? [],
+    tripId: data?.trip.id ?? null,
+    onNotice: (message) => fundToast.show(message),
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -319,7 +375,9 @@ export default function ScreenFUND01() {
   /** 여행 홈 TODAY 카드에서 ?scan=receipt 로 들어오면 바로 방법을 묻는다. 한 번만 */
   const scanParamUsedRef = useRef(false);
   useEffect(() => {
+    // 확정된 여행은 기록 자체를 막으므로 자동으로 열지도 않는다 (지출이라 결산 중은 연다)
     if (scanParam !== "receipt" || !data || scanParamUsedRef.current) return;
+    if ((data.trip.status as TripStatus) === TRIP_STATUS.SETTLED) return;
     scanParamUsedRef.current = true;
     setSourceOpen(true);
   }, [data, scanParam]);
@@ -347,6 +405,13 @@ export default function ScreenFUND01() {
         occurred_at: parseISO(occurredOn).toISOString(),
         name,
         amount: draft.amount,
+        /*
+          ⚠️ 누가 적었는지 남긴다. (2026-09-21 테스트) 모임 자금은 여러 사람이
+             같은 목록에 적는 자리라, 날짜와 금액만 남으면 "이 20만원 누가
+             넣었지" 가 반복된다. 계좌에서 들어온 거래는 사람이 적은 게
+             아니라 이 칸을 비운다.
+        */
+        created_by_user_id: userId ?? null,
         /**
          * ⚠️ 입금에는 카테고리를 붙이지 않는다. 예산을 쓴 게 아니라
          *    자금이 들어온 것이다. 붙이면 그 예산의 실제 사용액이 부풀려진다.
@@ -473,10 +538,35 @@ export default function ScreenFUND01() {
   /**
    * 누적 모금액 = 등록 금액 + 입금 합계. (IA v2 §2-4-1)
    * 결제로 줄지 않는다. 잘못 넣은 입금을 지우면 그때 다시 계산된다.
+   *
+   * ⚠️ 식을 여기 쓰지 않는다. 여행 홈이 다른 식을 쓰고 있어서 같은 여행의
+   *    금액이 두 화면에서 달랐다. lib/fund/fundTotals.ts 한 곳만 본다.
    */
-  const raisedAmount = (data.fund?.current_amount ?? 0) + data.depositTotal;
+  const fundTotals = {
+    registeredAmount: data.fund?.current_amount ?? 0,
+    depositTotal: data.depositTotal,
+    withdrawalTotal: data.withdrawalTotal,
+  };
+  const raisedAmount = raisedTotal(fundTotals);
+  /*
+    ⚠️ 결산이 확정된 여행은 **더 기록할 수 없다.** (IA v2 §2-6-3)
+       거래 상세는 이미 막고 있었는데 이 화면의 입금·지출 기록 버튼이
+       살아 있어서, 확정된 여행에 거래를 더 넣을 수 있었다. (2026-09-21 2차)
+
+    ⚠️⚠️ **결산 중(ENDED)도 같이 막는다.** (2026-09-21 4차)
+       확정(SETTLED)만 막고 있어서, 지난 여행의 예산 카테고리에서
+       '지출 항목 상세 보기' 로 이 화면에 들어오면 입금·지출을 새로 적고
+       계좌까지 연결할 수 있었다. 예산 화면은 이미 "결산 중이라 예산과 계획은
+       고칠 수 없어요" 라고 말하고 있는데 돈 쪽만 열려 있었다.
+       결산 중에 할 일은 **이미 쓴 것을 확인하고 분류하는 것**이지
+       새로 적는 것이 아니다. 거래 시트(확인 완료·카테고리 변경)는 그대로 둔다.
+  */
+  const settledTrip =
+    (data.trip.status as TripStatus) === TRIP_STATUS.SETTLED;
+  /** 결산 중 + 확정. 새로 기록하거나 계좌를 연결하는 길을 모두 닫는다 */
+  const endedTrip = isTripEnded(data.trip.status);
   /** 현재 잔액 = 누적 모금액 − 출금 합계 */
-  const balance = Math.max(0, raisedAmount - data.withdrawalTotal);
+  const balance = Math.max(0, currentBalance(fundTotals));
   const targetAmount = data.budget?.target_amount ?? 0;
   const connected =
     data.fund?.source_type === FUND_SOURCE_TYPE.MOCK ||
@@ -514,9 +604,24 @@ export default function ScreenFUND01() {
           balanceAmount={balance}
           targetAmount={targetAmount}
           spentAmount={data.withdrawalTotal}
-          onRecordDeposit={() => openSheet(TRANSACTION_TYPE.DEPOSIT)}
+          /*
+            ⚠️ 결산 중이면 **입금만 닫고 지출은 연다.** (2026-09-21 4차)
+               여행에서 돌아와 마지막 날 지출을 적는 일은 실제로 있다.
+               이미 끝난 여행에 돈을 더 모을 일은 없다.
+            ⚠️ 확정된 여행은 둘 다 닫는다. 결산 스냅샷과 어긋난다.
+          */
+          onRecordDeposit={
+            endedTrip ? undefined : () => openSheet(TRANSACTION_TYPE.DEPOSIT)
+          }
           /* 지출은 영수증/직접 입력 중에서 고른다. 입금은 영수증이 없으니 바로 폼 */
-          onRecordExpense={() => setSourceOpen(true)}
+          onRecordExpense={settledTrip ? undefined : () => setSourceOpen(true)}
+          lockNote={
+            settledTrip
+              ? "정산이 확정돼 더 기록할 수 없어요. 확정 시점의 기록을 보는 화면이에요."
+              : endedTrip
+                ? "결산 중이라 입금과 계좌 연결은 닫혔어요. 빠뜨린 지출은 지금도 적을 수 있어요."
+                : null
+          }
         />
 
         {/*
@@ -525,7 +630,7 @@ export default function ScreenFUND01() {
              먼저 말한다. 연결 버튼만 두면 직접 입력이 임시 상태처럼 읽히는데,
              직접 입력 사용자도 동일한 핵심 기능을 쓴다. (CLAUDE.md 3장)
         */}
-        {connected ? null : (
+        {connected || endedTrip ? null : (
           <View
             style={{
               marginTop: 12,
@@ -552,6 +657,12 @@ export default function ScreenFUND01() {
             </Text>
           </View>
         )}
+        {/*
+          ⚠️ 끝난 여행에서는 계좌를 연결·해제하지 않는다. (2026-09-21 4차)
+             결산 중인 지난 여행에서 계좌를 새로 연결할 수 있었다. 연결하면
+             그 계좌의 거래가 이 여행으로 들어와 결산 금액이 뒤에서 움직인다.
+        */}
+        {endedTrip ? null : (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={connected ? "연결 계좌 관리" : "계좌 연결하기"}
@@ -581,6 +692,7 @@ export default function ScreenFUND01() {
           </View>
           <Ionicons name="chevron-forward" size={15} color="#a8afb9" />
         </Pressable>
+        )}
 
         {/* ── 최근 입출금 ── */}
         <View style={{ marginTop: 26 }}>
@@ -658,12 +770,23 @@ export default function ScreenFUND01() {
                   )?.category_code as CategoryCode | undefined) ?? null)
                 : null,
               needsReview: reviewReason(transaction) !== null,
+              // 누가 적었는지. 모임 여행에서만 채워져 있다
+              authorName: transaction.created_by_user_id
+                ? (data.memberNameById.get(transaction.created_by_user_id) ??
+                  null)
+                : null,
             }))}
-            onSelect={(transactionId) =>
-              router.push(
-                `/trips/${data.trip.id}/funds/transactions/${transactionId}`,
-              )
-            }
+            /*
+              ⚠️ 화면으로 밀지 않고 **시트**로 연다. (2026-09-21 2차)
+                 고치려고 상세 화면까지 들어가면 목록으로 돌아오는 데 또
+                 한 걸음이 든다. 한 건씩 확인하는 흐름이 매번 끊겼다.
+            */
+            onSelect={(transactionId) => {
+              const picked = data.transactions.find(
+                (row) => row.id === transactionId,
+              );
+              if (picked) txSheet.open(picked);
+            }}
           />
         </View>
       </ScrollView>
@@ -870,6 +993,10 @@ export default function ScreenFUND01() {
           setTimeout(runPendingManual, 700);
         }}
       />
+      {/* 최근 입출금을 누르면 열리는 거래 상세. 수기 거래는 여기서 바로 고친다 */}
+      <TransactionSheet controller={txSheet} theme={theme} />
+      <Toast state={fundToast.state} />
+
       <ReceiptScanningOverlay visible={receiptScan.phase === "scanning"} />
     </View>
   );

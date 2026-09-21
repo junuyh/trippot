@@ -794,7 +794,9 @@ export const CATEGORY_CODE_LABEL: Record<CategoryCode, string> = {
   LODGING: "숙소",
   FOOD: "식비",
   TRANSPORT: "교통",
-  ACTIVITY: "액티비티",
+  // 2026-09-21 테스트 · "액티비티" 는 유료 체험만 가리키는 말로 읽혔다.
+  // 관람·투어까지 담는 칸이라 "관광" 으로 바꾼다. category_code 는 그대로 ACTIVITY 다.
+  ACTIVITY: "관광",
   SHOPPING: "쇼핑",
   INSURANCE: "여행자보험",
   CONTINGENCY: "예비비",

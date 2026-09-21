@@ -29,6 +29,11 @@ import type { CountryTheme } from '@/lib/constants/countryTheme';
 
 type Props = {
   visible: boolean;
+  /**
+   * 완전히 닫힌 뒤에 불린다. 이 팝업이 닫히고 나서 다른 시트를 열어야 할 때
+   * 쓴다 — iOS 는 Modal 이 닫히는 도중에 다른 Modal 을 열면 두 번째가 안 뜬다.
+   */
+  onDismiss?: () => void;
   onClose: () => void;
   /** '견적 확인하기'. 화면 파일이 INSURANCE-01 로 보낸다 */
   onCompare: () => void;
@@ -51,6 +56,7 @@ function won(value: number): string {
 
 export function InsurancePromoModal({
   visible,
+  onDismiss,
   onClose,
   onCompare,
   theme,
@@ -62,7 +68,13 @@ export function InsurancePromoModal({
   quoteCount,
 }: Props) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onDismiss={onDismiss}
+    >
       {/*
         바깥을 눌러도 닫힌다. 광고 팝업에서 닫는 방법이 X 하나뿐이면
         사용자가 갇혔다고 느낀다.

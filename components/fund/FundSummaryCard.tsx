@@ -31,8 +31,25 @@ type Props = {
   targetAmount: number;
   /** 여행 지출 합계 (환불 완료·취소 제외) */
   spentAmount: number;
-  onRecordDeposit: () => void;
-  onRecordExpense: () => void;
+  /**
+   * 없으면 '입금 기록' 버튼을 내린다.
+   *
+   * ⚠️ 확정 뒤에 입출금을 더 적으면 이미 남은 결산 스냅샷과 어긋난다.
+   *    화면은 "확정됐어요" 라고 해 놓고 기록 버튼은 살아 있었다.
+   *    (2026-09-21 2차) 거래 상세는 이미 같은 이유로 막고 있었다.
+   *
+   * ⚠️ 결산 중(ENDED)에는 **지출만 열고 입금은 닫는다.** (2026-09-21 4차)
+   *    여행에서 돌아와 마지막 날 지출을 적는 일은 실제로 있지만, 이미
+   *    끝난 여행에 돈을 더 모을 일은 없다.
+   */
+  onRecordDeposit?: () => void;
+  /** 없으면 '지출 기록' 버튼을 내린다 */
+  onRecordExpense?: () => void;
+  /**
+   * 기록을 막은 이유. 왜 버튼이 줄었는지 적는다. 결산 중과 확정은 이유가 다르다.
+   * 확정은 "확정 시점의 기록", 결산 중은 "지출은 그대로 된다" 가 핵심이다.
+   */
+  lockNote?: string | null;
 };
 
 function won(value: number): string {
@@ -47,7 +64,30 @@ export function FundSummaryCard({
   spentAmount,
   onRecordDeposit,
   onRecordExpense,
+  lockNote = null,
 }: Props) {
+  const actions = [
+    ...(onRecordDeposit
+      ? [
+          {
+            label: "입금 기록",
+            icon: "add-circle-outline" as const,
+            onPress: onRecordDeposit,
+            tone: theme.primary,
+          },
+        ]
+      : []),
+    ...(onRecordExpense
+      ? [
+          {
+            label: "지출 기록",
+            icon: "remove-circle-outline" as const,
+            onPress: onRecordExpense,
+            tone: "#66707e",
+          },
+        ]
+      : []),
+  ];
   const needed = Math.max(0, targetAmount - raisedAmount);
 
   return (
@@ -140,9 +180,50 @@ export function FundSummaryCard({
                 ? won(needed)
                 : "다 모았어요"}
           </Text>
+          {/*
+            ⚠️ 계산식은 '앞으로 필요한 금액' **바로 아래**에 붙인다.
+               (2026-09-21 2차) 처음에는 카드 맨 밑에 왼쪽 정렬로 뒀는데,
+               위 숫자와 떨어져 있어서 그 숫자의 근거라는 게 읽히지 않았다.
+               같은 칸 · 같은 정렬이어야 한 덩어리로 보인다.
+          */}
+          {targetAmount > 0 ? (
+            <Text
+              style={{
+                marginTop: 4,
+                fontSize: 9,
+                lineHeight: 13,
+                color: "#a2aab5",
+                textAlign: "right",
+              }}
+            >
+              목표 {won(targetAmount)}
+              {"\n"}− 입금 {won(raisedAmount)}
+            </Text>
+          ) : null}
         </View>
       </View>
 
+      {/*
+        ⚠️ 안내와 버튼은 **함께** 나올 수 있다. 결산 중에는 '입금 기록' 만
+           내려가고 '지출 기록' 은 남는데, 버튼이 왜 하나로 줄었는지
+           적어 두지 않으면 사라진 쪽을 사용자가 찾아다닌다.
+      */}
+      {lockNote ? (
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderColor: "#eceef1",
+            paddingHorizontal: 18,
+            paddingVertical: 14,
+          }}
+        >
+          <Text style={{ fontSize: 11, lineHeight: 17, color: "#5d6674" }}>
+            {lockNote}
+          </Text>
+        </View>
+      ) : null}
+
+      {actions.length > 0 ? (
       <View
         style={{
           flexDirection: "row",
@@ -150,20 +231,7 @@ export function FundSummaryCard({
           borderColor: "#eceef1",
         }}
       >
-        {[
-          {
-            label: "입금 기록",
-            icon: "add-circle-outline" as const,
-            onPress: onRecordDeposit,
-            tone: theme.primary,
-          },
-          {
-            label: "지출 기록",
-            icon: "remove-circle-outline" as const,
-            onPress: onRecordExpense,
-            tone: "#66707e",
-          },
-        ].map((action, index) => (
+        {actions.map((action, index) => (
           <Pressable
             key={action.label}
             accessibilityRole="button"
@@ -190,6 +258,7 @@ export function FundSummaryCard({
           </Pressable>
         ))}
       </View>
+      ) : null}
     </View>
   );
 }

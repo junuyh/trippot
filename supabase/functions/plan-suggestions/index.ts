@@ -43,6 +43,7 @@
 
 /** OpenAI 호환 엔드포인트. 끝의 / 는 붙이지 않는다 */
 import { identifyCaller, unauthorized } from "../_shared/auth.ts";
+import { checkAndRecordUsage, limitExceeded } from "../_shared/usage.ts";
 
 const BASE_URL = (Deno.env.get("LLM_BASE_URL") ?? "https://api.openai.com/v1").replace(
   /\/+$/,
@@ -94,6 +95,10 @@ Deno.serve(async (request) => {
   // ⚠️ 로그인한 사용자만 부른다. anon 키만으로는 통과하지 못한다. (_shared/auth.ts)
   const caller = await identifyCaller(request);
   if (!caller) return unauthorized(CORS);
+
+  // ⚠️ 하루 한도. 사람이 부른 것만 센다. (_shared/usage.ts)
+  const usage = await checkAndRecordUsage(caller, "plan_suggestions");
+  if (!usage.allowed) return limitExceeded(CORS, usage);
 
   /**
    * ⚠️ 실패 원인을 반드시 남긴다.

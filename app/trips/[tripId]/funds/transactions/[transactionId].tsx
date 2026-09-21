@@ -24,6 +24,7 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, View } from "react-native";
 
@@ -32,11 +33,16 @@ import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   BottomSheet,
   Button,
+  CurrencyInput,
   EmptyState,
   ErrorState,
+  Input,
+  Toast,
+  useToast,
   Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
+import { sortPlansByMatch } from "@/lib/budget/planMatch";
 import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
@@ -46,6 +52,7 @@ import {
   CATEGORY_METHOD,
   MAPPED_BY,
   REFUND_STATUS,
+  TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
   TRIP_STATUS,
   type CategoryCode,
@@ -63,6 +70,7 @@ import {
   deleteTransaction,
   getTransactionById,
   reviewReason,
+  updateManualTransaction,
   updateTransactionMapping,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
@@ -97,10 +105,28 @@ type DetailData = {
 };
 
 export default function ScreenFUND03() {
-  const { tripId, transactionId } = useLocalSearchParams<{
+  const { tripId, transactionId, from } = useLocalSearchParams<{
     tripId: string;
     transactionId: string;
+    /**
+     * 어디서 들어왔는가. 뒤로 갈 곳을 정한다.
+     *   'settlement' 결산 화면
+     *   없음          전체 입출금 내역 (기본)
+     */
+    from?: string;
   }>();
+
+  /*
+    ⚠️⚠️ 뒤로가기는 **들어온 곳**으로 돌려보낸다. (2026-09-21 2차) ⚠️⚠️
+
+       예전에는 무조건 전체 입출금 내역으로 갔고, 거기서 또 누르면 여행자금
+       으로 갔다. 결산에서 주요 지출 한 건을 눌러 본 사람은 **본 적도 없는
+       화면 두 개를 지나 여행자금까지 끌려갔다.** 결산으로 돌아갈 길이 없었다.
+  */
+  const parentHref =
+    from === "settlement"
+      ? `/trips/${tripId}/settlement`
+      : `/trips/${tripId}/funds/transactions`;
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -109,10 +135,19 @@ export default function ScreenFUND03() {
   const [error, setError] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  /** 화면 아래에 잠깐 떴다 사라지는 알림. 누른 것에 대한 즉답에만 쓴다 */
+  const floatingToast = useToast();
 
   const [editing, setEditing] = useState(false);
   const [linking, setLinking] = useState(false);
+  /** 연결 시트에서 고른 계획. 저장을 눌러야 실제로 붙는다 */
+  const [pickedPlanId, setPickedPlanId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 수기 거래 내용 수정 시트 */
+  const [editingManual, setEditingManual] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftAmount, setDraftAmount] = useState<number | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!tripId || !transactionId) {
@@ -133,11 +168,23 @@ export default function ScreenFUND03() {
       }
 
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, planItems, accounts] = await Promise.all([
+      const [categories, accounts] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
-        budget ? getBudgetPlanItems(budget.id) : Promise.resolve([]),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
       ]);
+
+      /*
+        ⚠️ 세부 계획은 **카테고리마다** 읽는다. getBudgetPlanItems 가 거르는 칸은
+           budget_category_id 다. 여기서 budget.id 를 넘기고 있어서 결과가 늘
+           0건이었고, 계획이 있어도 연결 시트에 "아직 세부 계획이 없어요" 가 떴다.
+           거래를 계획에 붙이는 길 자체가 막혀 있었다. (2026-09-21 테스트)
+           FUND-01 목록(transactions/index.tsx)이 읽는 방식과 같게 맞춘다.
+      */
+      const planItems = (
+        await Promise.all(
+          categories.map((category) => getBudgetPlanItems(category.id)),
+        )
+      ).flat();
 
       setData({
         trip,
@@ -271,6 +318,46 @@ export default function ScreenFUND03() {
   }, [busy, data, load]);
 
   // 삭제는 되돌릴 수 없다. 먼저 확인한다. (NFR-003)
+  /** 수정 시트를 연다. 지금 값을 초안에 담아 둔다 */
+  const openManualEdit = useCallback(() => {
+    if (!data) return;
+    setDraftName(data.transaction.name ?? "");
+    setDraftAmount(data.transaction.amount);
+    setDraftError(null);
+    setEditingManual(true);
+  }, [data]);
+
+  /**
+   * 수기 거래 내용 저장.
+   *
+   * ⚠️ 거래일은 건드리지 않는다. 이번에 여는 것은 이름과 금액이다 —
+   *    테스트에서 고치고 싶다고 한 것이 그 둘이다. 날짜까지 열면 달력
+   *    컴포넌트가 붙고 확인할 것이 늘어난다. 필요해지면 그때 연다.
+   */
+  const handleSaveManual = useCallback(async () => {
+    if (!data || busy) return;
+    const amount = draftAmount ?? 0;
+    if (amount <= 0) {
+      setDraftError("금액을 1원 이상 넣어 주세요.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateManualTransaction(data.transaction.id, {
+        name: draftName.trim() === "" ? null : draftName.trim(),
+        amount,
+        occurredAt: data.transaction.occurred_at,
+      });
+      setEditingManual(false);
+      setToast("수정했어요");
+      await load();
+    } catch {
+      setDraftError("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, data, draftAmount, draftName, load]);
+
   const handleDelete = useCallback(() => {
     if (!data) return;
     const { transaction } = data;
@@ -298,7 +385,7 @@ export default function ScreenFUND03() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <Loading message="거래를 불러오는 중…" />
@@ -310,7 +397,7 @@ export default function ScreenFUND03() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <EmptyState
@@ -328,7 +415,7 @@ export default function ScreenFUND03() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <ErrorState
@@ -352,6 +439,44 @@ export default function ScreenFUND03() {
    */
   const settled = (data.trip.status as TripStatus) === TRIP_STATUS.SETTLED;
   const canEdit = !deposit && !settled;
+  /*
+    ⚠️ 직접 적은 거래는 이름·금액·거래일을 고칠 수 있다. (2026-09-21 테스트 —
+       "수기 입력 후 수정 불가") 잘못 적으면 지우고 다시 넣는 수밖에 없었다.
+    ⚠️ 계좌에서 들어온 거래는 못 고친다. 실제 결제 기록이라 앱에서 금액을
+       바꾸면 계좌 내역과 어긋난다. 입금·출금 둘 다 열어 준다 — 모임 입금을
+       손으로 적는 일이 잦다.
+  */
+  /**
+   * 이 거래를 붙일 수 있는 계획 후보.
+   *
+   * ⚠️ **같은 카테고리**의 계획만 본다. (2026-09-21 2차) 예전에는 여덟
+   *    카테고리의 계획이 전부 나와서, 식비 지출을 항공 계획에 붙일 수
+   *    있었다. 붙으면 그 거래가 항공 카테고리로 통째로 옮겨 간다.
+   *    전체 내역 화면(transactions/index.tsx)이 쓰는 기준과 같게 맞춘다.
+   *
+   * ⚠️ 한 계획에 여러 지출이 붙는 것은 **막지 않는다.** '편의점' 계획 하나에
+   *    로손·세븐일레븐·패밀리마트가 모두 붙는 게 맞다. 계획의 실제 금액은
+   *    붙은 거래를 다시 합산해서 넣는다.
+   */
+  const planCandidates = transaction.budget_category_id
+    ? data.planItems.filter(
+        (item) => item.budget_category_id === transaction.budget_category_id,
+      )
+    : [];
+
+  /** 연결 시트 제목의 카테고리. 어느 예산의 계획 목록인지 알린다 */
+  const linkingCategoryLabel = transaction.budget_category_id
+    ? (() => {
+        const code = data.categories.find(
+          (c) => c.id === transaction.budget_category_id,
+        )?.category_code as CategoryCode | undefined;
+        return code ? `[${CATEGORY_CODE_LABEL[code]}]` : "";
+      })()
+    : "";
+
+  const canEditManual =
+    !settled &&
+    transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL;
 
   const rows: [string, string][] = [
     ["거래명", transaction.name ?? "이름 없는 거래"],
@@ -408,7 +533,7 @@ export default function ScreenFUND03() {
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
 
@@ -489,8 +614,24 @@ export default function ScreenFUND03() {
           </View>
         ) : null}
 
+        {/*
+          ⚠️ 직접 적은 거래의 '내용 수정'. 입금·출금 둘 다 낸다.
+             카테고리 변경(canEdit)은 출금에만 있어서 그 묶음 밖에 따로 둔다 —
+             모임 입금을 손으로 적어 놓고 못 고치던 것이 이번 지적이다.
+             (2026-09-21 테스트)
+        */}
+        {canEditManual ? (
+          <View style={{ marginTop: 22 }}>
+            <Button
+              label="내용 수정"
+              variant="secondary"
+              onPress={openManualEdit}
+            />
+          </View>
+        ) : null}
+
         {canEdit ? (
-          <View style={{ marginTop: 22, gap: 8 }}>
+          <View style={{ marginTop: 10, gap: 8 }}>
             <View className="flex-row" style={{ gap: 8 }}>
               <View style={{ flex: 1 }}>
                 <Button
@@ -510,6 +651,20 @@ export default function ScreenFUND03() {
                   onPress={() => {
                     if (transaction.budget_plan_item_id) {
                       void handleLinkPlan(null);
+                      return;
+                    }
+                    /*
+                      ⚠️ 계획이 없으면 **시트를 열지 않는다.** (2026-09-21 2차)
+                         빈 시트를 열어 "아직 세부 계획이 없어요" 를 읽히고
+                         다시 닫게 하는 건 한 걸음이 헛돈다. 눌린 자리에서
+                         바로 답한다.
+                    */
+                    if (planCandidates.length === 0) {
+                      floatingToast.show(
+                        transaction.budget_category_id
+                          ? "이 카테고리에 연결할 세부 계획이 없어요. 예산 상세에서 계획을 먼저 만들어 주세요."
+                          : "카테고리를 먼저 정해 주세요. 그 카테고리의 계획에만 연결할 수 있어요.",
+                      );
                       return;
                     }
                     setLinking(true);
@@ -562,78 +717,178 @@ export default function ScreenFUND03() {
         ) : null}
       </ScrollView>
 
-      {/* ── 계획 항목 연결 ── */}
+      <Toast state={floatingToast.state} />
+
+      {/* ── 수기 거래 내용 수정 ── */}
+      <BottomSheet
+        visible={editingManual}
+        title="내용 수정"
+        description="직접 적은 거래라 이름과 금액을 고칠 수 있어요. 거래일은 바꾸지 않아요."
+        onClose={() => setEditingManual(false)}
+      >
+        <View style={{ paddingTop: 12, gap: 12 }}>
+          <Input
+            label="내용"
+            value={draftName}
+            onChangeText={setDraftName}
+            placeholder="예: 8월 회비"
+          />
+          <CurrencyInput
+            label="금액"
+            value={draftAmount}
+            onChangeValue={setDraftAmount}
+          />
+          {draftError ? (
+            <Text style={{ fontSize: 11, color: "#e1394a" }}>{draftError}</Text>
+          ) : null}
+          <Button
+            label="저장"
+            loading={busy}
+            onPress={() => void handleSaveManual()}
+          />
+        </View>
+      </BottomSheet>
+
+      {/*
+        ── 계획 항목 연결 ──
+        ⚠️ 무슨 거래를 붙이는 중인지 위에 적고, 제목에 카테고리를 넣는다.
+           고른 뒤 저장을 눌러야 붙는다. 전체 내역 화면의 시트와 같은 방식이다.
+      */}
       <BottomSheet
         visible={linking}
-        title="계획 항목에 연결"
-        description="연결하면 그 계획의 카테고리로 함께 옮겨요. 계획에는 실제 결제 금액이 표시돼요."
-        onClose={() => setLinking(false)}
+        title={`${linkingCategoryLabel} 세부 계획에 연결`}
+        description="연결하면 그 계획에 이 결제 금액이 실제 사용으로 잡혀요."
+        onClose={() => {
+          setLinking(false);
+          setPickedPlanId(null);
+        }}
       >
-        <View style={{ paddingTop: 12, gap: 8 }}>
-          {data.planItems.length === 0 ? (
+        <View
+          style={{
+            marginTop: 12,
+            padding: 13,
+            borderRadius: 12,
+            backgroundColor: "#f5f7f9",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 10, color: "#8b94a2" }}>연결할 지출</Text>
             <Text
+              numberOfLines={1}
               style={{
-                fontSize: 11,
-                color: "#858e9c",
-                paddingVertical: 20,
-                textAlign: "center",
+                marginTop: 3,
+                fontSize: 13,
+                fontWeight: "800",
+                color: "#121a2a",
               }}
             >
-              아직 세부 계획이 없어요. 예산 상세에서 먼저 계획을 만들어 주세요.
+              {transaction.name ?? "이름 없는 거래"}
             </Text>
-          ) : (
-            data.planItems.map((plan) => {
-              const category = data.categories.find(
-                (c) => c.id === plan.budget_category_id,
-              );
-              return (
-                <Pressable
-                  key={plan.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${plan.name} 에 연결`}
-                  disabled={busy}
-                  onPress={() => void handleLinkPlan(plan.id)}
-                  className="flex-row items-center active:bg-gray-50"
-                  style={{
-                    gap: 10,
-                    padding: 13,
-                    borderWidth: 1,
-                    borderColor: "#e5e8ec",
-                    borderRadius: 12,
-                  }}
-                >
-                  <Text style={{ fontSize: 18 }}>
-                    {category
-                      ? CATEGORY_EMOJI[category.category_code as CategoryCode]
-                      : "📌"}
-                  </Text>
-                  <View style={{ flex: 1 }}>
-                    <Text
+            <Text style={{ marginTop: 2, fontSize: 10, color: "#8b94a2" }}>
+              {format(parseISO(transaction.occurred_at), "M월 d일")}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: "900", color: "#121a2a" }}>
+            {transaction.amount.toLocaleString("ko-KR")}원
+          </Text>
+        </View>
+
+        {planCandidates.length === 0 ? (
+          <Text
+            style={{
+              fontSize: 11,
+              color: "#858e9c",
+              paddingVertical: 20,
+              textAlign: "center",
+            }}
+          >
+            이 카테고리에 연결할 세부 계획이 없어요. 예산 상세에서 먼저 계획을
+            만들어 주세요.
+          </Text>
+        ) : (
+          <>
+            <View
+              style={{
+                marginTop: 16,
+                borderWidth: 1,
+                borderColor: "#e5e8ec",
+                borderRadius: 13,
+                overflow: "hidden",
+              }}
+            >
+              {sortPlansByMatch(planCandidates, transaction.name).map(
+                ({ plan, score }, index) => {
+                  const picked = pickedPlanId === plan.id;
+                  return (
+                    <Pressable
+                      key={plan.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: picked }}
+                      accessibilityLabel={`${plan.name} 계획 고르기`}
+                      disabled={busy}
+                      onPress={() => setPickedPlanId(plan.id)}
+                      className="flex-row items-center active:bg-gray-50"
                       style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: "#141b28",
+                        gap: 10,
+                        paddingHorizontal: 14,
+                        paddingVertical: 13,
+                        borderTopWidth: index === 0 ? 0 : 1,
+                        borderColor: "#eceef1",
+                        backgroundColor: picked ? theme.primarySoft : "#fff",
                       }}
                     >
-                      {plan.name}
-                    </Text>
-                    <Text
-                      style={{ marginTop: 3, fontSize: 10, color: "#858e9c" }}
-                    >
-                      {category
-                        ? CATEGORY_CODE_LABEL[
-                            category.category_code as CategoryCode
-                          ]
-                        : "카테고리 없음"}
-                      {" · 예상 "}
-                      {plan.expected_amount.toLocaleString("ko-KR")}원
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })
-          )}
-        </View>
+                      <Ionicons
+                        name={picked ? "radio-button-on" : "radio-button-off"}
+                        size={17}
+                        color={picked ? theme.primary : "#c2c8d0"}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            fontSize: 13,
+                            fontWeight: picked ? "800" : "600",
+                            color: "#121a2a",
+                          }}
+                        >
+                          {plan.name}
+                          {score > 0 ? (
+                            <Text style={{ fontSize: 10, color: theme.primary }}>
+                              {"  추천"}
+                            </Text>
+                          ) : null}
+                        </Text>
+                      </View>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "700",
+                          color: "#5d6674",
+                        }}
+                      >
+                        {plan.expected_amount.toLocaleString("ko-KR")}원
+                      </Text>
+                    </Pressable>
+                  );
+                },
+              )}
+            </View>
+
+            <View style={{ marginTop: 14 }}>
+              <Button
+                label="이 계획에 연결"
+                loading={busy}
+                disabled={pickedPlanId === null}
+                onPress={() => {
+                  if (pickedPlanId) void handleLinkPlan(pickedPlanId);
+                }}
+              />
+            </View>
+          </>
+        )}
       </BottomSheet>
 
       {/* ── 카테고리 변경 ── */}
