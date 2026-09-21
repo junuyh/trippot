@@ -14,6 +14,7 @@ import {
 } from "@/lib/constants/status";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 
+import { raisedTotal } from "@/lib/fund/fundTotals";
 import { supabase } from "@/lib/supabase/client";
 import {
   createBudgetCategories,
@@ -194,10 +195,20 @@ export async function getTripsWithSummary(
   for (const row of deposits.data ?? []) {
     depositByTrip.set(row.trip_id, (depositByTrip.get(row.trip_id) ?? 0) + row.amount);
   }
+  /*
+    ⚠️ 등록 금액과 입금 합계를 **더한다.** 둘 중 하나를 고르지 않는다.
+       예전에는 입금이 하나라도 있으면 등록 금액을 버려서, 등록 80만 ·
+       입금 200만 인 여행이 목록에서 200만으로 보이고 여행자금 화면에서는
+       280만으로 보였다. (2026-09-21 테스트)
+       식은 lib/fund/fundTotals.ts 한 곳에만 둔다.
+  */
   const currentByTrip = new Map(
     (funds.data ?? []).map((r) => [
       r.trip_id,
-      depositByTrip.get(r.trip_id) ?? r.current_amount,
+      raisedTotal({
+        registeredAmount: r.current_amount,
+        depositTotal: depositByTrip.get(r.trip_id) ?? 0,
+      }),
     ]),
   );
   // 자금 소스가 아직 없어도 입금이 있으면 그 합계를 쓴다

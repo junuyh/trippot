@@ -9,8 +9,10 @@ import {
   GROUP_MEMBER_ROLE,
   GROUP_MEMBER_STATUS,
   GROUP_STATUS,
+  TRANSACTION_TYPE,
   TRIP_STATUS,
 } from '@/lib/constants/status';
+import { raisedTotal } from '@/lib/fund/fundTotals';
 import { supabase } from '@/lib/supabase/client';
 import type { Trip } from '@/lib/supabase/queries/trips';
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
@@ -518,19 +520,49 @@ export async function getTripAmountSummaries(
 ): Promise<Map<string, TripAmountSummary>> {
   if (tripIds.length === 0) return new Map();
 
-  const [budgets, funds, settlements] = await Promise.all([
+  /*
+    ⚠️ 입금 거래까지 읽는다. (2026-09-21 테스트)
+       예전에는 fund_sources.current_amount 만 읽어서, 모임 카드가 MY 목록·
+       여행 홈과 다른 금액을 말했다. 누적 모금액은 등록 금액 + 입금 합계다.
+       식은 lib/fund/fundTotals.ts 한 곳에만 둔다.
+  */
+  const [budgets, funds, deposits, settlements] = await Promise.all([
     supabase.from('trip_budgets').select('trip_id, target_amount').in('trip_id', tripIds),
     supabase.from('fund_sources').select('trip_id, current_amount').in('trip_id', tripIds),
+    supabase
+      .from('transactions')
+      .select('trip_id, amount')
+      .in('trip_id', tripIds)
+      .eq('transaction_type', TRANSACTION_TYPE.DEPOSIT)
+      .is('deleted_at', null),
     supabase.from('settlements').select('trip_id, actual_amount').in('trip_id', tripIds),
   ]);
 
   if (budgets.error) throw budgets.error;
   if (funds.error) throw funds.error;
+  if (deposits.error) throw deposits.error;
   if (settlements.error) throw settlements.error;
 
   // trip_id 가 셋 다 UNIQUE 라 여행당 최대 한 행이다.
   const targetByTrip = new Map((budgets.data ?? []).map((r) => [r.trip_id, r.target_amount]));
-  const currentByTrip = new Map((funds.data ?? []).map((r) => [r.trip_id, r.current_amount]));
+  // 입금은 여행당 여러 건이라 합계를 낸다
+  const depositByTrip = new Map<string, number>();
+  for (const row of deposits.data ?? []) {
+    depositByTrip.set(row.trip_id, (depositByTrip.get(row.trip_id) ?? 0) + row.amount);
+  }
+  const currentByTrip = new Map(
+    (funds.data ?? []).map((r) => [
+      r.trip_id,
+      raisedTotal({
+        registeredAmount: r.current_amount,
+        depositTotal: depositByTrip.get(r.trip_id) ?? 0,
+      }),
+    ]),
+  );
+  // 자금 소스가 아직 없어도 입금이 있으면 그 합계를 쓴다
+  for (const [tripId, total] of depositByTrip) {
+    if (!currentByTrip.has(tripId)) currentByTrip.set(tripId, total);
+  }
   const finalByTrip = new Map((settlements.data ?? []).map((r) => [r.trip_id, r.actual_amount]));
 
   return new Map(
