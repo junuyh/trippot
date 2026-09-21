@@ -81,6 +81,11 @@ type Loaded = {
   trip: Trip;
   /** 예산에 잡아 둔 여행자보험 금액. 예산이 없으면 null */
   budgetAmount: number | null;
+  /**
+   * 여행자보험 예산 카테고리 id. 견적을 예산에 반영하러 갈 곳이다.
+   * 예산을 안 짠 여행이면 null 이고, 그때는 링크를 내지 않는다.
+   */
+  insuranceCategoryId: string | null;
 };
 
 export default function ScreenINSURANCE01() {
@@ -149,20 +154,24 @@ export default function ScreenINSURANCE01() {
         비교 줄만 빠진다.
       */
       let budgetAmount: number | null = null;
+      let insuranceCategoryId: string | null = null;
       try {
         const budget = await getBudgetByTripId(tripId);
         if (budget) {
           const categories = await getBudgetCategories(budget.id);
-          budgetAmount =
-            categories.find((c) => c.category_code === CATEGORY_CODE.INSURANCE)
-              ?.planned_amount ?? null;
+          const insurance = categories.find(
+            (c) => c.category_code === CATEGORY_CODE.INSURANCE,
+          );
+          budgetAmount = insurance?.planned_amount ?? null;
+          insuranceCategoryId = insurance?.id ?? null;
         }
       } catch {
         // 예산 조회 실패로 화면을 막지 않는다. 비교 줄만 없는 채로 간다.
         budgetAmount = null;
+        insuranceCategoryId = null;
       }
 
-      setData({ trip, budgetAmount });
+      setData({ trip, budgetAmount, insuranceCategoryId });
     } catch {
       setError(true);
     } finally {
@@ -320,6 +329,20 @@ export default function ScreenINSURANCE01() {
         theme={theme}
         selected={selected}
         onPress={() => selected && handleGoToPartner(selected)}
+        /*
+          ⚠️ 제휴사로 가는 버튼(BM 1 의 유일한 전환 지점)은 그대로 둔다.
+             견적을 고른 사람이 다음에 하고 싶은 일이 하나 더 있다 — 그 금액을
+             자기 보험 예산에 넣는 것이다. 지금은 예산까지 스스로 찾아가야 했다.
+             (2026-09-21 테스트 — "선택한 견적을 누르면 보험 예산 항목으로
+             들어갔으면 좋겠음") 보조 링크로 붙인다.
+          ⚠️ 금액을 대신 확정하지 않는다. 예산 화면으로 보내기만 한다.
+             (CLAUDE.md 4장 — planned_amount 는 사용자 확정 행동으로만)
+        */
+        budgetHref={
+          data.insuranceCategoryId
+            ? `/trips/${tripId}/budget/${data.insuranceCategoryId}`
+            : null
+        }
       />
 
       <InsuranceDetailSheet

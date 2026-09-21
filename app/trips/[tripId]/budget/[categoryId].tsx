@@ -136,10 +136,35 @@ const RECENT_EXPENSE_LIMIT = 10;
 export default function ScreenBUDGET02() {
   // 로그인한 사용자. 개인 여행의 개인화 범위를 정할 때 소유자가 비어 있으면 대신 쓴다.
   const userId = useCurrentUserId();
-  const { tripId, categoryId } = useLocalSearchParams<{
+  const { tripId, categoryId, from } = useLocalSearchParams<{
     tripId: string;
     categoryId: string;
+    /**
+     * 어디서 들어왔는가. 뒤로 갈 곳을 정한다.
+     *   'home'       여행 홈의 금고·카테고리 줄
+     *   'settlement' 결산 화면
+     *   없음          예산 전체 (기본)
+     */
+    from?: string;
   }>();
+
+  /*
+    ⚠️ 뒤로가기는 **들어온 곳**으로 돌려보낸다. (2026-09-21 테스트)
+
+       예전에는 어디서 들어오든 예산 전체로 갔다. 여행 홈에서 교통 예산을
+       바로 열었는데 뒤로 누르면 본 적 없는 예산 전체가 나와서, 사용자는
+       자기가 어디 있는지 다시 찾아야 했다.
+
+    ⚠️ router.back() 으로 바꾸지 않는다. 같은 화면이 여러 경로로 열려
+       스택에 사본이 쌓인다. 여행자보험(INSURANCE-01)이 쓰는 방식과 같게
+       진입점을 param 으로 받아 부모를 계산한다.
+  */
+  const parentHref =
+    from === "home"
+      ? `/trips/${tripId}`
+      : from === "settlement"
+        ? `/trips/${tripId}/settlement`
+        : `/trips/${tripId}/budget`;
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -973,7 +998,7 @@ export default function ScreenBUDGET02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <Loading message="불러오는 중…" />
@@ -985,7 +1010,7 @@ export default function ScreenBUDGET02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <EmptyState
@@ -1003,7 +1028,7 @@ export default function ScreenBUDGET02() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "카테고리" }} />
         <ErrorState message="불러오지 못했어요." onRetry={() => void load()} />
@@ -1053,7 +1078,7 @@ export default function ScreenBUDGET02() {
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/budget`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: label }} />
 

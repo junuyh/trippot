@@ -2401,7 +2401,7 @@ export default function ScreenTripHome() {
                 categories={settlementVaults}
                 /* 카테고리를 누르면 그 카테고리 정산 상세로 간다 */
                 onSelect={(categoryId) =>
-                  router.push(`/trips/${trip.id}/budget/${categoryId}`)
+                  router.push(`/trips/${trip.id}/budget/${categoryId}?from=home`)
                 }
               />
             </View>
@@ -2605,7 +2605,7 @@ export default function ScreenTripHome() {
               <CategoryGrid
                 categories={gridCategories}
                 onSelect={(categoryId) =>
-                  router.push(`/trips/${trip.id}/budget/${categoryId}`)
+                  router.push(`/trips/${trip.id}/budget/${categoryId}?from=home`)
                 }
               />
               {/* 전체 예산(BUDGET-01)으로 가는 유일한 입구다 */}

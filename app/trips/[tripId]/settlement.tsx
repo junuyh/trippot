@@ -638,7 +638,7 @@ export default function ScreenSETTLE01() {
             categories={comparisons}
             /* 확정 후 스냅샷에는 카테고리 id 가 없어 눌리지 않는다 */
             onSelect={(categoryId) =>
-              router.push(`/trips/${data.trip.id}/budget/${categoryId}`)
+              router.push(`/trips/${data.trip.id}/budget/${categoryId}?from=settlement`)
             }
           />
         ) : (
@@ -878,7 +878,7 @@ export default function ScreenSETTLE01() {
                 onPress={() => {
                   setUnlinkedOpen(false);
                   router.push(
-                    `/trips/${data.trip.id}/budget/${plan.categoryId}`,
+                    `/trips/${data.trip.id}/budget/${plan.categoryId}?from=settlement`,
                   );
                 }}
                 className="flex-row items-center active:bg-gray-50"
