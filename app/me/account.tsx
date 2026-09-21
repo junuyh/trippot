@@ -20,6 +20,7 @@ import {
   WithdrawConfirmModal,
   ENGLISH_NAME_MAX_LENGTH,
   NAME_MAX_LENGTH,
+  type ConnectedAccount,
 } from '@/components/mypage';
 import { ErrorState, Loading } from '@/components/ui';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
@@ -27,6 +28,8 @@ import { AUTH_PROVIDER } from '@/lib/constants/status';
 import {
   getUserProfile,
   readOAuthProfile,
+  readSessionAuthMethod,
+  readSessionAuthProvider,
   toProductAuthProvider,
   updateUserEnglishName,
   updateUserName,
@@ -39,7 +42,7 @@ type LoadState = 'loading' | 'ready' | 'error';
 
 export default function ScreenMyAccount() {
   const userId = useCurrentUserId();
-  // 카카오 닉네임은 DB 가 아니라 세션에 있다. 아래 toAccountLabel 주석 참고.
+  // 로그인 방식 · 닉네임 · 이메일은 DB 가 아니라 세션에 있다. 아래 toConnectedAccount 주석 참고.
   // signOut 은 미리보기와 실제 로그인을 알아서 가른다. (lib/auth/AuthProvider)
   const { session, isPreview, signOut } = useAuth();
 
@@ -63,7 +66,7 @@ export default function ScreenMyAccount() {
   const [withdrawAsking, setWithdrawAsking] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
 
-  const [accountLabel, setAccountLabel] = useState<string | null>(null);
+  const [account, setAccount] = useState<ConnectedAccount | null>(null);
 
   /**
    * 연결된 계정 한 줄을 만든다.
@@ -76,20 +79,53 @@ export default function ScreenMyAccount() {
    * ⚠️ 계정 식별자(auth_provider_user_id)는 넣지 않는다. `kakao_1001` 같은
    *    내부 연동 ID 라 사용자가 알아볼 수 없다.
    *
-   * MVP 는 kakao 만 구현한다. (lib/constants/status.ts AUTH_PROVIDER)
-   * 그 외 값이면 null 을 주고 화면에서 그 영역 자체를 그리지 않는다.
+   * 로그인 방식은 셋이다 — 카카오 · 구글 · 이메일. (2026-09-20 최종 정책 · 카카오 전용 정책 대체)
+   *   카카오  기존 표시 그대로: `카카오 로그인 · 닉네임`
+   *   구글    `Google` + 로그인한 구글 이메일
+   *   이메일  `이메일` + 가입 이메일
+   * 판별은 **세션 토큰의 인증 방법(amr) + 신원 목록**(readSessionAuthProvider) 이 먼저고,
+   * 그걸로 못 정하면 가입 때 저장한 users.auth_provider 로 본다. 둘 다 모르면 null →
+   * 화면은 그 영역을 그리지 않는다(모르는 값을 카카오·이메일로 넘겨짚지 않는다).
+   * 신원이 여럿(구글+이메일 자동 연결)이어도 **지금 로그인한 하나만** 보여준다.
    *
+   * ⚠️ email 유무로 방식을 정하지 않는다. 구글도 email 을 준다.
+   * ⚠️ 이메일은 **세션의 auth user** 것이다. DB 에 이메일을 저장하지 않는다(readOAuthProfile).
+   *    본인 화면이라 보여줄 수는 있지만 로그 · 이벤트 payload 에는 넣지 않는다.
    * ⚠️ 저장된 값을 그대로 비교하지 않는다. Custom OIDC 로 만들어진 행에는
-   *    'custom:kakao-oidc' 가 들어 있어서, 그대로 비교하면 카카오로 로그인한
-   *    사용자에게 '연결된 계정' 이 통째로 사라진다. 읽을 때 한 번 더
-   *    제품 기준으로 바꾼다. (toProductAuthProvider)
+   *    'custom:kakao-oidc' 가 들어 있다. 읽을 때 제품 기준으로 바꾼다. (toProductAuthProvider)
    */
-  const toAccountLabel = useCallback(
-    (authProvider: string | null): string | null => {
-      if (toProductAuthProvider(authProvider) !== AUTH_PROVIDER.KAKAO) return null;
+  const toConnectedAccount = useCallback(
+    (storedProvider: string | null, method: string | null): ConnectedAccount | null => {
+      const user = session?.user ?? null;
+      const provider =
+        (user ? readSessionAuthProvider(user, method) : null) ??
+        toProductAuthProvider(storedProvider);
+      const email = user?.email?.trim() || null;
 
-      const nickname = session?.user ? readOAuthProfile(session.user).name : null;
-      return nickname ? `카카오 로그인 · ${nickname}` : '카카오 로그인';
+      switch (provider) {
+        case AUTH_PROVIDER.KAKAO: {
+          const nickname = user ? readOAuthProfile(user).name : null;
+          return {
+            title: nickname ? `카카오 로그인 · ${nickname}` : '카카오 로그인',
+            subtitle: null,
+            hint: '카카오에서 가져온 정보라 앱에서는 바꿀 수 없어요.',
+          };
+        }
+        case AUTH_PROVIDER.GOOGLE:
+          return {
+            title: 'Google',
+            subtitle: email,
+            hint: '구글 계정으로 로그인했어요. 앱에서는 바꿀 수 없어요.',
+          };
+        case AUTH_PROVIDER.EMAIL:
+          return {
+            title: '이메일',
+            subtitle: email,
+            hint: '가입할 때 쓴 이메일이에요. 앱에서는 바꿀 수 없어요.',
+          };
+        default:
+          return null;
+      }
     },
     [session],
   );
@@ -98,7 +134,7 @@ export default function ScreenMyAccount() {
     try {
       if (!userId) return;
 
-      const user = await getUserProfile(userId);
+      const [user, method] = await Promise.all([getUserProfile(userId), readSessionAuthMethod()]);
       if (!user) {
         setLoadState('error');
         return;
@@ -108,13 +144,13 @@ export default function ScreenMyAccount() {
       setName(user.name);
       setSavedEnglishName(user.english_name ?? '');
       setEnglishName(user.english_name ?? '');
-      setAccountLabel(toAccountLabel(user.auth_provider));
+      setAccount(toConnectedAccount(user.auth_provider, method));
       setLoadState('ready');
     } catch {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
       setLoadState('error');
     }
-  }, [userId, toAccountLabel]);
+  }, [userId, toConnectedAccount]);
 
   // ⚠️ useFocusEffect 를 쓰지 않는다. 이 화면은 입력 중인 값을 들고 있어서,
   //    돌아올 때마다 다시 불러오면 저장하지 않은 입력이 사라진다.
@@ -252,7 +288,8 @@ export default function ScreenMyAccount() {
       ) : null}
       {loadState === 'ready' ? (
         <ScrollView
-          className="flex-1 bg-brand-soft"
+          // 바탕 = 앱 공통 light gray(bg-gray-50 · 여행 홈·결산과 같다). 카드는 흰색. MY 구분을 배경색으로 하지 않는다. (2026-09-20)
+          className="flex-1 bg-gray-50"
           contentContainerClassName="pb-16"
           keyboardShouldPersistTaps="handled"
         >
@@ -265,7 +302,7 @@ export default function ScreenMyAccount() {
             englishNameError={englishNameError}
             canSaveEnglishName={canSaveEnglishName}
             savingEnglishName={savingEnglishName}
-            accountLabel={accountLabel}
+            account={account}
             onChangeName={handleChangeName}
             onPressSaveName={() => void handlePressSaveName()}
             onChangeEnglishName={handleChangeEnglishName}

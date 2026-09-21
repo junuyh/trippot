@@ -263,6 +263,31 @@ export async function getMyTripCount(userId: string): Promise<number> {
 }
 
 /** 잘못된 tripId 면 null 을 반환한다. 화면은 Empty/Error 로 처리한다. */
+/** 알림센터가 쓰는 여행 요약 — 여행 + 모임명 한 번에. (2026-09-21) */
+export type TripContextRow = Pick<
+  Trip,
+  "id" | "destination" | "start_date" | "end_date" | "status" | "owner_type" | "group_id"
+> & { groupName: string | null };
+
+/**
+ * 여러 여행을 한 번에 읽는다(알림센터 목록의 지출 리마인드 보조 정보용). 모임명은 groups 를 임베드해 같이 온다.
+ * ⚠️ 행 단위 N+1 을 피하려고 목록 한 번에 ids 를 모아 부른다. RLS 로 못 보는 여행은 그냥 빠진다(오류 아님).
+ * ⚠️ 이 결과로 멤버십을 판단하지 않는다 — 여행 조회 권한(can_access_trip)은 모임 멤버·리더에게도 열려 있다.
+ */
+export async function getTripsByIds(tripIds: readonly string[]): Promise<TripContextRow[]> {
+  if (tripIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("trips")
+    .select("id, destination, start_date, end_date, status, owner_type, group_id, groups(name)")
+    .in("id", [...tripIds]);
+  if (error) throw error;
+  return (data ?? []).map((row) => {
+    const { groups, ...trip } = row as typeof row & { groups: { name: string } | { name: string }[] | null };
+    const group = Array.isArray(groups) ? groups[0] ?? null : groups;
+    return { ...trip, groupName: group?.name ?? null };
+  });
+}
+
 export async function getTripById(tripId: string): Promise<Trip | null> {
   // maybeSingle() 이라 없으면 null 이다. 잘못된 tripId 로 들어와도 던지지 않는다.
   // 화면은 null 을 Empty/Error 로 처리한다. (CLAUDE.md 9장)
@@ -554,6 +579,30 @@ export async function advanceTripStatuses<T extends Trip>(
 //    여러 행을 가질 수 있으므로, 아래 함수들은 전부 "ACTIVE 행이 하나 이상"
 //    기준으로 판단하고 갱신할 때도 여러 행을 한 번에 다룬다.
 //    (unique 제약 추가는 초대·재참여 구현 시 별도 hardening 대상)
+
+/**
+ * 기존 모임으로 만든 여행에 그 모임 멤버를 참여시킨다. **여행 생성 직후 1회.**
+ *
+ * 앱이 trip_members 에 직접 넣지 못해서 RPC 를 경유한다 —
+ * trip_members_insert_self 정책이 본인 행만 허용한다. 남을 ACTIVE 로 넣는 길은
+ * 승인 RPC 뿐이라는 원칙을 풀지 않으려고, 자동 합류만 하는 함수를 따로 뒀다.
+ * (migration 20260921000010 · 2026-09-21 팀 합의)
+ *
+ * 서버가 하는 일
+ *   · 부르는 사람이 여행장이고 그 모임 ACTIVE 멤버인지 확인
+ *   · 모임 ACTIVE 멤버 중 아직 안 들어온 사람만 추림 (탈퇴 계정 제외)
+ *   · 정원(headcount) 이 모자라면 먼저 올림
+ *
+ * @returns 새로 참여시킨 사람 수. 개인 여행이거나 넣을 사람이 없으면 0.
+ */
+export async function addGroupMembersToTrip(tripId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("add_group_members_to_trip", {
+    p_trip_id: tripId,
+  });
+
+  if (error) throw error;
+  return data ?? 0;
+}
 
 /**
  * 내가 지금 참가 중인 여행 id 집합.

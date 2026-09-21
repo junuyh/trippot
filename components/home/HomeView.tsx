@@ -1,11 +1,11 @@
-import { ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 
 import type { TripAction } from '@/lib/trip/tripActions';
 
 import { CreateTripFab } from './CreateTripFab';
 import { HomeHeader } from './HomeHeader';
-import { HomeActionBanners } from './HomeActionBanner';
-import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
+import { HomeNoticeCarousel } from './HomeNoticeCarousel';
+import { type InvitePromptProps } from './InvitePrompt';
 import { OngoingTripCarousel } from './OngoingTripCarousel';
 import { PastTripSection } from './PastTripSection';
 import type {
@@ -41,6 +41,12 @@ type Props = {
   onPressAllPastTrips: () => void;
   /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
   onPressNotifications: () => void;
+  /**
+   * 아래로 당겨 새로고침. 화면 파일이 조회를 다시 돌린다. (app/(tabs)/index.tsx)
+   * 넘기지 않으면 새로고침을 그리지 않는다.
+   */
+  refreshing?: boolean;
+  onRefresh?: () => void;
   /** 답하지 않은 여행 초대. 준비 중인 여행 위 배너. (InvitePrompt) */
   invitePrompt: InvitePromptProps;
   /**
@@ -107,6 +113,8 @@ export function HomeView({
   onPressCreateTrip,
   onPressAllPastTrips,
   onPressNotifications,
+  refreshing,
+  onRefresh,
   invitePrompt,
   actions,
   onPressAction,
@@ -131,12 +139,19 @@ export function HomeView({
         contentContainerClassName="px-4 pb-40 pt-6"
         onScroll={onScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} /> : undefined
+        }
       >
-        {/* 답하지 않은 초대는 준비 중인 여행보다 위다. 답할 때까지 남는다. */}
-        <InvitePrompt {...invitePrompt} />
-
-        {/* 답해야 할 일도 준비 중인 여행보다 위다. 답하면 사라진다. */}
-        <HomeActionBanners actions={actions} onPressAction={onPressAction} />
+        {/*
+          답하지 않은 초대와 답해야 할 일. 둘 다 준비 중인 여행보다 위다.
+          한 무더기로 묶어 한 장씩 옆으로 넘긴다. (HomeNoticeCarousel · 2026-09-21)
+        */}
+        <HomeNoticeCarousel
+          {...invitePrompt}
+          actions={actions}
+          onPressAction={onPressAction}
+        />
 
         {/*
           ⚠️ **준비 중인 여행이 없으면 그 사실을 그대로 말한다.** (2026-09-16 되돌림)

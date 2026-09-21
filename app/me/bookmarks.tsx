@@ -80,7 +80,7 @@ export default function ScreenMyBookmarks() {
 
   return (
     // 바탕은 홈과 같은 pot-visual. Loading·Empty·Error 도 같은 바탕 위에 온다.
-    <View className="flex-1 bg-brand-soft">
+    <View className="flex-1 bg-gray-50">
       <Stack.Screen options={{ title: '저장된 게시물', headerTitleAlign: 'center' }} />
 
       {loadState === 'loading' ? <Loading /> : null}

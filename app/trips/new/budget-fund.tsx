@@ -100,7 +100,11 @@ import {
   getSpendingProfile,
   type SpendingProfile,
 } from '@/lib/supabase/queries/personalization';
-import { createTripBundle, getMyTripCount } from '@/lib/supabase/queries/trips';
+import {
+  addGroupMembersToTrip,
+  createTripBundle,
+  getMyTripCount,
+} from '@/lib/supabase/queries/trips';
 import { getLocalizedBudgetProducts } from '@/lib/supabase/queries/budgetProducts';
 
 export default function ScreenTRIP03() {
@@ -1241,6 +1245,24 @@ export default function ScreenTRIP03() {
         financialAccountId: fundType === FUND_SOURCE_TYPE.MOCK ? accountId : null,
         createdByUserId: userId,
       }).catch(() => undefined);
+      /**
+       * 기존 모임 멤버를 이 여행에 참여시킨다. (2026-09-21 팀 합의)
+       *
+       * 이미 같이 다니는 모임인데 여행 홈이 '아직 나 혼자' 로 보고 초대를 다시
+       * 권하던 문제를 없앤다.
+       *
+       * ⚠️ createTripBundle 안에 넣지 못한다. 앱은 trip_members 에 본인 행만
+       *    넣을 수 있어서(trip_members_insert_self) RPC 를 경유해야 한다.
+       *
+       * ⚠️ 실패해도 여행 생성을 되돌리지 않는다. 만든 사람만 있는 여행이 남고
+       *    그건 이 기능이 생기기 전과 같은 상태다. 나머지는 초대로 채울 수 있다.
+       *    여기서 통째로 실패시키면 손해가 더 크다. (planItems 와 같은 판단)
+       *
+       * ⚠️ 신규 모임은 부를 필요가 없다. 방금 만들어서 멤버가 나뿐이다.
+       */
+      if (draft.companionType === COMPANION_TYPE.EXISTING_GROUP) {
+        await addGroupMembersToTrip(trip.id).catch(() => 0);
+      }
 
       savedRef.current = true;
 

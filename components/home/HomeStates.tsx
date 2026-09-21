@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 
 import type { TripAction } from '@/lib/trip/tripActions';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { CreateTripFab } from './CreateTripFab';
 import { DiscoverDestinationSection } from './DiscoverDestinationSection';
 import { HomeButton } from './HomeButton';
 import { HomeHeader } from './HomeHeader';
-import { HomeActionBanners } from './HomeActionBanner';
-import { InvitePrompt, type InvitePromptProps } from './InvitePrompt';
+import { HomeNoticeCarousel } from './HomeNoticeCarousel';
+import { type InvitePromptProps } from './InvitePrompt';
 import { OnboardingEntryCard } from './onboarding/OnboardingEntryCard';
 import type { DiscoverDestination } from './types';
 import { useFabExpand } from './useFabExpand';
@@ -60,6 +60,12 @@ type HomeEmptyProps = {
   onPressAllDiscoveries: () => void;
   /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
   onPressNotifications: () => void;
+  /**
+   * 아래로 당겨 새로고침. 화면 파일이 조회를 다시 돌린다. (app/(tabs)/index.tsx)
+   * 넘기지 않으면 새로고침을 그리지 않는다.
+   */
+  refreshing?: boolean;
+  onRefresh?: () => void;
   /** 답하지 않은 여행 초대. 맨 위 배너. (InvitePrompt) */
   invitePrompt: InvitePromptProps;
   /**
@@ -113,6 +119,8 @@ export function HomeEmpty({
   onPressDiscovery,
   onPressAllDiscoveries,
   onPressNotifications,
+  refreshing,
+  onRefresh,
   invitePrompt,
   actions,
   onPressAction,
@@ -136,10 +144,16 @@ export function HomeEmpty({
         contentContainerClassName="px-4 pb-40 pt-6"
         onScroll={onScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} /> : undefined
+        }
       >
         {/* 초대받은 사람은 여행이 없는 신규 사용자일 때가 많다. 기존 홈과 같은 자리에 둔다. */}
-        <InvitePrompt {...invitePrompt} />
-        <HomeActionBanners actions={actions} onPressAction={onPressAction} />
+        <HomeNoticeCarousel
+          {...invitePrompt}
+          actions={actions}
+          onPressAction={onPressAction}
+        />
 
         {/*
           서비스 소개 칸. 신규 사용자 홈에만 둔다 — 이미 여행을 만들어 본 사람에게

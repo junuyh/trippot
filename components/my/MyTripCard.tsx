@@ -241,17 +241,22 @@ export function MyTripCard({
             <Text className="text-pot-faint" style={{ fontSize: 10.5 }}>
               최종 여행비
             </Text>
-            <Text className="font-black text-pot-ink" style={{ fontSize: 13, ...NUM }}>
-              {/*
-                ⚠️ '결산 전' 을 여기 또 적지 않는다. 카드 위 배지가 이미 상태를
-                   말하고 있어서 같은 말이 한 카드에 두 번 나왔다.
-                   (2026-09-21 테스트) 금액 자리에는 금액만 둔다.
-                ⚠️ 금액이 없으면 '—' 도 적지 않는다. 빈칸으로 둔다. (2차)
-              */}
-              {trip.finalAmount === null
-                ? ''
-                : `${trip.finalAmount.toLocaleString('ko-KR')}원`}
-            </Text>
+            {/*
+              ⚠️ 결산 전에는 **이 자리를 비운다.** 글자도 '—' 도 넣지 않는다. (2026-09-21)
+                 ① 바로 위 배지가 이미 상태를 말한다('정산 대기 중' · '지출 입력 전' 등).
+                    여기에 '결산 전' 을 또 쓰면 같은 말을 두 번 하는 데다, 배지와 문구가
+                    달라('정산 대기 중' vs '결산 전') 서로 다른 것을 가리키는 것처럼 보였다.
+                 ② '—' 도 쓰지 않는다. 취소된 여행에서 확인한 것과 같은 이유다 —
+                    줄표는 값이 없다는 뜻보다 **불러오지 못했다**는 뜻으로 읽힌다.
+                    (아래 취소 여행 금액 줄 주석 · 2026-09-11)
+                 라벨('최종 여행비')은 남긴다. 결산이 끝나면 여기 금액이 들어온다는 자리
+                 표시이고, 카드 높이도 크게 흔들리지 않는다.
+            */}
+            {trip.finalAmount === null ? null : (
+              <Text className="font-black text-pot-ink" style={{ fontSize: 13, ...NUM }}>
+                {`${trip.finalAmount.toLocaleString('ko-KR')}원`}
+              </Text>
+            )}
           </View>
         ) : (
           <>

@@ -48,7 +48,7 @@ type Props = {
 export function MyPostList({ posts, onPressPost, swipeAction }: Props) {
   return (
     <FlatList
-      className="flex-1 bg-brand-soft"
+      className="flex-1 bg-gray-50"
       contentContainerClassName="pb-16 pt-4"
       contentContainerStyle={{ paddingHorizontal: 18 }}
       data={posts}
@@ -68,7 +68,9 @@ export function MyPostList({ posts, onPressPost, swipeAction }: Props) {
               swipeAction ? '' : 'rounded-2xl'
             }`}
             style={{
-              borderWidth: 1,
+              // ⚠️ 스와이프가 붙으면 테두리는 바깥 wrapper 가 그린다(아래). 여기서 그리면 wrapper 의
+              //    overflow-hidden 이 네 모서리의 테두리를 잘라내 윤곽이 끊겨 보였다. (2026-09-20)
+              borderWidth: swipeAction ? 0 : 1,
               borderColor: '#E5E8EC',
               shadowColor: '#111827',
               shadowOpacity: 0.05,
@@ -115,7 +117,7 @@ export function MyPostList({ posts, onPressPost, swipeAction }: Props) {
         return (
           // 스와이프로 감싸면 그 안에서 모서리를 자른다. 카드 자체의 radius 를
           // 없애는 대신 바깥에서 잘라야 밀 때 액션이 각지게 붙는다.
-          <View className="overflow-hidden rounded-2xl">
+          <View className="overflow-hidden rounded-2xl border border-pot-line">
             <SwipeToAction
               label={swipeAction.label}
               accessibilityLabel={`${item.title} ${swipeAction.label}`}

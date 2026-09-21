@@ -51,7 +51,7 @@ import {
 } from "@/components/trip-home";
 import { AppHomeButton } from "@/components/navigation/AppHomeButton";
 import { dailyAllowance } from "@/lib/budget/dailyAllowance";
-import { scheduleSpendReminders } from "@/lib/notifications/spendReminder";
+import { reconcileSpendReminders, scheduleSpendReminders } from "@/lib/notifications/spendReminder";
 import {
   SettlementVaultGrid,
   TravelTypeCard,
@@ -81,7 +81,6 @@ import { countryTheme } from "@/lib/constants/countryTheme";
 import { destinationPhoto } from "@/lib/constants/destinationPhoto";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
-  COMPANION_TYPE,
   FUND_SOURCE_TYPE,
   SETTLEMENT_TRIGGER,
   TRANSACTION_TYPE,
@@ -94,6 +93,7 @@ import { markInviteNudgeShown, wasInviteNudgeShown } from "@/lib/invite/inviteNu
 import { useTripInvite } from "@/lib/hooks/useTripInvite";
 import { useScreenView } from "@/lib/hooks/useScreenView";
 import { useTripContext } from "@/lib/hooks/useTripContext";
+import { buildRecreateTripHref } from "@/lib/trip/tripCreateEntry";
 import {
   getBudgetByTripId,
   getBudgetCategories,
@@ -146,6 +146,8 @@ import {
   cancelFundLabel,
   cancelPerPersonAmount,
   cancelRemainingAmount,
+  CANCEL_BLOCK_MESSAGE,
+  canRequestCancel,
   canRestoreTrip,
   resolveVoteOutcome,
   restoredRemainingAmount,
@@ -1414,10 +1416,28 @@ export default function ScreenTripHome() {
       });
       setSheet(null);
       await load();
+      // 취소가 확정됐으면 지출 리마인드 예약을 지금 상태에 맞춘다(알림 계층만). 실패해도 취소는 끝났다. (2026-09-21)
+      if (userId) reconcileSpendReminders(userId).catch(() => undefined);
       // CXL-04. 요청과 확정은 다음 행동이 달라서 Alert 로 뭉뚱그릴 수 없다.
       setDoneKind(result.outcome === "CANCELED" ? "canceled" : "requested");
-    } catch {
-      Alert.alert("요청하지 못했어요", "잠시 후 다시 시도해 주세요.");
+    } catch (e) {
+      /*
+        ⚠️ 위에서 막아도 여기서 또 난다. 시트를 열어 둔 사이에 출발일이 지나거나,
+           다른 기기에서 상태가 바뀔 수 있다. 서버가 마지막 판정이다.
+           같은 일에는 같은 문장을 쓴다 — 진입점에서 막힐 때와 문구가 다르면
+           사용자는 다른 문제로 읽는다.
+      */
+      const notCancelable =
+        typeof (e as { message?: unknown })?.message === "string" &&
+        (e as { message: string }).message.includes("NOT_CANCELABLE");
+
+      setSheet(null);
+      if (notCancelable) {
+        Alert.alert(CANCEL_BLOCK_MESSAGE.ALREADY_DEPARTED, "");
+        await load();
+      } else {
+        Alert.alert("요청하지 못했어요", "잠시 후 다시 시도해 주세요.");
+      }
     } finally {
       setBusy(false);
     }
@@ -1444,6 +1464,8 @@ export default function ScreenTripHome() {
         });
         setSheet(null);
         await load();
+        // 전원 동의로 CANCELED 가 됐을 수 있다. 지출 리마인드 예약을 지금 상태에 맞춘다. (2026-09-21)
+        if (userId) reconcileSpendReminders(userId).catch(() => undefined);
         if (result.outcome === "APPROVED") {
           // 내 동의로 확정됐다. 되돌리기 안내가 필요하니 CXL-04 로 보낸다
           setDoneKind("canceled");
@@ -1489,6 +1511,8 @@ export default function ScreenTripHome() {
     setBusy(true);
     try {
       await restoreCanceledTrip(trip.id);
+      // 되살린 여행의 지출 리마인드를 다시 잡는다(권한이 이미 있으면). (2026-09-21)
+      if (userId) reconcileSpendReminders(userId).catch(() => undefined);
       setSheet(null);
       setDoneKind(null);
       await load();
@@ -1904,6 +1928,28 @@ export default function ScreenTripHome() {
             setProgressOpen(true);
             return;
           }
+
+          /*
+            ⚠️ 시트를 열기 전에 먼저 판정한다. (2026-09-21)
+               전에는 무조건 열어서, 출발일이 된 여행도 사유를 고르고 확인까지
+               누른 뒤에야 서버가 NOT_CANCELABLE 로 거절했다. 사용자는 "요청하지
+               못했어요" 만 보고 왜인지 알 수 없었다.
+
+               ⚠️ 설정 시트가 **내려간 뒤에** Alert 를 띄운다. 닫히는 중에 띄우면
+                  iOS 가 조용히 삼킨다. 설정 시트는 별도 Modal 이라
+                  openSheetAfterClose 의 onDismiss 대기가 닿지 않아서, 같은 파일
+                  onCancelTrip 과 같은 방식으로 타이머를 쓴다.
+          */
+          const gate = canRequestCancel({ status, isActiveMember });
+          if (!gate.allowed) {
+            setSettingsOpen(false);
+            const message = gate.reason ? CANCEL_BLOCK_MESSAGE[gate.reason] : null;
+            setTimeout(() => {
+              Alert.alert(message ?? "취소할 수 없어요", "");
+            }, SHEET_SWAP_MS);
+            return;
+          }
+
           openSheetAfterClose("cancelReason");
         }}
       />
@@ -2480,13 +2526,8 @@ export default function ScreenTripHome() {
           <Button
             label="같은 멤버로 다시 여행 만들기"
             variant="secondary"
-            onPress={() =>
-              router.push(
-                trip.group_id
-                  ? `/trips/new/owner?entryPoint=past_trip&preselectedGroupId=${trip.group_id}`
-                  : `/trips/new/owner?entryPoint=past_trip&preselectedCompanion=${COMPANION_TYPE.PERSONAL}`,
-              )
-            }
+            /* 지난 여행의 동행 구성을 미리 골라 둔 채로 연다 */
+            onPress={() => router.push(buildRecreateTripHref(trip.group_id))}
           />
 
           {/*

@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<!--
+  테스터용 설치·참여 안내 페이지 (2026-09-17 작성 · 2026-09-21 web/ 로 이동)
+  - 링크는 아래 <script> 의 LINKS 만 바꾼다. 새 APK 를 만들면 android 값과 만료일 문구를 함께 고친다.
+  - 아이폰은 애플 유료 계정이 없어 Expo Go 방식이다. 테스터를 Expo 팀(trippots-team)에 Viewer 로 초대해야 열린다.
+  - 분석 스크립트를 넣지 않는다. 외부 요청은 폰트뿐이다.
+-->
+<title>TripPot 테스트 탑승권</title>
+<meta name="description" content="TripPot 테스트 버전 설치와 참여 안내">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --ground: #F5F7FA;
+    --surface: #FFFFFF;
+    --ink: #111827;
+    --mute: #5F6673;
+    --faint: #8B94A2;
+    --line: #E5E8EC;
+    --dash: #CBD0D6;
+    --brand: #64139E;
+    --brand-pressed: #521080;
+    --brand-soft: #F6F0FA;
+    --on-brand: #FFFFFF;
+    --todo-bg: #FFF4D6;
+    --todo-ink: #7A5200;
+    --warn-bg: #FDF1F1;
+    --warn-ink: #9B2226;
+    --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #110E16;
+      --surface: #1B1722;
+      --ink: #EFEBF5;
+      --mute: #B3ACBF;
+      --faint: #8C8499;
+      --line: #2E2838;
+      --dash: #453D52;
+      --brand: #B88AE8;
+      --brand-pressed: #CBA6F0;
+      --brand-soft: #2A1F38;
+      --on-brand: #1A0F26;
+      --todo-bg: #3A2E10;
+      --todo-ink: #F2CD76;
+      --warn-bg: #3A1A1C;
+      --warn-ink: #F3A6A8;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #110E16;
+    --surface: #1B1722;
+    --ink: #EFEBF5;
+    --mute: #B3ACBF;
+    --faint: #8C8499;
+    --line: #2E2838;
+    --dash: #453D52;
+    --brand: #B88AE8;
+    --brand-pressed: #CBA6F0;
+    --brand-soft: #2A1F38;
+    --on-brand: #1A0F26;
+    --todo-bg: #3A2E10;
+    --todo-ink: #F2CD76;
+    --warn-bg: #3A1A1C;
+    --warn-ink: #F3A6A8;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    padding-inline: 16px;
+    padding-block: 28px 64px;
+    word-break: keep-all;
+  }
+  .wrap { max-width: 720px; margin-inline: auto; display: flex; flex-direction: column; gap: 40px; }
+  h1, h2, h3 { text-wrap: balance; margin: 0; line-height: 1.3; }
+  p { margin: 0; }
+  a { color: var(--brand); }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+
+  .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .todo {
+    background: var(--todo-bg);
+    color: var(--todo-ink);
+    border-radius: 4px;
+    padding: 0 6px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* ── 탑승권 ─────────────────────────────── */
+  .brandline { display: flex; align-items: center; gap: 10px; }
+  .brandline img { width: 40px; height: auto; }
+  .brandline b { font-size: 19px; letter-spacing: -0.02em; }
+
+  .pass {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .pass-top { padding: 24px 24px 22px; display: flex; flex-direction: column; gap: 18px; }
+  .route { display: grid; grid-template-columns: auto 1fr auto; align-items: end; gap: 14px; }
+  .route .code { font-family: var(--mono); font-weight: 600; font-size: clamp(30px, 8vw, 44px); line-height: 1; letter-spacing: -0.02em; }
+  .route .code.to { color: var(--brand); }
+  .route .place { font-size: 12.5px; color: var(--mute); margin-top: 6px; }
+  .route .path { border-bottom: 1.5px dashed var(--dash); margin-bottom: 14px; position: relative; }
+  .route .path::after {
+    content: "✈"; position: absolute; left: 50%; top: -11px; transform: translateX(-50%);
+    background: var(--surface); padding-inline: 6px; color: var(--faint); font-size: 14px;
+  }
+  .pass h1 { font-size: clamp(22px, 5vw, 28px); letter-spacing: -0.03em; }
+  .pass .lede { color: var(--mute); max-width: 60ch; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px 18px; }
+  .facts div { display: flex; flex-direction: column; gap: 2px; }
+  .facts span:last-child { font-family: var(--mono); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+
+  .perf { position: relative; height: 0; border-top: 1.5px dashed var(--dash); margin-inline: 14px; }
+  .perf::before, .perf::after {
+    content: ""; position: absolute; top: -12px; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--ground); border: 1px solid var(--line);
+  }
+  .perf::before { left: -27px; }
+  .perf::after { right: -27px; }
+
+  .stubs { display: grid; grid-template-columns: 1fr 1fr; }
+  .stub { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+  .stub + .stub { border-left: 1.5px dashed var(--dash); }
+  .stub h2 { font-size: 17px; }
+  .stub .meta { font-size: 13px; color: var(--mute); }
+  .btn {
+    display: inline-flex; justify-content: center; align-items: center; gap: 8px;
+    min-height: 48px; padding: 0 18px; border-radius: 12px;
+    font: 600 15px/1 var(--sans); text-decoration: none; border: 0; cursor: pointer;
+  }
+  .btn-primary { background: var(--brand); color: var(--on-brand); }
+  .btn-primary:hover { background: var(--brand-pressed); }
+  .btn[aria-disabled="true"] {
+    background: var(--brand-soft); color: var(--faint); cursor: not-allowed;
+  }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--mute); }
+  .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .status.ready::before { background: #1F9D55; }
+
+  @media (max-width: 560px) {
+    .stubs { grid-template-columns: 1fr; }
+    .stub + .stub { border-left: 0; border-top: 1.5px dashed var(--dash); }
+  }
+
+  /* ── 섹션 공통 ─────────────────────────── */
+  section { display: flex; flex-direction: column; gap: 16px; }
+  section > header { display: flex; flex-direction: column; gap: 4px; }
+  section h2 { font-size: 21px; letter-spacing: -0.02em; }
+  .prose { display: flex; flex-direction: column; gap: 10px; max-width: 65ch; }
+  .prose p, .prose li { color: var(--ink); }
+  .muted { color: var(--mute); }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .steps li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding-block: 12px; border-top: 1px solid var(--line); }
+  .steps li:first-child { border-top: 0; }
+  .steps .n {
+    font-family: var(--mono); font-weight: 600; font-size: 13px; color: var(--brand);
+    width: 28px; height: 28px; border-radius: 50%; background: var(--brand-soft);
+    display: grid; place-items: center; margin-top: 1px;
+  }
+  .steps b { font-weight: 600; }
+  .steps .sub { display: block; font-size: 13.5px; color: var(--mute); }
+
+  .tabs { display: flex; gap: 6px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; width: fit-content; }
+  .tabs button {
+    font: 600 14px/1 var(--sans); padding: 10px 16px; border-radius: 9px; border: 0;
+    background: transparent; color: var(--mute); cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { background: var(--brand-soft); color: var(--brand); }
+
+  .callout { background: var(--warn-bg); color: var(--warn-ink); border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 11px 14px; border-top: 1px solid var(--line); }
+  thead th { border-top: 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--mute); }
+
+  .consent { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .consent ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .consent li { display: grid; grid-template-columns: 52px 1fr; gap: 10px; }
+  .tag { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 1px 0; text-align: center; height: fit-content; margin-top: 3px; }
+  .tag.req { background: var(--brand-soft); color: var(--brand); }
+  .tag.opt { background: var(--ground); color: var(--mute); border: 1px solid var(--line); }
+
+  footer { font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); padding-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandline">
+    <img src="data:image/png;base64,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" alt="">
+    <b>TripPot</b>
+  </div>
+
+  <!-- 탑승권 -->
+  <article class="pass" aria-labelledby="pass-title">
+    <div class="pass-top">
+      <div class="route" aria-hidden="true">
+        <div><div class="code">YOU</div><div class="place">지금 쓰는 폰</div></div>
+        <div class="path"></div>
+        <div style="text-align:right"><div class="code to">TRP</div><div class="place">TripPot 테스트 버전</div></div>
+      </div>
+      <h1 id="pass-title">TripPot 테스트에 탑승해 주셔서 고마워요</h1>
+      <p class="lede">여행 전에 예산을 짜고, 여행자금을 모으고, 실제로 쓴 돈을 다음 여행 계획에 반영해 주는 앱이에요. 스토어에 올리기 전 버전을 먼저 써 보시고 의견을 들려주세요.</p>
+      <div class="facts">
+        <div><span class="label">버전</span><span>1.0.0 (1) · 9/17</span></div>
+        <div><span class="label">테스트 기간</span><span>2026.09.24 – 2026.10.31</span></div>
+        <div><span class="label">운영</span><span>TripPot 팀 (4인)</span></div>
+        <div><span class="label">문의</span><span style="font-size:12px;line-height:1.7;word-break:break-all"><a href="mailto:junuyhju@gmail.com" style="color:inherit">junuyhju@gmail.com</a><br><a href="mailto:janghanna423@gmail.com" style="color:inherit">janghanna423@gmail.com</a><br><a href="mailto:sukm38621@gmail.com" style="color:inherit">sukm38621@gmail.com</a><br><a href="mailto:yaliyala9809@gmail.com" style="color:inherit">yaliyala9809@gmail.com</a></span></div>
+      </div>
+    </div>
+
+    <div class="perf" aria-hidden="true"></div>
+
+    <div class="stubs">
+      <div class="stub">
+        <span class="label">Android</span>
+        <h2>안드로이드 폰</h2>
+        <span class="status" id="android-status">설치 파일 준비 중</span>
+        <a class="btn btn-primary" id="android-btn" href="#install-guide" aria-disabled="true">설치 파일 받기</a>
+        <span class="meta">APK 파일 · 빌드 1 · <b>10월 1일</b>까지 받을 수 있어요</span>
+      </div>
+      <div class="stub">
+        <span class="label">iPhone</span>
+        <h2>아이폰</h2>
+        <span class="status" id="ios-status">준비 중</span>
+        <a class="btn btn-primary" id="ios-btn" href="#install-guide" aria-disabled="true">Expo Go로 열기</a>
+        <span class="meta">아이폰은 앱을 따로 깔지 않고 <b>Expo Go</b> 앱 안에서 열어요. 아래 <b>아이폰</b> 안내의 1~4를 먼저 마쳐야 열려요.</span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 설치 방법 -->
+  <section id="install-guide" aria-labelledby="install-title">
+    <header>
+      <span class="label">Boarding</span>
+      <h2 id="install-title">설치하는 방법</h2>
+    </header>
+
+    <div class="tabs" role="tablist" aria-label="기기 선택">
+      <button role="tab" id="tab-android" aria-selected="true" aria-controls="panel-android">안드로이드</button>
+      <button role="tab" id="tab-ios" aria-selected="false" aria-controls="panel-ios">아이폰</button>
+    </div>
+
+    <div role="tabpanel" id="panel-android" aria-labelledby="tab-android">
+      <ol class="steps">
+        <li><span class="n">1</span><div><b>안드로이드 폰에서</b> 위의 <b>설치 파일 받기</b>를 눌러요.<span class="sub">컴퓨터에서 받았다면 파일을 폰으로 옮겨 열어요.</span></div></li>
+        <li><span class="n">2</span><div>“이 출처의 앱 설치를 허용할까요?”가 나오면 <b>설정 → 이 출처 허용</b>을 켜고 돌아와요.<span class="sub">링크를 연 앱(크롬·카카오톡 등)에 허용을 켜는 거예요.</span></div></li>
+        <li><span class="n">3</span><div><b>설치</b>를 눌러요.</div></li>
+        <li><span class="n">4</span><div>“확인되지 않은 앱” 경고가 뜨면 <b>무시하고 설치</b>를 눌러요.<span class="sub">스토어를 거치지 않은 테스트 앱이라 뜨는 Play 프로텍트 경고예요.</span></div></li>
+        <li><span class="n">5</span><div>홈 화면의 <b>TripPot</b>을 열고 로그인해요.</div></li>
+      </ol>
+    </div>
+
+    <div role="tabpanel" id="panel-ios" aria-labelledby="tab-ios" hidden>
+      <ol class="steps">
+        <li><span class="n">1</span><div>앱스토어에서 <b>Expo Go</b>(무료)를 설치해요.<span class="sub">애플 정책상 스토어 밖 앱은 유료 개발자 계정이 있어야 설치돼요. 그래서 아이폰은 Expo Go 안에서 열어요.</span></div></li>
+        <li><span class="n">2</span><div><a href="https://expo.dev/signup" target="_blank" rel="noopener">expo.dev</a>에서 무료 Expo 계정을 만들고, <b>가입한 이메일이나 아이디를 팀에 알려 주세요.</b><span class="sub">팀이 그 계정을 TripPot 팀에 초대해야 열 수 있어요. 초대는 보기 전용 권한이에요.</span></div></li>
+        <li><span class="n">3</span><div>메일로 온 <b>팀 초대를 수락</b>해요.</div></li>
+        <li><span class="n">4</span><div>아이폰의 <b>Expo Go</b> 앱을 열어 그 계정으로 <b>로그인</b>해요.</div></li>
+        <li><span class="n">5</span><div>위의 <b>Expo Go로 열기</b>를 눌러요. TripPot이 Expo Go 안에서 열리면 로그인해요.<span class="sub">홈 화면에 TripPot 아이콘은 생기지 않아요. 다음부터는 Expo Go 앱의 최근 목록에서 열면 돼요.</span></div></li>
+        <li><span class="n">6</span><div>여행 초대 링크를 받았다면, 링크 페이지에서 <b>Expo Go로 열기</b>를 누르면 돼요.<span class="sub">알림은 일부만 와요. 실제 앱과 다른 점은 테스트 안내에서 감안해 주세요.</span></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 시작하기 -->
+  <section aria-labelledby="start-title">
+    <header>
+      <span class="label">Check-in</span>
+      <h2 id="start-title">로그인과 권한</h2>
+    </header>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>로그인</th><th>이렇게 해요</th></tr></thead>
+        <tbody>
+          <tr><td>카카오</td><td>카카오 로그인 화면에서 동의하면 바로 시작해요.</td></tr>
+          <tr><td>구글</td><td>구글 계정을 고르면 바로 시작해요.</td></tr>
+          <tr><td>이메일</td><td>이메일과 비밀번호(8자 이상)로 가입한 뒤, 메일로 온 <b>인증 코드</b>를 앱에 입력해요. 코드는 1시간 동안 쓸 수 있어요.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="callout"><b>인증 메일이 안 보이면 스팸함이나 프로모션함을 확인해 주세요.</b> 테스트용 발신 주소라 스팸으로 분류될 수 있어요.</p>
+    <div class="prose">
+      <p>앱이 요청하는 권한은 두 가지뿐이에요. 거부해도 직접 입력으로 모든 기능을 쓸 수 있어요.</p>
+    </div>
+    <div class="chips">
+      <span class="chip">사진 — 영수증·프로필·커뮤니티 사진 올리기</span>
+      <span class="chip">카메라 — 영수증 촬영</span>
+      <span class="chip">마이크·위치·연락처는 요청하지 않아요</span>
+    </div>
+  </section>
+
+  <!-- 모으는 정보 -->
+  <section aria-labelledby="data-title">
+    <header>
+      <span class="label">Manifest</span>
+      <h2 id="data-title">모으는 정보와 쓰는 곳</h2>
+    </header>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>언제</th><th>무엇을</th></tr></thead>
+        <tbody>
+          <tr><td>카카오 로그인</td><td>카카오 닉네임, 프로필 사진, 카카오 회원 번호</td></tr>
+          <tr><td>구글 로그인</td><td>구글 이름, 프로필 사진, 이메일 주소, 구글 계정 번호</td></tr>
+          <tr><td>이메일 가입</td><td>이메일 주소, 비밀번호 (암호화해서 저장하고 팀도 볼 수 없어요)</td></tr>
+          <tr><td>직접 입력</td><td>여행지·일정·인원, 함께 가는 사람 이름, 예산·지출 내역(항목·금액·메모), 이름·프로필 사진, 커뮤니티 글·댓글·사진</td></tr>
+          <tr><td>영수증 촬영</td><td>영수증 사진 — 글자를 읽는 데만 쓰고 <b>저장하지 않아요</b></td></tr>
+          <tr><td>앱 사용 중 자동</td><td>본 화면과 누른 버튼, 기기 종류·운영체제·앱 버전, 접속 IP로 추정한 대략적인 지역</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose">
+      <p class="muted">받지 않는 정보: 전화번호, 실제 계좌번호·카드번호. 앱 안의 “계좌 연결”은 테스트용 가상 데이터예요.</p>
+      <p>모은 정보는 앱 기능 제공(로그인·예산 추천·지출 기록·결산), 가입 인증 메일 발송, 사용 분석, 팀 포트폴리오 작성에 써요. 포트폴리오에는 <b>개인을 알아볼 수 없는 통계와 익명 의견</b>만 들어가요.</p>
+      <p>테스트가 끝나고 <b>1년</b> 뒤에 모두 삭제해요. 앱 알림 기록은 최대 2년이 지나면 자동으로 지워져요.</p>
+    </div>
+
+    <h3 style="font-size:16px; margin-top:8px">외부 서비스로 보내는 정보</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>서비스</th><th>보내는 정보</th><th>목적</th><th>서버</th></tr></thead>
+        <tbody>
+          <tr><td>Supabase</td><td>위 정보 전체</td><td>데이터 저장·로그인</td><td>대한민국(서울)</td></tr>
+          <tr><td>Google Gemini<br><span class="muted" style="font-weight:400">유료 등급</span></td><td>영수증 사진, 여행지·일정·인원, 지출 항목·금액, 예산 계획 항목</td><td>AI 예산 추천, 영수증 읽기, 지출 분류</td><td>해외(미국 등 Google 데이터센터)</td></tr>
+          <tr><td>Amplitude</td><td>앱 사용 기록, 기기 정보, 대략적인 지역, 회원 번호</td><td>사용 분석</td><td>미국</td></tr>
+          <tr><td>카카오 · Google</td><td>로그인 요청</td><td>소셜 로그인</td><td>대한민국 · 해외</td></tr>
+          <tr><td>Brevo</td><td>이메일 주소, 인증 코드</td><td>가입 인증 메일</td><td>해외(EU)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="font-size:14px; max-width:65ch">Gemini는 유료 등급을 써서 Google이 보낸 내용을 학습에 쓰지 않아요. 다만 약관 위반 감시와 법적 의무를 위해 일정 기간 기록을 남길 수 있어요.</p>
+  </section>
+
+  <!-- 보이는 정보 -->
+  <section aria-labelledby="visible-title">
+    <header>
+      <span class="label">Seat map</span>
+      <h2 id="visible-title">다른 사람에게 보이는 것</h2>
+    </header>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>누구에게</th><th>무엇이</th></tr></thead>
+        <tbody>
+          <tr><td>같은 여행 멤버</td><td>그 여행의 예산·지출·자금 내역, 이름·프로필 사진</td></tr>
+          <tr><td>같은 모임 멤버</td><td>모임 이름·멤버, 모임 여행 목록</td></tr>
+          <tr><td>모든 테스터</td><td>커뮤니티 글·댓글·사진, 작성자 이름·프로필 사진, 글에 연결한 여행의 여행지 이름 (일정·금액은 안 보여요)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose">
+      <p>프로필 사진과 커뮤니티 사진은 <b>사진 주소를 아는 사람이면 앱 밖에서도 볼 수 있어요.</b> 이메일 주소는 다른 테스터에게 보이지 않아요.</p>
+    </div>
+  </section>
+
+  <!-- 부탁 -->
+  <section aria-labelledby="ask-title">
+    <header>
+      <span class="label">Cabin rules</span>
+      <h2 id="ask-title">이렇게 써 주세요</h2>
+    </header>
+    <ul class="prose" style="padding-left:20px; margin:0">
+      <li>함께 가는 사람 이름은 <b>실명 대신 별명</b>으로 적어 주세요. 그분은 이 안내에 동의하지 않았어요.</li>
+      <li>영수증을 찍을 때 <b>카드번호나 승인번호는 가려서</b> 찍어 주세요.</li>
+      <li>지출 메모나 커뮤니티 글에 연락처·주소 같은 개인정보를 적지 말아 주세요.</li>
+      <li>테스트 버전이라 오류가 있거나 데이터가 초기화될 수 있어요.</li>
+    </ul>
+  </section>
+
+  <!-- 탈퇴 -->
+  <section aria-labelledby="leave-title">
+    <header>
+      <span class="label">Deplaning</span>
+      <h2 id="leave-title">탈퇴와 삭제 요청</h2>
+    </header>
+    <div class="prose">
+      <p>앱에서 회원탈퇴를 신청하면 <b>30일 동안은 같은 계정으로 로그인해 취소</b>할 수 있어요. 30일이 지나면 이름·프로필 사진·로그인 정보가 지워지고 “탈퇴한 회원”으로 표시돼요.</p>
+      <p>함께한 여행의 지출·정산 기록과 커뮤니티 글·댓글은 남아요. 다른 멤버의 기록이 틀어지지 않게 하기 위해서예요. 여행장이면 다른 멤버에게 여행장을 넘긴 뒤 탈퇴할 수 있어요.</p>
+      <p>남은 기록까지 모두 지우고 싶으면 위 <b>문의</b> 메일 중 아무 곳으로나 요청해 주세요. <b>1년</b> 안에 지워 드려요.</p>
+    </div>
+  </section>
+
+  <!-- 동의 -->
+  <section aria-labelledby="consent-title">
+    <div class="consent">
+      <header>
+        <span class="label">Boarding check</span>
+        <h2 id="consent-title">참여 전에 동의해 주세요</h2>
+      </header>
+      <p class="muted">동의하지 않으셔도 돼요. 다만 동의하지 않으시면 테스트에 참여하실 수 없어요.</p>
+      <ul>
+        <li><span class="tag req">필수</span><span>위의 개인정보 수집·이용과 보관에 동의해요</span></li>
+        <li><span class="tag req">필수</span><span>외부 서비스 전송(해외 전송 포함)에 동의해요</span></li>
+        <li><span class="tag opt">선택</span><span>제 의견을 이름 없이 포트폴리오에 인용해도 괜찮아요</span></li>
+      </ul>
+      <a class="btn btn-primary" id="consent-btn" href="#consent-title" aria-disabled="true" style="width:fit-content">동의하고 참여하기</a>
+      <span class="meta muted" style="font-size:13px">동의는 위 버튼의 구글 폼에서 남겨 주세요. 구글 로그인이 필요하고 한 번만 제출할 수 있어요.</span>
+    </div>
+  </section>
+
+  <footer>
+    TripPot 팀 · 4인 프로젝트 팀(사업자 아님) · 법률 자문을 받은 문서가 아니에요. 앱이 실제로 모으고 보내는 항목을 코드와 설정으로 확인해 적었어요(2026-09-17).
+  </footer>
+</div>
+
+<script>
+  // ── 팀이 채우는 링크 ─────────────────────────────
+  // 비워 두면 버튼이 '준비 중' 으로 잠긴다.
+  const LINKS = {
+    android: "https://expo.dev/artifacts/eas/gZmFpyLbA_Rl57TD5vjJYzlovkNApbiP7mVQ7118w5M.apk",   // EAS APK 직접 링크 · 빌드 2a778026 · 2026-10-01 만료
+    ios: "exp://u.expo.dev/7971a07a-f0f0-4ac8-a575-2dea8a16ff8b?runtime-version=1.0.0&channel-name=preview",   // Expo Go 고정 주소 · app.json version 을 올리면 runtime-version 도 바꾼다
+    consent: "https://forms.gle/yAmCAngefJM6dZn4A",   // 동의 구글 폼 (구글 로그인 필요 · 1인 1회)
+  };
+
+  function wire(id, href, statusId, readyText) {
+    const el = document.getElementById(id);
+    if (!href) {
+      el.addEventListener("click", (e) => e.preventDefault());
+      return;
+    }
+    el.href = href;
+    el.removeAttribute("aria-disabled");
+    el.target = "_blank";
+    el.rel = "noopener";
+    if (statusId) {
+      const s = document.getElementById(statusId);
+      s.textContent = readyText;
+      s.classList.add("ready");
+    }
+  }
+  wire("android-btn", LINKS.android, "android-status", "지금 설치할 수 있어요");
+  wire("ios-btn", LINKS.ios, "ios-status", "Expo Go로 열 수 있어요");
+  wire("consent-btn", LINKS.consent);
+
+  // 설치 방법 탭 — 아이폰에서 열면 아이폰 탭을 먼저 보여준다
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function select(tab) {
+    tabs.forEach((t) => {
+      const on = t === tab;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+    });
+  }
+  tabs.forEach((t) => t.addEventListener("click", () => select(t)));
+  tabs.forEach((t, i) => t.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+    next.focus(); select(next);
+  }));
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) select(document.getElementById("tab-ios"));
+  else select(document.getElementById("tab-android"));
+</script>
+</body>
+</html>

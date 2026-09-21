@@ -28,7 +28,7 @@ type Props = {
 export function MyCommentList({ comments, onPressComment, onDeleteComment }: Props) {
   return (
     <FlatList
-      className="flex-1 bg-brand-soft"
+      className="flex-1 bg-gray-50"
       contentContainerClassName="pb-16 pt-4"
       contentContainerStyle={{ paddingHorizontal: 18 }}
       data={comments}
@@ -37,8 +37,9 @@ export function MyCommentList({ comments, onPressComment, onDeleteComment }: Pro
       renderItem={({ item }) => {
         const at = formatNotifiedAt(item.createdAt);
 
+        // 테두리는 자르는 wrapper 에 둔다. 안쪽에 두면 overflow-hidden 이 모서리 테두리를 잘라낸다. (2026-09-20)
         return (
-          <View className="overflow-hidden rounded-2xl">
+          <View className="overflow-hidden rounded-2xl border border-pot-line">
             <SwipeToAction
               label="삭제"
               accessibilityLabel={`${item.postTitle} 에 쓴 댓글 삭제`}
@@ -52,8 +53,6 @@ export function MyCommentList({ comments, onPressComment, onDeleteComment }: Pro
                 onPress={() => onPressComment(item.postId)}
                 className="flex-row items-center bg-white px-3.5 py-3.5 active:bg-pot-visual"
                 style={{
-                  borderWidth: 1,
-                  borderColor: '#E5E8EC',
                   shadowColor: '#111827',
                   shadowOpacity: 0.05,
                   shadowRadius: 12,

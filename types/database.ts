@@ -1572,6 +1572,10 @@ export type Database = {
         Args: { p_trip_id: string; p_user_id: string }
         Returns: undefined
       }
+      add_group_members_to_trip: {
+        Args: { p_trip_id: string }
+        Returns: number
+      }
       can_access_trip: { Args: { p_trip_id: string }; Returns: boolean }
       cancel_trip_join_request: {
         Args: { p_request_id: string }
@@ -1637,6 +1641,7 @@ export type Database = {
       }
       is_account_active: { Args: never; Returns: boolean }
       is_group_member: { Args: { p_group_id: string }; Returns: boolean }
+      is_trip_leavable_status: { Args: { p_status: string }; Returns: boolean }
       leave_trip: {
         Args: { p_also_leave_group?: boolean; p_trip_id: string }
         Returns: string

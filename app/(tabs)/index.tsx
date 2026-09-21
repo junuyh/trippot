@@ -194,6 +194,8 @@ export default function ScreenHOME01() {
     : undefined;
   const { isPreview } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>('loading');
+  /** 아래로 당겨 새로고침 중인가. 스피너 표시에만 쓴다. */
+  const [refreshing, setRefreshing] = useState(false);
   /** 답하지 않은 초대. 서버 확인을 통과한 것만 들어온다. */
   const [invites, setInvites] = useState<HomeInvite[]>([]);
   /** 지금 모달로 띄운 초대의 token. 닫으면 null. */
@@ -478,6 +480,24 @@ export default function ScreenHOME01() {
   );
 
   /**
+   * 아래로 당겨 새로고침. (2026-09-21)
+   *
+   * 탭에 들어올 때마다 다시 조회하지만(useFocusEffect), 홈에 머문 채로 다른 기기에서
+   * 생긴 변화(초대 · 참여 요청 · 다른 멤버가 만든 여행)를 보려면 직접 다시 부를 길이 필요하다.
+   *
+   * ⚠️ 여행 조회(load)와 초대 조회(loadInvites)를 함께 돌리되, 하나가 실패해도
+   *    나머지를 기다린다. 배너 조회(loadActions)는 trips 가 바뀌면 알아서 따라 돈다.
+   */
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.allSettled([load(), loadInvites()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, loadInvites]);
+
+  /**
    * 여행 목록이 바뀌면 배너를 다시 계산한다.
    *
    * ⚠️ load() 안에서 부르지 않는다. 실패가 홈 조회의 실패로 번지면 안 된다.
@@ -537,7 +557,7 @@ export default function ScreenHOME01() {
     // 미리보기 — 서버에 아무것도 쓰지 않고 결과만 흉내 낸다.
     if (__DEV__ && isPreview) {
       dismissInvite(token);
-      Alert.alert('초대를 수락했어요', '여행장이 승인하면 여행에 함께할 수 있어요.');
+      Alert.alert('참여 의사를 보냈어요', '여행장이 확인하고 있어요. 수락되면 여행 준비를 함께할 수 있어요.');
       return;
     }
 
@@ -545,7 +565,7 @@ export default function ScreenHOME01() {
     try {
       await requestTripJoin(token);
       dismissInvite(token);
-      Alert.alert('초대를 수락했어요', '여행장이 승인하면 여행에 함께할 수 있어요.');
+      Alert.alert('참여 의사를 보냈어요', '여행장이 확인하고 있어요. 수락되면 여행 준비를 함께할 수 있어요.');
     } catch (error) {
       const code = tripJoinErrorCode(error);
       if (code === TRIP_JOIN_ERROR.ALREADY_MEMBER) {
@@ -561,7 +581,7 @@ export default function ScreenHOME01() {
         Alert.alert('초대 링크가 만료됐어요', '초대한 사람에게 새 링크를 받아 주세요.');
       } else {
         // 일시적인 실패일 수 있다. 초대는 남겨 두고 다시 누를 수 있게 한다.
-        Alert.alert('초대 수락을 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
+        Alert.alert('참여 의사를 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
       }
     } finally {
       setRequestingToken(null);
@@ -776,6 +796,8 @@ export default function ScreenHOME01() {
         onPressAllDiscoveries={handlePressAllDiscoveries}
         onPressNotifications={handlePressNotifications}
         onLongPressLogo={handleToggleEmptyPreview}
+        refreshing={refreshing}
+        onRefresh={() => void handleRefresh()}
         invitePrompt={invitePrompt}
         actions={actions}
         onPressAction={handlePressAction}
@@ -800,6 +822,8 @@ export default function ScreenHOME01() {
       // 방금 누른 목록과 다른 목록이 보인다. (2026-09-15)
       onPressAllPastTrips={() => router.push('/me/trips?filter=past')}
       onPressNotifications={handlePressNotifications}
+      refreshing={refreshing}
+      onRefresh={() => void handleRefresh()}
       invitePrompt={invitePrompt}
       actions={actions}
       onPressAction={handlePressAction}

@@ -67,6 +67,27 @@ export default function ScreenTRIP02() {
     if (suggestedHeadcount !== draft.headcount) patchDraft({ headcount: suggestedHeadcount });
   }, [draft.headcount, headcountTouched, patchDraft, suggestedHeadcount]);
 
+  /**
+   * 기존 모임 여행의 인원 하한.
+   *
+   * 그 모임 멤버는 여행을 만드는 순간 전원 들어온다. (2026-09-21 팀 합의)
+   * 인원을 그보다 적게 잡으면 만들자마자 정원이 찬 여행이 되어, 서버가
+   * 초대 수락을 HEADCOUNT_REACHED 로 막는다.
+   *
+   * ⚠️ 멤버 수를 아직 못 읽었으면(0) 하한을 걸지 않는다. 없는 숫자로 사용자를
+   *    막지 않는다. 그 경우는 서버의 add_group_members_to_trip 이 저장 뒤에
+   *    정원을 맞춘다.
+   */
+  const minHeadcount =
+    draft.companionType === COMPANION_TYPE.EXISTING_GROUP
+      ? Math.max(1, draft.groupMemberCount)
+      : 1;
+
+  // 사용자가 내려 둔 뒤에 멤버 수가 도착할 수 있다. 그때 하한까지 올린다.
+  useEffect(() => {
+    if (draft.headcount < minHeadcount) patchDraft({ headcount: minHeadcount });
+  }, [draft.headcount, minHeadcount, patchDraft]);
+
   // ── 여행지 ────────────────────────────────────────────────────────────
   // 펼쳐 놓을 지역. 뒤로 갔다 돌아오면 이미 고른 목적지의 지역을 열어 둔다.
   //
@@ -260,6 +281,7 @@ export default function ScreenTRIP02() {
               ) : null}
             </View>
             <HeadcountStepper
+              min={minHeadcount}
               value={draft.headcount}
               onChange={(value) => {
                 setHeadcountTouched(true);

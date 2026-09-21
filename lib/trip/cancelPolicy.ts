@@ -18,6 +18,7 @@ export type CancelBlockReason =
   | "ALREADY_SETTLED"
   | "ALREADY_CANCELED"
   | "ALREADY_PENDING"
+  | "ALREADY_DEPARTED"
   | "NOT_MEMBER";
 
 /**
@@ -28,6 +29,23 @@ export type CancelBlockReason =
  *
  * ⚠️ 여행장 전용이 아니다. ACTIVE 멤버 누구나 요청한다. (POL-CXL-060)
  *    대신 확정에는 전원 동의가 필요하다.
+ *
+ * ⚠️⚠️ **PLANNING 에서만 허용한다. 서버와 같은 기준이다.** (2026-09-21)
+ *    request_trip_cancel 은 `status <> 'PLANNING'` 이면 NOT_CANCELABLE 로
+ *    거절한다(20260917000003). 전에는 여기서 TRAVELING · ENDED 를 통과시켜서,
+ *    출발일이 된 여행에 취소 시트가 열리고 사유까지 고른 뒤 마지막에
+ *    "요청하지 못했어요" 만 떴다.
+ *
+ *    출발일에 저절로 난다 — 여행 홈에 들어가면 closeTripIfEnded 가
+ *    PLANNING → TRAVELING 으로 올린다. (queries/trips.ts)
+ *
+ *    취소가 출발 전 개념이라는 건 세 곳이 이미 말하고 있다.
+ *      · 서버 request_trip_cancel 의 PLANNING 조건
+ *      · cancelRequestExpiry 의 DEPARTURE_REACHED — 떠 있던 요청도 출발하면 만료
+ *      · 취소 확인 시트 문구 "출발일이 되어도 요청은 자동으로 취소돼요"
+ *
+ * ⚠️ 이 함수를 **부르지 않으면 아무 소용이 없다.** 2026-09-21 까지 호출부가
+ *    0곳이라 진입점이 무방비였다. 취소 진입점을 새로 만들면 여기를 먼저 통과시킨다.
  */
 export function canRequestCancel(input: {
   status: TripStatus;
@@ -46,8 +64,21 @@ export function canRequestCancel(input: {
   if (!input.isActiveMember) {
     return { allowed: false, reason: "NOT_MEMBER" };
   }
+  // 남은 건 PLANNING 뿐이어야 한다. TRAVELING · ENDED · DELETED 가 여기로 온다.
+  if (input.status !== TRIP_STATUS.PLANNING) {
+    return { allowed: false, reason: "ALREADY_DEPARTED" };
+  }
   return { allowed: true };
 }
+
+/** 취소를 막은 이유를 사용자에게 보여줄 문장. 없으면 일반 실패 문구를 쓴다. */
+export const CANCEL_BLOCK_MESSAGE: Record<CancelBlockReason, string> = {
+  ALREADY_DEPARTED: "이미 출발한 여행은 취소할 수 없어요",
+  ALREADY_SETTLED: "결산을 마친 여행은 취소할 수 없어요",
+  ALREADY_CANCELED: "이미 취소된 여행이에요",
+  ALREADY_PENDING: "이미 취소 요청이 진행 중이에요",
+  NOT_MEMBER: "이 여행의 참여자만 취소를 요청할 수 있어요",
+};
 
 // ── 자금 요약 ───────────────────────────────────────────────────────────────
 

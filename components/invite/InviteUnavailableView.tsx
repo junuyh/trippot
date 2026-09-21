@@ -46,7 +46,7 @@ const COPY: Record<InviteFailReason, Copy> = {
   ALREADY_REJECTED: {
     icon: "lock-closed-outline",
     title: "이 초대에는 다시 응답할 수 없어요",
-    description: "새 초대 링크를 받으면 다시 수락할 수 있어요.",
+    description: "새 초대 링크를 받으면 다시 참여 의사를 보낼 수 있어요.",
   },
   NOT_FOUND: {
     icon: "link-outline",
