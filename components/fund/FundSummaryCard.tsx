@@ -33,6 +33,14 @@ type Props = {
   spentAmount: number;
   onRecordDeposit: () => void;
   onRecordExpense: () => void;
+  /**
+   * 결산이 확정된 여행이면 true. 기록 버튼을 내리고 안내만 둔다.
+   *
+   * ⚠️ 확정 뒤에 입출금을 더 적으면 이미 남은 결산 스냅샷과 어긋난다.
+   *    화면은 "확정됐어요" 라고 해 놓고 기록 버튼은 살아 있었다.
+   *    (2026-09-21 2차) 거래 상세는 이미 같은 이유로 막고 있었다.
+   */
+  settled?: boolean;
 };
 
 function won(value: number): string {
@@ -47,6 +55,7 @@ export function FundSummaryCard({
   spentAmount,
   onRecordDeposit,
   onRecordExpense,
+  settled = false,
 }: Props) {
   const needed = Math.max(0, targetAmount - raisedAmount);
 
@@ -162,6 +171,21 @@ export function FundSummaryCard({
         </Text>
       ) : null}
 
+      {settled ? (
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderColor: "#eceef1",
+            paddingHorizontal: 18,
+            paddingVertical: 14,
+          }}
+        >
+          <Text style={{ fontSize: 11, lineHeight: 17, color: "#5d6674" }}>
+            정산이 확정돼 더 기록할 수 없어요. 확정 시점의 기록을 보는
+            화면이에요.
+          </Text>
+        </View>
+      ) : (
       <View
         style={{
           flexDirection: "row",
@@ -209,6 +233,7 @@ export function FundSummaryCard({
           </Pressable>
         ))}
       </View>
+      )}
     </View>
   );
 }

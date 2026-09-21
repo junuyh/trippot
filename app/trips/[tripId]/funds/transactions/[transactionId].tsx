@@ -36,6 +36,8 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  Toast,
+  useToast,
   Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
@@ -102,10 +104,28 @@ type DetailData = {
 };
 
 export default function ScreenFUND03() {
-  const { tripId, transactionId } = useLocalSearchParams<{
+  const { tripId, transactionId, from } = useLocalSearchParams<{
     tripId: string;
     transactionId: string;
+    /**
+     * 어디서 들어왔는가. 뒤로 갈 곳을 정한다.
+     *   'settlement' 결산 화면
+     *   없음          전체 입출금 내역 (기본)
+     */
+    from?: string;
   }>();
+
+  /*
+    ⚠️⚠️ 뒤로가기는 **들어온 곳**으로 돌려보낸다. (2026-09-21 2차) ⚠️⚠️
+
+       예전에는 무조건 전체 입출금 내역으로 갔고, 거기서 또 누르면 여행자금
+       으로 갔다. 결산에서 주요 지출 한 건을 눌러 본 사람은 **본 적도 없는
+       화면 두 개를 지나 여행자금까지 끌려갔다.** 결산으로 돌아갈 길이 없었다.
+  */
+  const parentHref =
+    from === "settlement"
+      ? `/trips/${tripId}/settlement`
+      : `/trips/${tripId}/funds/transactions`;
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -114,6 +134,8 @@ export default function ScreenFUND03() {
   const [error, setError] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  /** 화면 아래에 잠깐 떴다 사라지는 알림. 누른 것에 대한 즉답에만 쓴다 */
+  const floatingToast = useToast();
 
   const [editing, setEditing] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -360,7 +382,7 @@ export default function ScreenFUND03() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <Loading message="거래를 불러오는 중…" />
@@ -372,7 +394,7 @@ export default function ScreenFUND03() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <EmptyState
@@ -390,7 +412,7 @@ export default function ScreenFUND03() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
         <ErrorState
@@ -480,7 +502,7 @@ export default function ScreenFUND03() {
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds/transactions`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title: "거래 상세" }} />
 
@@ -600,6 +622,18 @@ export default function ScreenFUND03() {
                       void handleLinkPlan(null);
                       return;
                     }
+                    /*
+                      ⚠️ 계획이 없으면 **시트를 열지 않는다.** (2026-09-21 2차)
+                         빈 시트를 열어 "아직 세부 계획이 없어요" 를 읽히고
+                         다시 닫게 하는 건 한 걸음이 헛돈다. 눌린 자리에서
+                         바로 답한다.
+                    */
+                    if (data.planItems.length === 0) {
+                      floatingToast.show(
+                        "연결할 세부 계획이 없어요. 예산 상세에서 계획을 먼저 만들어 주세요.",
+                      );
+                      return;
+                    }
                     setLinking(true);
                   }}
                 />
@@ -649,6 +683,8 @@ export default function ScreenFUND03() {
           </Text>
         ) : null}
       </ScrollView>
+
+      <Toast state={floatingToast.state} />
 
       {/* ── 수기 거래 내용 수정 ── */}
       <BottomSheet

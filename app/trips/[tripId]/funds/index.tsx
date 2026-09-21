@@ -66,9 +66,11 @@ import {
   CATEGORY_METHOD,
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
+  TRIP_STATUS,
   type CategoryCode,
   type RefundStatus,
   type TransactionType,
+  type TripStatus,
 } from "@/lib/constants/status";
 import {
   receiptAmountKrw,
@@ -516,6 +518,13 @@ export default function ScreenFUND01() {
   const raisedAmount = raisedTotal(fundTotals);
   /** 입출금 내역 맨 아래에 붙는 '초기자본' 줄. 계좌 여행·0원이면 null */
   const seedDeposit = buildSeedDepositRow(data.fund);
+  /*
+    ⚠️ 결산이 확정된 여행은 **더 기록할 수 없다.** (IA v2 §2-6-3)
+       거래 상세는 이미 막고 있었는데 이 화면의 입금·지출 기록 버튼이
+       살아 있어서, 확정된 여행에 거래를 더 넣을 수 있었다. (2026-09-21 2차)
+  */
+  const settledTrip =
+    (data.trip.status as TripStatus) === TRIP_STATUS.SETTLED;
   /** 현재 잔액 = 누적 모금액 − 출금 합계 */
   const balance = Math.max(0, currentBalance(fundTotals));
   const targetAmount = data.budget?.target_amount ?? 0;
@@ -558,6 +567,8 @@ export default function ScreenFUND01() {
           onRecordDeposit={() => openSheet(TRANSACTION_TYPE.DEPOSIT)}
           /* 지출은 영수증/직접 입력 중에서 고른다. 입금은 영수증이 없으니 바로 폼 */
           onRecordExpense={() => setSourceOpen(true)}
+          /* 확정된 여행은 더 기록할 수 없다. 결산 스냅샷과 어긋난다 */
+          settled={settledTrip}
         />
 
         {/*

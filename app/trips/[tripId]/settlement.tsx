@@ -201,10 +201,23 @@ export default function ScreenSETTLE01() {
       } | null;
       const rows = snapshot?.categories ?? [];
       if (rows.length > 0) {
+        /*
+          ⚠️ 스냅샷에는 카테고리 id 가 없다. 코드로 지금 카테고리를 찾아 잇는다.
+             (2026-09-21 2차)
+
+             예전에는 id 를 null 로 둬서 **확정된 여행은 카테고리 줄이 아예
+             안 눌렸다.** 눌러도 아무 일이 없으니 고장으로 읽혔다.
+
+          ⚠️ 화면에 그리는 **숫자는 스냅샷 그대로다.** 이어 주는 건 '그 카테고리
+             상세로 가는 길' 뿐이다. 확정 시점의 기록과 지금 예산이 다를 수
+             있는데, 그건 카테고리 상세가 알아서 지금 값을 보여 주면 된다.
+             여기 숫자를 지금 값으로 바꾸면 확정 기록이 흔들린다.
+        */
+        const idByCode = new Map(
+          data.categories.map((category) => [category.category_code, category.id]),
+        );
         return rows.map((row) => ({
-          // ⚠️ 스냅샷에는 카테고리 id 가 없다. 그래서 확정 후에는 눌리지 않는다.
-          //    지금 예산으로 이어 주면 확정 시점의 기록과 다른 화면이 열린다.
-          categoryId: null,
+          categoryId: idByCode.get(row.category_code) ?? null,
           categoryCode: row.category_code as CategoryCode,
           plannedAmount: row.planned_amount,
           actualAmount: row.actual_amount,
@@ -624,7 +637,7 @@ export default function ScreenSETTLE01() {
           <Text
             accessibilityRole="button"
             onPress={() =>
-              router.push(`/trips/${data.trip.id}/funds/transactions`)
+              router.push(`/trips/${data.trip.id}/funds/transactions?from=settlement`)
             }
             className="text-xs font-semibold"
             style={{ color: theme.primary }}
@@ -661,7 +674,7 @@ export default function ScreenSETTLE01() {
             accessibilityRole="button"
             onPress={() =>
               router.push(
-                `/trips/${data.trip.id}/funds/transactions?filter=spend`,
+                `/trips/${data.trip.id}/funds/transactions?filter=spend&from=settlement`,
               )
             }
             className="text-xs font-semibold"
@@ -673,8 +686,9 @@ export default function ScreenSETTLE01() {
         <MajorExpenseList
           expenses={majorExpenses}
           onSelect={(transactionId) =>
+            // 결산에서 왔다는 걸 넘긴다. 뒤로가면 결산으로 돌아와야 한다
             router.push(
-              `/trips/${data.trip.id}/funds/transactions/${transactionId}`,
+              `/trips/${data.trip.id}/funds/transactions/${transactionId}?from=settlement`,
             )
           }
         />
@@ -721,7 +735,7 @@ export default function ScreenSETTLE01() {
               accessibilityLabel={`확인할 거래 ${checklist.reviewCount}건 보기`}
               onPress={() =>
                 router.push(
-                  `/trips/${data.trip.id}/funds/transactions?filter=review`,
+                  `/trips/${data.trip.id}/funds/transactions?filter=review&from=settlement`,
                 )
               }
               className="flex-row items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 active:bg-gray-50"

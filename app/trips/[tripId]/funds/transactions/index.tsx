@@ -81,6 +81,10 @@ import {
 } from "@/lib/supabase/queries/transactions";
 import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
 import { getGroupAccounts, getTravelFund } from "@/lib/supabase/queries/funds";
+import {
+  buildSeedDepositRow,
+  type SeedDepositRow,
+} from "@/lib/fund/seedDeposit";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
 
 type FundsData = {
@@ -91,6 +95,14 @@ type FundsData = {
   transactions: Transaction[];
   /** 마스킹된 계좌번호. 연결 계좌가 없으면 null (NFR-002) */
   maskedAccountNumber: string | null;
+  /**
+   * 목록 맨 아래에 그리는 '초기자본 · 계좌 연결 잔액' 줄. 없으면 null.
+   *
+   * ⚠️ 여행을 만들 때 적은 모음 금액과 연결 계좌 잔액은 거래로 남지 않는다.
+   *    누적 모금액에는 더해지는데 목록에는 없어서 합계와 목록이 서로 다른
+   *    말을 했다. (2026-09-21 2차) 진짜 거래가 아니라 눌리지도, 밀리지도 않는다.
+   */
+  seedDeposit: SeedDepositRow | null;
 };
 
 /**
@@ -127,13 +139,26 @@ export default function ScreenFUND01() {
     categoryId,
     transactionId,
     filter: filterParam,
+    from,
   } = useLocalSearchParams<{
     tripId: string;
     categoryId?: string;
     transactionId?: string;
     /** all | major | review | refund */
     filter?: string;
+    /** 'settlement' 이면 결산에서 들어온 것이다. 뒤로 갈 곳을 정한다 */
+    from?: string;
   }>();
+
+  /*
+    ⚠️ 뒤로가기는 들어온 곳으로. 결산에서 '전체 지출 보기' 로 들어온 사람이
+       뒤로 누르면 여행자금으로 가 버려서, 결산으로 돌아갈 길이 없었다.
+       (2026-09-21 2차)
+  */
+  const parentHref =
+    from === "settlement"
+      ? `/trips/${tripId}/settlement`
+      : `/trips/${tripId}/funds`;
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
 
@@ -188,6 +213,7 @@ export default function ScreenFUND01() {
         planItems,
         transactions,
         maskedAccountNumber: linked?.masked_account_number ?? null,
+        seedDeposit: buildSeedDepositRow(fund),
       });
     } catch {
       setError(true);
@@ -618,7 +644,7 @@ export default function ScreenFUND01() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title }} />
         <Loading message="내역을 불러오는 중…" />
@@ -630,7 +656,7 @@ export default function ScreenFUND01() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title }} />
         <EmptyState
@@ -647,7 +673,7 @@ export default function ScreenFUND01() {
       <View className="flex-1 bg-white">
         <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title }} />
         <ErrorState
@@ -668,7 +694,7 @@ export default function ScreenFUND01() {
     <View className="flex-1 bg-white">
       <Stack.Screen options={{
           headerLeft: () => (
-            <HeaderBackButton parentHref={`/trips/${tripId}/funds`} />
+            <HeaderBackButton parentHref={parentHref} />
           ),
           headerRight: () => <TripHomeButton tripId={tripId as string} ended={isTripEnded(data?.trip.status)} />, title }} />
 
@@ -893,6 +919,46 @@ export default function ScreenFUND01() {
         sections={sections}
         keyExtractor={(item) => item.transaction.id}
         contentContainerStyle={{ paddingBottom: 40 }}
+        /*
+          ⚠️ 목록 맨 아래에 '초기자본 · 계좌 연결 잔액' 한 줄.
+             거래가 아니라 섹션에 넣지 않고 바닥에 붙인다. 가장 오래된 돈이라
+             자리도 여기가 맞다. 밀어도 수정·삭제가 나오지 않는다.
+          ⚠️ 지출만 보는 중일 때는 내지 않는다. 들어온 돈이다.
+        */
+        ListFooterComponent={
+          data.seedDeposit && view !== "SPEND" ? (
+            <View
+              style={{
+                marginTop: 14,
+                marginHorizontal: 16,
+                padding: 14,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#e8eaee",
+                backgroundColor: "#fafbfc",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 11,
+              }}
+            >
+              <Text style={{ fontSize: 16 }}>🏦</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: "#141b28" }}>
+                  {data.seedDeposit.name}
+                </Text>
+                <Text style={{ marginTop: 3, fontSize: 10, color: "#858e9c" }}>
+                  {format(parseISO(data.seedDeposit.occurredAt), "M월 d일")}
+                  {" · 여행을 만들 때 등록한 금액이에요"}
+                </Text>
+              </View>
+              <Text
+                style={{ fontSize: 13, fontWeight: "700", color: "#141b28" }}
+              >
+                +{data.seedDeposit.amount.toLocaleString("ko-KR")}원
+              </Text>
+            </View>
+          ) : null
+        }
         stickySectionHeadersEnabled={false}
         renderSectionHeader={({ section }) =>
           // 제목이 빈 섹션(큰 금액순)은 머리글 자리를 비운다

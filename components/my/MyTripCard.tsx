@@ -246,9 +246,10 @@ export function MyTripCard({
                 ⚠️ '결산 전' 을 여기 또 적지 않는다. 카드 위 배지가 이미 상태를
                    말하고 있어서 같은 말이 한 카드에 두 번 나왔다.
                    (2026-09-21 테스트) 금액 자리에는 금액만 둔다.
+                ⚠️ 금액이 없으면 '—' 도 적지 않는다. 빈칸으로 둔다. (2차)
               */}
               {trip.finalAmount === null
-                ? '—'
+                ? ''
                 : `${trip.finalAmount.toLocaleString('ko-KR')}원`}
             </Text>
           </View>

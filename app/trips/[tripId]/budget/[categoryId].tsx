@@ -863,6 +863,23 @@ export default function ScreenBUDGET02() {
   const [addingExpense, setAddingExpense] = useState(false);
   /** 지출 기록 방법 묻기 — 촬영 · 앨범 · 직접 입력 */
   const [expenseSourceOpen, setExpenseSourceOpen] = useState(false);
+  /*
+    ⚠️⚠️ **시트가 완전히 닫힌 뒤에 다음 시트를 연다.** ⚠️⚠️
+
+       iOS 는 Modal 이 닫히는 도중에 다른 Modal 을 열면 두 번째가 그냥 뜨지
+       않는다. 그래서 '직접 입력' 을 눌러도 아무 일이 없었다. (2026-09-21 2차)
+       자산 화면(FUND-01)이 쓰는 방식과 같게 맞춘다 — 누른 사실만 ref 에
+       적어 두고 onDismiss 에서 연다.
+
+    ⚠️ setTimeout 은 안드로이드 폴백이다. iOS 는 onDismiss 가 먼저 와서
+       타이머가 빈손으로 끝난다.
+  */
+  const pendingExpenseManualRef = useRef(false);
+  const runPendingExpenseManual = useCallback(() => {
+    if (!pendingExpenseManualRef.current) return;
+    pendingExpenseManualRef.current = false;
+    setAddingExpense(true);
+  }, []);
   const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft>(() => ({
     name: "",
     amount: null,
@@ -1546,9 +1563,11 @@ export default function ScreenBUDGET02() {
           router.push(`/trips/${tripId}/funds?scan=receipt`);
         }}
         onManual={() => {
+          pendingExpenseManualRef.current = true;
           setExpenseSourceOpen(false);
-          setAddingExpense(true);
+          setTimeout(runPendingExpenseManual, 700);
         }}
+        onDismiss={runPendingExpenseManual}
       />
 
       {/* ── 지출 직접 입력 ── */}

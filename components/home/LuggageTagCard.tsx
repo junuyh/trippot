@@ -606,7 +606,8 @@ export function LuggageTagCard({ trip, width, onPress, onPressSettle }: Props) {
             numberOfLines={1}
             style={{ fontSize: width * 0.058, fontWeight: '800', color: INK, ...NUM }}
           >
-            {trip.finalAmount === null ? '—' : `${trip.finalAmount.toLocaleString('ko-KR')}원`}
+            {/* 금액이 없으면 빈칸. '—' 안 쓴다 (2026-09-21 2차) */}
+            {trip.finalAmount === null ? '' : `${trip.finalAmount.toLocaleString('ko-KR')}원`}
           </Text>
         )}
       </View>
