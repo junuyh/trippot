@@ -122,11 +122,19 @@ export function NotificationList({
                   >
                     {item.title}
                   </Text>
-                  {at ? <Text className="pt-0.5 text-xs text-pot-faint">{at}</Text> : null}
+                  {/* 오른쪽 여백 14pt — 왼쪽으로 밀면 이 글자 바로 옆에 빨간 삭제 칸이 붙는다. (2026-09-20) */}
+                  {at ? <Text className="pr-3.5 pt-0.5 text-xs text-pot-faint">{at}</Text> : null}
                 </View>
 
                 {item.body ? (
                   <Text className="mt-1 text-sm leading-5 text-pot-mute">{item.body}</Text>
+                ) : null}
+
+                {/* 보조 문맥 — 지출 리마인드의 '모임명 · 기간'. 긴 모임명은 한 줄에서 자른다. (2026-09-21) */}
+                {item.context ? (
+                  <Text numberOfLines={1} className="mt-1 pr-3.5 text-xs text-pot-faint">
+                    {item.context}
+                  </Text>
                 ) : null}
               </View>
             </View>

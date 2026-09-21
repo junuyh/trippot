@@ -63,6 +63,7 @@ import {
 } from '@/lib/trip/cancelPolicy';
 import { tripStage } from '@/lib/trip/stage';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
+import { reconcileSpendReminders } from '@/lib/notifications/spendReminder';
 
 /** 되돌리기 확인 시트(CXL-05)에 띄울 여행과, 취소 뒤 달라진 내역 전부. */
 type RestoreTarget = {
@@ -251,6 +252,8 @@ export default function ScreenMY02() {
     try {
       const tripId = restoreTarget.trip.id;
       await restoreCanceledTrip(tripId);
+      // 되살린 여행의 지출 리마인드를 다시 잡는다(권한이 이미 있으면). 알림 계층만. (2026-09-21)
+      if (userId) reconcileSpendReminders(userId).catch(() => undefined);
       setRestoreTarget(null);
       /*
         되살린 여행의 홈으로 바로 들어간다. (2026-09-16)
