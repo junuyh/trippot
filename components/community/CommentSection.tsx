@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from './Avatar';
+import { ANONYMOUS_AUTHOR } from './label';
 import { NO_FOCUS_RING } from './inputStyle';
 import type { PostCommentItem } from './types';
 
@@ -60,12 +61,12 @@ export function CommentSection({
         <View className="mt-3 gap-3.5">
           {comments.map((comment) => (
             <View key={comment.commentId} className="flex-row">
-              <Avatar imageUrl={comment.authorImageUrl} size={32} />
+              <Avatar imageUrl={null} size={32} />
 
               <View className="ml-2.5 flex-1">
                 <View className="flex-row items-center">
                   <Text className="font-bold text-pot-ink" style={{ fontSize: 13 }} numberOfLines={1}>
-                    {comment.authorName ?? '알 수 없음'}
+                    {ANONYMOUS_AUTHOR}
                   </Text>
                   <Text className="ml-2 text-pot-faint" style={{ fontSize: 11.5 }}>
                     {comment.createdLabel}

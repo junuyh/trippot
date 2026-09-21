@@ -5,6 +5,7 @@ import { POST_TYPE, type PostType } from '@/lib/constants/status';
 import { BRAND } from '@/lib/constants/brandColor';
 
 import { Avatar } from './Avatar';
+import { ANONYMOUS_AUTHOR } from './label';
 import type { PostCardData } from './types';
 
 type Props = {
@@ -57,12 +58,12 @@ export function PostCard({ post, onPress }: Props) {
     >
       {/* 작성자 */}
       <View className="flex-row items-center">
-        <Avatar imageUrl={post.authorImageUrl} size={AVATAR} />
+        <Avatar imageUrl={null} size={AVATAR} />
 
         <View className="ml-2.5 flex-1">
           <View className="flex-row items-center">
             <Text className="font-bold text-pot-ink" style={{ fontSize: 13.5 }} numberOfLines={1}>
-              {post.authorName ?? '알 수 없음'}
+              {ANONYMOUS_AUTHOR}
             </Text>
             <View
               className="ml-1.5 rounded-md px-1.5 py-0.5"

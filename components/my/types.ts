@@ -43,7 +43,8 @@ export type MyTripItem = {
   currentAmount: number | null;
   targetAmount: number | null;
   /**
-   * 지난 여행의 최종 여행비. 결산 전(ENDED)이면 null 이고 카드가 '결산 전' 으로 쓴다.
+   * 지난 여행의 최종 여행비. 결산 전(ENDED)이면 null 이고 카드는 그 자리를 비운다.
+   * (상태는 위 배지가 말한다. MyTripCard 의 금액 줄 주석 · 2026-09-21)
    * (docs/09_IA §1-2 — 최종 여행비)
    */
   finalAmount: number | null;

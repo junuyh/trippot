@@ -193,6 +193,8 @@ export default function ScreenHOME01() {
     : undefined;
   const { isPreview } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>('loading');
+  /** 아래로 당겨 새로고침 중인가. 스피너 표시에만 쓴다. */
+  const [refreshing, setRefreshing] = useState(false);
   /** 답하지 않은 초대. 서버 확인을 통과한 것만 들어온다. */
   const [invites, setInvites] = useState<HomeInvite[]>([]);
   /** 지금 모달로 띄운 초대의 token. 닫으면 null. */
@@ -465,6 +467,24 @@ export default function ScreenHOME01() {
       void loadInvites();
     }, [load, loadInvites]),
   );
+
+  /**
+   * 아래로 당겨 새로고침. (2026-09-21)
+   *
+   * 탭에 들어올 때마다 다시 조회하지만(useFocusEffect), 홈에 머문 채로 다른 기기에서
+   * 생긴 변화(초대 · 참여 요청 · 다른 멤버가 만든 여행)를 보려면 직접 다시 부를 길이 필요하다.
+   *
+   * ⚠️ 여행 조회(load)와 초대 조회(loadInvites)를 함께 돌리되, 하나가 실패해도
+   *    나머지를 기다린다. 배너 조회(loadActions)는 trips 가 바뀌면 알아서 따라 돈다.
+   */
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.allSettled([load(), loadInvites()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, loadInvites]);
 
   /**
    * 여행 목록이 바뀌면 배너를 다시 계산한다.
@@ -765,6 +785,8 @@ export default function ScreenHOME01() {
         onPressAllDiscoveries={handlePressAllDiscoveries}
         onPressNotifications={handlePressNotifications}
         onLongPressLogo={handleToggleEmptyPreview}
+        refreshing={refreshing}
+        onRefresh={() => void handleRefresh()}
         invitePrompt={invitePrompt}
         actions={actions}
         onPressAction={handlePressAction}
@@ -789,6 +811,8 @@ export default function ScreenHOME01() {
       // 방금 누른 목록과 다른 목록이 보인다. (2026-09-15)
       onPressAllPastTrips={() => router.push('/me/trips?filter=past')}
       onPressNotifications={handlePressNotifications}
+      refreshing={refreshing}
+      onRefresh={() => void handleRefresh()}
       invitePrompt={invitePrompt}
       actions={actions}
       onPressAction={handlePressAction}

@@ -312,8 +312,6 @@ export default function ScreenCOMM02() {
     title: post.title,
     postType: post.postType,
     postTypeLabel: POST_TYPE_DISPLAY_LABEL[post.postType],
-    authorName: post.authorName,
-    authorImageUrl: post.authorImageUrl,
     destination: post.destination,
     publishedLabel: formatPublished(post.publishedAt),
     contentPreview: post.content,
@@ -335,8 +333,6 @@ export default function ScreenCOMM02() {
 
   const commentItems: PostCommentItem[] = comments.map((comment) => ({
     commentId: comment.commentId,
-    authorName: comment.authorName,
-    authorImageUrl: comment.authorImageUrl,
     content: comment.content,
     // 컴포넌트가 날짜를 계산하지 않는다. 여기서 문자열로 바꿔 넘긴다.
     createdLabel: formatPublished(comment.createdAt) ?? '',

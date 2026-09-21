@@ -1,4 +1,4 @@
-import { ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 
 import type { TripAction } from '@/lib/trip/tripActions';
 
@@ -41,6 +41,12 @@ type Props = {
   onPressAllPastTrips: () => void;
   /** 상단바 알림 버튼. 받은 알림 목록으로 보낸다. */
   onPressNotifications: () => void;
+  /**
+   * 아래로 당겨 새로고침. 화면 파일이 조회를 다시 돌린다. (app/(tabs)/index.tsx)
+   * 넘기지 않으면 새로고침을 그리지 않는다.
+   */
+  refreshing?: boolean;
+  onRefresh?: () => void;
   /** 답하지 않은 여행 초대. 준비 중인 여행 위 배너. (InvitePrompt) */
   invitePrompt: InvitePromptProps;
   /**
@@ -107,6 +113,8 @@ export function HomeView({
   onPressCreateTrip,
   onPressAllPastTrips,
   onPressNotifications,
+  refreshing,
+  onRefresh,
   invitePrompt,
   actions,
   onPressAction,
@@ -131,6 +139,9 @@ export function HomeView({
         contentContainerClassName="px-4 pb-40 pt-6"
         onScroll={onScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} /> : undefined
+        }
       >
         {/* 답하지 않은 초대는 준비 중인 여행보다 위다. 답할 때까지 남는다. */}
         <InvitePrompt {...invitePrompt} />
