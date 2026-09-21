@@ -375,9 +375,9 @@ export default function ScreenFUND01() {
   /** 여행 홈 TODAY 카드에서 ?scan=receipt 로 들어오면 바로 방법을 묻는다. 한 번만 */
   const scanParamUsedRef = useRef(false);
   useEffect(() => {
-    // 끝난 여행은 기록 자체를 막으므로 자동으로 열지도 않는다
+    // 확정된 여행은 기록 자체를 막으므로 자동으로 열지도 않는다 (지출이라 결산 중은 연다)
     if (scanParam !== "receipt" || !data || scanParamUsedRef.current) return;
-    if (isTripEnded(data.trip.status)) return;
+    if ((data.trip.status as TripStatus) === TRIP_STATUS.SETTLED) return;
     scanParamUsedRef.current = true;
     setSourceOpen(true);
   }, [data, scanParam]);
@@ -604,15 +604,23 @@ export default function ScreenFUND01() {
           balanceAmount={balance}
           targetAmount={targetAmount}
           spentAmount={data.withdrawalTotal}
-          onRecordDeposit={() => openSheet(TRANSACTION_TYPE.DEPOSIT)}
+          /*
+            ⚠️ 결산 중이면 **입금만 닫고 지출은 연다.** (2026-09-21 4차)
+               여행에서 돌아와 마지막 날 지출을 적는 일은 실제로 있다.
+               이미 끝난 여행에 돈을 더 모을 일은 없다.
+            ⚠️ 확정된 여행은 둘 다 닫는다. 결산 스냅샷과 어긋난다.
+          */
+          onRecordDeposit={
+            endedTrip ? undefined : () => openSheet(TRANSACTION_TYPE.DEPOSIT)
+          }
           /* 지출은 영수증/직접 입력 중에서 고른다. 입금은 영수증이 없으니 바로 폼 */
-          onRecordExpense={() => setSourceOpen(true)}
-          /* 끝난 여행은 더 기록할 수 없다. 결산 스냅샷과 어긋난다 */
-          settled={endedTrip}
-          settledNote={
+          onRecordExpense={settledTrip ? undefined : () => setSourceOpen(true)}
+          lockNote={
             settledTrip
               ? "정산이 확정돼 더 기록할 수 없어요. 확정 시점의 기록을 보는 화면이에요."
-              : "결산 중이라 입금·지출을 새로 적을 수 없어요. 이미 있는 거래를 확인하고 분류하는 건 그대로 돼요."
+              : endedTrip
+                ? "결산 중이라 입금과 계좌 연결은 닫혔어요. 빠뜨린 지출은 지금도 적을 수 있어요."
+                : null
           }
         />
 
