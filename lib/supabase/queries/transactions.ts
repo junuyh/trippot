@@ -396,6 +396,42 @@ export function reviewReason(transaction: Transaction): ReviewReason | null {
   return null;
 }
 
+/**
+ * 확인이 필요한 이유를 사람 말로 옮긴다.
+ *
+ * ⚠️ 목록과 시트가 **각자 문구를 들고 있었다.** (2026-09-21 4차)
+ *    둘 다 "미분류인가, 아니면 그 밖인가" 두 갈래로만 갈라서, 환불 예정
+ *    거래에까지 "자동 분류가 맞는지 확인해 주세요" 가 붙었다. 환불은
+ *    분류 문제가 아니라 돈이 돌아왔는지의 문제라, 사용자는 카테고리를
+ *    들여다보며 뭐가 잘못됐는지 찾게 된다. 이유가 네 가지면 문구도 네 가지다.
+ */
+export function reviewReasonLabel(reason: ReviewReason): string {
+  switch (reason) {
+    case "UNCATEGORIZED":
+      return "카테고리 확인 필요";
+    case "AUTO_GUESS":
+      return "자동 분류가 맞는지 확인해 주세요";
+    case "LOW_CONFIDENCE":
+      return "자동 분류 확신이 낮아요";
+    case "REFUND_PENDING":
+      return "환불 결과 확인 필요";
+  }
+}
+
+/** 시트에 넣는 한 문장. 무엇을 하면 되는지까지 적는다 */
+export function reviewReasonNote(reason: ReviewReason): string {
+  switch (reason) {
+    case "UNCATEGORIZED":
+      return "아직 카테고리를 정하지 않았어요. 정해야 정산에 잡혀요.";
+    case "AUTO_GUESS":
+      return "직접 적은 거래를 우리가 추측해 분류했어요. 맞는지 확인해 주세요.";
+    case "LOW_CONFIDENCE":
+      return "자동 분류 확신이 낮아요. 맞는지 확인해 주세요.";
+    case "REFUND_PENDING":
+      return "환불이 예정된 거래예요. 돈이 돌아왔는지 확인해 주세요.";
+  }
+}
+
 /** 환불 필터 대상인가. 예정·완료·취소를 모두 보여준다 */
 export function isRefundRelated(transaction: Transaction): boolean {
   return transaction.refund_status !== REFUND_STATUS.NONE;

@@ -30,9 +30,8 @@ import {
   type RefundStatus,
   type TransactionType,
 } from "@/lib/constants/status";
+import { reviewReasonNote } from "@/lib/supabase/queries/transactions";
 import type { TransactionSheetController } from "@/lib/hooks/useTransactionSheet";
-
-const REVIEW_NOTE = "분류를 확인해 주세요.";
 
 type Props = {
   controller: TransactionSheetController;
@@ -159,7 +158,7 @@ function DetailView({
           maskedAccountNumber: masked,
           planName: c.linkedPlanName,
           needsReview: c.reason !== null,
-          reviewNote: c.reason !== null ? REVIEW_NOTE : null,
+          reviewNote: c.reason !== null ? reviewReasonNote(c.reason) : null,
           transactionType: tx.transaction_type as TransactionType,
           refundStatus: tx.refund_status as RefundStatus,
           categoryCode: code ?? null,

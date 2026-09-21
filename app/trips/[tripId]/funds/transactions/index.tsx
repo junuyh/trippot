@@ -77,6 +77,7 @@ import {
   getTransactions,
   isRefundRelated,
   reviewReason,
+  reviewReasonLabel,
   linkTransactionToPlanItem,
   syncPlanItemActual,
   updateTransactionMapping,
@@ -926,9 +927,7 @@ export default function ScreenFUND01() {
                         marginTop: 3,
                       }}
                     >
-                      {reason === "UNCATEGORIZED"
-                        ? "카테고리 확인 필요"
-                        : "자동 분류가 맞는지 확인해 주세요"}
+                      {reviewReasonLabel(reason)}
                     </Text>
                   ) : null}
                 </View>
