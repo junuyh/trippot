@@ -119,7 +119,13 @@ export function DelegateLeaderSheet({
         </View>
       }
     >
-      <View style={{ paddingBottom: 8, gap: 14 }}>
+      {/*
+        ⚠️ paddingTop 이 있는 이유. 첫 섹션 라벨 위에는 부제 **문장**이 있어서,
+           붙여 두면 그 문단의 마지막 줄처럼 흘러 읽힌다. 두 번째 라벨은 위가
+           카드 모서리라 저절로 머리글로 서는데 첫 라벨만 그렇지 않았다.
+           글씨 크기는 둘이 같다 — 떨어뜨려야 같은 깊이로 읽힌다. (2026-09-21)
+      */}
+      <View style={{ paddingTop: 10, paddingBottom: 8, gap: 14 }}>
         <View style={{ gap: 8 }}>
           <SectionLabel>새 여행장</SectionLabel>
 
