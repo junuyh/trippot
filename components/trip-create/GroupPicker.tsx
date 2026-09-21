@@ -3,10 +3,17 @@
 // 모임은 가로 스크롤 칩으로 늘어놓고, 고른 모임의 멤버를 그 아래에 펼친다.
 // 세로 목록이면 모임이 늘어날수록 아래 입력이 화면 밖으로 밀린다.
 //
+// ⚠️ 미리 골라 준 모임은 보이는 자리까지 스크롤한다. (2026-09-21)
+//    '같은 멤버로 다시 여행 만들기' · 모임 상세의 '이 모임으로 새 여행 만들기' 는
+//    화면에 들어오기 전에 모임이 정해진다. 그 칩이 오른쪽 바깥에 있으면
+//    아래 멤버 목록만 뜨고 칩 줄은 아무것도 안 고른 것처럼 보인다.
+//    모임 순서에 따라 보이기도 안 보이기도 해서 더 헷갈린다.
+//
 // Loading / Empty / Error 를 화면이 아니라 이 컴포넌트가 그린다.
 // 모임 목록은 화면의 일부라 전체 화면 상태로 처리하면 다른 선택지까지 사라진다.
 // (그래서 Loading / EmptyState 를 fullScreen 이 아닌 형태로 감싼다)
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Button } from '@/components/ui';
@@ -41,6 +48,34 @@ export function GroupPicker({
   membersLoading,
   disabled = false,
 }: Props) {
+  // ── 고른 칩을 보이는 자리로 ──────────────────────────────────────────
+  //
+  // 칩마다 onLayout 으로 위치를 재 두고, 고른 칩이 보이는 범위 밖일 때만
+  // 스크롤한다. 이미 보이면 건드리지 않는다 — 손으로 누른 칩은 정의상
+  // 보이는 자리에 있으므로, 누를 때마다 줄이 움직이면 그게 더 거슬린다.
+  //
+  // ⚠️ 훅은 아래 early return 들보다 위에 있어야 한다. 로딩·에러일 때
+  //    호출 수가 달라지면 안 된다.
+  const scrollRef = useRef<ScrollView>(null);
+  const [chipLayouts, setChipLayouts] = useState<Record<string, { x: number; width: number }>>({});
+  const viewportRef = useRef(0);
+  const offsetRef = useRef(0);
+
+  useEffect(() => {
+    if (selectedGroupId === null) return;
+
+    const chip = chipLayouts[selectedGroupId];
+    const viewport = viewportRef.current;
+    if (!chip || viewport === 0) return;
+
+    const offset = offsetRef.current;
+    const visible = chip.x >= offset && chip.x + chip.width <= offset + viewport;
+    if (visible) return;
+
+    // 칩 왼쪽에 약간 여유를 둔다. 0 에 붙이면 잘린 것처럼 보인다.
+    scrollRef.current?.scrollTo({ x: Math.max(0, chip.x - 16), animated: true });
+  }, [selectedGroupId, chipLayouts]);
+
   if (loading) {
     return (
       <View className="items-center py-8">
@@ -81,10 +116,18 @@ export function GroupPicker({
       {/* 칩 줄은 카드 좌우 여백(p-4)까지 밀어내 화면 끝까지 흐르게 한다.
           여백 안에 가두면 마지막 칩이 잘려 더 있다는 게 보이지 않는다. */}
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         className="-mx-4"
         contentContainerClassName="gap-1.5 px-4"
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          offsetRef.current = e.nativeEvent.contentOffset.x;
+        }}
+        onLayout={(e) => {
+          viewportRef.current = e.nativeEvent.layout.width;
+        }}
       >
         {groups.map((group) => {
           const selected = selectedGroupId === group.id;
@@ -96,6 +139,14 @@ export function GroupPicker({
               accessibilityLabel={group.name}
               disabled={disabled}
               onPress={() => onSelect(group.id)}
+              onLayout={(e) => {
+                const { x, width } = e.nativeEvent.layout;
+                setChipLayouts((prev) =>
+                  prev[group.id]?.x === x && prev[group.id]?.width === width
+                    ? prev
+                    : { ...prev, [group.id]: { x, width } },
+                );
+              }}
               className={`rounded-full border px-3.5 py-2.5 ${
                 selected
                   ? 'border-brand bg-brand'
