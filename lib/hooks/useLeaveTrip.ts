@@ -20,7 +20,7 @@
 //    서로 다른 시점의 값을 들고 판정하게 된다. (다빈 결정)
 // ============================================================================
 import { useCallback, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 import type { LeaveMode, TripMemberItem } from '@/components/members';
 import { FUND_SOURCE_TYPE } from '@/lib/constants/status';
@@ -165,8 +165,18 @@ export function useLeaveTrip(options: Options = {}) {
          *    SQL 쪽 짝은 is_trip_leavable_status() 다. (migration 20260921000011)
          */
         if (!isTripBeforeDeparture(trip.status)) {
-          // finally 가 setLoading(false) 를 한다
-          setError('이미 출발했거나 끝난 여행은 나갈 수 없어요.');
+          /*
+            ⚠️ setError 가 아니라 Alert 다. (2026-09-21)
+               error 를 그리는 곳이 **없다** — LeaveTripFlow 도 두 화면도 쓰지
+               않는다. setError 만 하면 시트도 안 열리고 아무 말도 없이 끝나서
+               기능이 죽은 것처럼 보인다. 여기는 시트가 열리기 전이라 가릴
+               Modal 도 없으니 Alert 가 확실하다. (취소 쪽과 같은 방식)
+
+            ⚠️ 시트 안에서 나는 제출 실패(setError)는 아직 안 보인다. 그건 시트가
+               열려 있는 상태라 시트 안에 자리를 잡아야 해서, 나가기 시트 UI
+               작업과 함께 간다.
+          */
+          Alert.alert('이미 출발했거나 끝난 여행은 나갈 수 없어요', '');
           return;
         }
 
