@@ -13,31 +13,41 @@
 //    groups / group_members / trips / 예산 / 거래 / 결산 을 건드리지 않는다.
 //    현재 사용자의 GROUP-01 표시 여부만 바꾼다. 홈과 여행 생성 화면에서는 계속 보인다.
 //
-// 이 파일은 데이터 조회·상태 관리·로그 기록만 한다.
-// 실제로 보이는 UI 는 components/groups/ 에 있다. (CLAUDE.md 9장)
+// 2026-09-21 하단 [모임] 탭 화면이 상단 탭 [여행] / [모임] 두 섹션을 갖는다. (여행/모임 통합 탭)
+//   [여행] = MY-02 와 같은 내 여행 목록(lib/hooks/useMyTrips + components/my/MyTripsSection · 새 쿼리 없음)
+//   [모임] = 이 파일의 모임 목록(components/groups/GroupListSection · 카드 · 정렬 · 편집 · 숨김 그대로)
+//   · 주소 ?tab=trips|groups 를 받는다. 없거나 모르는 값이면 [여행].
+//   · 하단 모임 아이콘을 **직접 누르면**(재클릭 포함) 탭바가 ?tab=trips&reset=<시각> 으로 보내 [여행]으로 돌아온다.
+//     (components/navigation/FloatingTabBar) reset 은 같은 값이 연달아 와도 알아채기 위한 도장이다.
+//     상세에서 돌아오기 · 포커스 · 복원 때는 params 가 바뀌지 않으므로 보던 탭이 유지된다.
+//   · 여행 상세 '<' 는 from=groups-trips 면 router.back() 으로 이 화면(보던 탭·필터)에 돌아온다.
+//   · GROUP_LIST 진입 로그는 [모임] 섹션이 보일 때만 찍는다. [여행] 섹션은 로그를 찍지 않는다(별도 화면 상수 없음 · events.ts 는 공유 파일).
 //
-// 헤더·탭 라벨 제목은 app/(tabs)/_layout.tsx 에서 정한다.
+// 이 파일은 데이터 조회·상태 관리·로그 기록만 한다.
+// 실제로 보이는 UI 는 components/groups/ · components/my/ 에 있다. (CLAUDE.md 9장)
+//
+// 탭 라벨 제목은 app/(tabs)/_layout.tsx 에서 정한다.
 // ============================================================================
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  GroupEditActionBar,
-  GroupListEmptyNotice,
-  GroupListHeader,
-  GroupTravelCardList,
-  HiddenGroupsSheet,
-  RemoveConfirmModal,
+  GROUP_TOP_TAB,
+  GroupListSection,
+  GroupTopTabs,
+  toGroupTopTab,
+  type GroupTopTab,
   type GroupTravelCardData,
   type HiddenGroupItem,
 } from '@/components/groups';
-import { EmptyState, ErrorState, Header, Loading } from '@/components/ui';
+import { MyTripsSection } from '@/components/my';
 import { SCREENS } from '@/lib/analytics/events';
 import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { ENTRY_POINT, TRIP_STATUS } from '@/lib/constants/status';
+import { MY_TRIPS_ORIGIN, useMyTrips } from '@/lib/hooks/useMyTrips';
 import { useScreenView } from '@/lib/hooks/useScreenView';
 import {
   getGroupMemberCount,
@@ -98,9 +108,31 @@ type Row = {
 export default function ScreenGROUP01() {
   // 로그인한 사용자. 가드가 미로그인 상태를 막고 있어 여기서는 항상 값이 있다.
   const userId = useCurrentUserId();
-  useScreenView(SCREENS.GROUP_LIST);
-
   const router = useRouter();
+
+  // ── 상단 탭 [여행] / [모임] ────────────────────────────────────────────
+  const params = useLocalSearchParams<{ tab?: string; filter?: string; reset?: string }>();
+  const [tab, setTab] = useState<GroupTopTab>(() => toGroupTopTab(params.tab));
+  // 주소의 tab 이 바뀌거나(딥링크 · 모임 상세의 replace) 탭바가 reset 도장을 새로 찍으면 맞춘다.
+  // ⚠️ params 가 그대로면 건드리지 않는다 — 상세에서 돌아올 때 보던 탭을 지킨다.
+  useEffect(() => {
+    if (params.tab) setTab(toGroupTopTab(params.tab));
+  }, [params.tab, params.reset]);
+  function changeTab(next: GroupTopTab) {
+    setTab(next);
+    router.setParams({ tab: next });
+  }
+
+  // GROUP_LIST 는 [모임] 섹션이 보일 때만. (docs/06 · CLAUDE.md 8장 — 화면 상수를 새로 만들지 않는다)
+  useScreenView(SCREENS.GROUP_LIST, null, { enabled: tab === GROUP_TOP_TAB.GROUPS });
+
+  // [여행] 섹션 — MY-02 와 같은 훅. 탭 화면은 언마운트되지 않아 다시 보일 때 조용히 갱신한다.
+  const myTrips = useMyTrips({
+    origin: MY_TRIPS_ORIGIN.GROUPS,
+    paramFilter: params.filter,
+    refreshOnFocus: true,
+  });
+
   // 탭 헤더를 껐다. 상태바 높이만큼은 여기서 띄운다. (커뮤니티·마이페이지와 같은 방식)
   const insets = useSafeAreaInsets();
 
@@ -389,134 +421,56 @@ export default function ScreenGROUP01() {
     [load, loadHiddenGroups, recoverFromFailure, saving, userId],
   );
 
-  // ── 4상태 ──────────────────────────────────────────────────────────────
+  // ── 렌더 ─────────────────────────────────────────────────────────────
   //
-  // 상단바는 로딩·오류·빈 상태에서도 같은 자리에 있어야 한다.
-  // 커뮤니티·마이페이지와 같은 공통 Header 다. 같은 컴포넌트라 높이가 같다.
-  const header = (
-    <View className="bg-white" style={{ paddingTop: insets.top }}>
-      <Header title="모임" showBack={false} />
-    </View>
-  );
-
-  if (loadState === 'loading') {
-    return (
-      <View className="flex-1 bg-white">
-        {header}
-        <Loading message="모임을 불러오고 있어요" />
-      </View>
-    );
-  }
-
-  if (loadState === 'error') {
-    return (
-      <View className="flex-1 bg-white">
-        {header}
-        <ErrorState message="모임 목록을 불러오지 못했어요." onRetry={() => void load()} />
-      </View>
-    );
-  }
-
-  // 보이는 모임이 없어도 숨긴 모임이 있으면 편집으로 되살릴 수 있어야 한다.
-  if (rows.length === 0 && hiddenCount === 0) {
-    // 모임은 여행 생성의 '누구와' 단계에서 만든다. 별도 모임 생성 화면은 없다.
-    // (docs/09_IA_v1.md §2-1)
-    return (
-      <View className="flex-1 bg-white">
-        {header}
-        <EmptyState
-          icon="people-outline"
-          title="아직 참여 중인 모임이 없어요"
-          description="여행을 만들 때 모임을 함께 만들면 여기에 모여요."
-          actionLabel="새 여행 만들기"
-          onAction={() => router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)}
-        />
-      </View>
-    );
-  }
-
+  // 헤더(= [여행] [모임] 텍스트 탭)는 로딩·오류·빈 상태에서도 같은 자리에 있어야 한다.
+  // 공통 Header 와 같은 높이(56)라 다른 탭 화면과 줄이 맞는다. 제목 '모임' 줄은 두지 않는다 — 탭과 뜻이 겹친다.
   return (
-    // ⚠️ 편집 모드에서 바탕을 한 단계 어둡게 한다. 같은 pot-visual 이면
-    //    편집으로 들어간 것이 눈에 띄지 않았다. 카드는 흰색 그대로라
-    //    대비가 생기고, 터치를 막는 overlay 는 두지 않는다.
-    //    gray-200(#E5E7EB) 은 pot-line(#E5E8EC) 과 사실상 같은 값이라
-    //    앱의 뉴트럴 단계에서 벗어나지 않는다.
-    <View className={`flex-1 ${editMode ? 'bg-gray-200' : 'bg-white'}`}>
-      {header}
+    <View className="flex-1 bg-white">
+      {/* 탭 헤더를 껐다. 상태바 높이만큼은 여기서 띄운다. (커뮤니티·마이페이지와 같은 방식) */}
+      <View className="bg-white" style={{ paddingTop: insets.top }}>
+        <GroupTopTabs value={tab} onChange={changeTab} />
+      </View>
 
-      {/* ⚠️ zIndex 로 올린다. 정렬 목록이 뒤에 오는 카드 목록에 가리면 안 된다.
-          RN 은 형제끼리 나중에 그린 것이 위로 올라온다. */}
-      <View style={{ zIndex: 20 }}>
-        <GroupListHeader
+      {tab === GROUP_TOP_TAB.TRIPS ? (
+        // 헤더 탭과 필터 알약 사이 16(= 8 + TripFilterTabs 의 pt-2). [모임] 쪽 '최근 여행순' 줄(pt-4)과 시작 높이를 맞춘다.
+        // 하단 탭바가 떠 있어 목록 아래 여백을 준다(pb-28 = 112 · GroupTravelCardList 와 같은 규칙).
+        <View className="flex-1 bg-gray-50" style={{ paddingTop: 8 }}>
+          <MyTripsSection {...myTrips} contentBottomPadding={112} />
+        </View>
+      ) : (
+        <GroupListSection
+          loadState={loadState}
+          cards={sortedRows.map((row) => row.card)}
+          hiddenCount={hiddenCount}
           sortMode={sortMode}
-          editMode={editMode}
           sortOpen={sortOpen}
+          editMode={editMode}
+          selectedIds={selectedIds}
+          saving={saving}
+          removeOpen={removeOpen}
+          hiddenSheetOpen={hiddenSheetOpen}
+          hiddenGroups={hiddenGroups}
+          hiddenLoading={hiddenLoading}
+          onRetry={() => void load()}
+          onPressCreateTrip={() => router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`)}
+          onPressGroup={handlePressGroup}
           onToggleEdit={handleToggleEdit}
           onPressSort={() => setSortOpen((prev) => !prev)}
           onSelectSort={(mode) => {
             setSortMode(mode);
             setSortOpen(false);
           }}
-        />
-      </View>
-
-      {rows.length === 0 ? (
-        // 여기 오는 경우는 hiddenCount > 0 뿐이다. 참여 중인 모임이 아예 없는 상태는
-        // 위에서 이미 걸러졌다. 화면이 통째로 비면 왜 안 보이는지 알 수 없어 안내를 둔다.
-        // ⚠️ 일반 모드에 '숨긴 모임 보기' 버튼을 두지 않는다. 복구는 편집 모드에서만 한다.
-        //    그래서 문구로 경로만 알려준다.
-        <GroupListEmptyNotice editMode={editMode} />
-      ) : (
-        <GroupTravelCardList
-          groups={sortedRows.map((row) => row.card)}
-          onPressGroup={handlePressGroup}
-          editMode={editMode}
-          selectedIds={selectedIds}
+          onCloseSort={() => setSortOpen(false)}
           onToggleSelect={handleToggleSelect}
-          actionsDisabled={saving}
-        />
-      )}
-
-      {/*
-        정렬 목록 바깥을 눌렀을 때 닫는다.
-        ⚠️ 색을 주지 않는다. dim overlay 를 쓰지 않기로 했다.
-           목록보다 아래(zIndex 10), 카드 목록보다 위에 깔린다.
-      */}
-      {sortOpen ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="정렬 목록 닫기"
-          onPress={() => setSortOpen(false)}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}
-        />
-      ) : null}
-
-      {editMode ? (
-        <GroupEditActionBar
-          selectedCount={selectedIds.length}
-          hiddenCount={hiddenCount}
-          saving={saving}
           onPressRemove={() => setRemoveOpen(true)}
           onPressHidden={handleOpenHidden}
+          onCancelRemove={() => setRemoveOpen(false)}
+          onConfirmRemove={() => void handleConfirmRemove()}
+          onCloseHidden={() => setHiddenSheetOpen(false)}
+          onPressUnhide={(groupId) => void handleUnhide(groupId)}
         />
-      ) : null}
-
-      <RemoveConfirmModal
-        visible={removeOpen}
-        count={selectedIds.length}
-        saving={saving}
-        onCancel={() => setRemoveOpen(false)}
-        onConfirm={() => void handleConfirmRemove()}
-      />
-
-      <HiddenGroupsSheet
-        visible={hiddenSheetOpen}
-        groups={hiddenGroups}
-        loading={hiddenLoading}
-        saving={saving}
-        onClose={() => setHiddenSheetOpen(false)}
-        onPressUnhide={(groupId) => void handleUnhide(groupId)}
-      />
+      )}
     </View>
   );
 }

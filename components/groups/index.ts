@@ -11,6 +11,8 @@ export { GroupDetailView, Section as GroupDetailSection } from './GroupDetailVie
 export { GroupEditActionBar } from './GroupEditActionBar';
 export { GroupListEmptyNotice } from './GroupListEmptyNotice';
 export { GroupListHeader, GROUP_SORT_LABEL } from './GroupListHeader';
+export { GroupListSection } from './GroupListSection';
+export { GROUP_TOP_TAB, GroupTopTabs, toGroupTopTab, type GroupTopTab } from './GroupTopTabs';
 export { GroupMemberList } from './GroupMemberList';
 export { GroupMoreMenu } from './GroupMoreMenu';
 export { PersonalDetailView, type PersonalDetailData } from './PersonalDetailView';

@@ -79,7 +79,23 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
               target: route.key,
               canPreventDefault: true,
             });
-            if (!focused && !event.defaultPrevented) {
+            if (event.defaultPrevented) return;
+            if (route.name === 'groups') {
+              /*
+                하단 [모임] 아이콘을 **직접** 누르면 상단 탭을 [여행]으로 되돌린다 — 이미 그 탭에 있어 [모임]을
+                보고 있어도 다시 누르면 [여행]. (2026-09-21 확정 정책)
+                ⚠️ reset 은 도장이다. 같은 tab=trips 가 연달아 오면 화면이 변화를 못 알아채서 매번 다른 값을 붙인다.
+                   상세에서 돌아오기 · 포커스 · 복원은 이 경로를 타지 않으므로 보던 탭이 유지된다.
+                   (app/(tabs)/groups.tsx 의 useEffect 가 tab · reset 을 본다)
+              */
+              // ⚠️ BottomTabBarProps 의 navigation 은 params 타입을 모른다(never). 객체 형태로 넘긴다.
+              navigation.navigate({
+                name: route.name,
+                params: { tab: 'trips', reset: String(Date.now()) },
+              } as never);
+              return;
+            }
+            if (!focused) {
               navigation.navigate(route.name);
             }
           }

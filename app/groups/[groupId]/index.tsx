@@ -421,7 +421,7 @@ export default function ScreenGROUP02() {
           title="모임을 찾을 수 없어요"
           description="삭제되었거나 접근할 수 없는 모임이에요."
           actionLabel="모임 목록으로"
-          onAction={() => router.replace('/groups')}
+          onAction={() => router.replace('/groups?tab=groups')}
         />
       </>
     );
@@ -442,7 +442,7 @@ export default function ScreenGROUP02() {
           title="참여 중인 모임이 아니에요"
           description="모임에서 나갔거나 아직 참여하지 않았어요."
           actionLabel="모임 목록으로"
-          onAction={() => router.replace('/groups')}
+          onAction={() => router.replace('/groups?tab=groups')}
         />
       </>
     );
