@@ -422,7 +422,7 @@
         <li><span class="tag opt">선택</span><span>제 의견을 이름 없이 포트폴리오에 인용해도 괜찮아요</span></li>
       </ul>
       <a class="btn btn-primary" id="consent-btn" href="#consent-title" aria-disabled="true" style="width:fit-content">동의하고 참여하기</a>
-      <span class="meta muted" style="font-size:13px">동의는 <span class="todo">구글 폼 링크</span>에서 남겨 주세요.</span>
+      <span class="meta muted" style="font-size:13px">동의는 위 버튼의 구글 폼에서 남겨 주세요. 구글 로그인이 필요하고 한 번만 제출할 수 있어요.</span>
     </div>
   </section>
 
@@ -437,7 +437,7 @@
   const LINKS = {
     android: "https://expo.dev/artifacts/eas/gZmFpyLbA_Rl57TD5vjJYzlovkNApbiP7mVQ7118w5M.apk",   // EAS APK 직접 링크 · 빌드 2a778026 · 2026-10-01 만료
     ios: "exp://u.expo.dev/7971a07a-f0f0-4ac8-a575-2dea8a16ff8b?runtime-version=1.0.0&channel-name=preview",   // Expo Go 고정 주소 · app.json version 을 올리면 runtime-version 도 바꾼다
-    consent: "",   // 동의 구글 폼
+    consent: "https://forms.gle/yAmCAngefJM6dZn4A",   // 동의 구글 폼 (구글 로그인 필요 · 1인 1회)
   };
 
   function wire(id, href, statusId, readyText) {
