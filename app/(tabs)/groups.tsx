@@ -156,7 +156,8 @@ export default function ScreenGROUP01() {
   const editModeRef = useRef(false);
   editModeRef.current = editMode;
 
-  const load = useCallback(async () => {
+  /** @param silent 아래로 당겨 새로고침. 실패해도 보던 목록을 그대로 둔다(오류 화면으로 바꾸지 않는다). */
+  const load = useCallback(async (silent = false) => {
     try {
       if (!userId) return;
 
@@ -281,9 +282,28 @@ export default function ScreenGROUP01() {
       setLoadState('ready');
     } catch {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
-      setLoadState('error');
+      if (!silent) setLoadState('error');
     }
   }, [userId]);
+
+  /**
+   * [모임] 목록 아래로 당겨 새로고침. (2026-09-22 · 팀 테스트 피드백)
+   * 조용히 다시 읽는다 — 카드가 사라졌다 나타나지 않고, 정렬 모드 · 사용자 지정 순서 · 상단 탭은 그대로다.
+   * ⚠️ 편집 중에는 하지 않는다(useFocusEffect 와 같은 이유). 이미 새로고침 중이면 한 번 더 당겨도 무시한다.
+   */
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
+  const refresh = useCallback(async () => {
+    if (refreshingRef.current || editModeRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      await load(true);
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, [load]);
 
   // 여행 생성에서 모임을 새로 만들고 탭으로 돌아오면 목록이 달라져 있다.
   // ⚠️ 편집 중에는 다시 읽지 않는다. 선택과 순서를 잡아둔 상태가 초기화된다.
@@ -469,6 +489,8 @@ export default function ScreenGROUP01() {
           onConfirmRemove={() => void handleConfirmRemove()}
           onCloseHidden={() => setHiddenSheetOpen(false)}
           onPressUnhide={(groupId) => void handleUnhide(groupId)}
+          refreshing={refreshing}
+          onRefresh={() => void refresh()}
         />
       )}
     </View>

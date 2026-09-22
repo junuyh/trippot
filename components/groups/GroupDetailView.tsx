@@ -320,6 +320,15 @@ export function GroupDetailView({
           />
         </View>
 
+        {/*
+          왜 '나간 여행' 탭이 없는지 한 줄로 알린다. (2026-09-22 · 팀 테스트 피드백 · 문구 확정)
+          카드 · 배지 · 탭 디자인은 그대로다. 본문 px-4 에 맞춰 작은 회색 보조 글씨로만 둔다.
+        */}
+        <Text className="mt-2 text-pot-faint" style={{ fontSize: 12, lineHeight: 18 }}>
+          모임의 여행 목록은 모든 모임원이 함께 봐요. 나간 여행은 별도 탭 없이 배지로 표시되며, 전체 내역은 ‘내
+          여행’에서 확인할 수 있어요.
+        </Text>
+
         <View className="mt-3 gap-3">
           {visibleTrips.length === 0 ? (
             <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-pot-visual px-4 py-8">
