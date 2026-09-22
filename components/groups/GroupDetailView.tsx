@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -59,6 +59,9 @@ type Props = {
   onPressAllAccounts: () => void;
   /** 준비 중 여행에서 나가기. 참가자에게만 보인다. */
   onPressLeaveTrip: (trip: MyTripItem) => void;
+  /** 아래로 당겨 새로고침. 화면 파일이 조용히 다시 읽는다. 보고 있던 탭은 이 컴포넌트가 들고 있어 그대로다. (2026-09-22) */
+  refreshing: boolean;
+  onRefresh: () => void;
   /**
    * 나간 여행 카드를 눌렀을 때. 화면이 이유를 알린다 — 이동하지 않는다.
    * 눌러도 아무 일이 없는 카드를 두지 않기 위해서다. (2026-09-12)
@@ -182,6 +185,8 @@ export function GroupDetailView({
   onPressLeaveTrip,
   onPressLeftTrip,
   onPressNonParticipantTrip,
+  refreshing,
+  onRefresh,
 }: Props) {
   // 이 화면은 (tabs) 밖 Stack 화면이라 FloatingTabBar 가 없다.
   // 대신 홈 인디케이터 자리는 직접 비켜 준다.
@@ -208,7 +213,11 @@ export function GroupDetailView({
 
   return (
     <View className="flex-1 bg-white">
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-10 pt-4">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-4 pb-10 pt-4"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
       {/*
         상단 = 캐리어 태그 **뒷면**. 목록 카드(앞면)와 같은 모임 색 몸통에 흰 정보 카드가 꽂혀 있다.
         (2026-09-17 · LuggageTagBack) 정보 구조는 그대로: 이름 + 연필 · 만든 날 · 멤버.
@@ -351,8 +360,8 @@ export function GroupDetailView({
                    비참가자를 들여보내면 남의 여행을 고칠 수 있게 된다.
                 ⚠️ MyTripCard 는 MY 와 함께 쓰는 컴포넌트다. onPress 에 null 을
                    넘길 수 있게만 넓혔고 MY 동작은 그대로다.
-                ⚠️ 모임 이름을 끈다. 이미 이 모임 상세 안이라 카드마다
-                   같은 이름이 반복된다. MY 는 그대로다. (2026-09-09)
+                ⚠️ 모임 이름도 MY 와 똑같이 보여준다. 전에는 이 안에서 반복된다고 껐는데,
+                   같은 여행이 두 화면에서 다른 카드로 보이는 것이 더 큰 혼란이었다. (2026-09-22 팀 테스트)
               */
               /*
                 나간 여행(trip.left) — 최종 정책(2026-09-14 · docs/11 v2 §6-2):
@@ -369,7 +378,7 @@ export function GroupDetailView({
                   : () => onPressNonParticipantTrip(trip);
 
               const card = (
-                <MyTripCard trip={trip} onPress={onPress} showGroupName={false} />
+                <MyTripCard trip={trip} onPress={onPress} />
               );
 
               /*

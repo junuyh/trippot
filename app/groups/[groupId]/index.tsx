@@ -16,7 +16,7 @@
 //       그 파일은 L 담당이라 여기서 고치지 않는다. 담당자 요청 후 &groupId= 를 붙인다.
 // ============================================================================
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef } from 'react';
 
 import {
   AccountTripPickerSheet,
@@ -40,10 +40,12 @@ import {
   type TripStatus,
 } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
+import { tripStage } from '@/lib/trip/stage';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import { getGroupTripAccounts } from '@/lib/supabase/queries/funds';
 import {
+  attachTripSummaries,
   getLeftTrips,
   getMyParticipatingTripIds,
 } from '@/lib/supabase/queries/trips';
@@ -54,7 +56,6 @@ import {
   getGroupMembers,
   getGroupTrips,
   getMyGroups,
-  getTripAmountSummaries,
   updateGroup,
 } from '@/lib/supabase/queries/groups';
 import {
@@ -134,7 +135,11 @@ export default function ScreenGROUP02() {
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
 
 
-  const load = useCallback(async () => {
+  /**
+   * @param silent 아래로 당겨 새로고침. 로딩 화면으로 바꾸지 않고, 실패해도 보던 화면을 그대로 둔다.
+   *   (모임이 없어졌거나 접근이 막힌 경우는 새로고침이라도 그 상태로 바뀐다 — 진실이 그렇다)
+   */
+  const load = useCallback(async (silent = false) => {
     if (!groupId) {
       setLoadState('notFound');
       return;
@@ -144,7 +149,7 @@ export default function ScreenGROUP02() {
     // 가드가 미로그인 상태를 막고 있어 여기서는 사실상 항상 값이 있다.
     if (!userId) return;
 
-    setLoadState('loading');
+    if (!silent) setLoadState('loading');
     try {
       // 모임을 먼저 확인한다. 없는 모임이면 나머지를 조회할 이유가 없다.
       // getGroupById 는 maybeSingle 이라 잘못된 groupId 에도 던지지 않고 null 을 준다.
@@ -198,10 +203,12 @@ export default function ScreenGROUP02() {
         return;
       }
 
-      // 카드에 금액·진행률을 그리려면 세 테이블이 더 필요하다.
-      // getTripsWithSummary() 와 같은 칼럼을 읽어 MY 목록과 값이 어긋나지 않는다.
+      // 카드에 금액·진행률·단계 배지를 그리려면 예산·자금·결산·지출이 더 필요하다.
+      // ⚠️ MY 목록과 **같은 함수**(attachTripSummaries)로 붙인다. 같은 여행이 두 화면에서
+      //    다른 배지('정산 대기 중' vs '결산 전')로 보이던 원인이 여기 있었다. (2026-09-22)
       const all = [...trips.ongoing, ...trips.past];
-      const summaries = await getTripAmountSummaries(all.map((trip) => trip.id));
+      const withSummary = await attachTripSummaries(all);
+      const summaries = new Map(withSummary.map((trip) => [trip.id, trip]));
 
       /**
        * 내가 나간 여행 id. **membership 메타일 뿐** 목록의 근거가 아니다.
@@ -243,6 +250,14 @@ export default function ScreenGROUP02() {
           finalAmount: amount?.finalAmount ?? null,
           color: theme.primary,
           colorSoft: theme.primarySoft,
+          // 지난 여행 배지('정산 대기 중' · '지출 입력 전' …). MY 와 같은 판정(lib/trip/stage). (2026-09-22)
+          stage: amount
+            ? tripStage({
+                status: trip.status as TripStatus,
+                hasPlan: amount.hasPlan,
+                hasExpense: amount.hasExpense,
+              })
+            : undefined,
           // 나간 여행이면 카드가 배지를 달고 색을 뺀다. 목록 위치는 그대로다.
           left: leftIds.has(trip.id),
           // 2인 이상 여행의 여행장이면 '여행장' 배지. MY-02 와 같은 판정이다. (2026-09-21 한나 요청)
@@ -346,9 +361,29 @@ export default function ScreenGROUP02() {
       setLoadState('ready');
     } catch {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
-      setLoadState('error');
+      if (!silent) setLoadState('error');
     }
   }, [groupId, userId]);
+
+  /**
+   * 아래로 당겨 새로고침. (2026-09-22 · 팀 테스트 피드백)
+   * 모임 이름 · 만든 날 · 멤버 · 연결 계좌 · 여행 목록(상태 · 단계 배지 · 최종 여행비) · 취소 여행 ·
+   * 내 ACTIVE/LEFT 판정을 한 번에 다시 읽는다 — load 가 읽는 것 전부다. 보고 있던 탭은 GroupDetailView 가
+   * 들고 있어 그대로다. 이미 새로고침 중이면 한 번 더 당겨도 무시한다.
+   */
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
+  const refresh = useCallback(async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      await load(true);
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, [load]);
 
   // 여행을 만들고 돌아오면 목록이 달라져 있다.
   useFocusEffect(
@@ -525,6 +560,8 @@ export default function ScreenGROUP02() {
         onPressLeaveTrip={(trip) => void leave.open(trip.tripId, userId)}
         // 나간 여행은 열 수 없다(확정 정책). "눌렀는데 아무 일도 없음" 대신 이유를 알린다.
         onPressLeftTrip={() => setLeftNoticeOpen(true)}
+        refreshing={refreshing}
+        onRefresh={() => void refresh()}
         // 참가자가 아닌 여행도 마찬가지다. 조용히 죽어 있지 않게 한다.
         onPressNonParticipantTrip={() => setNotParticipantNoticeOpen(true)}
       />
