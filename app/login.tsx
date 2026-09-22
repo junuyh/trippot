@@ -147,7 +147,7 @@ export default function ScreenLogin() {
            (2026-09-21 테스트) 카카오·구글은 닉네임을 주므로 이 칸이 없다.
       */
       next.nickname =
-        nickname.trim().length > 0 ? null : '앱에서 보일 이름을 정해 주세요.';
+        nickname.trim().length > 0 ? null : '앱에서 보일 닉네임을 정해 주세요.';
     }
     setFieldErrors(next);
     return (
@@ -210,7 +210,7 @@ export default function ScreenLogin() {
       ? code.trim().length > 0
       : email.trim().length > 0 &&
         password.length > 0 &&
-        // 가입은 이름까지 채워야 보낼 수 있다
+        // 가입은 닉네임까지 채워야 보낼 수 있다
         (emailMode !== 'signUp' || nickname.trim().length > 0);
 
   if (emailMode !== null) {

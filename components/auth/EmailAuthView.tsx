@@ -32,7 +32,7 @@ type Props = {
   password: string;
   onChangePassword: (value: string) => void;
   passwordConfirm: string;
-  /** 가입할 때만 쓴다. 앱에서 보일 이름 */
+  /** 가입할 때만 쓴다. 앱에서 보일 닉네임 */
   nickname: string;
   onChangeNickname: (value: string) => void;
   onChangePasswordConfirm: (value: string) => void;
@@ -152,11 +152,11 @@ export function EmailAuthView({
               */}
               {mode === 'signUp' ? (
                 <Input
-                  label="이름"
+                  label="닉네임"
                   value={nickname}
                   onChangeText={onChangeNickname}
                   maxLength={20}
-                  placeholder="모임 멤버에게 보일 이름"
+                  placeholder="모임 멤버에게 보일 닉네임"
                   error={errors.nickname}
                   editable={!loading}
                 />

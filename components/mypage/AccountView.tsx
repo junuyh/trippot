@@ -147,10 +147,10 @@ export function AccountView({
           }}
         >
           <Input
-            label="이름"
+            label="닉네임"
             value={name}
             onChangeText={onChangeName}
-            placeholder="이름을 입력해 주세요"
+            placeholder="닉네임을 입력해 주세요"
             error={nameError}
             hint={`${NAME_MAX_LENGTH}자까지 쓸 수 있어요`}
             maxLength={NAME_MAX_LENGTH}
