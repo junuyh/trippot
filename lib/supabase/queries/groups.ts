@@ -149,6 +149,7 @@ export async function addGroupMembers(
 }
 
 export type GroupMemberWithUser = GroupMember & {
+  /** 공개 프로필 3컬럼. users 직접 조회는 본인 행뿐이라 view 로 읽는다. (migration 20260922000001) */
   user: Pick<Tables<'users'>, 'id' | 'name' | 'profile_image_url'>;
 };
 
@@ -159,23 +160,33 @@ export type GroupMemberWithUser = GroupMember & {
  * 화면에 이름을 보여줘야 할 때만 이 함수를 쓴다.
  *
  * INVITED / LEFT 는 제외한다. 아직 안 왔거나 이미 나간 사람이다.
- * 탈퇴한 사용자(users.deleted_at)도 제외한다. 이름 자리가 비어 보이게 된다.
+ * 탈퇴한 사용자도 제외한다 — user_public_profiles 가 deleted_at 인 행을 빼므로 !inner 가 걸러낸다.
+ *
+ * ⚠️ users 를 직접 임베딩하지 않는다. users 는 본인 행만 읽을 수 있어 타인은 null 로 온다.
+ *    타인 프로필은 공개 3컬럼 view(user_public_profiles)로만 읽는다. (2026-09-22 · P1 보안 수정)
  *
  * OWNER 를 맨 앞에 둔다. 모임장이 누구인지 목록 첫 줄에서 바로 보이게 한다.
  */
 export async function getGroupMembers(groupId: string): Promise<GroupMemberWithUser[]> {
   const { data, error } = await supabase
     .from('group_members')
-    .select('*, users!inner(id, name, profile_image_url)')
+    .select('*, user_public_profiles!inner(id, name, profile_image_url)')
     .eq('group_id', groupId)
     .eq('status', GROUP_MEMBER_STATUS.ACTIVE)
-    .is('users.deleted_at', null)
     .order('joined_at', { ascending: true });
 
   if (error) throw error;
 
+  // view 의 생성 타입은 전부 nullable 이지만 !inner 라 행은 항상 있다. id 는 FK 와 같고 name 은 not null 컬럼이다.
   return (data ?? [])
-    .map(({ users, ...member }) => ({ ...member, user: users }))
+    .map(({ user_public_profiles: profile, ...member }) => ({
+      ...member,
+      user: {
+        id: profile.id ?? member.user_id,
+        name: profile.name ?? '이름 없음',
+        profile_image_url: profile.profile_image_url,
+      },
+    }))
     .sort((a, b) => {
       // OWNER 먼저. 나머지는 조회 순서(가입일 오름차순)를 그대로 둔다.
       if (a.role === b.role) return 0;
