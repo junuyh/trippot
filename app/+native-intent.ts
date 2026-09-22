@@ -35,8 +35,18 @@ function isAuthCallbackUrl(value: string): boolean {
     // 스킴이 있으면 URL 로, 아니면 상대 경로로 읽는다.
     const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(value);
     const url = new URL(hasScheme ? value : `app://x${value.startsWith('/') ? '' : '/'}${value}`);
-    // Expo Go 의 exp://host:port/--/ 를 벗긴다. 배포 앱의 trippot:// 는 host 가 없어 pathname 만 남는다.
-    const path = url.pathname.replace(/^\/--/, '');
+    /*
+      앱 경로만 남긴다.
+        · Expo Go 개발 서버   exp://127.0.0.1:8081/--/<path>            → /--/ 뒤
+        · Expo Go 게시 업데이트 exp://u.expo.dev/<projectId>/--/<path>   → /--/ 뒤
+        · Expo Go 게시 업데이트 exp://u.expo.dev/<projectId>?…#access_token=… → /--/ 가 없으면 루트
+          (makeRedirectUri 가 이 모양을 만든다 · SDK 57 재검증에서 발견 · 2026-09-22)
+        · 배포 앱            trippot://#access_token=…                → host · pathname 없음
+    */
+    let path = url.pathname;
+    const marker = path.indexOf('/--');
+    if (marker >= 0) path = path.slice(marker + 3);
+    else if (/(^|\.)u\.expo\.dev$/i.test(url.hostname)) path = '/';
     if (path === '' || path === '/') {
       const params = new URLSearchParams(url.search);
       const fragment = new URLSearchParams(url.hash.replace(/^#/, ''));
