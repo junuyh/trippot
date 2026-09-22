@@ -34,7 +34,6 @@ import type { TripAction } from '@/lib/trip/tripActions';
 
 import { HomeActionBanner } from './HomeActionBanner';
 import { InviteBanner } from './InviteBanner';
-import { InviteModal } from './InviteModal';
 import type { HomeInvite } from './types';
 
 /** 홈 좌우 여백(px-4). 캐러셀이 -mx-4 로 이 여백을 뚫고 나가 안쪽에서 다시 준다. */
@@ -62,13 +61,10 @@ const CARD_PEEK = 20;
 export type HomeNoticeCarouselProps = {
   /** 답하지 않은 초대. 없으면 빈 배열. */
   invites: HomeInvite[];
-  /** 지금 모달로 띄울 초대. 한 초대에 한 번만 온다. 없으면 null. */
-  modalInvite: HomeInvite | null;
   /** 참여 요청을 보내는 중인 초대의 token. 없으면 null. */
   requestingToken: string | null;
   onRequestJoin: (token: string) => void;
   onDecline: (token: string) => void;
-  onCloseModal: () => void;
 
   /** 답해야 할 일. 없으면 빈 배열. */
   actions: TripAction[];
@@ -77,11 +73,9 @@ export type HomeNoticeCarouselProps = {
 
 export function HomeNoticeCarousel({
   invites,
-  modalInvite,
   requestingToken,
   onRequestJoin,
   onDecline,
-  onCloseModal,
   actions,
   onPressAction,
 }: HomeNoticeCarouselProps) {
@@ -135,6 +129,10 @@ export function HomeNoticeCarousel({
    */
   const counterAt = (index: number) => (total > 1 ? `${index + 1}/${total}` : undefined);
 
+  /*
+    ⚠️ 2026-09-22 초대 모달(InviteModal)을 뺐다. 초대는 이 캐러셀의 배너로만 알린다.
+       (app/(tabs)/index.tsx 의 invites 주석)
+  */
   return (
     <>
       {total > 0 ? (
@@ -180,22 +178,6 @@ export function HomeNoticeCarousel({
           </ScrollView>
         </View>
       ) : null}
-
-      {/*
-        모달은 캐러셀 밖이다. 초대가 몇 번째 장이든 화면 전체를 덮어야 하고,
-        넘기는 것과 무관하게 뜨고 닫힌다.
-      */}
-      <InviteModal
-        invite={modalInvite}
-        requesting={modalInvite !== null && requestingToken === modalInvite.token}
-        onRequestJoin={() => {
-          if (modalInvite) onRequestJoin(modalInvite.token);
-        }}
-        onDecline={() => {
-          if (modalInvite) onDecline(modalInvite.token);
-        }}
-        onClose={onCloseModal}
-      />
     </>
   );
 }
