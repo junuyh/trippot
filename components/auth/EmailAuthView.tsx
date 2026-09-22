@@ -70,6 +70,12 @@ const SUBMIT: Record<EmailAuthMode, string> = {
   verify: '인증하고 시작하기',
 };
 
+/** 로그인 ↔ 가입 전환 버튼 글자. verify 에는 없다 */
+const SWITCH: Record<'signIn' | 'signUp', string> = {
+  signIn: '이메일로 회원가입',
+  signUp: '이미 계정이 있어요 · 로그인',
+};
+
 export function EmailAuthView({
   mode,
   email,
@@ -218,8 +224,8 @@ export function EmailAuthView({
 
         <Button label={SUBMIT[mode]} loading={loading} disabled={!canSubmit} onPress={onSubmit} />
 
-        <View className="mt-5 flex-row items-center justify-center">
-          {mode === 'verify' ? (
+        {mode === 'verify' ? (
+          <View className="mt-5 flex-row items-center justify-center">
             <Text
               accessibilityRole="button"
               onPress={loading ? undefined : onResendCode}
@@ -229,23 +235,24 @@ export function EmailAuthView({
             >
               코드 다시 받기
             </Text>
-          ) : (
-            <>
-              <Text className="text-pot-faint" style={{ fontSize: 13 }}>
-                {mode === 'signIn' ? '아직 계정이 없나요?' : '이미 가입했나요?'}
-              </Text>
-              <Text
-                accessibilityRole="button"
-                onPress={loading ? undefined : () => onSwitchMode(mode === 'signIn' ? 'signUp' : 'signIn')}
-                suppressHighlighting
-                className="ml-2 font-bold text-pot-ink"
-                style={{ fontSize: 13 }}
-              >
-                {mode === 'signIn' ? '이메일로 가입' : '로그인'}
-              </Text>
-            </>
-          )}
-        </View>
+          </View>
+        ) : (
+          <>
+            {/*
+              ⚠️ 가입 진입을 13px 글자 링크로 두지 않는다. 테스터가 회원가입
+                 버튼을 못 찾았다. (2026-09-22 테스트) 로그인·가입 전환은
+                 제출 버튼 바로 아래 같은 폭의 보조 버튼으로 둔다.
+            */}
+            <View className="mt-3">
+              <Button
+                label={SWITCH[mode]}
+                variant="secondary"
+                disabled={loading}
+                onPress={() => onSwitchMode(mode === 'signIn' ? 'signUp' : 'signIn')}
+              />
+            </View>
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
