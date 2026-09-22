@@ -29,7 +29,7 @@
 // 이 파일은 데이터 조회·상태 관리·로그 기록만 한다.
 // 실제로 보이는 UI 는 components/home/ 에 있다. (CLAUDE.md 9장)
 //
-// 2026-09-15 답하지 않은 여행 초대를 맨 위에 띄운다. (모달 한 번 + 상시 배너)
+// 2026-09-15 답하지 않은 여행 초대를 맨 위에 띄운다. (상시 배너 · 2026-09-22 모달은 뺐다)
 //   **초대 화면(INV-02 · 한나 담당)에서 답하지 않고 나간 사람에게만 뜬다.**
 //   카톡 링크로 들어가면 초대 화면이 먼저 뜬다. 거기서 참여 요청도 거절도 누르지 않고
 //   창을 닫으면 그 건이 처리되지 않은 채 남는데, 그때 홈이 대신 알린다.
@@ -72,11 +72,7 @@ import { getActiveCancelRequest, getVoteProgress } from '@/lib/supabase/queries/
 import { getTripJoinRequests } from '@/lib/supabase/queries/tripJoinRequests';
 import { listActiveTripMembers } from '@/lib/supabase/queries/tripMembers';
 import { useAuth, useCurrentUserId } from '@/lib/auth/AuthProvider';
-import {
-  getPendingInvites,
-  markInviteModalShown,
-  removePendingInvite,
-} from '@/lib/invite/pendingInvites';
+import { getPendingInvites, removePendingInvite } from '@/lib/invite/pendingInvites';
 import { previewInviteState } from '@/lib/invite/previewInvite';
 import {
   TRIP_JOIN_ERROR,
@@ -143,7 +139,7 @@ function isAnswerable(myState: string): boolean {
   return myState === 'NONE' || myState === 'LEFT';
 }
 
-/** 초대 미리보기 → 홈 배너 · 모달 한 줄. 승인 전 공개 범위만 옮긴다. (docs/10_v2 §11) */
+/** 초대 미리보기 → 홈 배너 한 줄. 승인 전 공개 범위만 옮긴다. (docs/10_v2 §11) */
 function toHomeInvite(
   token: string,
   preview: {
@@ -199,8 +195,12 @@ export default function ScreenHOME01() {
   const [refreshing, setRefreshing] = useState(false);
   /** 답하지 않은 초대. 서버 확인을 통과한 것만 들어온다. */
   const [invites, setInvites] = useState<HomeInvite[]>([]);
-  /** 지금 모달로 띄운 초대의 token. 닫으면 null. */
-  const [modalToken, setModalToken] = useState<string | null>(null);
+  /*
+    ⚠️ 2026-09-22 초대 모달을 뺐다. 답하지 않은 초대는 **홈 배너로만** 알린다.
+       모달은 홈에 들어오는 순간 화면을 가로막았는데, 초대 내용은 이미 초대 화면(INV-02)에서
+       본 것이다. 여기는 "아직 답하지 않았다" 만 알리면 되고 배너가 그 일을 한다.
+       (2026-09-17 에 한 번 뺐다가 되살렸던 것을 다시 뺀다. InviteBanner 주석과 같은 이유)
+  */
   /** 참여 요청을 보내는 중인 초대의 token. 중복 제출 방지. */
   const [requestingToken, setRequestingToken] = useState<string | null>(null);
   /**
@@ -324,7 +324,7 @@ export default function ScreenHOME01() {
    * ⚠️ 홈 조회(load)와 따로 돈다. 초대 확인이 실패해도 홈이 오류가 되면 안 된다.
    * ⚠️ 서버가 "이제 답할 수 없다" 고 한 초대만 지운다(만료 · 이미 참여 · 요청함 · 거절됨).
    *    확인 자체가 실패하면(네트워크 등) 이번엔 안 보여주고 저장은 남긴다.
-   * ⚠️ 모달은 **한 초대에 한 번만** 띄운다. 그 뒤로는 배너로만 남는다.
+   * ⚠️ 모달을 띄우지 않는다. 배너로만 알린다. (2026-09-22 · 위 invites 주석)
    */
   const loadInvites = useCallback(async () => {
     if (!userId) return;
@@ -365,15 +365,6 @@ export default function ScreenHOME01() {
 
       const next = checked.filter((invite): invite is HomeInvite => invite !== null);
       setInvites(next);
-
-      // 모달은 한 초대에 한 번만 띄운다. 그 뒤로는 배너로만 남는다.
-      const firstUnseen = stored.find(
-        (row) => row.modalShownAt === null && next.some((invite) => invite.token === row.token),
-      );
-      if (firstUnseen) {
-        setModalToken((current) => current ?? firstUnseen.token);
-        await markInviteModalShown(userId, firstUnseen.token);
-      }
     } catch {
       // 기기 저장소를 못 읽었다. 초대 칸만 비우고 홈은 그대로 둔다.
       setInvites([]);
@@ -566,7 +557,6 @@ export default function ScreenHOME01() {
   /** 답이 끝난 초대를 화면과 기기에서 뺀다. */
   function dismissInvite(token: string) {
     setInvites((prev) => prev.filter((invite) => invite.token !== token));
-    setModalToken((current) => (current === token ? null : current));
     if (userId) removePendingInvite(userId, token).catch(() => undefined);
   }
 
@@ -626,11 +616,9 @@ export default function ScreenHOME01() {
 
   const invitePrompt: InvitePromptProps = {
     invites,
-    modalInvite: invites.find((invite) => invite.token === modalToken) ?? null,
     requestingToken,
     onRequestJoin: (token) => void handleRequestJoin(token),
     onDecline: handleDeclineInvite,
-    onCloseModal: () => setModalToken(null),
   };
 
   function handlePressTrip(tripId: string) {
