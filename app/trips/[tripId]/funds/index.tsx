@@ -220,6 +220,8 @@ export default function ScreenFUND01() {
     onNotice: (message) => fundToast.show(message),
     // 시트에도 누가 적었는지 붙인다. 모임 여행이 아니면 빈 Map 이다
     memberNameById: data?.memberNameById,
+    // 남이 적은 거래는 시트가 읽기 전용으로 그린다
+    userId,
   });
 
   useFocusEffect(

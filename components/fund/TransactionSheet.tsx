@@ -267,7 +267,25 @@ function DetailView({
            이 시트에서 사람이 마지막에 누를 것은 "이대로 맞다" 하나다.
            고치는 일을 먼저 늘어놓고, 끝내는 일을 끝에 둔다.
       */}
-      {c.reason !== null && !c.settled ? (
+      {/*
+        ⚠️ 남이 적은 거래는 읽기 전용이다. (2026-09-22 테스트) 고치는 버튼은
+           canEdit · canMap 이 이미 가렸고, 여기서 왜 없는지 한 줄 적는다.
+           결산의 '확인할 거래' 로 들어와도 이 안내만 본다.
+      */}
+      {c.readOnlyNote ? (
+        <Text
+          style={{
+            marginTop: 14,
+            fontSize: 11,
+            lineHeight: 17,
+            color: "#858e9c",
+          }}
+        >
+          {c.readOnlyNote}
+        </Text>
+      ) : null}
+
+      {c.reason !== null && !c.settled && !c.readOnly ? (
         <View
           style={{
             marginTop: 16,

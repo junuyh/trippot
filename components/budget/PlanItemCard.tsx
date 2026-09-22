@@ -47,6 +47,12 @@ export type PlanItem = {
    * 연결되면 잠긴다 — 수정도 삭제도 못 한다.
    */
   locked: boolean;
+  /**
+   * 연결을 풀 수 있는가. 붙은 지출을 전부 내가(또는 아무도) 적었을 때만 참.
+   * 남이 적은 지출이 붙어 있으면 '연결 해제' 를 감춘다. (2026-09-22)
+   * 없으면 풀 수 있는 것으로 본다.
+   */
+  unlinkable?: boolean;
 };
 
 export type PlanDraft = {
@@ -178,7 +184,7 @@ export function PlanItemCard({
                   ⚠️ 자동으로 붙은 연결을 여기서 풀 수 있어야 한다. 시트까지
                      들어가야만 풀 수 있으면 잘못 붙은 걸 보고도 그냥 둔다.
                 */}
-                {onUnlinkLinked ? (
+                {onUnlinkLinked && item.unlinkable !== false ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${item.name} 지출 연결 해제`}

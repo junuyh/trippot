@@ -51,6 +51,7 @@ import {
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { canEditTransaction } from "@/lib/trip/transactionPermission";
 import { ReceiptSourceSheet, TransactionSheet } from "@/components/fund";
 import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
@@ -222,7 +223,8 @@ export default function ScreenBUDGET02() {
         return;
       }
 
-      const [items, transactions, accounts, members] = await Promise.all([
+      const [items, transactions, linkedTransactions, accounts, members] =
+        await Promise.all([
         getBudgetPlanItems(category.id),
         getTransactions(trip.id, {
           categoryId: category.id,
@@ -231,6 +233,16 @@ export default function ScreenBUDGET02() {
           // 한 건 더 받아 더 있는지 판단한다
           limit: RECENT_EXPENSE_LIMIT + 1,
         }),
+        /*
+          계획에 붙은 지출 전부. 카드의 '연결 해제' 를 낼지 정하는 데 쓴다 —
+          남이 적은 지출이 붙어 있으면 풀 수 없다. (2026-09-22)
+          위 목록은 최근 10건뿐이라 따로 읽는다. 실패해도 화면을 막지 않는다.
+        */
+        getTransactions(trip.id, {
+          categoryId: category.id,
+          transactionType: TRANSACTION_TYPE.WITHDRAWAL,
+          linkedOnly: true,
+        }).catch(() => [] as Transaction[]),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
         // 모임 여행일 때만 참여자 이름을 읽는다. 실패해도 화면을 막지 않는다
         trip.group_id
@@ -272,6 +284,10 @@ export default function ScreenBUDGET02() {
             // 이미 쓴 돈이 달린 계획을 없애면 '계획에 없는 지출' 이 생겨
             // 계획 대비 실제 비교가 성립하지 않는다.
             locked: item.actual_amount > 0,
+            // 붙은 지출을 전부 내가(또는 아무도) 적었을 때만 풀 수 있다
+            unlinkable: linkedTransactions
+              .filter((t) => t.budget_plan_item_id === item.id)
+              .every((t) => canEditTransaction(t, userId)),
           })),
       );
     } catch {
@@ -279,7 +295,7 @@ export default function ScreenBUDGET02() {
     } finally {
       setLoading(false);
     }
-  }, [categoryId, tripId]);
+  }, [categoryId, tripId, userId]);
 
   /*
     거래 상세 바텀시트. '실제 지출' 한 건을 누르면 열린다.
@@ -294,6 +310,8 @@ export default function ScreenBUDGET02() {
     tripId: data?.trip.id ?? null,
     onNotice: (message) => setToast(message),
     memberNameById: data?.memberNameById,
+    // 남이 적은 거래는 시트가 읽기 전용으로 그린다
+    userId,
   });
 
   useFocusEffect(
@@ -445,6 +463,20 @@ export default function ScreenBUDGET02() {
         await load();
         return;
       }
+      // 카드가 이미 가렸지만, 방금 다른 사람이 붙였을 수 있어 한 번 더 본다
+      const foreign = linked.find((t) => !canEditTransaction(t, userId));
+      if (foreign) {
+        const author = foreign.created_by_user_id
+          ? data.memberNameById.get(foreign.created_by_user_id)
+          : null;
+        setToast(
+          author
+            ? `${author} 님이 적은 지출이에요. 적은 사람만 풀 수 있어요.`
+            : "다른 참여자가 적은 지출이에요. 적은 사람만 풀 수 있어요.",
+        );
+        await load();
+        return;
+      }
 
       const first = linked[0];
       const message =
@@ -476,7 +508,7 @@ export default function ScreenBUDGET02() {
         },
       ]);
     },
-    [data, load, plans],
+    [data, load, plans, userId],
   );
 
   // ── 설정 예산 수정 ────────────────────────────────────────────────────

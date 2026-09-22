@@ -29,6 +29,11 @@ import { useCallback, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, View } from "react-native";
 
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import {
+  canEditTransaction,
+  readOnlyTransactionNote,
+} from "@/lib/trip/transactionPermission";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   BottomSheet,
@@ -135,6 +140,7 @@ export default function ScreenFUND03() {
       : `/trips/${tripId}/funds/transactions`;
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
+  const userId = useCurrentUserId();
 
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -479,7 +485,13 @@ export default function ScreenFUND03() {
    * 확정 뒤에 분류를 바꾸면 이미 남은 결산 스냅샷과 어긋난다.
    */
   const settled = (data.trip.status as TripStatus) === TRIP_STATUS.SETTLED;
-  const canEdit = !deposit && !settled;
+  /*
+    ⚠️ 남이 적은 거래는 읽기 전용이다. (2026-09-22 테스트) RLS 가 기록자만
+       고치게 되어 있어 버튼을 보여 주면 눌렀다가 "저장하지 못했어요" 를 본다.
+       판정은 lib/trip/transactionPermission 한 곳에서 한다.
+  */
+  const readOnly = !canEditTransaction(transaction, userId);
+  const canEdit = !deposit && !settled && !readOnly;
   /*
     ⚠️ 직접 적은 거래는 이름·금액·거래일을 고칠 수 있다. (2026-09-21 테스트 —
        "수기 입력 후 수정 불가") 잘못 적으면 지우고 다시 넣는 수밖에 없었다.
@@ -517,6 +529,7 @@ export default function ScreenFUND03() {
 
   const canEditManual =
     !settled &&
+    !readOnly &&
     transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL;
 
   const rows: [string, string][] = [
@@ -655,6 +668,22 @@ export default function ScreenFUND03() {
           >
             <Text style={{ fontSize: 11, lineHeight: 16, color: "#5d6674" }}>
               결산이 확정돼 이 거래는 고칠 수 없어요. 기록을 보는 화면이에요.
+            </Text>
+          </View>
+        ) : null}
+
+        {/* 남이 적은 거래. 고치는 버튼 대신 왜 없는지 한 줄 적는다 */}
+        {readOnly && !settled ? (
+          <View
+            style={{
+              marginTop: 14,
+              borderRadius: 11,
+              backgroundColor: "#eef2f8",
+              padding: 12,
+            }}
+          >
+            <Text style={{ fontSize: 11, lineHeight: 16, color: "#5d6674" }}>
+              {readOnlyTransactionNote(data.authorName)}
             </Text>
           </View>
         ) : null}

@@ -25,6 +25,8 @@ export type TransactionListOptions = {
   categoryId?: string;
   /** 지정하면 그 세부 계획에 연결된 거래만. (BUDGET-02 연결 해제) */
   planItemId?: string;
+  /** true 면 어느 계획이든 연결된 거래만. (BUDGET-02 카드의 '연결 해제' 권한 판정) */
+  linkedOnly?: boolean;
   /** 지정하면 입금/출금 한쪽만. */
   transactionType?: Transaction["transaction_type"];
   /** 최근 N건만. 준비 홈의 '최근 여행자금 내역' 처럼 일부만 필요할 때 쓴다. */
@@ -47,6 +49,7 @@ export async function getTransactions(
     query = query.eq("budget_category_id", options.categoryId);
   if (options?.planItemId)
     query = query.eq("budget_plan_item_id", options.planItemId);
+  if (options?.linkedOnly) query = query.not("budget_plan_item_id", "is", null);
   if (options?.transactionType)
     query = query.eq("transaction_type", options.transactionType);
   if (options?.limit) query = query.limit(options.limit);

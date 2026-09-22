@@ -29,6 +29,8 @@ import { Swipeable } from "react-native-gesture-handler";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { canEditTransaction } from "@/lib/trip/transactionPermission";
 import { isTripEnded } from "@/lib/trip/tripStatus";
 import {
   TransactionDetailBody,
@@ -159,6 +161,7 @@ export default function ScreenFUND01() {
       : `/trips/${tripId}/funds`;
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
+  const userId = useCurrentUserId();
 
   const [data, setData] = useState<FundsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -314,6 +317,7 @@ export default function ScreenFUND01() {
     tripId: data?.trip.id ?? null,
     onNotice: (message) => setToast(message),
     memberNameById: data?.memberNameById,
+    userId,
   });
 
   const [sheetBusy, setSheetBusy] = useState(false);
@@ -828,6 +832,12 @@ export default function ScreenFUND01() {
             categoryCode,
           };
           const sign = amountSign(iconInput);
+          /*
+            ⚠️ 남이 적은 거래는 밀어도 수정·삭제가 안 나온다. (2026-09-22 테스트)
+               RLS 가 기록자만 고치게 되어 있어, 보여 주면 눌렀다가 실패한다.
+               판정은 lib/trip/transactionPermission 한 곳에서 한다.
+          */
+          const editable = canEditTransaction(transaction, userId);
 
           return (
             <Swipeable
@@ -837,6 +847,7 @@ export default function ScreenFUND01() {
                 else swipeRefs.current.delete(transaction.id);
               }}
               overshootRight={false}
+              enabled={editable}
               renderRightActions={() => (
                 <View className="flex-row">
                   <Pressable

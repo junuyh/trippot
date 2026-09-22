@@ -24,6 +24,10 @@ import { track } from "@/lib/analytics/track";
 import { EVENTS } from "@/lib/analytics/events";
 import { sortPlansByMatch } from "@/lib/budget/planMatch";
 import {
+  canEditTransaction,
+  readOnlyTransactionNote,
+} from "@/lib/trip/transactionPermission";
+import {
   CATEGORY_CODE_TO_ANALYTICS,
   CATEGORY_METHOD,
   MAPPED_BY,
@@ -66,6 +70,11 @@ export type TransactionSheetInput = {
    * ⚠️ 화면이 한 번만 읽어서 넘긴다. 거래마다 조회하지 않는다.
    */
   memberNameById?: Map<string, string>;
+  /**
+   * 지금 로그인한 사용자. 남이 적은 거래를 읽기 전용으로 그리는 데 쓴다.
+   * ⚠️ 없으면 기록자가 있는 거래는 전부 읽기 전용이다. (lib/trip/transactionPermission)
+   */
+  userId?: string | null;
 };
 
 export function useTransactionSheet({
@@ -76,6 +85,7 @@ export function useTransactionSheet({
   tripId = null,
   onNotice,
   memberNameById,
+  userId = null,
 }: TransactionSheetInput) {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [mode, setMode] = useState<TransactionSheetMode>("detail");
@@ -108,13 +118,25 @@ export function useTransactionSheet({
   const deposit = transaction?.transaction_type === TRANSACTION_TYPE.DEPOSIT;
 
   /**
+   * 남이 적은 거래인가. (2026-09-22 테스트)
+   *
+   * ⚠️ 다른 참여자가 손으로 적은 거래는 **읽기 전용**이다. RLS 가 기록자만
+   *    고치게 되어 있어, 버튼을 보여 주면 눌렀다가 "저장하지 못했어요" 를 본다.
+   *    판정은 lib/trip/transactionPermission 한 곳에서 한다.
+   */
+  const readOnly =
+    transaction !== null && !canEditTransaction(transaction, userId);
+
+  /**
    * 이름·금액·날짜를 고칠 수 있는가.
    *
    * ⚠️ **직접 적은 거래만.** 계좌에서 들어온 거래는 실제 결제 기록이라
    *    앱에서 금액을 바꾸면 계좌 내역과 어긋난다.
    */
   const canEdit =
-    !settled && transaction?.source_type === TRANSACTION_SOURCE_TYPE.MANUAL;
+    !settled &&
+    !readOnly &&
+    transaction?.source_type === TRANSACTION_SOURCE_TYPE.MANUAL;
 
   /**
    * 카테고리·계획을 손볼 수 있는가.
@@ -123,7 +145,7 @@ export function useTransactionSheet({
    *    것이다. 붙이면 그 예산의 실제 사용액이 부풀려진다.
    * ⚠️ 계좌 거래도 분류는 고칠 수 있다. 금액과 달리 분류는 우리가 추측한 값이다.
    */
-  const canMap = !settled && !deposit && transaction !== null;
+  const canMap = !settled && !readOnly && !deposit && transaction !== null;
 
   /** 확인이 필요한 이유. 없으면 null */
   const reason = transaction ? reviewReason(transaction) : null;
@@ -159,6 +181,9 @@ export function useTransactionSheet({
     transaction?.created_by_user_id && memberNameById
       ? (memberNameById.get(transaction.created_by_user_id) ?? null)
       : null;
+
+  /** 읽기 전용일 때 시트 아래에 적는 한 줄. 아니면 null */
+  const readOnlyNote = readOnly ? readOnlyTransactionNote(authorName) : null;
 
   const open = useCallback((next: Transaction) => {
     setTransaction(next);
@@ -444,6 +469,8 @@ export function useTransactionSheet({
     canEdit,
     canMap,
     settled,
+    readOnly,
+    readOnlyNote,
     reason,
     planCandidates,
     linkedPlanName,
