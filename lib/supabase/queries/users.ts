@@ -16,7 +16,9 @@ import {
   type AuthProvider,
   type NotificationType,
 } from '@/lib/constants/status';
+import { IS_TEST_BUILD } from '@/lib/constants/testBuild';
 import { supabase } from '@/lib/supabase/client';
+import { ensureTestVirtualAccounts } from '@/lib/supabase/queries/funds';
 import type { Json, Tables } from '@/types/database';
 
 export type User = Tables<'users'>;
@@ -326,20 +328,43 @@ export async function ensureUserProfile(user: {
     .maybeSingle();
 
   if (readError) throw readError;
-  if (existing) return;
 
-  const profile = readOAuthProfile(user);
+  if (!existing) {
+    const profile = readOAuthProfile(user);
 
-  const { error } = await supabase.from('users').insert({
-    id: user.id,
-    name: profile.name ?? '여행자',
-    profile_image_url: profile.imageUrl,
-    auth_provider: profile.provider,
-    auth_provider_user_id: profile.providerUserId,
-  });
+    const { error } = await supabase.from('users').insert({
+      id: user.id,
+      name: profile.name ?? '여행자',
+      profile_image_url: profile.imageUrl,
+      auth_provider: profile.provider,
+      auth_provider_user_id: profile.providerUserId,
+    });
 
-  // 같은 순간에 두 번 들어와 이미 만들어졌으면 그대로 둔다. (23505 = unique_violation)
-  if (error && error.code !== '23505') throw error;
+    // 같은 순간에 두 번 들어와 이미 만들어졌으면 그대로 둔다. (23505 = unique_violation)
+    if (error && error.code !== '23505') throw error;
+  }
+
+  /*
+    테스트 빌드: 내 가상 계좌(카카오뱅크·토스뱅크 각 200만 원)를 한 번 만든다.
+    (2026-09-22 결정 · lib/supabase/queries/funds.ts ensureTestVirtualAccounts)
+
+    ⚠️ 행이 **이미 있던 경우에도** 부른다. "가입 시 한 번" 이 요구지만, 오늘
+       이전에 가입한 테스터는 가입 순간이 이미 지나가 버렸다. 그 사람들도
+       다음 로그인에서 한 번은 받아야 한다. 한 번만 만들어지는 것은
+       ensureTestVirtualAccounts 안의 개수 확인이 보장한다 — 있으면 아무것도
+       안 하므로 로그인마다 불려도 계좌가 불어나지 않는다.
+
+    ⚠️ 실패해도 로그인을 막지 않는다. 계좌는 시연 편의이지 로그인 조건이
+       아니다. 여기서 던지면 AuthProvider 의 catch 가 프로필 보장까지 실패한
+       것으로 읽는다.
+  */
+  if (IS_TEST_BUILD) {
+    try {
+      await ensureTestVirtualAccounts(user.id);
+    } catch (e) {
+      if (__DEV__) console.warn('[ensureUserProfile] 테스트 가상 계좌 생성 실패', e);
+    }
+  }
 }
 
 /**
