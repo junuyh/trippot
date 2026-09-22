@@ -97,7 +97,7 @@ import {
 import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
 import { classifyTransaction } from "@/lib/supabase/queries/transactionClassify";
 import {
-  createTransaction,
+  createExpenseWithAutoLink,
   getFundTotals,
   getTransactions,
   reviewReason,
@@ -218,6 +218,10 @@ export default function ScreenFUND01() {
     planItems: data?.planItems ?? [],
     tripId: data?.trip.id ?? null,
     onNotice: (message) => fundToast.show(message),
+    // 시트에도 누가 적었는지 붙인다. 모임 여행이 아니면 빈 Map 이다
+    memberNameById: data?.memberNameById,
+    // 남이 적은 거래는 시트가 읽기 전용으로 그린다
+    userId,
   });
 
   useFocusEffect(
@@ -396,7 +400,13 @@ export default function ScreenFUND01() {
 
     setSaving(true);
     try {
-      const created = await createTransaction({
+      /*
+        ⚠️ 지출이고 카테고리가 있으면 이름이 사실상 같은 세부 계획에 자동으로
+           붙는다. (2026-09-22 결정 — 95% 이상 같을 때만, 풀 수 있다)
+           입금·미분류는 그냥 저장된다.
+      */
+      const { transaction: created, linkedPlanItemId } =
+        await createExpenseWithAutoLink({
         trip_id: data.trip.id,
         // 직접 입력한 자금 이동이다. 계좌에서 불러온 거래가 아니다.
         source_type: TRANSACTION_SOURCE_TYPE.MANUAL,
@@ -438,6 +448,19 @@ export default function ScreenFUND01() {
       });
       setSheetType(null);
       await load();
+
+      // 자동으로 붙었으면 어디에 붙었는지 바로 알린다. 모르고 지나가면 풀 기회가 없다
+      if (linkedPlanItemId) {
+        const planName = data.planItems.find(
+          (plan) => plan.id === linkedPlanItemId,
+        )?.name;
+        fundToast.show(
+          planName
+            ? `'${planName}' 계획에 자동으로 연결했어요`
+            : "이름이 같은 계획에 자동으로 연결했어요",
+          3200,
+        );
+      }
 
       /**
        * ── 자동 분류 ── (시안 v1: 미선택 시 AI 자동 분류 후 확인 필요)

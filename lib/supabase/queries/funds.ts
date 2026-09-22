@@ -328,35 +328,105 @@ export type MockBank = {
 };
 
 /**
- * 테스트 빌드에서 보여 주는 가상 계좌.
+ * 테스트 빌드의 가상 계좌 **원본**. 가입 때 이 둘을 사용자 소유 계좌로 만든다.
  *
  * ⚠️ 테스터가 계좌 연동을 눌러 볼 수 있어야 시연이 끝까지 돈다. 은행이 하나
  *    뿐이면 "계좌를 고른다" 는 경험이 안 나온다. 카카오뱅크·토스뱅크 각
- *    100만원으로 둘을 둔다. (2026-09-21 테스트)
+ *    200만원으로 둘을 둔다. (2026-09-21 테스트 → 2026-09-22 금액 확정)
  *
- * ⚠️ 가입 시점에 만들지 않는다. financial_accounts 는 group_id 로 잠겨 있어
- *    (financial_accounts_select) 모임 없이 만든 행은 본인도 못 읽는다.
- *    연결 화면에서 그 모임 것으로 만든다 — 테스터 눈에는 이미 있던 계좌를
- *    조회한 것과 같다.
+ * ⚠️ **가입 시점에 한 번 만든다.** (ensureTestVirtualAccounts · 2026-09-22)
+ *    예전에는 financial_accounts 가 group_id 로만 잠겨 있어 모임 없이 만든
+ *    행은 본인도 못 읽었고, 그래서 연결 화면에서 그 모임 것으로 만들었다.
+ *    이제 owner_user_id 가 있어(migration 20260922000010) 본인 계좌를 RLS 가
+ *    안다. 연결 화면은 만들지 않고 **이미 있는 내 계좌를 고른다.**
+ *
+ * ⚠️ financial_accounts 에는 계좌 이름 칼럼이 없다. 그래서 마스킹 번호 자리에
+ *    통장 이름을 함께 적는다. 화면이 보여 줄 수 있는 문자열이 그것뿐이다.
  */
 export const TEST_BUILD_BANKS: readonly MockBank[] = [
   {
     institutionCode: "090",
     accountName: "테스트 입출금통장",
-    maskedAccountNumber: "3333-**-1000100",
-    balance: 1_000_000,
+    maskedAccountNumber: "테스트 입출금통장 ****2001",
+    balance: 2_000_000,
   },
   {
     institutionCode: "092",
     accountName: "테스트 모임통장",
-    maskedAccountNumber: "1000-**-2000200",
-    balance: 1_000_000,
+    maskedAccountNumber: "테스트 모임통장 ****2002",
+    balance: 2_000_000,
   },
 ] as const;
 
-/** 연결 화면에 낼 계좌 목록. 테스트 빌드면 둘, 아니면 기존 하나. */
+/**
+ * 연결 화면에 낼 계좌 목록. 테스트 빌드면 둘, 아니면 기존 하나.
+ *
+ * ⚠️ 테스트 빌드의 연결 화면은 이제 이 목록으로 계좌를 **만들지 않는다.**
+ *    getMyVirtualAccounts 로 가입 때 만들어 둔 계좌를 읽는다. (2026-09-22)
+ *    비테스트 빌드의 MOCK_BANK 흐름은 그대로다.
+ */
 export function mockBanksForBuild(isTestBuild: boolean): readonly MockBank[] {
   return isTestBuild ? TEST_BUILD_BANKS : [MOCK_BANK];
+}
+
+// ============================================================================
+// 가입 시 만드는 내 가상 계좌 (테스트 빌드 · 2026-09-22)
+//
+// "테스트 빌드에서 회원 가입 시(카카오·구글·이메일 공통) 카카오뱅크·토스뱅크
+//  가상 계좌를 각 200만 원으로 자동 생성한다. 로그인할 때마다가 아니라 계정
+//  생성 시 한 번. 계좌 연결 화면에서는 그 계좌를 골라 여행에 연결한다."
+//
+// ⚠️ 소유는 owner_user_id 다. group_id 는 null. 모임 계좌가 아니라 **내 계좌**
+//    이고, 어느 여행(모임 여행이든 개인 여행이든)에나 붙일 수 있다.
+// ============================================================================
+
+/**
+ * 내 가상 계좌가 없으면 TEST_BUILD_BANKS 대로 만든다. 있으면 아무것도 안 한다.
+ *
+ * ⚠️ 멱등이다. "없으면 만든다" 를 개수로 판단하므로 로그인마다 불려도 한 번만
+ *    만들어진다. 해제된 계좌(disconnected_at)는 세지 않는다.
+ * ⚠️ 오류를 삼키지 않는다. 부르는 쪽(ensureUserProfile)이 잡아서 로그인을
+ *    막지 않는다.
+ * ⚠️ `.select()` 로 돌려받지 않는다. 필요한 값이 없고, 돌려받기는 SELECT 정책을
+ *    타므로 넣기만 한다. (connectMockAccount 와 같은 이유)
+ */
+export async function ensureTestVirtualAccounts(userId: string): Promise<void> {
+  const { count, error: countError } = await supabase
+    .from("financial_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_user_id", userId)
+    .is("disconnected_at", null);
+  if (countError) throw countError;
+  if ((count ?? 0) > 0) return;
+
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("financial_accounts").insert(
+    TEST_BUILD_BANKS.map((bank) => ({
+      id: createUuidV4(),
+      owner_user_id: userId,
+      group_id: null,
+      institution_code: bank.institutionCode,
+      masked_account_number: bank.maskedAccountNumber,
+      current_balance: bank.balance,
+      is_mock: true,
+      connected_at: now,
+    })),
+  );
+  if (error) throw error;
+}
+
+/** 내가 소유한 가상 계좌. 해제된 것은 뺀다. 기관 코드 순(카카오 090 → 토스 092). */
+export async function getMyVirtualAccounts(
+  userId: string,
+): Promise<FinancialAccount[]> {
+  const { data, error } = await supabase
+    .from("financial_accounts")
+    .select("*")
+    .eq("owner_user_id", userId)
+    .is("disconnected_at", null)
+    .order("institution_code", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
 }
 
 /** 연결과 함께 따라 들어오는 기존 결제. 항공권은 보통 가장 먼저 결제한다 */
@@ -369,9 +439,9 @@ const MOCK_IMPORTED_SPEND = {
 
 export type MockConnectResult = {
   fund: FundSource;
-  /** 함께 들어온 거래 이름. 화면에서 안내에 쓴다 */
-  importedName: string;
-  importedAmount: number;
+  /** 함께 들어온 거래 이름. 화면에서 안내에 쓴다. 가상 계좌(테스트 빌드)는 안 들어와서 null */
+  importedName: string | null;
+  importedAmount: number | null;
 };
 
 /**
@@ -432,7 +502,47 @@ export async function connectMockAccount(
   const fund = await convertToAccount(tripId, accountId, bank.balance);
 
   // ── 계좌에 있던 결제 1건을 가져온다 ────────────────────────────────────
-  //    ⚠️ 이미 가져왔으면 다시 넣지 않는다. 연결을 두 번 해도 중복되면 안 된다.
+  await importMockSpend(tripId, accountId);
+
+  return {
+    fund,
+    importedName: MOCK_IMPORTED_SPEND.name,
+    importedAmount: MOCK_IMPORTED_SPEND.amount,
+  };
+}
+
+/**
+ * **이미 있는** 계좌를 이 여행에 연결한다. 기존 결제 1건도 함께 가져온다.
+ * (테스트 빌드 · 가입 때 만든 내 가상 계좌용 · 2026-09-22)
+ *
+ * connectMockAccount 와 연결 뒤 동작이 같다. 다른 점은 계좌를 만들지 않고
+ * 넘겨받은 id 를 그대로 쓴다는 것뿐이다.
+ *
+ * ⚠️ 잔액은 convertToAccount 가 계좌에서 읽는다. 내 계좌(owner_user_id)는
+ *    RLS 가 본인에게 열려 있어 읽힌다. (migration 20260922000010)
+ * ⚠️ 더하지 않는다. 대체한다. (CLAUDE.md 3장 — 단일 소스) convertToAccount 가
+ *    수기 입금을 정리하고 계좌 잔액으로 바꾼다.
+ */
+export async function connectExistingAccount(
+  tripId: string,
+  accountId: string,
+): Promise<MockConnectResult> {
+  const fund = await convertToAccount(tripId, accountId);
+  /*
+    ⚠️ 가상 계좌에는 견본 항공 지출(230만 원)을 넣지 않는다. (2026-09-22)
+       계좌가 200만 원이라 넣는 순간 잔액이 마이너스로 보인다. 자동 분류·확인 필요
+       흐름은 직접 입력·영수증으로도 볼 수 있다. 옛 Mock 은행(480만 원) 경로는 그대로.
+  */
+  return { fund, importedName: null, importedAmount: null };
+}
+
+/**
+ * 연결한 계좌에 있던 결제 1건(항공)을 이 여행의 지출로 가져온다.
+ * connectMockAccount · connectExistingAccount 가 함께 쓴다.
+ *
+ * ⚠️ 이미 가져왔으면 다시 넣지 않는다. 연결을 두 번 해도 중복되면 안 된다.
+ */
+async function importMockSpend(tripId: string, accountId: string): Promise<void> {
   const { data: already, error: dupError } = await supabase
     .from("transactions")
     .select("id")
@@ -535,12 +645,6 @@ export async function connectMockAccount(
         .eq("id", categoryId);
     }
   }
-
-  return {
-    fund,
-    importedName: MOCK_IMPORTED_SPEND.name,
-    importedAmount: MOCK_IMPORTED_SPEND.amount,
-  };
 }
 
 /** GROUP-02 연결 계좌 한 줄. **어느 여행의 계좌인지**까지 담는다. */

@@ -429,6 +429,7 @@ export type Database = {
           institution_code: string | null
           is_mock: boolean
           masked_account_number: string | null
+          owner_user_id: string | null
           updated_at: string
         }
         Insert: {
@@ -441,6 +442,7 @@ export type Database = {
           institution_code?: string | null
           is_mock?: boolean
           masked_account_number?: string | null
+          owner_user_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -453,6 +455,7 @@ export type Database = {
           institution_code?: string | null
           is_mock?: boolean
           masked_account_number?: string | null
+          owner_user_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -461,6 +464,20 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_accounts_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_accounts_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]

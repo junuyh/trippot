@@ -62,6 +62,8 @@ type Props = {
   /** 모임 여행일 때만 온다. 없으면 채우기 버튼을 숨긴다 */
   memberPresets: { label: string; text: string }[];
   onPickPhoto: () => void;
+  /** 내 사진을 골랐을 때만 보인다. 서비스 기본 배경(목적지 사진)으로 되돌린다 */
+  onResetPhoto: () => void;
   onShare: () => void;
   /** 캡처·공유 중. 중복 제출 방지 */
   busy: boolean;
@@ -72,7 +74,17 @@ type Props = {
  *    캡처 대상은 미리보기로 보여주는 그 카드 그대로다.
  */
 export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStorySheet(
-  { visible, onClose, card, onChangeMembersText, memberPresets, onPickPhoto, onShare, busy },
+  {
+    visible,
+    onClose,
+    card,
+    onChangeMembersText,
+    memberPresets,
+    onPickPhoto,
+    onResetPhoto,
+    onShare,
+    busy,
+  },
   ref,
 ) {
   const { theme } = card;
@@ -315,6 +327,20 @@ export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStoryShee
               {card.photoUri ? '배경 사진 바꾸기' : '내 사진으로 배경 바꾸기'}
             </Text>
           </Pressable>
+
+          {/* 내 사진을 골랐을 때만. 기본 배경일 때는 되돌릴 것이 없다 (2026-09-22 테스트) */}
+          {card.photoUri ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="기본 배경으로 되돌리기"
+              disabled={busy}
+              onPress={onResetPhoto}
+              className="h-12 flex-row items-center justify-center gap-1.5 rounded-xl bg-gray-100 active:bg-gray-200"
+            >
+              <Ionicons name="refresh-outline" size={16} color="#111827" />
+              <Text className="text-[13px] font-bold text-gray-900">기본 배경으로 되돌리기</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             accessibilityRole="button"

@@ -172,7 +172,7 @@ export default function ScreenMyAccount() {
     if (!canSaveName || !userId) return;
 
     if (trimmed.length > NAME_MAX_LENGTH) {
-      setNameError(`이름은 ${NAME_MAX_LENGTH}자까지 쓸 수 있어요.`);
+      setNameError(`닉네임은 ${NAME_MAX_LENGTH}자까지 쓸 수 있어요.`);
       return;
     }
 
@@ -183,9 +183,9 @@ export default function ScreenMyAccount() {
       // 저장된 값이 기준이다. 이걸 갱신해야 저장 버튼이 다시 잠긴다.
       setSavedName(trimmed);
       setName(trimmed);
-      Alert.alert('이름을 바꿨어요');
+      Alert.alert('닉네임을 바꿨어요');
     } catch {
-      setNameError('이름을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      setNameError('닉네임을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
       setSavingName(false);
     }

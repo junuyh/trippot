@@ -7,10 +7,14 @@
 //    "예산 항목이 편의점일 경우 지출 내역이 세븐일레븐이면 자동으로
 //    매칭되었으면 좋겠음" 으로 올라왔다.
 //
-// ⚠️ **자동으로 연결하지 않는다.** 점수를 매겨 목록 맨 위로 올리고 '추천'
-//    이라고 적을 뿐이다. 연결은 사용자가 누른다. 잘못 붙은 연결은 그 계획의
-//    실제 금액을 통째로 틀리게 만드는데, 사용자는 틀렸다는 것조차 알기 어렵다.
-//    (CLAUDE.md 3장 — 추천이 사용자 대신 확정하지 않는다)
+// ⚠️ 자동 연결은 **이름이 사실상 같을 때만** 한다. (2026-09-22 결정)
+//    "지출 이름이 세부 계획 이름과 95% 이상 동일하면 자동 연결(해제 가능),
+//     그 외는 추천 표시" — isNearIdenticalPlanName / findNearIdenticalPlan.
+//    동의어('편의점' ↔ '세븐일레븐')나 포함('편의점' ↔ '편의점 간식')은
+//    여전히 점수만 매겨 목록 맨 위에 '추천' 으로 올린다. 연결은 사용자가 누른다.
+//    잘못 붙은 연결은 그 계획의 실제 금액을 통째로 틀리게 만드는데, 사용자는
+//    틀렸다는 것조차 알기 어렵다. (CLAUDE.md 3장 — 추천이 사용자 대신 확정하지 않는다)
+//    자동으로 붙은 연결도 사용자가 언제든 풀 수 있어야 한다.
 //
 // ⚠️ 순수 함수다. DB 도 네트워크도 타지 않는다.
 // ============================================================================
@@ -88,4 +92,97 @@ export function sortPlansByMatch<T extends { name: string }>(
     }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .map(({ plan, score }) => ({ plan, score }));
+}
+
+// ── 사실상 같은 이름 ─────────────────────────────────────────────────────────
+
+/** 자동 연결 기준. 이 비율 이상 같으면 '사실상 같은 이름' 으로 본다 */
+export const NEAR_IDENTICAL_RATIO = 0.95;
+
+/**
+ * 자동 연결용 정규화. 대소문자·공백에 더해 **문장부호까지** 지운다.
+ * '스타벅스(신주쿠)' 와 '스타벅스 신주쿠' 는 같은 이름이다.
+ *
+ * ⚠️ planNameMatchScore 의 normalize 와 따로 둔다. 그쪽은 부분 포함을 보는
+ *    자리라 부호를 남겨도 되지만, 여기는 글자 단위로 비교하므로 부호 하나가
+ *    비율을 깎아 95% 아래로 떨어뜨린다.
+ */
+function normalizeStrict(value: string): string {
+  // 공백 · ASCII 부호 · 자주 쓰는 한중일 부호(·、。「」『』（）)
+  return value
+    .toLowerCase()
+    .replace(/[\s!-\/:-@\[-`{-~·・、。「」『』（）〈〉《》]/g, "");
+}
+
+/** 편집 거리. 짧은 이름끼리라 O(n·m) 이면 충분하다 */
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/**
+ * 두 이름이 얼마나 같은가. 1이면 완전히 같고 0이면 전혀 다르다.
+ * 비율 = 1 − 편집거리 / 긴 쪽 길이.
+ */
+export function planNameSimilarity(a: string, b: string): number {
+  const x = normalizeStrict(a);
+  const y = normalizeStrict(b);
+  if (x === "" || y === "") return 0;
+  if (x === y) return 1;
+  const maxLen = Math.max(x.length, y.length);
+  return 1 - levenshtein(x, y) / maxLen;
+}
+
+/**
+ * 자동으로 붙여도 되는가. 정규화하면 같거나, 비율이 95% 이상이다.
+ *
+ * ⚠️ 두 글자짜리 이름은 한 글자만 달라도 50% 라 자동 연결되지 않는다.
+ *    짧은 이름은 사실상 **완전히 같을 때만** 붙는다. 의도한 보수성이다.
+ */
+export function isNearIdenticalPlanName(
+  planName: string,
+  expenseName: string | null,
+): boolean {
+  if (!expenseName) return false;
+  return planNameSimilarity(planName, expenseName) >= NEAR_IDENTICAL_RATIO;
+}
+
+/**
+ * 자동 연결할 계획 하나를 고른다. 없거나 **여럿이 같은 비율로 맞으면 null.**
+ *
+ * ⚠️ 동점이면 붙이지 않는다. '편의점' 계획이 두 개인데 하나를 골라 붙이면
+ *    사용자는 왜 저기 붙었는지 알 수 없다. 그때는 추천만 하고 사람이 고른다.
+ */
+export function findNearIdenticalPlan<T extends { name: string }>(
+  plans: T[],
+  expenseName: string | null,
+): T | null {
+  if (!expenseName) return null;
+  let best: T | null = null;
+  let bestRatio = 0;
+  let tie = false;
+  for (const plan of plans) {
+    const ratio = planNameSimilarity(plan.name, expenseName);
+    if (ratio < NEAR_IDENTICAL_RATIO) continue;
+    if (ratio > bestRatio) {
+      best = plan;
+      bestRatio = ratio;
+      tie = false;
+    } else if (ratio === bestRatio) {
+      tie = true;
+    }
+  }
+  return tie ? null : best;
 }

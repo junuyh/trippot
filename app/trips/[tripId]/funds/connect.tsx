@@ -26,8 +26,8 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { ConfirmModal } from "@/components/mypage";
@@ -40,18 +40,21 @@ import {
   Loading, HeaderBackButton } from "@/components/ui";
 import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
+import { useCurrentUserId } from "@/lib/auth/AuthProvider";
 import { institutionName } from "@/lib/constants/bank";
 import { IS_TEST_BUILD } from "@/lib/constants/testBuild";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import { FUND_SOURCE_TYPE } from "@/lib/constants/status";
 import {
+  connectExistingAccount,
   connectMockAccount,
   mockBanksForBuild,
   type MockBank,
   convertToAccount,
   disconnectAccount,
   getGroupAccounts,
+  getMyVirtualAccounts,
   getPreviouslyLinkedAccount,
   getTravelFund,
   type FinancialAccount,
@@ -73,11 +76,23 @@ type ConnectData = {
   previous: PreviouslyLinkedAccount | null;
   /** 지금까지 수기로 넣은 입금 합계. 전환하면 사라진다 */
   depositTotal: number;
+  /**
+   * 가입 때 만들어 둔 **내 가상 계좌** (테스트 빌드만 · 2026-09-22).
+   * 비테스트 빌드에서는 항상 빈 배열이다. 연결 시트가 이 목록에서 고른다.
+   */
+  myAccounts: FinancialAccount[];
 };
 
 function won(value: number): string {
   return `${value.toLocaleString("ko-KR")}원`;
 }
+
+/**
+ * 시트를 닫고 다음 시트를 여는 Android 폴백 대기 시간.
+ * iOS 는 Modal 의 onDismiss 가 정확한 신호를 주므로 타이머를 쓰지 않는다.
+ * (app/trips/[tripId]/index.tsx openSheetAfterClose 와 같은 방식)
+ */
+const SHEET_SWAP_MS = 300;
 
 export default function ScreenFUND02() {
   const { tripId, fromGroupId } = useLocalSearchParams<{
@@ -114,6 +129,8 @@ export default function ScreenFUND02() {
     : { parentHref: `/trips/${tripId}/funds` };
   // 이 화면의 모든 이벤트에 trip_id 를 붙인다. (docs/06 v4 §5)
   useTripContext(tripId);
+  // 테스트 빌드의 "내 계좌" 를 읽을 때만 쓴다. 라우트 가드가 미로그인을 막아 사실상 항상 있다.
+  const userId = useCurrentUserId();
 
   const [data, setData] = useState<ConnectData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,7 +150,7 @@ export default function ScreenFUND02() {
         setNotFound(true);
         return;
       }
-      const [fund, accounts, previous, totals] = await Promise.all([
+      const [fund, accounts, previous, totals, myAccounts] = await Promise.all([
         getTravelFund(trip.id),
         // 계좌는 모임 자산이다. 개인 여행에는 붙을 계좌가 없다.
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
@@ -142,8 +159,19 @@ export default function ScreenFUND02() {
           ? getPreviouslyLinkedAccount(trip.group_id, trip.id).catch(() => null)
           : Promise.resolve(null),
         getFundTotals(trip.id),
+        // 테스트 빌드: 가입 때 만든 내 가상 계좌. 비테스트 빌드는 읽지 않는다.
+        IS_TEST_BUILD && userId
+          ? getMyVirtualAccounts(userId)
+          : Promise.resolve([] as FinancialAccount[]),
       ]);
-      setData({ trip, fund, accounts, previous, depositTotal: totals.depositTotal });
+      setData({
+        trip,
+        fund,
+        accounts,
+        previous,
+        depositTotal: totals.depositTotal,
+        myAccounts,
+      });
     } catch (e) {
       // 무엇이 막혔는지 남긴다. 삼키면 RLS 인지 네트워크인지 알 수 없다
       if (__DEV__) console.error("[funds/connect] load 실패", e);
@@ -151,7 +179,7 @@ export default function ScreenFUND02() {
     } finally {
       setLoading(false);
     }
-  }, [tripId]);
+  }, [tripId, userId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -205,7 +233,17 @@ export default function ScreenFUND02() {
     track(EVENTS.FUND_CONVERSION_CONFIRMED, { agreed: true });
 
     try {
-      await convertToAccount(data.trip.id, pending.id);
+      /*
+        내 가상 계좌(테스트 빌드 · owner_user_id)면 연결과 함께 그 계좌의
+        결제 1건도 가져온다 — 은행 고르기 흐름과 같은 경험이어야 한다.
+        비테스트 빌드는 myAccounts 가 비어 있어 항상 기존 전환 그대로다.
+      */
+      const isMine = data.myAccounts.some((a) => a.id === pending.id);
+      if (isMine) {
+        await connectExistingAccount(data.trip.id, pending.id);
+      } else {
+        await convertToAccount(data.trip.id, pending.id);
+      }
       track(EVENTS.FUND_CONVERSION_COMPLETED, { result: "success" });
       setPending(null);
       // 자금 화면으로 돌려보낸다. 바뀐 금액을 바로 확인하게 한다.
@@ -243,6 +281,32 @@ export default function ScreenFUND02() {
       setLinking(false);
     }
   }, [data, linking]);
+
+  /**
+   * 내 가상 계좌를 골랐다. (테스트 빌드)
+   *
+   * 은행 시트를 닫고, **완전히 내려간 뒤** 초기화 안내 시트를 연다.
+   * 여기서 handleSelect 로 이어지므로 FUND_CONVERSION_STARTED 도 그때 찍힌다.
+   *
+   * ⚠️ 은행 시트를 둔 채 바로 pending 을 세우면 iOS 가 앞 Modal 이 닫히는 중에
+   *    새 Modal 을 조용히 무시한다. iOS 는 onDismiss 로, Android 는 타이머로
+   *    기다린다. (app/trips/[tripId]/index.tsx openSheetAfterClose 와 같다)
+   */
+  const queuedAccountRef = useRef<FinancialAccount | null>(null);
+  const flushQueuedAccount = useCallback(() => {
+    const next = queuedAccountRef.current;
+    if (!next) return;
+    queuedAccountRef.current = null;
+    handleSelect(next);
+  }, [handleSelect]);
+  const handlePickMyAccount = useCallback(
+    (account: FinancialAccount) => {
+      queuedAccountRef.current = account;
+      setBankOpen(false);
+      if (Platform.OS !== "ios") setTimeout(flushQueuedAccount, SHEET_SWAP_MS);
+    },
+    [flushQueuedAccount],
+  );
 
   const handleDisconnect = useCallback(async () => {
     if (!data || disconnecting) return;
@@ -315,8 +379,12 @@ export default function ScreenFUND02() {
   const connected =
     data.fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT ||
     data.fund?.source_type === FUND_SOURCE_TYPE.MOCK;
+  // 모임 계좌 목록에 없으면 내 가상 계좌(테스트 빌드)에서도 찾는다. 개인 여행에
+  // 내 계좌를 붙이면 group_id 가 없어 accounts 에는 안 나온다.
   const linked =
-    data.accounts.find((a) => a.id === data.fund?.financial_account_id) ?? null;
+    [...data.accounts, ...data.myAccounts].find(
+      (a) => a.id === data.fund?.financial_account_id,
+    ) ?? null;
 
   return (
     <View className="flex-1 bg-white">
@@ -557,17 +625,101 @@ export default function ScreenFUND02() {
       */}
       <BottomSheet
         visible={bankOpen}
-        title="계좌 연결"
-        description="연결할 은행을 고르면 계좌를 찾아드려요."
+        title={IS_TEST_BUILD ? "내 계좌" : "계좌 연결"}
+        description={
+          IS_TEST_BUILD
+            ? "연결할 계좌를 고르세요. 여행자금을 이 계좌 잔액 기준으로 관리해요."
+            : "연결할 은행을 고르면 계좌를 찾아드려요."
+        }
         onClose={() => setBankOpen(false)}
+        onDismiss={flushQueuedAccount}
       >
         <View style={{ paddingTop: 14, gap: 10 }}>
           {/*
-            ⚠️ 테스트 빌드에서는 두 개를 낸다. 은행이 하나뿐이면 "계좌를 고른다"
-               는 경험이 안 나와서 시연이 거기서 멈춘다. (2026-09-21 테스트)
-               목록은 lib/supabase/queries/funds.ts 가 정한다.
+            ── 테스트 빌드: 내 계좌 ── (2026-09-22)
+            가입 때 만들어 둔 카카오뱅크·토스뱅크 가상 계좌를 **고른다.** 여기서
+            계좌를 새로 만들지 않는다. 고르면 초기화 안내(수기 → 계좌 전환)를
+            거쳐 연결된다. 목록이 비어 있으면 가입 훅이 아직 안 돈 것이다.
           */}
-          {banks.map((bank) => (
+          {IS_TEST_BUILD && data.myAccounts.length === 0 ? (
+            <View
+              style={{
+                borderRadius: 12,
+                backgroundColor: "#f5f6f8",
+                padding: 16,
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Ionicons name="card-outline" size={22} color="#a8afb9" />
+              <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
+                테스트 계좌가 아직 없어요
+              </Text>
+              <Text style={{ fontSize: 11, lineHeight: 17, color: "#7c8695", textAlign: "center" }}>
+                앱을 다시 열면 만들어져요.
+              </Text>
+            </View>
+          ) : null}
+          {IS_TEST_BUILD
+            ? data.myAccounts.map((account) => (
+                <Pressable
+                  key={account.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${institutionName(account.institution_code)} ${account.masked_account_number ?? ""} 연결하기`}
+                  onPress={() => handlePickMyAccount(account)}
+                  className="flex-row items-center active:bg-gray-50"
+                  style={{
+                    gap: 12,
+                    padding: 15,
+                    borderWidth: 1,
+                    borderColor: "#e8eaee",
+                    borderRadius: 14,
+                  }}
+                >
+                  <View
+                    className="items-center justify-center"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      backgroundColor: "#e8f3ff",
+                    }}
+                  >
+                    <Ionicons name="wallet-outline" size={19} color="#1868d6" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#141b28" }}>
+                      {institutionName(account.institution_code)}
+                    </Text>
+                    {/* 마스킹된 번호만 다룬다 (NFR-002) */}
+                    <Text style={{ marginTop: 3, fontSize: 11, color: "#5d6674" }}>
+                      {account.masked_account_number}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#141b28" }}>
+                      {won(account.current_balance)}
+                    </Text>
+                    <Text
+                      style={{
+                        marginTop: 3,
+                        fontSize: 10,
+                        fontWeight: "800",
+                        color: theme.primary,
+                      }}
+                    >
+                      연결하기
+                    </Text>
+                  </View>
+                </Pressable>
+              ))
+            : null}
+          {/*
+            ── 비테스트 빌드: 은행 고르기 (시연용 Mock) ──
+            은행을 고르면 준비된 계좌 한 개가 조회된 것처럼 나오고, 누르면 연결된다.
+            목록은 lib/supabase/queries/funds.ts 가 정한다.
+          */}
+          {!IS_TEST_BUILD ? banks.map((bank) => (
             <Pressable
               key={`${bank.institutionCode}-${bank.maskedAccountNumber}`}
               accessibilityRole="button"
@@ -626,20 +778,24 @@ export default function ScreenFUND02() {
                 </Text>
               </View>
             </Pressable>
-          ))}
+          )) : null}
 
-          <View
-            style={{
-              borderRadius: 12,
-              backgroundColor: "#f5f6f8",
-              padding: 13,
-            }}
-          >
-            <Text style={{ fontSize: 11, lineHeight: 17, color: "#5d6674" }}>
-              연결하면 이 계좌의 결제 내역이 여행 지출로 들어와요. 카테고리는
-              자동으로 분류하고, 확신이 낮은 건 확인을 요청해요.
-            </Text>
-          </View>
+          {/* 안내는 두 빌드에 공통이다. 계좌를 고르든 은행을 고르든 뒤에 일어나는 일은 같다 */}
+          {!IS_TEST_BUILD || data.myAccounts.length > 0 ? (
+            <View
+              style={{
+                borderRadius: 12,
+                backgroundColor: "#f5f6f8",
+                padding: 13,
+              }}
+            >
+              <Text style={{ fontSize: 11, lineHeight: 17, color: "#5d6674" }}>
+                연결하면 이 계좌 잔액이 초기 자본으로 들어와요. 테스트 계좌라
+                결제 내역은 자동으로 들어오지 않으니 지출은 직접 기록하거나
+                영수증으로 남겨 주세요.
+              </Text>
+            </View>
+          ) : null}
         </View>
       </BottomSheet>
 

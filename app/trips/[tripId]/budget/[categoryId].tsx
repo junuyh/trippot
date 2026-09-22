@@ -24,6 +24,7 @@ import {
 } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   LayoutAnimation,
   Pressable,
   ScrollView,
@@ -50,6 +51,7 @@ import {
   Input,
   Loading, HeaderBackButton } from "@/components/ui";
 import { useCurrentUserId } from "@/lib/auth/AuthProvider";
+import { canEditTransaction } from "@/lib/trip/transactionPermission";
 import { ReceiptSourceSheet, TransactionSheet } from "@/components/fund";
 import { useTransactionSheet } from "@/lib/hooks/useTransactionSheet";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
@@ -96,8 +98,10 @@ import {
   type TripBudget,
 } from "@/lib/supabase/queries/budgets";
 import { getGroupAccounts } from "@/lib/supabase/queries/funds";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import {
-  createTransaction,
+  createExpenseWithAutoLink,
+  unlinkTransactionFromPlanItem,
   getTransactions,
   type Transaction,
 } from "@/lib/supabase/queries/transactions";
@@ -133,6 +137,8 @@ type CategoryData = {
   items: BudgetPlanItem[];
   transactions: Transaction[];
   maskedAccountNumber: string | null;
+  /** 참여자 id → 이름. 모임 여행에서만 채운다. 거래 시트에 적은 사람을 붙인다 */
+  memberNameById: Map<string, string>;
 };
 
 /** 실제 지출은 최근 몇 건까지 보여줄지 */
@@ -217,7 +223,8 @@ export default function ScreenBUDGET02() {
         return;
       }
 
-      const [items, transactions, accounts] = await Promise.all([
+      const [items, transactions, linkedTransactions, accounts, members] =
+        await Promise.all([
         getBudgetPlanItems(category.id),
         getTransactions(trip.id, {
           categoryId: category.id,
@@ -226,7 +233,21 @@ export default function ScreenBUDGET02() {
           // 한 건 더 받아 더 있는지 판단한다
           limit: RECENT_EXPENSE_LIMIT + 1,
         }),
+        /*
+          계획에 붙은 지출 전부. 카드의 '연결 해제' 를 낼지 정하는 데 쓴다 —
+          남이 적은 지출이 붙어 있으면 풀 수 없다. (2026-09-22)
+          위 목록은 최근 10건뿐이라 따로 읽는다. 실패해도 화면을 막지 않는다.
+        */
+        getTransactions(trip.id, {
+          categoryId: category.id,
+          transactionType: TRANSACTION_TYPE.WITHDRAWAL,
+          linkedOnly: true,
+        }).catch(() => [] as Transaction[]),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+        // 모임 여행일 때만 참여자 이름을 읽는다. 실패해도 화면을 막지 않는다
+        trip.group_id
+          ? listActiveTripMembers(trip.id).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       setData({
@@ -237,6 +258,11 @@ export default function ScreenBUDGET02() {
         items,
         transactions,
         maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
+        memberNameById: new Map(
+          members
+            .filter((member) => member.user_id !== null)
+            .map((member) => [member.user_id as string, member.name]),
+        ),
       });
       setPlans(
         items
@@ -258,6 +284,10 @@ export default function ScreenBUDGET02() {
             // 이미 쓴 돈이 달린 계획을 없애면 '계획에 없는 지출' 이 생겨
             // 계획 대비 실제 비교가 성립하지 않는다.
             locked: item.actual_amount > 0,
+            // 붙은 지출을 전부 내가(또는 아무도) 적었을 때만 풀 수 있다
+            unlinkable: linkedTransactions
+              .filter((t) => t.budget_plan_item_id === item.id)
+              .every((t) => canEditTransaction(t, userId)),
           })),
       );
     } catch {
@@ -265,7 +295,7 @@ export default function ScreenBUDGET02() {
     } finally {
       setLoading(false);
     }
-  }, [categoryId, tripId]);
+  }, [categoryId, tripId, userId]);
 
   /*
     거래 상세 바텀시트. '실제 지출' 한 건을 누르면 열린다.
@@ -279,6 +309,9 @@ export default function ScreenBUDGET02() {
     planItems: data?.items ?? [],
     tripId: data?.trip.id ?? null,
     onNotice: (message) => setToast(message),
+    memberNameById: data?.memberNameById,
+    // 남이 적은 거래는 시트가 읽기 전용으로 그린다
+    userId,
   });
 
   useFocusEffect(
@@ -402,6 +435,80 @@ export default function ScreenBUDGET02() {
       router.push(`/trips/${data.trip.id}/funds/transactions/${linked.id}`);
     },
     [data],
+  );
+
+  /**
+   * 계획 카드에서 연결된 지출을 푼다. (2026-09-22 결정)
+   *
+   * ⚠️ 이 화면의 transactions 는 최근 10건뿐이라 **연결된 거래를 다시 읽는다.**
+   *    오래된 거래가 붙어 있으면 목록에 없어서 못 찾는다.
+   * ⚠️ 되돌릴 수 있는 일이지만(다시 연결하면 된다) 계획의 실제 금액이 0 이 되므로
+   *    먼저 확인한다. 지출 자체는 지우지 않는다 — 연결만 푼다.
+   * ⚠️ 한 계획에 여러 지출이 붙어 있을 수 있다. 그때는 건수를 말하고 전부 푼다.
+   */
+  const unlinkingRef = useRef(false);
+  const handleUnlinkPlan = useCallback(
+    async (planItemId: string) => {
+      if (!data || unlinkingRef.current) return;
+      const plan = plans.find((item) => item.id === planItemId);
+      let linked: Transaction[];
+      try {
+        linked = await getTransactions(data.trip.id, { planItemId });
+      } catch {
+        setToast("연결된 지출을 읽지 못했어요");
+        return;
+      }
+      if (linked.length === 0) {
+        setToast("연결된 지출이 없어요");
+        await load();
+        return;
+      }
+      // 카드가 이미 가렸지만, 방금 다른 사람이 붙였을 수 있어 한 번 더 본다
+      const foreign = linked.find((t) => !canEditTransaction(t, userId));
+      if (foreign) {
+        const author = foreign.created_by_user_id
+          ? data.memberNameById.get(foreign.created_by_user_id)
+          : null;
+        setToast(
+          author
+            ? `${author} 님이 적은 지출이에요. 적은 사람만 풀 수 있어요.`
+            : "다른 참여자가 적은 지출이에요. 적은 사람만 풀 수 있어요.",
+        );
+        await load();
+        return;
+      }
+
+      const first = linked[0];
+      const message =
+        linked.length === 1
+          ? `${first.name ?? "이름 없는 거래"} · ${first.amount.toLocaleString("ko-KR")}원\n풀면 '${plan?.name ?? "이 계획"}' 의 실제 금액에서 빠져요. 지출 자체는 남아요.`
+          : `연결된 지출 ${linked.length}건을 모두 풀어요. '${plan?.name ?? "이 계획"}' 의 실제 금액이 0원이 돼요. 지출 자체는 남아요.`;
+
+      Alert.alert("이 지출의 연결을 풀까요?", message, [
+        { text: "취소", style: "cancel" },
+        {
+          text: "연결 해제",
+          style: "destructive",
+          onPress: () => {
+            unlinkingRef.current = true;
+            void (async () => {
+              try {
+                for (const transaction of linked) {
+                  await unlinkTransactionFromPlanItem(transaction.id);
+                }
+                await load();
+                setToast("계획 연결을 풀었어요");
+              } catch {
+                setToast("연결을 풀지 못했어요");
+              } finally {
+                unlinkingRef.current = false;
+              }
+            })();
+          },
+        },
+      ]);
+    },
+    [data, load, plans, userId],
   );
 
   // ── 설정 예산 수정 ────────────────────────────────────────────────────
@@ -998,7 +1105,11 @@ export default function ScreenBUDGET02() {
     }
 
     try {
-      await createTransaction({
+      /*
+        ⚠️ 이름이 사실상 같은 세부 계획이 이 카테고리에 하나 있으면 자동으로
+           붙는다. (2026-09-22 결정 — 95% 이상 같을 때만, 풀 수 있다)
+      */
+      const { linkedPlanItemId } = await createExpenseWithAutoLink({
         trip_id: data.trip.id,
         budget_category_id: data.category.id,
         source_type: TRANSACTION_SOURCE_TYPE.MANUAL,
@@ -1025,11 +1136,19 @@ export default function ScreenBUDGET02() {
       setExpenseNameError(null);
       setAddingExpense(false);
       await load();
-      setToast("지출을 기록했어요");
+      // 자동으로 붙었으면 어디에 붙었는지 바로 알린다. 모르고 지나가면 풀 기회가 없다
+      const linkedName = linkedPlanItemId
+        ? plansRef.current.find((plan) => plan.id === linkedPlanItemId)?.name
+        : null;
+      setToast(
+        linkedPlanItemId
+          ? `지출을 기록하고 '${linkedName ?? "이름이 같은"}' 계획에 연결했어요`
+          : "지출을 기록했어요",
+      );
     } catch {
       setToast("저장하지 못했어요");
     }
-  }, [data, expenseDraft, load]);
+  }, [data, expenseDraft, load, userId]);
 
   // ── 파생값 ────────────────────────────────────────────────────────────
   // 한 건 더 받아왔으므로 초과분이 있으면 '전체 내역 보기' 를 띄운다
@@ -1062,6 +1181,10 @@ export default function ScreenBUDGET02() {
    * DB 행이 아니라 차액이다. 사용자가 설정 예산을 계획보다 크게 잡아 둔 만큼이
    * 곧 여유다. 전체 여행 공통 '예비비' 카테고리와는 다른 개념이라
    * 카테고리 안에서는 '여유 예산' 이라고 부른다. (스펙)
+   *
+   * ⚠️ 계산만 한다. 슬라이드·입력으로 직접 고치는 항목이 아니고, 0 이하면
+   *    상단 카드 칸도 목록 줄도 그리지 않는다. (2026-09-22 결정)
+   *    예비비(CONTINGENCY) 카테고리도 예외 없이 같은 규칙이다.
    */
   const reserveAmount = Math.max(
     0,
@@ -1438,6 +1561,8 @@ export default function ScreenBUDGET02() {
             onEdit={canEditPlan ? handleStartEditPlan : undefined}
             onDelete={canEditPlan ? handleDeletePlan : undefined}
             onOpenLinked={handleOpenLinkedPlan}
+            // 결산 중·완료면 연결도 못 푼다. 수정·삭제와 같은 기준이다
+            onUnlinkLinked={canEditPlan ? handleUnlinkPlan : undefined}
             /*
               ⚠️ '계획 항목 추가' 는 이제 바텀시트를 바로 열지 않는다.
                  먼저 추천 영역을 펼치고, 거기서 직접 추가를 고를 수 있다.

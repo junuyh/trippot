@@ -55,6 +55,13 @@ export type TransactionDetail = IconInput & {
   needsReview: boolean;
   /** 확인이 필요한 이유. 없으면 null */
   reviewNote: string | null;
+  /**
+   * 이 거래를 손으로 적은 사람의 이름. 모임 여행에서만 채운다.
+   *
+   * ⚠️ 개인 여행·계좌 거래·옛 기록은 null 이다. 모르는 것을 지어내지 않는다.
+   *    (2026-09-22 테스트 — "입력자 닉네임이 최근 내역에만 보인다")
+   */
+  authorName?: string | null;
 };
 
 type Props = {
@@ -95,6 +102,10 @@ export function TransactionDetailBody({
     ["거래명", detail.name],
     ["거래일", detail.dateLabel],
     ["기록 방식", detail.fromAccount ? "계좌 자동 기록" : "직접 입력"],
+    // 누가 적었는지. 모임 여행에서 여러 사람이 같은 목록에 적는다
+    ...(detail.authorName
+      ? ([["기록한 사람", detail.authorName]] as [string, string][])
+      : []),
     ...(detail.fromAccount
       ? ([["연결 계좌", detail.maskedAccountNumber ?? "연결 계좌"]] as [
           string,

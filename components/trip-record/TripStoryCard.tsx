@@ -27,7 +27,7 @@ import {
   parseISO,
   startOfWeek,
 } from 'date-fns';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
@@ -139,6 +139,34 @@ export function TripStoryCard({
   const bodyFont = membersStyle.fontFamily
     ? { fontFamily: membersStyle.fontFamily, fontWeight: 'normal' as const }
     : { fontWeight: '800' as const };
+
+  /*
+    ⚠️ 함께 간 사람 입력칸은 글꼴이 바뀌면 **새로 만든다.** (key 로 다시 붙인다)
+
+       iOS 의 TextInput 은 글자는 그대로고 스타일만 바뀐 갱신을 이런 때 버린다.
+       (react-native RCTBaseTextInputView · RCTTextInputComponentView 의 textOf:equals:)
+         · 한국어 키보드(ko-KR)가 켜져 있을 때 — 한글 조합이 깨지지 않게 문자열만 비교
+         · 한글이 없는 글꼴로 한글을 그려 시스템이 글꼴을 바꿔 끼운 뒤(NSOriginalFont)
+       그래서 한글 이름을 치고 글꼴 칩을 눌러도 카드가 그대로였고, 영문을 먼저
+       (영문 키보드로) 쳤을 때만 바뀌었다. (2026-09-22 테스트) Text 인 도시명은
+       이 비교를 타지 않아 늘 바뀐다.
+
+       입력 중에 글꼴을 고르면 칸이 새로 만들어지며 키보드가 내려가므로, 직전에
+       커서가 있었으면 새 칸에 다시 커서를 준다.
+  */
+  const membersFontKey = membersStyle.fontFamily ?? 'system';
+  const prevMembersFontKey = useRef(membersFontKey);
+  const refocusMembers = useRef(false);
+  if (prevMembersFontKey.current !== membersFontKey) {
+    prevMembersFontKey.current = membersFontKey;
+    // ref 는 아직 사라질 옛 칸을 가리킨다. 커서가 있었는지 지금 읽어 둔다
+    refocusMembers.current = membersInputRef.current?.isFocused() ?? false;
+  }
+  useEffect(() => {
+    if (!refocusMembers.current) return;
+    refocusMembers.current = false;
+    membersInputRef.current?.focus();
+  }, [membersFontKey]);
 
   return (
     <View
@@ -376,6 +404,7 @@ export function TripStoryCard({
           }}
         >
           <TextInput
+            key={membersFontKey}
             ref={membersInputRef}
             value={membersText}
             onChangeText={onChangeMembersText}

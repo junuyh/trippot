@@ -5,6 +5,8 @@
 //   - 다른 사용자·모임·여행 데이터에 접근할 수 있는 Query 를 만들지 않는다.
 //   - Supabase error 가 있으면 throw 한다. 화면은 그걸 Error 상태로 처리한다.
 //   - 타입은 types/database.ts 생성 타입만 쓴다. 직접 정의하지 않는다.
+import { perPerson } from '@/lib/budget/recommendation';
+import { APPLIED_SOURCE } from '@/lib/constants/status';
 import { supabase } from '@/lib/supabase/client';
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
 
@@ -235,4 +237,57 @@ export async function deleteBudgetPlanItem(budgetItemId: string): Promise<void> 
     .eq('id', budgetItemId);
 
   if (error) throw error;
+}
+
+/**
+ * 카테고리 설정 예산이 세부 계획 합계보다 작으면 **계획 합계까지 끌어올린다.**
+ *
+ *   새 설정 예산 = max(지금 설정 예산, 계획 합계)
+ *
+ * 다른 화면(여행자보험 등)에서 계획 항목을 넣었을 때 쓴다. 카테고리 상세 화면은
+ * 자기 안에서 계획이 바뀔 때만 예산을 따라 계산하고 진입 시에는 하지 않아서,
+ * 밖에서 넣은 계획은 목록에만 보이고 설정 예산·목표 여행비에는 빠져 있었다.
+ * (2026-09-22 테스트 · 보험을 넣어도 보험 예산이 그대로였다)
+ *
+ * ⚠️ **줄이지는 않는다.** 여유 예산(설정 예산 − 계획 합계)이 남아 있으면 그대로 둔다.
+ *    예산을 줄이는 것은 사용자가 금액을 직접 고칠 때만 한다.
+ * ⚠️ 사용자가 "이 보험으로 예산 추가" 같은 버튼을 눌러 계획을 넣은 결과이므로
+ *    applied_source 는 'user' 다. recommended_amount 는 건드리지 않는다. (CLAUDE.md 4장)
+ * ⚠️ 카테고리 합이 곧 목표 여행비다. 카테고리를 올리면 trip_budgets.target_amount 도
+ *    같은 식으로 다시 더한다. (BUDGET-02 handleSaveBudget 과 같은 계산)
+ *
+ * @returns 올렸으면 { from, to }, 올릴 필요가 없었으면 null
+ */
+export async function raiseCategoryBudgetToPlanTotal(input: {
+  budgetId: string;
+  categoryId: string;
+  headcount: number;
+}): Promise<{ from: number; to: number } | null> {
+  const [plans, categories] = await Promise.all([
+    getBudgetPlanItems(input.categoryId),
+    getBudgetCategories(input.budgetId),
+  ]);
+  const category = categories.find((c) => c.id === input.categoryId);
+  if (!category) return null;
+
+  const planTotal = plans.reduce((sum, item) => sum + item.expected_amount, 0);
+  const from = category.planned_amount;
+  const to = Math.max(from, planTotal);
+  if (to === from) return null;
+
+  await updateBudgetCategory(input.categoryId, {
+    planned_amount: to,
+    applied_source: APPLIED_SOURCE.USER,
+  });
+
+  const total = categories.reduce(
+    (sum, c) => sum + (c.id === input.categoryId ? to : c.planned_amount),
+    0,
+  );
+  await updateTripBudget(input.budgetId, {
+    target_amount: total,
+    per_person_amount: perPerson(total, input.headcount),
+  });
+
+  return { from, to };
 }

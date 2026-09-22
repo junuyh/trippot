@@ -1048,6 +1048,12 @@ export default function ScreenTripHome() {
     setStoryPhoto(result.assets[0].uri);
   }, [storyBusy]);
 
+  /** 고른 사진을 지우고 서비스 기본 배경(목적지 사진)으로 되돌린다. */
+  const handleResetStoryPhoto = useCallback(() => {
+    if (storyBusy) return;
+    setStoryPhoto(null);
+  }, [storyBusy]);
+
   /**
    * 미리보기 카드를 그대로 캡처해서 공유 시트로 넘긴다.
    * ⚠️ [검토 필요] 공유 완료 이벤트. events.ts 에 없어서 아직 track() 하지 않는다.
@@ -2599,6 +2605,7 @@ export default function ScreenTripHome() {
             onClose={() => setStoryOpen(false)}
             busy={storyBusy}
             onPickPhoto={handlePickStoryPhoto}
+            onResetPhoto={handleResetStoryPhoto}
             onShare={handleShareStory}
             onChangeMembersText={setStoryMembersText}
             memberPresets={storyMemberPresets}
