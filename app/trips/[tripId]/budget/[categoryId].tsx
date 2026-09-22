@@ -515,10 +515,25 @@ export default function ScreenBUDGET02() {
   const [editingBudget, setEditingBudget] = useState(false);
   const [draftAmount, setDraftAmount] = useState<number | null>(null);
   const [savingBudget, setSavingBudget] = useState(false);
+  /**
+   * 시트가 무엇을 고치는가. 'reserve' 면 입력값이 **여유 예산**이다.
+   *
+   * ⚠️ 여유 예산을 따로 저장하지 않는다. 설정 예산 = 세부 계획 합계 + 여유
+   *    예산이므로, 여유 예산을 고치면 설정 예산을 다시 계산해 저장한다.
+   *    예) 계획 20만 + 여유 30만 = 50만 → 여유를 20만으로 → 설정 40만.
+   *    숫자는 설정 예산 하나뿐이라 셋이 어긋날 일이 없다. (2026-09-22)
+   */
+  const [budgetEditMode, setBudgetEditMode] = useState<"total" | "reserve">(
+    "total",
+  );
 
   const handleSaveBudget = useCallback(async () => {
     if (!data || savingBudget) return;
-    const next = draftAmount ?? 0;
+    const planSum = plans.reduce((sum, item) => sum + item.expectedAmount, 0);
+    const next =
+      budgetEditMode === "reserve"
+        ? planSum + Math.max(0, draftAmount ?? 0)
+        : (draftAmount ?? 0);
     const from = data.category.planned_amount;
     if (next === from) {
       setEditingBudget(false);
@@ -563,7 +578,7 @@ export default function ScreenBUDGET02() {
     } finally {
       setSavingBudget(false);
     }
-  }, [data, draftAmount, load, savingBudget]);
+  }, [budgetEditMode, data, draftAmount, load, plans, savingBudget]);
 
   // ── 계획 항목 (로컬) ──────────────────────────────────────────────────
   const [addingPlan, setAddingPlan] = useState(false);
@@ -1384,6 +1399,7 @@ export default function ScreenBUDGET02() {
           onStartEdit={
             canEditBudget
               ? () => {
+                  setBudgetEditMode("total");
                   setDraftAmount(data.category.planned_amount);
                   setEditingBudget(true);
                 }
@@ -1558,6 +1574,15 @@ export default function ScreenBUDGET02() {
             headcount={data.trip.headcount}
             theme={theme}
             reserveAmount={reserveAmount}
+            onEditReserve={
+              canEditBudget
+                ? () => {
+                    setBudgetEditMode("reserve");
+                    setDraftAmount(reserveAmount);
+                    setEditingBudget(true);
+                  }
+                : undefined
+            }
             onEdit={canEditPlan ? handleStartEditPlan : undefined}
             onDelete={canEditPlan ? handleDeletePlan : undefined}
             onOpenLinked={handleOpenLinkedPlan}
@@ -1913,8 +1938,12 @@ export default function ScreenBUDGET02() {
       {/* ── 설정 예산 수정 ── */}
       <BottomSheet
         visible={editingBudget}
-        title="설정 예산 수정"
-        description="세부 계획보다 크게 잡은 금액은 여유 예산으로 자동 배정돼요."
+        title={budgetEditMode === "reserve" ? "여유 예산 수정" : "설정 예산 수정"}
+        description={
+          budgetEditMode === "reserve"
+            ? "예상 밖 비용에 대비해 세부 계획 외로 남겨 두는 금액이에요."
+            : "세부 계획보다 크게 잡은 금액은 여유 예산으로 자동 배정돼요."
+        }
         onClose={() => setEditingBudget(false)}
         footer={
           <View className="flex-row gap-2">
@@ -1938,7 +1967,7 @@ export default function ScreenBUDGET02() {
       >
         <View style={{ gap: 11, paddingTop: 13 }}>
           <CurrencyInput
-            label="설정 예산"
+            label={budgetEditMode === "reserve" ? "여유 예산" : "설정 예산"}
             required
             value={draftAmount}
             onChangeValue={setDraftAmount}
@@ -1951,15 +1980,20 @@ export default function ScreenBUDGET02() {
             }}
           >
             <Text style={{ fontSize: 10, lineHeight: 15, color: "#687281" }}>
-              {(draftAmount ?? 0) >= plannedTotal
+              {budgetEditMode === "reserve"
+                ? `설정 예산이 ${(plannedTotal + Math.max(0, draftAmount ?? 0)).toLocaleString("ko-KR")}원이 돼요. (세부 계획 ${plannedTotal.toLocaleString("ko-KR")}원 + 여유 예산)`
+                : (draftAmount ?? 0) >= plannedTotal
                 ? `세부 계획 외 ${((draftAmount ?? 0) - plannedTotal).toLocaleString("ko-KR")}원이 여유 예산으로 배정돼요.`
                 : `세부 계획 합계보다 ${(plannedTotal - (draftAmount ?? 0)).toLocaleString("ko-KR")}원 부족해요.`}
             </Text>
-            <Text style={{ marginTop: 5, fontSize: 10, color: "#9aa1ab" }}>
-              추천 금액은{" "}
-              {data.category.recommended_amount.toLocaleString("ko-KR")}
-              원이에요.
-            </Text>
+            {/* 추천 금액은 설정 예산 기준이다. 여유 예산을 고칠 때 보여 주면 헷갈린다 */}
+            {budgetEditMode === "total" ? (
+              <Text style={{ marginTop: 5, fontSize: 10, color: "#9aa1ab" }}>
+                추천 금액은{" "}
+                {data.category.recommended_amount.toLocaleString("ko-KR")}
+                원이에요.
+              </Text>
+            ) : null}
           </View>
         </View>
       </BottomSheet>

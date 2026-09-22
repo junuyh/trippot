@@ -83,6 +83,16 @@ type Props = {
   onUnlinkLinked?: (id: string) => void;
   /** 없으면 '계획 항목 추가' 를 감춘다 (결산 중·완료) */
   onStartAdd?: () => void;
+  /**
+   * 여유 예산 카드를 눌렀을 때. 없으면 카드는 보기만 한다(결산 중·확정).
+   *
+   * ⚠️ 2026-09-22 · 여유 예산 카드가 세부 계획 카드와 똑같이 생겼는데
+   *    눌러도 밀어도 반응이 없었다. 고치려면 맨 위 '예산 수정' 에서 설정
+   *    예산을 역산해 넣어야 했다. 이제 여기서 여유 예산 금액을 바로 고친다.
+   *    0원이면 카드 대신 '+ 여유 예산 두기' 를 보여 준다. 안 그러면
+   *    시작할 손잡이가 없다.
+   */
+  onEditReserve?: () => void;
 };
 
 function won(value: number): string {
@@ -106,6 +116,7 @@ export function PlanItemCard({
   onOpenLinked,
   onUnlinkLinked,
   onStartAdd,
+  onEditReserve,
 }: Props) {
   const swipeRefs = useRef(new Map<string, SwipeableMethods | null>());
 
@@ -374,7 +385,11 @@ export function PlanItemCard({
 
       {/* ── 여유 예산 ── 설정 예산에서 계획 합계를 뺀 차액이다 ── */}
       {reserveAmount > 0 ? (
-        <View
+        <Pressable
+          accessibilityRole={onEditReserve ? "button" : undefined}
+          accessibilityLabel={onEditReserve ? "여유 예산 수정" : undefined}
+          disabled={!onEditReserve}
+          onPress={onEditReserve}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -407,10 +422,38 @@ export function PlanItemCard({
               예상 밖 비용에 대비해요
             </Text>
           </View>
-          <Text style={{ fontSize: 11, fontWeight: "700", color: "#111827" }}>
-            {won(reserveAmount)}
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#111827" }}>
+              {won(reserveAmount)}
+            </Text>
+            {onEditReserve ? (
+              <Text style={{ marginTop: 5, fontSize: 8, color: "#b3bac4" }}>
+                눌러서 수정
+              </Text>
+            ) : null}
+          </View>
+        </Pressable>
+      ) : onEditReserve ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="여유 예산 두기"
+          onPress={onEditReserve}
+          className="active:opacity-70"
+          style={{
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: 44,
+            borderWidth: 1,
+            // ⚠️ dashed 를 쓰지 않는다. iOS 는 둥근 모서리에 점선을 못 그린다
+            borderColor: "#efe3c8",
+            borderRadius: 14,
+            backgroundColor: "#fffdf8",
+          }}
+        >
+          <Text style={{ fontSize: 11, fontWeight: "700", color: "#9a7a37" }}>
+            🪙 + 여유 예산 두기
           </Text>
-        </View>
+        </Pressable>
       ) : null}
 
       {onStartAdd ? (
