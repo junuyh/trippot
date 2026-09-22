@@ -25,12 +25,7 @@ import { Pressable, Text, View } from 'react-native';
 import { TONE } from '@/lib/constants/toneColor';
 import type { TripAction } from '@/lib/trip/tripActions';
 
-/**
- * 번호를 문장이 시작하는 세로줄에 맞추기 위한 들여쓰기. 아이콘 20 + ml-2.5(10).
- *
- * ⚠️ 아이콘 크기나 그 옆 간격을 바꾸면 이 값도 바꾼다. 두 배너가 같이 쓴다.
- */
-export const COUNTER_INDENT = 30;
+
 
 type Props = {
   action: TripAction;
@@ -38,10 +33,14 @@ type Props = {
   /**
    * '2/5'. 캐러셀이 넘겨준다. 한 장뿐이면 오지 않는다.
    *
-   * ⚠️ 배너 **안쪽 오른쪽 위**다. (2026-09-21 다빈)
+   * ⚠️ **제목 줄 오른쪽 끝**이다. (2026-09-22 다빈)
    *    카드 밖 아래 → 배너와 떨어져 보여서 무엇의 개수인지 읽히지 않았다.
-   *    버튼 줄 왼쪽 → 버튼과 같은 줄이라 둘이 서로 눈길을 다퉜다.
-   *    제목 줄 끝은 비어 있고, 읽기 시작하는 자리라 몇 장인지 먼저 눈에 든다.
+   *    버튼 줄 왼쪽 → 버튼과 같은 줄이라 둘이 서로 눈길을 다퉜다. 버튼을
+   *    오른쪽에 그대로 두기로 하면서 이 자리를 비웠다.
+   *
+   * ⚠️ 제목과 **같은 줄에 나란히** 둔다. 겹쳐 띄우지 않는다. 제목은 두 줄까지
+   *    늘어나고(‘○○님 외 2명이 참여 의사를 보냈어요’), 띄워 두면 그때 글자를
+   *    덮는다. 대신 제목이 쓸 수 있는 폭이 그만큼 줄어든다.
    */
   counter?: string;
 };
@@ -74,23 +73,16 @@ export function HomeActionBanner({ action, onPress, counter }: Props) {
             {action.tripLabel} · {action.meta}
           </Text>
         </View>
+        {counter ? <BannerCounter text={counter} color={c.body} /> : null}
       </View>
 
       {/*
-        번호는 버튼과 **같은 줄**이다. 아래 한 줄을 더 쓰면 배너가 높아지는데,
-        캐러셀로 바꾼 이유가 배너가 화면 위쪽을 다 먹는 걸 줄이려던 것이라
-        그걸 되돌리는 꼴이 된다. (2026-09-21 다빈)
-
-        ⚠️ 왼쪽 끝이 아니라 **문장이 시작하는 세로줄**에 맞춘다(COUNTER_INDENT).
-           제목·부제와 한 줄기로 읽힌다.
-
-        ⚠️ 배너 정중앙에 두지 않는다. 초대 배너는 버튼이 둘이라 오른쪽에서
-           가운데를 넘어와 거기서 겹친다.
+        ⚠️ 버튼은 **오른쪽**이다. 가운데로 옮기자는 안이 있었는데, 배너 네 종류
+           중 버튼이 둘인 건 초대 배너 하나뿐이고 나머지 셋은 하나다. 104 짜리
+           버튼 하나를 340 카드 한가운데 두면 양옆이 118 씩 비어 떠 보인다.
+           (2026-09-22 다빈 확인)
       */}
-      <View className="mt-3 flex-row items-center">
-        <View style={{ width: COUNTER_INDENT }} />
-        {counter ? <BannerCounter text={counter} color={c.body} /> : null}
-        <View className="flex-1" />
+      <View className="mt-3 flex-row items-center justify-end">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${action.headline} ${action.ctaLabel}`}
@@ -118,23 +110,51 @@ export function HomeActionBanner({ action, onPress, counter }: Props) {
 /**
  * 몇 장 중 몇 번째인지. 초대 배너와 **같은 모양**을 쓴다.
  *
- * ⚠️ 점이 아니라 숫자다. (2026-09-21 다빈) 여행 카드는 점을 쓰지만 그건
- *    구경거리라 몇 장인지가 중요하지 않다. 여기는 답할 일이 몇 개 남았는지가
- *    정보라서 세게 하지 않고 그대로 적는다.
+ * ⚠️ 점이 아니라 숫자다. (2026-09-21 다빈 · 2026-09-22 재확인) 여행 카드는
+ *    점을 쓰지만 그건 구경거리라 몇 장인지가 중요하지 않다. 여기는 답할 일이
+ *    몇 개 남았는지가 정보라서 세게 하지 않고 그대로 적는다.
+ *    점 세 개는 세어야 알고, 답할 일이 대여섯 개가 되면 세기를 포기한다.
+ *
+ * ⚠️ **알약으로 감싼다.** (2026-09-22 다빈) 맨 숫자는 부제와 같은 회색 계열
+ *    작은 글씨라 본문의 일부처럼 흘러갔다. 채워진 도형이라야 별개의 표시로
+ *    읽힌다.
+ *
+ * ⚠️ 바탕은 그 톤의 **부제 글자색**(TONE[tone].body)이다. 기준색(fg)으로
+ *    채우면 CTA 버튼과 같은 색이라 눈길을 다투고, 흰 바탕 + 기준색 테두리는
+ *    초대 배너의 '거절하기' 와 구성이 똑같아 누를 수 있는 것처럼 보인다.
+ *    body 는 어떤 버튼도 쓰지 않는 색이라 그 혼동이 없다.
+ *
+ * ⚠️ 9 는 이 서비스에서 **읽으라고 쓰는 가장 작은 글자**다. 7~8.5 도 있지만
+ *    전부 여권·영수증 카드의 장식용 대문자 줄이다. 흰 글자 대 진한 바탕이라
+ *    이 크기에서도 읽힌다. (2026-09-22 다빈)
  */
 export function BannerCounter({ text, color }: { text: string; color: string }) {
   return (
-    <Text
-      accessibilityLabel={`${text.split('/')[1]}개 중 ${text.split('/')[0]}번째`}
+    <View
       style={{
-        fontSize: 12,
-        fontWeight: '700',
-        color,
-        fontVariant: ['tabular-nums'],
+        marginLeft: 10,
+        // 제목이 길어도 알약이 눌리지 않게 한다. 눌리면 숫자가 줄바꿈된다.
+        flexShrink: 0,
+        height: 18,
+        justifyContent: 'center',
+        paddingHorizontal: 7,
+        borderRadius: 9,
+        backgroundColor: color,
       }}
     >
-      {text}
-    </Text>
+      <Text
+        accessibilityLabel={`${text.split('/')[1]}개 중 ${text.split('/')[0]}번째`}
+        style={{
+          fontSize: 9,
+          fontWeight: '800',
+          color: '#FFFFFF',
+          // 넘길 때마다 숫자 폭이 달라져 알약이 들썩이지 않게 한다
+          fontVariant: ['tabular-nums'],
+        }}
+      >
+        {text}
+      </Text>
+    </View>
   );
 }
 

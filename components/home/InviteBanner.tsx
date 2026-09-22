@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { BRAND } from '@/lib/constants/brandColor';
 
-import { BannerCounter, COUNTER_INDENT } from './HomeActionBanner';
+import { BannerCounter } from './HomeActionBanner';
 import type { HomeInvite } from './types';
 
 type Props = {
@@ -17,9 +17,9 @@ type Props = {
   /**
    * '1/5'. 캐러셀이 넘겨준다. 한 장뿐이면 오지 않는다.
    *
-   * ⚠️ 배너 **안쪽 오른쪽 위**다. HomeActionBanner 와 같은 자리 · 같은 모양이다
+   * ⚠️ **제목 줄 오른쪽 끝**이다. HomeActionBanner 와 같은 자리 · 같은 모양이다
    *    (BannerCounter). 두 배너가 한 캐러셀에서 번갈아 나오므로 번호 자리가 갈리면
-   *    넘길 때마다 숫자가 튄다. (2026-09-21 다빈)
+   *    넘길 때마다 숫자가 튄다. (2026-09-21 · 자리 옮김 2026-09-22 다빈)
    */
   counter?: string;
 };
@@ -113,15 +113,11 @@ export function InviteBanner({
             {invite.periodLabel ? `${invite.periodLabel} · ` : ''}아직 답하지 않았어요
           </Text>
         </View>
+        {counter ? <BannerCounter text={counter} color={BODY} /> : null}
       </View>
 
-      {/* 번호 자리는 HomeActionBanner 와 같다. 이유는 그쪽 주석에 있다 */}
-      <View className="mt-3 flex-row items-center">
-        <View style={{ width: COUNTER_INDENT }} />
-        {counter ? <BannerCounter text={counter} color={BODY} /> : null}
-        <View className="flex-1" />
-        {/* 버튼 사이 간격은 버튼끼리만이다. 줄 전체에 gap 을 주면 번호가 밀려
-            문장 시작 세로줄에서 어긋난다 */}
+      {/* 버튼은 오른쪽이다. 이유는 HomeActionBanner 쪽 주석에 있다 */}
+      <View className="mt-3 flex-row items-center justify-end">
         <View className="flex-row gap-2">
         <Pressable
           accessibilityRole="button"

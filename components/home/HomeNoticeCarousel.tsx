@@ -16,6 +16,11 @@
 //    저절로 넘어가도 되지만, 이건 버튼을 눌러 답하는 물건이다. 누르려는 순간
 //    넘어가면 엉뚱한 걸 누른다.
 //
+// ⚠️ **다음 장이 오른쪽에 살짝 드러난다.** (2026-09-22 다빈 · CARD_PEEK)
+//    처음 낸 판은 카드 폭이 화면에 딱 맞아떨어져서, 옆에 뭐가 더 있다는 신호가
+//    아무 데도 없었다. 숫자는 몇 개인지만 말한다. 잘린 다음 장이 넘길 수 있다는
+//    것을 말하는 유일한 장치다. 장이 하나뿐이면 드러낼 게 없으니 원래 폭을 쓴다.
+//
 // ⚠️ 2026-09-17 에는 "개수를 줄이거나 접지 않는다" 로 정했었다. 답하면 사라지는
 //    것들이라 바로 답하게 하려던 것이다. 하나만 보이면 나머지는 덜 답하게
 //    된다는 대가를 알고 뒤집었다. 대신 몇 개가 더 있는지를 숫자로 또렷이
@@ -32,10 +37,24 @@ import { InviteBanner } from './InviteBanner';
 import { InviteModal } from './InviteModal';
 import type { HomeInvite } from './types';
 
-/** 홈 좌우 여백(px-4) 합. 배너 폭을 화면 폭에서 이만큼 뺀다. */
-const SCREEN_PADDING = 32;
+/** 홈 좌우 여백(px-4). 캐러셀이 -mx-4 로 이 여백을 뚫고 나가 안쪽에서 다시 준다. */
+const SCREEN_EDGE = 16;
 /** 장 사이 간격. */
 const CARD_GAP = 12;
+/**
+ * 다음 장이 오른쪽에 드러나는 폭(px).
+ *
+ * ⚠️ **넘길 수 있다는 걸 알리는 건 이것뿐이다.** (2026-09-22 다빈)
+ *    전에는 카드 폭이 화면에 딱 맞아떨어져서(화면 - 좌우 여백) 옆에 뭐가 더
+ *    있다는 신호가 아무 데도 없었다. 숫자 '1/3' 은 몇 개인지만 말하지 넘길 수
+ *    있다는 말은 한 번도 하지 않는다.
+ *
+ * ⚠️ 그래서 캐러셀만 -mx-4 로 홈의 좌우 여백 밖으로 나간다. 여백 안에 갇히면
+ *    다음 장이 화면 끝이 아니라 여백 앞에서 잘려, '화면 밖으로 이어진다' 가
+ *    아니라 '카드가 하나 더 있다' 로만 보인다. 안쪽 paddingHorizontal 이
+ *    원래 여백을 대신한다. HomeView 는 건드리지 않는다.
+ */
+const CARD_PEEK = 30;
 
 export type HomeNoticeCarouselProps = {
   /** 답하지 않은 초대. 없으면 빈 배열. */
@@ -64,10 +83,18 @@ export function HomeNoticeCarousel({
   onPressAction,
 }: HomeNoticeCarouselProps) {
   const { width } = useWindowDimensions();
-  const cardWidth = Math.max(0, width - SCREEN_PADDING);
-  const step = cardWidth + CARD_GAP;
 
   const total = invites.length + actions.length;
+
+  /**
+   * 한 장뿐이면 **화면 폭 그대로** 쓴다. (2026-09-22 다빈)
+   * 드러낼 다음 장이 없는데 자리만 비워 두면 카드가 이유 없이 좁아 보인다.
+   */
+  const cardWidth = Math.max(
+    0,
+    width - SCREEN_EDGE * 2 - (total > 1 ? CARD_PEEK : 0),
+  );
+  const step = cardWidth + CARD_GAP;
 
   /**
    * 각 장이 자기 번호를 그린다. 한 장뿐이면 없다 — '1/1' 은 알려주는 게 없다.
@@ -80,7 +107,7 @@ export function HomeNoticeCarousel({
   return (
     <>
       {total > 0 ? (
-        <View className="mb-6">
+        <View className="-mx-4 mb-6">
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -88,7 +115,12 @@ export function HomeNoticeCarousel({
             snapToInterval={step}
             decelerationRate="fast"
             // 장마다 높이가 다르다. stretch 로 두면 짧은 배너가 늘어나 버린다.
-            contentContainerStyle={{ gap: CARD_GAP, alignItems: 'flex-start' }}
+            // 좌우 여백은 여기서 준다 — 바깥 -mx-4 로 뚫고 나온 것을 되돌리는 값이다.
+            contentContainerStyle={{
+              gap: CARD_GAP,
+              alignItems: 'flex-start',
+              paddingHorizontal: SCREEN_EDGE,
+            }}
           >
             {/* 초대가 먼저다. 답하지 않으면 그 여행이 시작되지 않는다. */}
             {invites.map((invite, index) => (
