@@ -141,15 +141,35 @@
   const RUNTIME_VERSION = "1.0.0";
   const CHANNEL = "preview";
 
-  const token = decodeURIComponent(location.hash.replace(/^#/, "")).trim();
-  const valid = /^[a-f0-9]{32,128}$/i.test(token);
+  // ⚠️ 주소의 # 뒤(fragment)만 바뀌면 브라우저는 문서를 **다시 읽지 않는다.** 같은 탭에서 초대 링크를
+  //    하나 더 열면(파리 → 상하이) 버튼은 처음 읽은 토큰을 그대로 들고 있었고, 앱이 엉뚱한 여행으로
+  //    들어갔다. (2026-09-22 · 2계정 실기기 확인) 그래서 링크 계산을 함수로 두고 주소가 바뀔 때마다
+  //    지금 주소로 다시 만든다.
+  let links = null;
 
-  document.getElementById("no-token").hidden = valid;
-  document.getElementById("cards").hidden = !valid;
+  function readToken() {
+    const raw = decodeURIComponent(location.hash.replace(/^#/, "")).trim();
+    return /^[a-f0-9]{32,128}$/i.test(raw) ? raw : null;
+  }
 
-  if (valid) {
+  function refreshInviteLinks() {
+    const token = readToken();
+    const valid = token !== null;
+
+    document.getElementById("no-token").hidden = valid;
+    document.getElementById("cards").hidden = !valid;
+
+    // ⚠️ 토큰이 없거나 형식이 틀리면 **앞의 토큰을 남기지 않는다.** 남겨 두면 그 버튼이 다른 여행을 연다.
+    if (!valid) {
+      links = null;
+      document.getElementById("btn-app").href = "#";
+      document.getElementById("btn-go").href = "#";
+      document.getElementById("btn-dev").href = "#";
+      return;
+    }
+
     const path = "invite/" + token;
-    const links = {
+    links = {
       app: "trippot:///" + path,
       go: "exp://u.expo.dev/" + EXPO_PROJECT_ID + "/--/" + path +
           "?runtime-version=" + encodeURIComponent(RUNTIME_VERSION) +
@@ -160,52 +180,62 @@
     document.getElementById("btn-app").href = links.app;
     document.getElementById("btn-go").href = links.go;
     document.getElementById("btn-dev").href = links.dev;
-
-    // 기기에 맞는 카드를 위로 올리고 표시한다. 판정이 안 되면(PC 등) 순서 그대로.
-    const ua = navigator.userAgent;
-    const isIOS = /iPhone|iPad|iPod/i.test(ua);
-    const isAndroid = /Android/i.test(ua);
-    const cards = document.getElementById("cards");
-    if (isIOS) {
-      cards.insertBefore(document.getElementById("card-ios"), document.getElementById("card-android"));
-      document.getElementById("card-ios").classList.add("mine");
-      document.getElementById("mine-ios").hidden = false;
-    } else if (isAndroid) {
-      document.getElementById("card-android").classList.add("mine");
-      document.getElementById("mine-android").hidden = false;
-    }
-
-    // 복사. clipboard API 가 막히면(http · 오래된 브라우저) 숨은 입력창으로 대신한다.
-    async function copyText(text) {
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(text);
-          return true;
-        }
-      } catch (_) { /* fall through */ }
-      const ta = document.createElement("textarea");
-      ta.value = text; ta.setAttribute("readonly", "");
-      ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      let ok = false;
-      try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
-      document.body.removeChild(ta);
-      return ok;
-    }
-    function wireCopy(id, text, label) {
-      const el = document.getElementById(id);
-      el.addEventListener("click", async () => {
-        const ok = await copyText(text);
-        el.textContent = ok ? "복사했어요" : "복사가 막혔어요 · 길게 눌러 복사해 주세요";
-        el.classList.toggle("copied", ok);
-        setTimeout(() => { el.textContent = label; el.classList.remove("copied"); }, 2200);
-      });
-    }
-    wireCopy("copy-app", links.app, "앱 링크 복사");
-    wireCopy("copy-go", links.go, "Expo Go 링크 복사");
-    wireCopy("copy-dev", links.dev, "개발 서버 링크 복사");
-    wireCopy("copy-page", links.page, "초대 링크 복사");
   }
+
+  // 기기에 맞는 카드를 위로 올리고 표시한다. 판정이 안 되면(PC 등) 순서 그대로.
+  // (토큰과 무관한 화면 배치다. 한 번만 한다 — #cards 는 토큰이 없으면 어차피 숨는다)
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  const cards = document.getElementById("cards");
+  if (isIOS) {
+    cards.insertBefore(document.getElementById("card-ios"), document.getElementById("card-android"));
+    document.getElementById("card-ios").classList.add("mine");
+    document.getElementById("mine-ios").hidden = false;
+  } else if (isAndroid) {
+    document.getElementById("card-android").classList.add("mine");
+    document.getElementById("mine-android").hidden = false;
+  }
+
+  // 복사. clipboard API 가 막히면(http · 오래된 브라우저) 숨은 입력창으로 대신한다.
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (_) { /* fall through */ }
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", "");
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  // ⚠️ 누르는 **그 순간의** 링크를 복사한다. 붙일 때 값을 박아 두면 버튼 href 와 같은 이유로 낡는다.
+  function wireCopy(id, key, label) {
+    const el = document.getElementById(id);
+    el.addEventListener("click", async () => {
+      const text = links ? links[key] : null;
+      if (!text) return;
+      const ok = await copyText(text);
+      el.textContent = ok ? "복사했어요" : "복사가 막혔어요 · 길게 눌러 복사해 주세요";
+      el.classList.toggle("copied", ok);
+      setTimeout(() => { el.textContent = label; el.classList.remove("copied"); }, 2200);
+    });
+  }
+  wireCopy("copy-app", "app", "앱 링크 복사");
+  wireCopy("copy-go", "go", "Expo Go 링크 복사");
+  wireCopy("copy-dev", "dev", "개발 서버 링크 복사");
+  wireCopy("copy-page", "page", "초대 링크 복사");
+
+  refreshInviteLinks();
+  // 같은 탭에서 다른 초대 링크를 열었을 때. (fragment 만 바뀌면 문서는 그대로다)
+  window.addEventListener("hashchange", refreshInviteLinks);
+  // 뒤로/앞으로 가기로 되살아났을 때(bfcache). 그때도 지금 주소가 기준이다.
+  window.addEventListener("pageshow", refreshInviteLinks);
 </script>
 </body>
 </html>
