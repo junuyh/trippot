@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text } from 'react-native';
 import { TRIP_STATUS_LABEL } from '@/lib/constants/status';
 import { BRAND } from '@/lib/constants/brandColor';
 
-import type { MyTripFilter } from './types';
+import type { MyTripFilter, MyTripListFilter } from './types';
 
 /**
  * 탭 이름.
@@ -41,16 +41,33 @@ export const MY_TRIP_FILTER_TABS: { value: MyTripFilter; label: string }[] = [
   { value: 'left', label: '나간 여행' },
 ];
 
-type Props = {
-  filter: MyTripFilter;
-  onChangeFilter: (filter: MyTripFilter) => void;
+/**
+ * 내 여행 목록(MY-02 · 모임 탭 [여행])이 그리는 탭. 맨 앞에 '전체' 가 붙는다. (2026-09-22)
+ *
+ * ⚠️ MY_TRIP_FILTER_TABS 에 넣지 않는다. 모임 상세 · 개인 여행 상세가 그 목록을
+ *    걸러 쓰기 때문에, 넣으면 두 화면에도 '전체' 가 생긴다. (types.ts MyTripListFilter)
+ * ⚠️ '전체' 는 맨 앞이다. 나머지 다섯을 모두 담는 칸이라 그 앞에 둔다.
+ *    기본 탭은 그대로 '준비 중' 이다 — 홈의 '전체 보기' 가 준비 중을 보러 온다.
+ */
+export const MY_TRIP_LIST_TABS: { value: MyTripListFilter; label: string }[] = [
+  { value: 'all', label: '전체' },
+  ...MY_TRIP_FILTER_TABS,
+];
+
+/**
+ * ⚠️ 탭 값 타입을 받는다(F). 모임 상세는 MyTripFilter, 내 여행 목록은 '전체' 가 있는
+ *    MyTripListFilter 를 쓴다. 한 컴포넌트가 둘 다 그리되 서로의 값이 섞이지 않는다.
+ */
+type Props<F extends string> = {
+  filter: F;
+  onChangeFilter: (filter: F) => void;
   /** 탭 줄의 바탕. MY-02 는 흰색, GROUP-02 는 바탕과 같게 둔다. */
   className?: string;
   /**
    * 그릴 탭. 기본은 준비 중·여행 중·지난 여행 셋이다.
-   * MY-02 는 MY_TRIP_FILTER_TABS 를 넘겨 다섯 개를 그린다.
+   * MY-02 는 MY_TRIP_LIST_TABS 를 넘겨 여섯 개를 그린다.
    */
-  tabs?: { value: MyTripFilter; label: string }[];
+  tabs?: { value: F; label: string }[];
 };
 
 /**
@@ -64,12 +81,13 @@ type Props = {
  *
  * ⚠️ supabase · track() 을 직접 부르지 않는다. 화면 파일이 부른다. (CLAUDE.md 9장)
  */
-export function TripFilterTabs({
+export function TripFilterTabs<F extends string = MyTripFilter>({
   filter,
   onChangeFilter,
   className = 'bg-white',
-  tabs = TRIP_FILTER_TABS,
-}: Props) {
+  // 기본 셋은 MyTripFilter 다. F 를 넓혀 쓰는 화면은 tabs 를 직접 넘긴다.
+  tabs = TRIP_FILTER_TABS as { value: F; label: string }[],
+}: Props<F>) {
   return (
     /*
       ⚠️ 가로 스크롤이다. (2026-09-11) 탭이 다섯 개가 되면서 폭이 좁은 기기에서

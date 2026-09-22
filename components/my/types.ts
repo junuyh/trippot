@@ -24,6 +24,18 @@ import type { TripStage } from '@/lib/trip/stage';
  */
 export type MyTripFilter = 'planning' | 'traveling' | 'past' | 'canceled' | 'left';
 
+/**
+ * 내 여행 목록(useMyTrips · MY-02 · 모임 탭 [여행])의 탭. 위 다섯에 '전체' 를 더한다. (2026-09-22)
+ *
+ *   all  다섯 탭의 여행 전부. 탭 순서대로 이어 붙인다.
+ *
+ * ⚠️ MyTripFilter 에 넣지 않는다. 모임 상세 · 개인 여행 상세가 MyTripFilter 로
+ *    Record 를 만들고 MY_TRIP_FILTER_TABS 를 거른다 — 넣으면 그 두 화면에도
+ *    '전체' 가 따라 들어간다. (TRIP_FILTER_TABS 에 '나간 여행' 을 넣었다가 모임 상세에
+ *    따라 들어간 2026-09-11 과 같은 일)
+ */
+export type MyTripListFilter = MyTripFilter | 'all';
+
 export type MyTripItem = {
   tripId: string;
   /** trips.destination 은 nullable 이다. 없으면 카드가 대체 문구를 쓴다. */
@@ -69,6 +81,15 @@ export type MyTripItem = {
    *    넘기지 않으면 배지가 없다.
    */
   isLeader?: boolean;
+  /**
+   * 카드를 왼쪽으로 밀어 '여행 나가기' 를 꺼낼 수 있는가. (2026-09-22 · 모임 상세와 같은 동작)
+   *
+   * ⚠️ 준비 중 판정은 isTripBeforeDeparture 다. PLANNING 만 보면 취소 요청 중(CANCEL_PENDING)이
+   *    빠진다 — 서버(is_trip_leavable_status)는 둘 다 허용한다. (CLAUDE.md 7장)
+   * ⚠️ 모임 여행만. 개인 여행은 여행 홈 설정 시트에서도 나가기를 숨긴다(혼자면 곧 삭제).
+   * ⚠️ useMyTrips 만 채운다. 모임 상세는 자기 조건으로 따로 감싼다.
+   */
+  leavable?: boolean;
   /**
    * 취소된 여행을 지금 되돌릴 수 있는가. (POL-CXL-030 · 72시간) 2026-09-16
    *

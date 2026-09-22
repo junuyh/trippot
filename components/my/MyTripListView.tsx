@@ -1,15 +1,16 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { HOME_ACCENT } from '@/components/home/palette';
+import { SwipeToAction } from '@/components/mypage';
 
 import { MyTripCard } from './MyTripCard';
-import { MY_TRIP_FILTER_TABS, TripFilterTabs } from './TripFilterTabs';
-import type { MyTripFilter, MyTripItem } from './types';
+import { MY_TRIP_LIST_TABS, TripFilterTabs } from './TripFilterTabs';
+import type { MyTripItem, MyTripListFilter } from './types';
 
 type Props = {
   trips: MyTripItem[];
-  filter: MyTripFilter;
-  onChangeFilter: (filter: MyTripFilter) => void;
+  filter: MyTripListFilter;
+  onChangeFilter: (filter: MyTripListFilter) => void;
   /**
    * 카드를 눌렀을 때. 되돌릴 수 있는 취소 여행도 여기로 온다 —
    * 화면 파일이 여행 홈 대신 되돌리기 확인 시트를 연다. (2026-09-16)
@@ -23,10 +24,22 @@ type Props = {
    * 없으면 기존 MY-02 값(pb-16) 그대로. (2026-09-21)
    */
   contentBottomPadding?: number;
+  /**
+   * 카드를 밀어 나온 '여행 나가기' 를 눌렀을 때. (2026-09-22)
+   * trip.leavable 인 카드만 밀린다. 넘기지 않으면 어떤 카드도 밀리지 않는다.
+   */
+  onPressLeaveTrip?: (tripId: string) => void;
+  /**
+   * 아래로 당겨 새로고침. useMyTrips 가 목록을 조용히 다시 읽는다. (2026-09-22 · 홈과 같은 방식)
+   * 넘기지 않으면 새로고침을 그리지 않는다.
+   */
+  refreshing?: boolean;
+  onRefresh?: () => void;
 };
 
 /** 탭마다 비었을 때 할 말이 다르다. */
-const EMPTY_MESSAGE: Record<MyTripFilter, string> = {
+const EMPTY_MESSAGE: Record<MyTripListFilter, string> = {
+  all: '아직 여행이 없어요.',
   planning: '준비 중인 여행이 없어요.',
   traveling: '지금 여행 중인 여행이 없어요.',
   past: '아직 다녀온 여행 기록이 없어요.',
@@ -53,6 +66,9 @@ export function MyTripListView({
   onPressCreateTrip,
   preparingRestoreTripId,
   contentBottomPadding,
+  onPressLeaveTrip,
+  refreshing,
+  onRefresh,
 }: Props) {
   return (
     // 페이지 바탕 = 앱 공통 light gray(bg-gray-50 · 계정 관리·좋아요·여행 홈·결산과 같다). 헤더 아래 탭 영역부터
@@ -63,7 +79,7 @@ export function MyTripListView({
       <TripFilterTabs
         filter={filter}
         onChangeFilter={onChangeFilter}
-        tabs={MY_TRIP_FILTER_TABS}
+        tabs={MY_TRIP_LIST_TABS}
         className="bg-gray-50"
       />
 
@@ -71,6 +87,9 @@ export function MyTripListView({
         className="flex-1"
         contentContainerClassName="px-4 pb-16 pt-4"
         contentContainerStyle={contentBottomPadding !== undefined ? { paddingBottom: contentBottomPadding } : undefined}
+        refreshControl={
+          onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} /> : undefined
+        }
       >
         {trips.length === 0 ? (
           <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-8">
@@ -78,8 +97,9 @@ export function MyTripListView({
               {EMPTY_MESSAGE[filter]}
             </Text>
 
-            {/* 여행 중·지난 여행이 비었을 때는 만들기를 권하지 않는다. 준비부터다. */}
-            {filter === 'planning' ? (
+            {/* 여행 중·지난 여행이 비었을 때는 만들기를 권하지 않는다. 준비부터다.
+                전체가 비었으면 여행이 하나도 없다는 뜻이라 같이 권한다. (2026-09-22) */}
+            {filter === 'planning' || filter === 'all' ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="새 여행 만들기"
@@ -94,14 +114,39 @@ export function MyTripListView({
           </View>
         ) : (
           <View className="gap-2.5">
-            {trips.map((trip) => (
-              <MyTripCard
-                key={trip.tripId}
-                trip={trip}
-                onPress={onPressTrip}
-                restoreLoading={preparingRestoreTripId === trip.tripId}
-              />
-            ))}
+            {trips.map((trip) => {
+              const card = (
+                <MyTripCard
+                  trip={trip}
+                  onPress={onPressTrip}
+                  restoreLoading={preparingRestoreTripId === trip.tripId}
+                />
+              );
+              /*
+                여행에서 나가기 — 카드를 왼쪽으로 밀면 오른쪽에 나온다. (2026-09-22)
+                ⚠️ 모임 상세(GroupDetailView)와 같은 컴포넌트 · 같은 아이콘 · 같은 색이다.
+                   삭제가 아니라 trash 가 아닌 exit-outline 이다.
+                ⚠️ 나갈 수 없는 카드는 감싸지 않는다. 밀어도 아무것도 안 나온다.
+                ⚠️ SwipeToAction 은 모서리를 스스로 자르지 않는다. 둥근 틀로 감싸
+                   밀 때 뒤의 버튼이 카드 모서리 밖으로 비치지 않게 한다.
+              */
+              if (!trip.leavable || !onPressLeaveTrip) {
+                return <View key={trip.tripId}>{card}</View>;
+              }
+              return (
+                <View key={trip.tripId} className="overflow-hidden rounded-2xl">
+                  <SwipeToAction
+                    label="여행 나가기"
+                    accessibilityLabel={`${trip.destination ?? '여행'} 에서 나가기`}
+                    icon="exit-outline"
+                    color="#6B7280"
+                    onPress={() => onPressLeaveTrip(trip.tripId)}
+                  >
+                    {card}
+                  </SwipeToAction>
+                </View>
+              );
+            })}
           </View>
         )}
 
