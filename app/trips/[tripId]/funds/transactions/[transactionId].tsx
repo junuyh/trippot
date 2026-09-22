@@ -66,6 +66,7 @@ import {
   type BudgetPlanItem,
 } from "@/lib/supabase/queries/budgets";
 import { getGroupAccounts } from "@/lib/supabase/queries/funds";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import {
   deleteTransaction,
   getTransactionById,
@@ -102,6 +103,11 @@ type DetailData = {
   planItems: BudgetPlanItem[];
   /** 마스킹된 계좌번호. 연결 계좌가 없으면 null (NFR-002) */
   maskedAccountNumber: string | null;
+  /**
+   * 이 거래를 적은 사람 이름. 모임 여행에서 created_by_user_id 가 있을 때만.
+   * 옛 기록·계좌 거래·개인 여행은 null — 모르는 것을 지어내지 않는다.
+   */
+  authorName: string | null;
 };
 
 export default function ScreenFUND03() {
@@ -168,10 +174,23 @@ export default function ScreenFUND03() {
       }
 
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, accounts] = await Promise.all([
+      const [categories, accounts, members] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+        /*
+          ⚠️ 모임 여행이고 적은 사람이 남아 있을 때만 참여자를 읽는다.
+             실패해도 상세를 막지 않는다 — 이름 없이 그린다.
+             (2026-09-22 테스트 — 입력자 이름이 최근 내역에만 보였다)
+        */
+        trip.group_id && transaction.created_by_user_id
+          ? listActiveTripMembers(trip.id).catch(() => [])
+          : Promise.resolve([]),
       ]);
+      const authorName = transaction.created_by_user_id
+        ? (members.find(
+            (member) => member.user_id === transaction.created_by_user_id,
+          )?.name ?? null)
+        : null;
 
       /*
         ⚠️ 세부 계획은 **카테고리마다** 읽는다. getBudgetPlanItems 가 거르는 칸은
@@ -192,6 +211,7 @@ export default function ScreenFUND03() {
         categories,
         planItems,
         maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
+        authorName,
       });
     } catch {
       setError(true);
@@ -257,6 +277,15 @@ export default function ScreenFUND03() {
       try {
         await updateTransactionMapping(data.transaction.id, {
           categoryId: nextCategoryId,
+          /*
+            ⚠️ 같은 카테고리를 다시 고르면 계획 연결은 그대로 둔다. (2026-09-22)
+               budgetItemId 를 안 넘기면 null 로 덮여 연결이 풀린다.
+               옮겼을 때만 푼다 — 옮긴 카테고리의 계획이 아니게 되므로.
+          */
+          budgetItemId:
+            nextCategoryId === data.transaction.budget_category_id
+              ? data.transaction.budget_plan_item_id
+              : null,
           // 사용자가 직접 고친 분류다. 자동분류 정확도를 재는 기준이 된다
           categoryMethod: CATEGORY_METHOD.USER,
         });
@@ -297,6 +326,18 @@ export default function ScreenFUND03() {
    */
   const handleConfirmReview = useCallback(async () => {
     if (!data || busy) return;
+    /*
+      ⚠️ 환불 대기 거래는 확인해도 '확인 필요' 에서 빠지지 않는다. 분류가
+         아니라 환불 결과가 문제라서다. 저장하지 않고 이유만 잠깐 띄운다.
+         (2026-09-22 테스트 — 눌러도 아무 변화가 없어 고장처럼 보였다)
+    */
+    if (reviewReason(data.transaction) === "REFUND_PENDING") {
+      floatingToast.show(
+        "환불 대기 중인 거래예요. 환불이 끝나면 확인 필요에서 사라져요.",
+        3500,
+      );
+      return;
+    }
     if (!data.transaction.budget_category_id) {
       setToast("먼저 카테고리를 정해 주세요");
       return;
@@ -315,7 +356,7 @@ export default function ScreenFUND03() {
     } finally {
       setBusy(false);
     }
-  }, [busy, data, load]);
+  }, [busy, data, floatingToast, load]);
 
   // 삭제는 되돌릴 수 없다. 먼저 확인한다. (NFR-003)
   /** 수정 시트를 연다. 지금 값을 초안에 담아 둔다 */
@@ -481,6 +522,10 @@ export default function ScreenFUND03() {
   const rows: [string, string][] = [
     ["거래명", transaction.name ?? "이름 없는 거래"],
     ["거래일", format(parseISO(transaction.occurred_at), "yyyy년 M월 d일")],
+    // 누가 적었는지. 모임 여행에서만 채워져 있다
+    ...(data.authorName
+      ? ([["기록한 사람", data.authorName]] as [string, string][])
+      : []),
     ...(deposit
       ? []
       : ([
@@ -678,7 +723,17 @@ export default function ScreenFUND03() {
                  확정된 거래에 '확인 완료' 가 있으면 사용자는 매번 눌러야
                  하는 줄 안다.
             */}
-            {reason ? (
+            {/*
+              ⚠️ 미분류에는 '확인 완료' 대신 '카테고리 정하기'. (2026-09-22)
+                 확인 완료는 자동 분류가 맞다는 뜻이라 분류가 없으면 할 말이 없다.
+            */}
+            {reason === "UNCATEGORIZED" ? (
+              <Button
+                label="카테고리 정하기"
+                disabled={busy}
+                onPress={() => setEditing(true)}
+              />
+            ) : reason ? (
               <Button
                 label="확인 완료"
                 loading={busy}

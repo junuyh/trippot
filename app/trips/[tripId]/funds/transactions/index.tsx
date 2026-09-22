@@ -85,6 +85,7 @@ import {
 } from "@/lib/supabase/queries/transactions";
 import { CATEGORY_EMOJI } from "@/lib/constants/categoryEmoji";
 import { getGroupAccounts, getTravelFund } from "@/lib/supabase/queries/funds";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
 
 type FundsData = {
@@ -95,6 +96,11 @@ type FundsData = {
   transactions: Transaction[];
   /** 마스킹된 계좌번호. 연결 계좌가 없으면 null (NFR-002) */
   maskedAccountNumber: string | null;
+  /**
+   * 참여자 id → 이름. 거래를 적은 사람을 줄에 붙이는 데 쓴다.
+   * ⚠️ 모임 여행에서만 채운다. 개인 여행은 비어 있다. (FUND-01 과 같은 규칙)
+   */
+  memberNameById: Map<string, string>;
 };
 
 /**
@@ -175,12 +181,23 @@ export default function ScreenFUND01() {
         return;
       }
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, transactions, accounts, fund] = await Promise.all([
-        budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
-        getTransactions(trip.id, categoryId ? { categoryId } : undefined),
-        trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
-        getTravelFund(trip.id),
-      ]);
+      const [categories, transactions, accounts, fund, members] =
+        await Promise.all([
+          budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
+          getTransactions(trip.id, categoryId ? { categoryId } : undefined),
+          trip.group_id
+            ? getGroupAccounts(trip.group_id)
+            : Promise.resolve([]),
+          getTravelFund(trip.id),
+          /*
+            ⚠️ 모임 여행일 때만 참여자 이름을 읽는다. 한 번만 읽고 줄마다
+               Map 에서 찾는다. 실패해도 목록을 막지 않는다 — 이름 없이 그린다.
+               (2026-09-22 테스트 — 입력자 이름이 최근 내역에만 보였다)
+          */
+          trip.group_id
+            ? listActiveTripMembers(trip.id).catch(() => [])
+            : Promise.resolve([]),
+        ]);
       /**
        * ⚠️ **이 여행에 실제로 붙은 계좌**만 '연결됨' 으로 보여준다.
        *    모임에 계좌가 있다는 이유로 accounts[0] 을 보여주면, 직접 입력으로
@@ -199,12 +216,18 @@ export default function ScreenFUND01() {
           categories.map((category) => getBudgetPlanItems(category.id)),
         )
       ).flat();
+      const memberNameById = new Map(
+        members
+          .filter((member) => member.user_id !== null)
+          .map((member) => [member.user_id as string, member.name]),
+      );
       setData({
         trip,
         categories,
         planItems,
         transactions,
         maskedAccountNumber: linked?.masked_account_number ?? null,
+        memberNameById,
       });
     } catch {
       setError(true);
@@ -290,6 +313,7 @@ export default function ScreenFUND01() {
     planItems: data?.planItems ?? [],
     tripId: data?.trip.id ?? null,
     onNotice: (message) => setToast(message),
+    memberNameById: data?.memberNameById,
   });
 
   const [sheetBusy, setSheetBusy] = useState(false);
@@ -910,12 +934,19 @@ export default function ScreenFUND01() {
                       categoryCode
                         ? CATEGORY_CODE_LABEL[categoryCode]
                         : "미분류",
-                      // ⚠️ 시안의 '민지 개인카드' 처럼 사람 이름은 붙일 수 없다.
-                      //    거래와 사람을 잇는 연결이 스키마에 없다.
                       transaction.source_type === TRANSACTION_SOURCE_TYPE.MANUAL
                         ? "직접 입력"
                         : "연결 계좌",
-                    ].join(" · ")}
+                      /*
+                        누가 적었는지. 모임 여행에서만 채워져 있다. 옛 기록·계좌
+                        거래는 created_by_user_id 가 null 이라 아무것도 붙지 않는다.
+                      */
+                      transaction.created_by_user_id
+                        ? data.memberNameById.get(transaction.created_by_user_id)
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </Text>
                   {/* 왜 확인이 필요한지 이유를 적는다. 배지만 달면 뭘 고칠지 모른다 */}
                   {reason ? (
