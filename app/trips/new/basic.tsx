@@ -14,7 +14,7 @@ import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { type LayoutChangeEvent, ScrollView, Text, View } from 'react-native';
 
 import {
   BottomCta,
@@ -32,6 +32,18 @@ import { useTripDraft } from '@/lib/hooks/useTripDraft';
 
 /** 처음 들어왔을 때 펼쳐 둘 지역. REGION_LABEL 의 정의 순서가 화면 순서다. */
 const DEFAULT_OPEN_REGION = (Object.keys(REGION_LABEL) as RegionCode[])[0];
+
+/**
+ * 날짜를 다 고른 뒤 인원 칸으로 옮기기까지 기다리는 시간(ms).
+ *
+ * 오는 날을 고르면 달력 아래에 날짜 요약 박스가 새로 생기고, 그만큼 인원
+ * 섹션이 아래로 밀린다. effect 는 그 레이아웃이 끝나기 전에 돌기 때문에
+ * 한 박자 기다렸다가 새로 잰 위치로 옮긴다.
+ */
+const HEADCOUNT_SCROLL_DELAY_MS = 80;
+
+/** 인원 섹션 위에 남겨 둘 여백(px). 화면 맨 끝에 딱 붙으면 잘린 것처럼 보인다. */
+const HEADCOUNT_SCROLL_GAP = 12;
 
 /** 시작일·종료일을 포함한 여행 일수. 3박 4일이면 4다. */
 function getDurationDays(startDate: string, endDate: string): number {
@@ -133,6 +145,51 @@ export default function ScreenTRIP02() {
   //    첫 화면이 길어진다는 이유였다. 세 항목을 처음부터 보여주는 쪽으로 바꿨다.
   //    빠진 값은 여전히 '다음' 을 disabled 로 막고 해당 입력칸에서 알린다.
 
+  // ── 날짜를 다 고르면 인원 칸으로 옮긴다 ───────────────────────────────
+  /**
+   * 인원은 이 화면의 **맨 아래**다. 달력이 화면을 거의 다 차지해서, 날짜를 고른
+   * 사람은 아래에 인원 칸이 더 있다는 걸 모른 채 '다음' 을 누르러 간다.
+   * 모임 인원이 기본값 그대로 넘어가는 일이 잦았다. (2026-09-22 다빈)
+   *
+   * ⚠️ 혼자 가는 여행은 옮기지 않는다. 인원 섹션 자체를 그리지 않는다(1명 고정).
+   *
+   * ⚠️ 날짜가 **덜 고른 상태 → 다 고른 상태**로 넘어가는 순간에만 옮긴다.
+   *    뒤 단계에서 돌아와 이미 날짜가 차 있는 경우까지 옮기면, 사용자가 고치러
+   *    온 여행지·일정이 화면 밖으로 밀려난다.
+   *    달력은 범위를 다시 고를 때 반드시 endDate = null 을 한 번 거치므로
+   *    (DateRangeCalendar.handlePress) 다시 고르면 다시 옮겨진다.
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  /** 인원 섹션의 세로 위치. onLayout 이 채운다. 아직 안 그려졌으면 null. */
+  const headcountYRef = useRef<number | null>(null);
+  /** 직전 렌더의 날짜 완성 여부. 첫 렌더 값으로 시작해 진입 직후에는 움직이지 않는다. */
+  const datesWereValidRef = useRef(datesValid);
+
+  const showHeadcount = draft.companionType !== COMPANION_TYPE.PERSONAL;
+
+  const handleHeadcountLayout = useCallback((event: LayoutChangeEvent) => {
+    headcountYRef.current = event.nativeEvent.layout.y;
+  }, []);
+
+  useEffect(() => {
+    const wasValid = datesWereValidRef.current;
+    datesWereValidRef.current = datesValid;
+
+    if (wasValid || !datesValid || !showHeadcount) return;
+
+    const timer = setTimeout(() => {
+      const y = headcountYRef.current;
+      // 아직 한 번도 재지 못했으면 그냥 둔다. 엉뚱한 위치로 옮기지 않는다.
+      if (y === null) return;
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, y - HEADCOUNT_SCROLL_GAP),
+        animated: true,
+      });
+    }, HEADCOUNT_SCROLL_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [datesValid, showHeadcount]);
+
   // ── 다음 단계 ─────────────────────────────────────────────────────────
   // 연타로 같은 화면이 스택에 두 번 쌓이는 것을 막는다. (NFR-005)
   const navigatingRef = useRef(false);
@@ -216,6 +273,7 @@ export default function ScreenTRIP02() {
       <Stack.Screen options={{ title: '여행 만들기' }} />
 
       <ScrollView
+        ref={scrollRef}
         className="flex-1"
         contentContainerClassName="px-5 pb-8 pt-5"
         keyboardShouldPersistTaps="handled"
@@ -271,8 +329,8 @@ export default function ScreenTRIP02() {
           ── 인원 ──
           혼자 가는 여행은 1명으로 정해져 있다. 물어볼 것이 없어 섹션을 그리지 않는다.
         */}
-        {draft.companionType !== COMPANION_TYPE.PERSONAL ? (
-          <View className="mt-7">
+        {showHeadcount ? (
+          <View className="mt-7" onLayout={handleHeadcountLayout}>
             <View className="mb-2.5 flex-row items-baseline">
               <Text className="text-[15px] font-bold text-gray-900">인원</Text>
               <Text className="ml-1 text-[15px] font-bold text-red-500">*</Text>
