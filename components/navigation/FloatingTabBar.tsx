@@ -17,7 +17,7 @@
 //
 // 파일 이름은 그대로 둔다. 팀원 브랜치에서 이 경로를 import 하고 있다.
 import { Ionicons } from '@expo/vector-icons';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
