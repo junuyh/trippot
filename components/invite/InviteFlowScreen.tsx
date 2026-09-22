@@ -187,6 +187,14 @@ export function InviteFlowScreen({
         onStateChange?.(next);
       } else if (code === TRIP_JOIN_ERROR.INVITE_NOT_VALID || code === TRIP_JOIN_ERROR.NOT_FOUND) {
         void load();
+      } else if (code === TRIP_JOIN_ERROR.TRIP_NOT_OPEN) {
+        // 취소 · 삭제된 여행이다. 초대 링크 자체는 살아 있어 resolve 는 VALID 로 오지만
+        // (docs/12 §3 · invite_state 는 초대의 상태다) 서버는 요청을 받지 않는다.
+        // 다시 눌러도 영원히 같다 — "잠시 후 다시" 대신 링크를 쓸 수 없다고 알린다.
+        // ⚠️ 여행이 취소됐다고 말하지 않는다. 실패 이유에 여행 정보를 붙이지 않는다. (POL-INV-021)
+        const next = { kind: 'REVOKED' as const };
+        setState(next);
+        onStateChange?.(next);
       } else {
         Alert.alert('참여 의사를 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
       }
