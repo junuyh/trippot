@@ -1,7 +1,9 @@
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import type { Ionicons } from '@expo/vector-icons';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { HOME_ACCENT } from '@/components/home/palette';
 import { SwipeToAction } from '@/components/mypage';
+import { EmptyState } from '@/components/ui';
 
 import { MyTripCard } from './MyTripCard';
 import { MY_TRIP_LIST_TABS, TripFilterTabs } from './TripFilterTabs';
@@ -37,14 +39,32 @@ type Props = {
   onRefresh?: () => void;
 };
 
-/** 탭마다 비었을 때 할 말이 다르다. */
-const EMPTY_MESSAGE: Record<MyTripListFilter, string> = {
-  all: '아직 여행이 없어요.',
-  planning: '준비 중인 여행이 없어요.',
-  traveling: '지금 여행 중인 여행이 없어요.',
-  past: '아직 다녀온 여행 기록이 없어요.',
-  canceled: '취소된 여행이 없어요.',
-  left: '나간 여행이 없어요.',
+/**
+ * 탭마다 비었을 때 할 말이 다르다. 모양은 모임 목록 빈 화면과 같은 EmptyState 다. (2026-09-22)
+ *
+ * ⚠️ 만들기 버튼(canCreate)은 준비 중 · 전체에만 둔다. 여행 중 · 지난 여행이 비었을 때
+ *    만들기를 권하지 않는다 — 준비부터다. 전체가 비었으면 여행이 하나도 없다는 뜻이라 권한다.
+ */
+const EMPTY_STATE: Record<
+  MyTripListFilter,
+  { icon: keyof typeof Ionicons.glyphMap; title: string; description?: string; canCreate: boolean }
+> = {
+  all: {
+    icon: 'airplane-outline',
+    title: '아직 여행이 없어요',
+    description: '새 여행을 만들면 여기에 모여요.',
+    canCreate: true,
+  },
+  planning: {
+    icon: 'airplane-outline',
+    title: '준비 중인 여행이 없어요',
+    description: '새 여행을 만들면 여기에 모여요.',
+    canCreate: true,
+  },
+  traveling: { icon: 'navigate-outline', title: '지금 여행 중인 여행이 없어요', canCreate: false },
+  past: { icon: 'time-outline', title: '아직 다녀온 여행 기록이 없어요', canCreate: false },
+  canceled: { icon: 'close-circle-outline', title: '취소된 여행이 없어요', canCreate: false },
+  left: { icon: 'exit-outline', title: '나간 여행이 없어요', canCreate: false },
 };
 
 /**
@@ -70,48 +90,49 @@ export function MyTripListView({
   refreshing,
   onRefresh,
 }: Props) {
+  const empty = trips.length === 0;
+  const emptyState = EMPTY_STATE[filter];
+  /*
+    ⚠️ 비었을 때는 화면 전체를 흰색으로 바꾼다. (2026-09-22)
+       EmptyState 가 흰 바탕을 스스로 깔아서, 회색 페이지 위에 두면 흰 네모만 떠 보인다.
+       모임 목록(GroupListSection)도 비었을 때만 흰 화면이다 — 같은 규칙이다.
+       components/ui/EmptyState 는 공유 파일이라 고치지 않는다. (CLAUDE.md 5장)
+  */
+  const pageBg = empty ? 'bg-white' : 'bg-gray-50';
+
   return (
     // 페이지 바탕 = 앱 공통 light gray(bg-gray-50 · 계정 관리·좋아요·여행 홈·결산과 같다). 헤더 아래 탭 영역부터
     // 하단까지 한 색이고 카드는 흰색. 브랜드 soft 는 선택된 칩 배경 몫이라 페이지 바탕으로 쓰지 않는다. (2026-09-21)
-    <View className="flex-1 bg-gray-50">
+    <View className={`flex-1 ${pageBg}`}>
       {/* 탭. GROUP-02 모임 상세와 같은 컴포넌트를 쓴다. */}
-      {/* 탭 버튼 스타일은 그대로, 탭 바깥 배경만 페이지와 같은 gray 로 잇는다 (GROUP 상세는 기본 white 그대로). */}
+      {/* 탭 버튼 스타일은 그대로, 탭 바깥 배경만 페이지와 같은 색으로 잇는다 (GROUP 상세는 기본 white 그대로). */}
       <TripFilterTabs
         filter={filter}
         onChangeFilter={onChangeFilter}
         tabs={MY_TRIP_LIST_TABS}
-        className="bg-gray-50"
+        className={pageBg}
       />
 
       <ScrollView
         className="flex-1"
         contentContainerClassName="px-4 pb-16 pt-4"
-        contentContainerStyle={contentBottomPadding !== undefined ? { paddingBottom: contentBottomPadding } : undefined}
+        contentContainerStyle={[
+          contentBottomPadding !== undefined ? { paddingBottom: contentBottomPadding } : null,
+          // 빈 화면이 남은 높이를 다 채워야 EmptyState 가 가운데에 선다.
+          empty ? { flexGrow: 1 } : null,
+        ]}
         refreshControl={
           onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} /> : undefined
         }
       >
-        {trips.length === 0 ? (
-          <View className="items-center rounded-2xl border border-dashed border-pot-dash bg-white px-4 py-8">
-            <Text className="text-pot-mute" style={{ fontSize: 13, lineHeight: 19 }}>
-              {EMPTY_MESSAGE[filter]}
-            </Text>
-
-            {/* 여행 중·지난 여행이 비었을 때는 만들기를 권하지 않는다. 준비부터다.
-                전체가 비었으면 여행이 하나도 없다는 뜻이라 같이 권한다. (2026-09-22) */}
-            {filter === 'planning' || filter === 'all' ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="새 여행 만들기"
-                onPress={onPressCreateTrip}
-                className="mt-3 rounded-full bg-brand px-4 py-2.5 active:bg-brand-pressed"
-              >
-                <Text className="font-bold text-white" style={{ fontSize: 12.5 }}>
-                  + 여행 만들기
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
+        {empty ? (
+          <EmptyState
+            icon={emptyState.icon}
+            title={emptyState.title}
+            description={emptyState.description}
+            actionLabel={emptyState.canCreate ? '새 여행 만들기' : undefined}
+            onAction={emptyState.canCreate ? onPressCreateTrip : undefined}
+          />
         ) : (
           <View className="gap-2.5">
             {trips.map((trip) => {
