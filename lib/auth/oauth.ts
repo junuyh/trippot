@@ -38,6 +38,16 @@ WebBrowser.maybeCompleteAuthSession();
  * ⚠️ **여기 나오는 값이 Supabase Dashboard 의 Redirect URLs 에 등록돼 있어야
  *    한다.** 등록되지 않은 주소로는 Supabase 가 되돌려 보내지 않는다.
  *
+ * ⚠️⚠️ **Expo Go 가 어느 주소로 붙어 있느냐에 따라 이 값이 바뀐다.** (2026-09-22)
+ *    `exp://127.0.0.1:8081` 이면 허용 목록(`exp://**`)을 통과하지만,
+ *    `exp://192.168.0.44:8081`(LAN) 이면 **통과하지 못해** Supabase 가 Site URL
+ *    (`http://localhost:3000`) 로 돌려보낸다. 브라우저에 "네트워크 서버에
+ *    연결할 수 없습니다" 만 뜨고 로그인이 끝나지 않는다.
+ *    Metro 를 `--localhost` 로 다시 띄워도 **Expo Go 는 전에 열었던 LAN 주소로
+ *    다시 붙는다.** 카카오 로그인이 "갑자기 안 되던" 원인이 이것이었다.
+ *    → 시뮬레이터에서 `exp://127.0.0.1:8081` 을 직접 열어 붙인다.
+ *    배포 앱(trippot://)은 이 문제가 없다.
+ *
  * ⚠️ 공급자 콘솔(카카오 Developers · Google Cloud)에 등록하는 주소와 다른
  *    것이다. 그쪽은 공급자가 Supabase 로 돌아가는 주소
  *    (`…supabase.co/auth/v1/callback`) 이고, 이 값은 Supabase 가 앱으로
@@ -64,9 +74,12 @@ async function createSessionFromUrl(url: string): Promise<void> {
        implicit  주소에 access_token · refresh_token 이 그대로 실려 온다
        PKCE      code 하나만 오고, 그것을 토큰으로 바꾸는 호출을 한 번 더 한다
 
-    supabase-js v2 는 flowType 을 안 적으면 **PKCE** 다. 우리는 토큰만 꺼내
-    쓰고 있어서, code 로 돌아오는 경우 "로그인 응답에 토큰이 없습니다" 로
-    끝났다. 카카오(Custom OIDC)가 이 경우다.
+    지금은 implicit 으로 돈다 — 카카오·구글 모두 인증 주소에 code_challenge
+    가 없고 토큰이 그대로 실려 온다(2026-09-22 실측). code 처리는 flowType 이
+    PKCE 로 바뀌어도 깨지지 않게 둔 대비책이다.
+
+    ⚠️ 2026-09-21 에 "카카오가 PKCE 라서 안 된다" 고 보고 넣었지만 **틀린
+       진단이었다.** 진짜 원인은 아래 AUTH_REDIRECT_URI 주석 참고.
 
     ⚠️ code 를 먼저 본다. 둘 다 없을 때만 오류다.
   */

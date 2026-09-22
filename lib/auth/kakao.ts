@@ -29,28 +29,13 @@ import {
  *    찾는 Provider 키다.
  */
 /*
-  ⚠️ 2026-09-21 4차 · **Custom OIDC 에서 내장 provider 로 되돌린다.**
+  ⚠️ 2026-09-21 · 내장 provider(`'kakao'`)로 바꿔 봤다가 **KOE205 가 다시 나서
+     되돌렸다.** Dashboard 의 email_optional 은 "이메일 없는 사용자를 받아
+     준다" 는 뜻이지, 카카오에 보내는 scope 에서 account_email 을 빼 주지
+     않는다. Custom OIDC 가 맞다. 위 주석이 여전히 옳다.
 
-     증상: 카카오 동의까지 끝나고 앱으로 돌아오지 못한다. 인증 자체는
-     성공한다 — Supabase auth 로그에 login(custom:kakao-oidc) 이 남는다.
-     그런데 /callback 의 302 가 앱이 아니라 Site URL(http://localhost:3000)
-     로 가서, 브라우저에 "네트워크 서버에 연결할 수 없습니다" 만 뜨고 끝난다.
-     앱은 토큰을 못 받으니 세션이 안 생긴다.
-
-     같은 흐름을 쓰는 구글은 된다. 다른 점은 **내장 provider 냐 Custom OIDC 냐**
-     하나뿐이다. Custom OIDC 는 PKCE(code_challenge)로 도는데, 우리 코드는
-     돌아온 URL 에서 access_token 을 꺼내 setSession 한다. 애초에 맞물리지 않는다.
-
-     ⚠️ KOE205(invalid_scope) 때문에 Custom OIDC 로 갔던 것인데, 그 이유가
-        사라졌다. Dashboard 의 카카오 provider 에 **email_optional 이 켜져 있다.**
-        account_email 을 필수로 요구하지 않으므로 비즈 앱 심사 없이 통과한다.
-        (지금 원격 설정: external_kakao_enabled=true, email_optional=true)
-
-     ⚠️⚠️ 2026-09-21 · **되돌렸다. 내장 provider 는 쓸 수 없다.**
-        Dashboard 의 email_optional 은 "이메일 없는 사용자를 받아 준다" 는
-        뜻이지, 카카오에 보내는 scope 에서 account_email 을 빼 주지 않는다.
-        내장 provider 로 바꾸자마자 그 자리에서 KOE205 가 다시 났다.
-        Custom OIDC 로 남는다. 주석 위쪽이 여전히 옳다.
+  ⚠️ 그때 "로그인 후 localhost 로 튕기는" 원인은 provider 가 아니라 **Expo Go
+     의 LAN 주소**였다. lib/auth/oauth.ts 의 AUTH_REDIRECT_URI 주석 참고.
 */
 const OIDC_PROVIDER = 'custom:kakao-oidc' as const;
 
