@@ -1,5 +1,5 @@
 import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -55,6 +55,17 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     hydratePendingNext().finally(() => setPendingNextReady(true));
   }, []);
 
+  /**
+   * 이번 로그인에서 "돌아갈 곳"을 이미 한 번 정했는가. (2026-09-22)
+   *
+   * ⚠️ 세션이 생긴 직후 status 가 잠깐 loading 으로 돌아간다(accountState 조회). 그 사이 가드가
+   *    children 을 내리면서 라우터 상태가 리셋돼 pathname 이 '/' → '/login' 으로 흔들리고,
+   *    이 effect 가 **두 번** 돈다. 첫 번째가 저장된 목적지를 꺼내 쓰고 지우면, 두 번째는
+   *    남은 값이 없어 홈으로 덮어썼다. (이메일 로그인 2계정 E2E 에서 확인)
+   *    그래서 목적지 결정은 로그인 한 번에 한 번만 한다. 로그아웃하면 다시 풀린다.
+   */
+  const continuationDoneRef = useRef(false);
+
   const onLoginScreen = segments[0] === PUBLIC_SEGMENT;
   const onWithdrawalScreen = segments[0] === WITHDRAWAL_SEGMENT;
   /** 탈퇴 신청 뒤 30일 이내. 홈 · 여행 · 커뮤니티 어디도 못 들어가고 /withdrawal-pending 만 본다. */
@@ -69,6 +80,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
    *    미리보기 자체는 AuthProvider 가 __DEV__ 에서만 켜준다.
    */
   const canEnter = status === 'signedIn' || isPreview;
+
+  useEffect(() => {
+    if (!canEnter) continuationDoneRef.current = false;
+  }, [canEnter]);
 
   useEffect(() => {
     if (status === 'loading' || !pendingNextReady) return;
@@ -110,6 +125,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       const remembered = peekPendingNext();
       if (remembered !== null) {
         clearPendingNext();
+        // 꺼내 쓴 순간 잠근다. 이미 그 경로에 있어 옮기지 않는 경우도 마찬가지다 — 목적지는 정해졌다.
+        continuationDoneRef.current = true;
         if (remembered !== pathname && isInternalPath(remembered)) {
           router.replace(remembered as never);
           return;
@@ -125,13 +142,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       //    '//' 를 함께 막아야 내부 경로만 남는다. (isInternalPath)
       const fromParams = typeof params.next === 'string' ? params.next : null;
       const next = fromParams ?? peekPendingNext();
+      const hasNext = next !== null && isInternalPath(next);
+      // ⚠️ 돌아갈 곳이 없는데 이미 이번 로그인에서 목적지를 정했다면 **아무것도 하지 않는다.**
+      //    여기서 홈으로 보내면 방금 연 초대 화면을 덮어쓴다. (2026-09-22 이메일 로그인 E2E)
+      if (!hasNext && continuationDoneRef.current) return;
+
       clearPendingNext();
+      continuationDoneRef.current = true;
 
       // ⚠️ 초대 링크로 들어와 로그인한 사람은 **원래 /invite/:token 으로 바로 돌아간다.**
       //    (확정 정책 · docs/14 · 2026-09-16) 홈을 거쳐 다시 안내하는 흐름(PR #111)은 쓰지 않는다.
       //    "답하지 않은 초대" 홈 배너·모달은 초대 화면이 token 을 기기에 남기는 것으로
       //    그대로 동작한다. (app/invite/[token].tsx syncPendingInvite → lib/invite/pendingInvites)
-      router.replace(next !== null && isInternalPath(next) ? (next as never) : '/');
+      router.replace(hasNext ? (next as never) : '/');
     }
   }, [
     status,
