@@ -89,10 +89,14 @@ type Props = {
    * ⚠️ 2026-09-22 · 여유 예산 카드가 세부 계획 카드와 똑같이 생겼는데
    *    눌러도 밀어도 반응이 없었다. 고치려면 맨 위 '예산 수정' 에서 설정
    *    예산을 역산해 넣어야 했다. 이제 여기서 여유 예산 금액을 바로 고친다.
-   *    0원이면 카드 대신 '+ 여유 예산 두기' 를 보여 준다. 안 그러면
-   *    시작할 손잡이가 없다.
+   *    세부 계획과 **똑같이 밀어서** 수정한다. 같은 모양의 카드가
+   *    서로 다르게 움직이면 어느 쪽이 맞는지 헷갈린다.
+   * ⚠️ 삭제는 두지 않는다. 0원으로 고치면 카드가 저절로 사라진다. (2026-09-22)
+   *    0원이면 카드를 그리지 않는다. 다시 두려면 '예산 수정' 으로 설정
+   *    예산을 올린다.
    */
   onEditReserve?: () => void;
+
 };
 
 function won(value: number): string {
@@ -105,6 +109,9 @@ function amountCaption(item: PlanItem, headcount: number): string {
     return "총액 기준";
   return `${won(Math.round(item.expectedAmount / headcount))} × ${headcount}명`;
 }
+
+/** 여유 예산 카드의 스와이프 열쇠. 계획 id 와 겹치지 않는 값이다 */
+const RESERVE_KEY = "__reserve__";
 
 export function PlanItemCard({
   items,
@@ -385,75 +392,94 @@ export function PlanItemCard({
 
       {/* ── 여유 예산 ── 설정 예산에서 계획 합계를 뺀 차액이다 ── */}
       {reserveAmount > 0 ? (
-        <Pressable
-          accessibilityRole={onEditReserve ? "button" : undefined}
-          accessibilityLabel={onEditReserve ? "여유 예산 수정" : undefined}
-          disabled={!onEditReserve}
-          onPress={onEditReserve}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 10,
-            minHeight: 72,
-            padding: 10,
-            borderWidth: 1,
-            borderColor: LINE,
-            borderRadius: 14,
-            backgroundColor: "#fff",
+        <Swipeable
+          ref={(node) => {
+            if (node) swipeRefs.current.set(RESERVE_KEY, node);
+            else swipeRefs.current.delete(RESERVE_KEY);
           }}
+          overshootRight={false}
+          enabled={Boolean(onEditReserve)}
+          renderRightActions={() => (
+            // 세부 계획과 같은 순서다. 수정이 안쪽, 되돌릴 수 없는 삭제가 바깥
+            <View className="flex-row">
+              {onEditReserve ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="여유 예산 수정"
+                  onPress={() => {
+                    swipeRefs.current.get(RESERVE_KEY)?.close();
+                    onEditReserve();
+                  }}
+                  style={{
+                    width: 68,
+                    backgroundColor: "#526274",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderTopRightRadius: 14,
+                    borderBottomRightRadius: 14,
+                  }}
+                >
+                  <Ionicons name="create-outline" size={16} color="#fff" />
+                  <Text
+                    style={{
+                      marginTop: 3,
+                      fontSize: 11,
+                      fontWeight: "800",
+                      color: "#fff",
+                    }}
+                  >
+                    수정
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          )}
         >
           <View
             style={{
-              width: 45,
-              height: 45,
-              borderRadius: 11,
-              backgroundColor: "#fff7e8",
+              flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
+              gap: 10,
+              minHeight: 72,
+              padding: 10,
+              borderWidth: 1,
+              borderColor: LINE,
+              borderRadius: 14,
+              backgroundColor: "#fff",
             }}
           >
-            <Text style={{ fontSize: 22 }}>🪙</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 12, fontWeight: "700", color: "#111827" }}>
-              여유 예산
-            </Text>
-            <Text style={{ marginTop: 4, fontSize: 9, color: "#9a7a37" }}>
-              예상 밖 비용에 대비해요
-            </Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={{ fontSize: 11, fontWeight: "700", color: "#111827" }}>
-              {won(reserveAmount)}
-            </Text>
-            {onEditReserve ? (
-              <Text style={{ marginTop: 5, fontSize: 8, color: "#b3bac4" }}>
-                눌러서 수정
+            <View
+              style={{
+                width: 45,
+                height: 45,
+                borderRadius: 11,
+                backgroundColor: "#fff7e8",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 22 }}>🪙</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#111827" }}>
+                여유 예산
               </Text>
-            ) : null}
+              <Text style={{ marginTop: 4, fontSize: 9, color: "#9a7a37" }}>
+                예상 밖 비용에 대비해요
+              </Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#111827" }}>
+                {won(reserveAmount)}
+              </Text>
+              {onEditReserve ? (
+                <Text style={{ marginTop: 5, fontSize: 8, color: "#b3bac4" }}>
+                  ← 밀어서 수정
+                </Text>
+              ) : null}
+            </View>
           </View>
-        </Pressable>
-      ) : onEditReserve ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="여유 예산 두기"
-          onPress={onEditReserve}
-          className="active:opacity-70"
-          style={{
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 44,
-            borderWidth: 1,
-            // ⚠️ dashed 를 쓰지 않는다. iOS 는 둥근 모서리에 점선을 못 그린다
-            borderColor: "#efe3c8",
-            borderRadius: 14,
-            backgroundColor: "#fffdf8",
-          }}
-        >
-          <Text style={{ fontSize: 11, fontWeight: "700", color: "#9a7a37" }}>
-            🪙 + 여유 예산 두기
-          </Text>
-        </Pressable>
+        </Swipeable>
       ) : null}
 
       {onStartAdd ? (

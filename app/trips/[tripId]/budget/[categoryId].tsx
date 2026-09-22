@@ -527,13 +527,8 @@ export default function ScreenBUDGET02() {
     "total",
   );
 
-  const handleSaveBudget = useCallback(async () => {
+  const saveBudgetAmount = useCallback(async (next: number) => {
     if (!data || savingBudget) return;
-    const planSum = plans.reduce((sum, item) => sum + item.expectedAmount, 0);
-    const next =
-      budgetEditMode === "reserve"
-        ? planSum + Math.max(0, draftAmount ?? 0)
-        : (draftAmount ?? 0);
     const from = data.category.planned_amount;
     if (next === from) {
       setEditingBudget(false);
@@ -578,7 +573,18 @@ export default function ScreenBUDGET02() {
     } finally {
       setSavingBudget(false);
     }
-  }, [budgetEditMode, data, draftAmount, load, plans, savingBudget]);
+  }, [data, load, savingBudget]);
+
+  /** 시트의 '적용'. 여유 예산 모드면 세부 계획 합계에 더해 설정 예산으로 저장한다 */
+  const handleSaveBudget = useCallback(async () => {
+    const planSum = plans.reduce((sum, item) => sum + item.expectedAmount, 0);
+    const next =
+      budgetEditMode === "reserve"
+        ? planSum + Math.max(0, draftAmount ?? 0)
+        : (draftAmount ?? 0);
+    await saveBudgetAmount(next);
+  }, [budgetEditMode, draftAmount, plans, saveBudgetAmount]);
+
 
   // ── 계획 항목 (로컬) ──────────────────────────────────────────────────
   const [addingPlan, setAddingPlan] = useState(false);
