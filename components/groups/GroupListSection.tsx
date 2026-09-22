@@ -1,4 +1,4 @@
-import { Pressable, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
 import { EmptyState, ErrorState, Loading } from '@/components/ui';
 import type { GroupSortMode } from '@/lib/supabase/queries/groups';
@@ -39,6 +39,9 @@ type Props = {
   onConfirmRemove: () => void;
   onCloseHidden: () => void;
   onPressUnhide: (groupId: string) => void;
+  /** 아래로 당겨 새로고침. 화면 파일이 조용히 다시 읽는다. (2026-09-22) */
+  refreshing: boolean;
+  onRefresh: () => void;
 };
 
 /**
@@ -75,7 +78,11 @@ export function GroupListSection({
   onConfirmRemove,
   onCloseHidden,
   onPressUnhide,
+  refreshing,
+  onRefresh,
 }: Props) {
+  const refreshControl = <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />;
+
   if (loadState === 'loading') {
     return (
       <View className="flex-1 bg-white">
@@ -95,8 +102,13 @@ export function GroupListSection({
   // 보이는 모임이 없어도 숨긴 모임이 있으면 편집으로 되살릴 수 있어야 한다.
   if (cards.length === 0 && hiddenCount === 0) {
     // 모임은 여행 생성의 '누구와' 단계에서 만든다. 별도 모임 생성 화면은 없다. (docs/09_IA_v1.md §2-1)
+    // 빈 화면에서도 당겨서 새로고침이 되게 스크롤 안에 둔다. flexGrow 로 세로를 채워 모양은 그대로다.
     return (
-      <View className="flex-1 bg-white">
+      <ScrollView
+        className="flex-1 bg-white"
+        contentContainerStyle={{ flexGrow: 1 }}
+        refreshControl={refreshControl}
+      >
         <EmptyState
           icon="people-outline"
           title="아직 참여 중인 모임이 없어요"
@@ -104,7 +116,7 @@ export function GroupListSection({
           actionLabel="새 여행 만들기"
           onAction={onPressCreateTrip}
         />
-      </View>
+      </ScrollView>
     );
   }
 
@@ -126,7 +138,9 @@ export function GroupListSection({
 
       {cards.length === 0 ? (
         // 여기 오는 경우는 hiddenCount > 0 뿐이다. 복구는 편집 모드에서만 한다. 문구로 경로만 알려준다.
-        <GroupListEmptyNotice editMode={editMode} />
+        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }} refreshControl={refreshControl}>
+          <GroupListEmptyNotice editMode={editMode} />
+        </ScrollView>
       ) : (
         <GroupTravelCardList
           groups={cards}
@@ -135,6 +149,8 @@ export function GroupListSection({
           selectedIds={selectedIds}
           onToggleSelect={onToggleSelect}
           actionsDisabled={saving}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
         />
       )}
 
