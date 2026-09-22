@@ -43,7 +43,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
-import { TRIP_OWNER_TYPE, TRIP_OWNER_TYPE_LABEL } from '@/lib/constants/status';
+import { TRIP_OWNER_TYPE, TRIP_OWNER_TYPE_LABEL, TRIP_STATUS } from '@/lib/constants/status';
+import { TONE } from '@/lib/constants/toneColor';
 
 import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from './format';
 import { LandmarkArt } from './landmarkScene';
@@ -90,6 +91,17 @@ const ORIGIN_CODE = 'ICN';
 
 /** D-Day 배지 바탕의 국가색 비율. 흰 바탕에서 알약으로 읽히는 최소값이다. */
 const DDAY_TINT = 0.14;
+
+/**
+ * '취소 요청 중' 배지 색.
+ *
+ * ⚠️ 국가색이 아니라 **앰버**다. 이 카드의 다른 조각(D-Day · 진행률 · 랜드마크
+ *    선)은 전부 목적지 국가색인데, 이것만 톤 체계의 warn 을 가져다 쓴다.
+ *    앰버는 이 서비스에서 **취소 전용**이고(lib/constants/toneColor), 홈 알림
+ *    배너와 여행 홈의 취소 배너가 이미 같은 값을 쓴다. 여기서 국가색을 쓰면
+ *    같은 사실을 화면마다 다른 색으로 말하게 된다.
+ */
+const CANCEL = TONE.warn;
 /**
  * 랜드마크 그림의 가리개와 선.
  *
@@ -137,6 +149,7 @@ export function NextTripBanner({ trip, width, onPress }: Props) {
   const nights = formatNights(trip.startDate, trip.endDate);
   const rate = calcReadyRatePercent(trip.currentAmount, trip.targetAmount);
   const isGroup = trip.ownerType === TRIP_OWNER_TYPE.GROUP;
+  const isCancelPending = trip.status === TRIP_STATUS.CANCEL_PENDING;
   const ownerLabel = isGroup
     ? (trip.groupName ?? TRIP_OWNER_TYPE_LABEL.GROUP)
     : TRIP_OWNER_TYPE_LABEL.PERSONAL;
@@ -289,6 +302,54 @@ export function NextTripBanner({ trip, width, onPress }: Props) {
           >
             {trip.destinationEn}
           </Text>
+
+          {/*
+            ⚠️ **도시 이름 바로 아래다.** (2026-09-22 다빈)
+               읽는 순서가 '어디로 → 지금 어떤 상태인가 → 언제·누구와' 가 된다.
+               상태가 여행의 정체성에 붙고, 아래 일정 줄과 섞이지 않는다.
+
+            ⚠️ D-Day 알약 아래(오른쪽 위)에 두지 않는다. '취소 요청 중' 은
+               'D-1' 보다 세 배쯤 넓어서 오른쪽 정렬로 자라면 왼쪽으로 뻗어
+               랜드마크 선그림을 덮는다. 국가코드까지 세 덩이가 세로로 쌓인다.
+
+            ⚠️ D-Day 를 **대체하지 않는다.** 반대표 하나로 요청이 폐기되면
+               (POL-CXL-062) D-Day 가 다시 나타나 카드가 깜빡이는 것처럼 보인다.
+               배지 하나가 붙었다 떨어지는 쪽이 조용하다.
+
+            ⚠️ 카드 위에 앰버 띠를 두르지 않는다. 이 파일 머리말의 '색은 면이
+               아니라 작은 조각에만 둔다' 를 정면으로 어긴다.
+
+            ⚠️ 글자 9 는 이 서비스에서 읽으라고 쓰는 가장 작은 크기다. 배지가
+               도시 이름보다 먼저 보이면 안 된다 — 어느 여행인지가 이 카드의 일이다.
+
+            ⚠️ 이 배지는 **글자 단의 남는 자리에 들어간다.** 항로 줄 + 도시
+               이름이 COLUMN_MIN_HEIGHT 를 다 쓰지 않아서 카드가 높아지지 않는다.
+               캐러셀(OngoingTripCarousel)이 높이를 고정하지 않아 가장 높은 카드에
+               전부 맞추므로, 여기서 높아지면 취소와 무관한 여행 카드까지
+               같이 높아진다. 이 값들을 키울 때 COLUMN_MIN_HEIGHT 를 같이 본다.
+          */}
+          {isCancelPending ? (
+            <View className="mt-1.5 flex-row">
+              <View
+                className="flex-row items-center"
+                style={{
+                  backgroundColor: CANCEL.tint,
+                  borderWidth: 1,
+                  borderColor: CANCEL.line,
+                  borderRadius: 7,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                }}
+              >
+                <Ionicons name="alert-circle-outline" size={10} color={CANCEL.fg} />
+                <Text
+                  style={{ marginLeft: 3, fontSize: 9, fontWeight: '700', color: CANCEL.fg }}
+                >
+                  취소 요청 중
+                </Text>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {/*
