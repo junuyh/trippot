@@ -129,9 +129,10 @@ export async function getVoteProgress(
   request: CancelRequest,
 ): Promise<VoteProgress> {
   const [members, votes] = await Promise.all([
+    // ⚠️ 이름은 공개 프로필 view 로 읽는다. users 는 본인 행만 읽힌다. (2026-09-22)
     supabase
       .from('trip_members')
-      .select('user_id, display_name, users(name)')
+      .select('user_id, display_name, user_public_profiles(name)')
       .eq('trip_id', request.trip_id)
       .eq('status', 'ACTIVE'),
     supabase.from('trip_cancel_votes').select('*').eq('request_id', request.id),
@@ -143,7 +144,7 @@ export async function getVoteProgress(
   const nameByUserId = new Map<string, string>();
   for (const row of members.data ?? []) {
     if (!row.user_id) continue;
-    const user = row.users as { name: string } | null;
+    const user = row.user_public_profiles as { name: string } | null;
     nameByUserId.set(row.user_id, user?.name ?? row.display_name ?? '이름 없음');
   }
 

@@ -63,9 +63,10 @@ export async function hasLeftTrip(tripId: string, userId: string): Promise<boole
 export async function listActiveTripMembers(
   tripId: string,
 ): Promise<TripMemberWithName[]> {
+  // ⚠️ users 가 아니라 공개 프로필 view 를 임베딩한다. users 는 본인 행만 읽혀 타인은 null 이 된다. (2026-09-22)
   const { data, error } = await supabase
     .from('trip_members')
-    .select('*, users(name)')
+    .select('*, user_public_profiles(name)')
     .eq('trip_id', tripId)
     .eq('status', TRIP_MEMBER_STATUS.ACTIVE)
     .order('created_at', { ascending: true });
@@ -73,8 +74,10 @@ export async function listActiveTripMembers(
   if (error) throw error;
 
   return (data ?? []).map((row) => {
-    const { users, ...member } = row as TripMemberRow & { users: { name: string } | null };
-    return { ...member, name: users?.name ?? member.display_name ?? '이름 없음' };
+    const { user_public_profiles, ...member } = row as TripMemberRow & {
+      user_public_profiles: { name: string } | null;
+    };
+    return { ...member, name: user_public_profiles?.name ?? member.display_name ?? '이름 없음' };
   });
 }
 
