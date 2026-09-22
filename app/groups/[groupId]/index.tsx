@@ -62,6 +62,7 @@ import {
   assignGroupThemesByOrder,
   type GroupCardTheme,
 } from '@/components/groups/cardTheme';
+import { isLeaderOfSharedTrip } from '@/lib/trip/tripLeader';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 import { LeaveDoneView, LeaveTripFlow } from '@/components/members';
 import { useLeaveTrip } from '@/lib/hooks/useLeaveTrip';
@@ -244,6 +245,9 @@ export default function ScreenGROUP02() {
           colorSoft: theme.primarySoft,
           // 나간 여행이면 카드가 배지를 달고 색을 뺀다. 목록 위치는 그대로다.
           left: leftIds.has(trip.id),
+          // 2인 이상 여행의 여행장이면 '여행장' 배지. MY-02 와 같은 판정이다. (2026-09-21 한나 요청)
+          // 나간 여행은 넘기고 나왔으니 여행장일 수 없다.
+          isLeader: !leftIds.has(trip.id) && isLeaderOfSharedTrip(trip, userId),
         };
       };
 

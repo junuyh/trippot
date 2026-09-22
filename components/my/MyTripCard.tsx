@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { calcReadyRatePercent, formatDDay, formatNights, formatTripDates } from '@/components/home/format';
 import { HOME_ACCENT, HOME_TRACK } from '@/components/home/palette';
+import { BRAND } from '@/lib/constants/brandColor';
 import { TRIP_STATUS, TRIP_STATUS_LABEL } from '@/lib/constants/status';
 import { TRIP_STAGE, TRIP_STAGE_LABEL } from '@/lib/trip/stage';
 
@@ -121,13 +122,30 @@ export function MyTripCard({
 
       <View className="flex-1 px-4 py-3.5">
         <View className="flex-row items-center">
-          <Text
-            className="flex-1 font-black text-pot-ink"
-            style={{ fontSize: 14.5, letterSpacing: -0.3 }}
-            numberOfLines={1}
-          >
-            {destination} {trip.flag}
-          </Text>
+          {/*
+            ⚠️ 제목과 '여행장' 배지를 한 칸에 묶는다. (2026-09-21 한나 요청)
+               제목이 flex-1 로 줄을 다 차지하면 배지가 오른쪽 상태 배지 옆으로
+               밀려서 두 배지가 한 덩어리처럼 읽힌다. 배지는 제목 바로 뒤에 붙인다.
+               제목이 길면 제목만 말줄임되고 배지는 남는다(shrink).
+          */}
+          <View className="mr-2 flex-1 flex-row items-center">
+            <Text
+              className="shrink font-black text-pot-ink"
+              style={{ fontSize: 14.5, letterSpacing: -0.3 }}
+              numberOfLines={1}
+            >
+              {destination} {trip.flag}
+            </Text>
+            {/* 모양은 여행 멤버 목록의 여행장 배지와 같다. (TripMemberListView Badge) */}
+            {trip.isLeader ? (
+              <View
+                className="ml-1.5 shrink-0 rounded px-1.5 py-0.5"
+                style={{ backgroundColor: BRAND.primarySoft }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: '800', color: BRAND.primary }}>여행장</Text>
+              </View>
+            ) : null}
+          </View>
 
           {/*
             ⚠️ 취소·나간 여행을 **먼저** 가른다. (2026-09-11)

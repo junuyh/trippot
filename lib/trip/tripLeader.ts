@@ -32,6 +32,23 @@ export function isTripLeader(trip: TripLeaderLike, userId: string | null): boole
 }
 
 /**
+ * 여행 카드에 '여행장' 배지를 달 여행인가. (2026-09-21 한나 요청)
+ *
+ * 여행장이면서 **2인 이상**인 여행만 참이다.
+ * ⚠️ 혼자 가는 여행(headcount 1)은 뺀다. 만든 사람이 곧 여행장이라
+ *    전부 붙으면 표시가 아무것도 가르지 못한다.
+ * ⚠️ 내 여행(MY-02) · 모임 탭 [여행] · 모임 상세(GROUP-02) · 개인 여행 상세가 같은
+ *    카드(MyTripCard)를 쓴다. 모두 이 함수만 불러야 배지가 화면마다 갈리지 않는다.
+ *    (앞의 둘은 lib/hooks/useMyTrips 를 함께 쓴다)
+ */
+export function isLeaderOfSharedTrip(
+  trip: TripLeaderLike & { headcount: number },
+  userId: string | null,
+): boolean {
+  return trip.headcount > 1 && isTripLeader(trip, userId);
+}
+
+/**
  * 초대 링크를 만들 수 있는가.
  *
  * ⚠️ **ACTIVE 멤버 누구나 할 수 있다.** (2026-09-10 확정)
