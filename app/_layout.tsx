@@ -1,11 +1,18 @@
 import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { HeaderBackButton, Loading } from '@/components/ui';
 import { initAnalytics } from '@/lib/analytics/track';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthProvider';
+import {
+  clearPendingNext,
+  hydratePendingNext,
+  isInternalPath,
+  peekPendingNext,
+  savePendingNext,
+} from '@/lib/auth/pendingNext';
 import { NotificationBannerObserver } from '@/lib/notifications/NotificationBannerObserver';
 import { PushInboxObserver } from '@/lib/notifications/PushInboxObserver';
 import { SpendReminderReconciler } from '@/lib/notifications/SpendReminderReconciler';
@@ -38,6 +45,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const params = useGlobalSearchParams<{ next?: string }>();
   const router = useRouter();
 
+  /**
+   * 로그인 뒤 돌아갈 곳(lib/auth/pendingNext)을 기기에서 읽었는가. (2026-09-22)
+   * 앱이 다시 시작된 뒤에도 초대 링크로 돌아가려면 세션과 함께 이 값도 먼저 읽어야 한다.
+   * 읽기가 끝나기 전에는 옮기지 않는다. (세션 loading 과 같은 취급 · 수 ms)
+   */
+  const [pendingNextReady, setPendingNextReady] = useState(false);
+  useEffect(() => {
+    hydratePendingNext().finally(() => setPendingNextReady(true));
+  }, []);
+
   const onLoginScreen = segments[0] === PUBLIC_SEGMENT;
   const onWithdrawalScreen = segments[0] === WITHDRAWAL_SEGMENT;
   /** 탈퇴 신청 뒤 30일 이내. 홈 · 여행 · 커뮤니티 어디도 못 들어가고 /withdrawal-pending 만 본다. */
@@ -54,7 +71,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const canEnter = status === 'signedIn' || isPreview;
 
   useEffect(() => {
-    if (status === 'loading') return;
+    if (status === 'loading' || !pendingNextReady) return;
 
     if (!canEnter && !onLoginScreen) {
       // ⚠️ 어디로 가려던 길이었는지 남긴다. 카카오톡 초대 링크로 들어온 사람이
@@ -66,6 +83,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       //    usePathname() 은 정규화된 '/invite/abc123' 을 준다.
       //    (expo-router hooks.d.ts: "Segments are not normalized" / "Segments will be normalized")
       const next = pathname;
+      // ⚠️ URL 의 ?next 만으로는 부족하다. 카카오 · 구글 콜백 URL 이 딥링크로 들어와 라우터가 '/' 로
+      //    움직이면 ?next 가 사라져 로그인 뒤 홈에 남았다. 기기에도 같이 적어 두고 로그인 확인 순간
+      //    한 번 꺼내 쓴다. (2026-09-22 · lib/auth/pendingNext · app/+native-intent.ts)
+      savePendingNext(next);
       router.replace(next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
       return;
     }
@@ -80,24 +101,51 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    /*
+      로그인이 확인됐고 탈퇴 대기도 아니다 — 기기에 남긴 목적지가 있으면 **어느 화면에 있든** 그리로 간다.
+      (2026-09-22) 콜백 URL 때문에 이미 '/' 로 옮겨진 뒤에도 초대 화면으로 돌아가기 위해서다.
+      한 번만 쓴다. 이미 그 경로에 있으면 그냥 지운다. 탈퇴 대기 검사(위)가 먼저라 그 정책을 우회하지 않는다.
+    */
+    if (canEnter && !onLoginScreen) {
+      const remembered = peekPendingNext();
+      if (remembered !== null) {
+        clearPendingNext();
+        if (remembered !== pathname && isInternalPath(remembered)) {
+          router.replace(remembered as never);
+          return;
+        }
+      }
+    }
+
     if (canEnter && onLoginScreen) {
-      // 남겨 둔 목적지가 있으면 그리로, 없으면 홈으로.
+      // 남겨 둔 목적지가 있으면 그리로, 없으면 홈으로. URL 의 ?next 가 먼저, 없으면 기기에 남긴 값.
       //
       // ⚠️ '/' 로 시작하는지만 보면 '//example.com' 이 통과한다. 그건 내부
       //    경로가 아니라 protocol-relative URL 이라 앱 밖을 가리킨다.
-      //    '//' 를 함께 막아야 내부 경로만 남는다.
-      const next = typeof params.next === 'string' ? params.next : null;
-      const isInternalPath = next !== null && next.startsWith('/') && !next.startsWith('//');
+      //    '//' 를 함께 막아야 내부 경로만 남는다. (isInternalPath)
+      const fromParams = typeof params.next === 'string' ? params.next : null;
+      const next = fromParams ?? peekPendingNext();
+      clearPendingNext();
 
       // ⚠️ 초대 링크로 들어와 로그인한 사람은 **원래 /invite/:token 으로 바로 돌아간다.**
       //    (확정 정책 · docs/14 · 2026-09-16) 홈을 거쳐 다시 안내하는 흐름(PR #111)은 쓰지 않는다.
       //    "답하지 않은 초대" 홈 배너·모달은 초대 화면이 token 을 기기에 남기는 것으로
       //    그대로 동작한다. (app/invite/[token].tsx syncPendingInvite → lib/invite/pendingInvites)
-      router.replace(isInternalPath ? (next as never) : '/');
+      router.replace(next !== null && isInternalPath(next) ? (next as never) : '/');
     }
-  }, [status, canEnter, onLoginScreen, pendingWithdrawal, onWithdrawalScreen, pathname, params.next, router]);
+  }, [
+    status,
+    canEnter,
+    onLoginScreen,
+    pendingWithdrawal,
+    onWithdrawalScreen,
+    pathname,
+    params.next,
+    pendingNextReady,
+    router,
+  ]);
 
-  if (status === 'loading') {
+  if (status === 'loading' || !pendingNextReady) {
     return (
       <View className="flex-1 bg-white">
         <Loading />
