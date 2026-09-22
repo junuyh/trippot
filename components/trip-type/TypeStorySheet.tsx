@@ -11,7 +11,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { forwardRef, type ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import ViewShot from 'react-native-view-shot';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 
 import { BottomSheet } from '@/components/ui';
 import { travelTypeTheme } from '@/lib/constants/travelTypeTheme';
@@ -39,7 +39,7 @@ type Props = {
  * ⚠️ ViewShot ref 를 화면 파일이 들고 있어야 캡처할 수 있어서 forwardRef 다.
  *    캡처 대상은 미리보기로 보여주는 그 카드 그대로다.
  */
-export const TypeStorySheet = forwardRef<ViewShot, Props>(function TypeStorySheet(
+export const TypeStorySheet = forwardRef<ViewShotRef, Props>(function TypeStorySheet(
   { visible, onClose, card, onShare, notice = null, busy },
   ref,
 ) {

@@ -15,11 +15,11 @@
 // ============================================================================
 import { Ionicons } from "@expo/vector-icons";
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
-import { useIsFocused } from "@react-navigation/native";
 import {
   Stack,
   router,
   useFocusEffect,
+  useIsFocused,
   useLocalSearchParams,
 } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -36,7 +36,7 @@ import {
   Text,
   View,
 } from "react-native";
-import type ViewShot from "react-native-view-shot";
+import type { ViewShotRef } from "react-native-view-shot";
 
 import {
   BaggageTagCard,
@@ -477,13 +477,13 @@ export default function ScreenTripHome() {
    * null 은 "아직 손대지 않음" 이고, 그때는 영문 시작값을 보여준다.
    */
   const [storyMembersText, setStoryMembersText] = useState<string | null>(null);
-  const storyRef = useRef<ViewShot>(null);
+  const storyRef = useRef<ViewShotRef>(null);
   /** 여행 유형 공유 시트. 확정된 유형에서만 연다 */
   const [typeStoryOpen, setTypeStoryOpen] = useState(false);
   const [typeStoryBusy, setTypeStoryBusy] = useState(false);
   /** 유형 이미지 복사 결과를 알리는 토스트 */
   const typeToast = useToast();
-  const typeStoryRef = useRef<ViewShot>(null);
+  const typeStoryRef = useRef<ViewShotRef>(null);
   /**
    * TYPE-01 오버레이 열림 여부. (시안 v3)
    * ⚠️ 별도 라우트로 밀지 않는다. 유형은 결산 결과를 다르게 읽은 것이라

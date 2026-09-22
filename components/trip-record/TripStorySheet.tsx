@@ -28,7 +28,7 @@ import {
   View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import ViewShot from 'react-native-view-shot';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 
 import { BottomSheet } from '@/components/ui';
 import { DEFAULT_STORY_FONT_ID, STORY_FONTS, storyFont } from '@/lib/constants/storyFonts';
@@ -73,7 +73,7 @@ type Props = {
  * ⚠️ ViewShot ref 를 화면 파일이 들고 있어야 캡처할 수 있어서 forwardRef 다.
  *    캡처 대상은 미리보기로 보여주는 그 카드 그대로다.
  */
-export const TripStorySheet = forwardRef<ViewShot, Props>(function TripStorySheet(
+export const TripStorySheet = forwardRef<ViewShotRef, Props>(function TripStorySheet(
   {
     visible,
     onClose,
