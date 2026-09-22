@@ -123,7 +123,7 @@ export function BottomSheet({
         */}
         <Animated.View
           style={[
-            StyleSheet.absoluteFillObject,
+            StyleSheet.absoluteFill,
             { backgroundColor: "rgba(17,24,39,0.38)", opacity: progress },
           ]}
         >

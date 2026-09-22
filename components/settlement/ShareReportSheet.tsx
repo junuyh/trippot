@@ -18,7 +18,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { forwardRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import ViewShot from 'react-native-view-shot';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 
 import { BottomSheet } from '@/components/ui';
 import type { CountryTheme } from '@/lib/constants/countryTheme';
@@ -48,7 +48,7 @@ type Props = {
  *    캡처 대상은 **미리보기로 보여주는 그 카드 그대로**다. 따로 숨겨 둔 사본을
  *    캡처하면 보이는 것과 나가는 것이 달라질 수 있다.
  */
-export const ShareReportSheet = forwardRef<ViewShot, Props>(function ShareReportSheet(
+export const ShareReportSheet = forwardRef<ViewShotRef, Props>(function ShareReportSheet(
   { visible, onClose, report, theme, flag, nameEn, countryKo, destinationCode, airportCode, onShareCard, onSharePdf, busy },
   ref,
 ) {

@@ -25,7 +25,7 @@ import { File, Paths } from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { useRef } from "react";
-import ViewShot from "react-native-view-shot";
+import type { ViewShotRef } from "react-native-view-shot";
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
@@ -307,7 +307,7 @@ export default function ScreenSETTLE01() {
   const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState<"card" | "pdf" | null>(null);
-  const cardRef = useRef<ViewShot>(null);
+  const cardRef = useRef<ViewShotRef>(null);
 
   /** 카테고리 id → 코드. 거래에는 id 만 있어서 리포트가 코드로 바꿔 쓴다 */
   const categoryCodeById = useMemo(
@@ -429,9 +429,11 @@ export default function ScreenSETTLE01() {
       const printed = new File(uri);
       const target = new File(Paths.cache, safeName);
       // 같은 이름이 남아 있으면 move 가 실패한다. 먼저 치운다.
+      // SDK 56 부터 File.move() 가 Promise 를 돌려준다. await 가 없으면 실패가 catch 에 안 잡히고
+      // 아래 target.exists 판정이 이동 전에 돈다.
       try {
         if (target.exists) target.delete();
-        printed.move(target);
+        await printed.move(target);
       } catch {
         // 이름을 못 바꿔도 공유 자체는 되어야 한다. 원본으로 간다.
       }
