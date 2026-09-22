@@ -12,7 +12,8 @@
 // ⚠️ 실제 지출이 연결된 항목은 **수정도 삭제도 막는다.**
 //    이미 쓴 돈이 달린 계획을 고치거나 없애면 '계획에 없는 지출' 이 생겨
 //    계획 대비 실제 비교가 성립하지 않는다.
-//    연결 해제는 지출 상세 화면에서만 한다. (스펙)
+//    연결을 풀려면 카드의 '연결 해제' 를 누른다. (2026-09-22 결정 — 지출이
+//    이름으로 자동 연결되므로 계획 쪽에서도 풀 수 있어야 한다) 확인은 화면이 받는다.
 //
 // ⚠️ 여유 예산은 DB 행이 아니라 **설정 예산 − 계획 합계**다.
 //    전체 여행 공통 '예비비' 카테고리와 헷갈리지 않게 이름을 다르게 쓴다. (스펙)
@@ -66,6 +67,11 @@ type Props = {
   onDelete?: (id: string) => void;
   /** 연결된 항목을 누르면 지출 상세로 간다 */
   onOpenLinked: (id: string) => void;
+  /**
+   * 연결된 항목의 지출 연결을 푼다. 없으면 '연결 해제' 를 감춘다 (결산 중·완료).
+   * ⚠️ 확인은 화면이 받는다. 여기서는 누른 사실만 올린다.
+   */
+  onUnlinkLinked?: (id: string) => void;
   /** 없으면 '계획 항목 추가' 를 감춘다 (결산 중·완료) */
   onStartAdd?: () => void;
 };
@@ -89,6 +95,7 @@ export function PlanItemCard({
   onEdit,
   onDelete,
   onOpenLinked,
+  onUnlinkLinked,
   onStartAdd,
 }: Props) {
   const swipeRefs = useRef(new Map<string, SwipeableMethods | null>());
@@ -146,16 +153,49 @@ export function PlanItemCard({
               <Text style={{ marginTop: 4, fontSize: 9, color: SUB }}>
                 예상 {won(item.expectedAmount)}
               </Text>
-              <Text
+              <View
                 style={{
                   marginTop: 7,
-                  fontSize: 9,
-                  fontWeight: "800",
-                  color: "#657080",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
                 }}
               >
-                지출 상세 보기 ›
-              </Text>
+                <Text
+                  style={{
+                    fontSize: 9,
+                    fontWeight: "800",
+                    color: "#657080",
+                  }}
+                >
+                  지출 상세 보기 ›
+                </Text>
+                {/*
+                  연결 해제. 카드 전체는 상세로 가고, 이 글자만 푼다.
+                  ⚠️ 자동으로 붙은 연결을 여기서 풀 수 있어야 한다. 시트까지
+                     들어가야만 풀 수 있으면 잘못 붙은 걸 보고도 그냥 둔다.
+                */}
+                {onUnlinkLinked ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.name} 지출 연결 해제`}
+                    hitSlop={8}
+                    onPress={() => onUnlinkLinked(item.id)}
+                    className="active:opacity-60"
+                  >
+                    <Text
+                      style={{
+                        fontSize: 9,
+                        fontWeight: "800",
+                        color: theme.primary,
+                        textDecorationLine: "underline",
+                      }}
+                    >
+                      연결 해제
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
 
             <View style={{ alignItems: "flex-end", minWidth: 86 }}>

@@ -509,6 +509,12 @@ function LinkView({
                 }}
               >
                 {item.name}
+                {/* 이름이 맞을 법한 계획. 거래 상세 화면과 같은 표시다 */}
+                {item.matchScore > 0 ? (
+                  <Text style={{ fontSize: 10, color: theme.primary }}>
+                    {"  추천"}
+                  </Text>
+                ) : null}
               </Text>
               <Text
                 style={{ fontSize: 12, fontWeight: "700", color: "#5d6674" }}

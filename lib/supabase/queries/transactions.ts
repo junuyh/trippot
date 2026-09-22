@@ -12,7 +12,9 @@ import {
   TRANSACTION_SOURCE_TYPE,
   TRANSACTION_TYPE,
 } from "@/lib/constants/status";
+import { findNearIdenticalPlan } from "@/lib/budget/planMatch";
 import { supabase } from "@/lib/supabase/client";
+import { getBudgetPlanItems } from "@/lib/supabase/queries/budgets";
 import type { Tables, TablesInsert } from "@/types/database";
 
 export type Transaction = Tables<"transactions">;
@@ -21,6 +23,8 @@ export type TransactionInsert = TablesInsert<"transactions">;
 export type TransactionListOptions = {
   /** 지정하면 해당 카테고리 거래만. */
   categoryId?: string;
+  /** 지정하면 그 세부 계획에 연결된 거래만. (BUDGET-02 연결 해제) */
+  planItemId?: string;
   /** 지정하면 입금/출금 한쪽만. */
   transactionType?: Transaction["transaction_type"];
   /** 최근 N건만. 준비 홈의 '최근 여행자금 내역' 처럼 일부만 필요할 때 쓴다. */
@@ -41,6 +45,8 @@ export async function getTransactions(
 
   if (options?.categoryId)
     query = query.eq("budget_category_id", options.categoryId);
+  if (options?.planItemId)
+    query = query.eq("budget_plan_item_id", options.planItemId);
   if (options?.transactionType)
     query = query.eq("transaction_type", options.transactionType);
   if (options?.limit) query = query.limit(options.limit);
@@ -69,6 +75,56 @@ export async function createTransaction(
     .single();
   if (error) throw error;
   return data;
+}
+
+/**
+ * 지출 직접 입력 + 세부 계획 자동 연결. (2026-09-22 결정)
+ *
+ * "지출 이름이 세부 계획 이름과 95% 이상 동일하면 자동 연결(해제 가능),
+ *  그 외는 추천 표시."
+ *
+ * 같은 카테고리의 계획 중 이름이 사실상 같은 것이 **정확히 하나**면
+ * budget_plan_item_id 를 채워서 넣고, 그 계획의 실제 금액을 다시 센다.
+ * 여럿이 동점이거나 하나도 없으면 연결하지 않고 그냥 넣는다 — 그때는
+ * 연결 시트가 '추천' 으로 올린다.
+ *
+ * ⚠️ 출금(WITHDRAWAL)이고 카테고리가 있을 때만 맞대본다. 입금에는 계획이
+ *    없고, 미분류 지출은 어느 카테고리의 계획인지 모른다.
+ * ⚠️ 이미 계획에서 뺀 항목(CANCELED)에는 붙이지 않는다.
+ * ⚠️ 자동으로 붙은 연결도 손으로 붙인 것과 같은 칸(budget_plan_item_id)이라
+ *    같은 시트에서 풀 수 있다.
+ *
+ * @returns 만든 거래와, 자동으로 붙였으면 그 계획 id
+ */
+export async function createExpenseWithAutoLink(
+  input: TransactionInsert,
+): Promise<{ transaction: Transaction; linkedPlanItemId: string | null }> {
+  let planItemId: string | null = null;
+
+  if (
+    input.transaction_type === TRANSACTION_TYPE.WITHDRAWAL &&
+    input.budget_category_id &&
+    !input.budget_plan_item_id
+  ) {
+    // 계획 목록 읽기가 실패해도 지출 저장은 막지 않는다. 연결은 부가 기능이다.
+    const plans = await getBudgetPlanItems(input.budget_category_id).catch(
+      () => [],
+    );
+    const matched = findNearIdenticalPlan(
+      plans.filter((plan) => plan.status !== BUDGET_PLAN_ITEM_STATUS.CANCELED),
+      input.name ?? null,
+    );
+    planItemId = matched?.id ?? null;
+  }
+
+  const transaction = await createTransaction(
+    planItemId ? { ...input, budget_plan_item_id: planItemId } : input,
+  );
+
+  // 손으로 연결할 때(linkTransactionToPlanItem)와 같은 재계산을 탄다
+  if (planItemId) await syncPlanItemActual(planItemId);
+
+  return { transaction, linkedPlanItemId: planItemId };
 }
 
 export async function getTransactionById(
@@ -598,6 +654,36 @@ export async function linkTransactionToPlanItem(
   if (linkError) throw linkError;
 
   await syncPlanItemActual(planItemId);
+}
+
+/**
+ * 거래와 세부 계획의 연결을 푼다. 카테고리는 그대로 둔다.
+ *
+ * ⚠️ BUDGET-02 의 계획 카드에서 푸는 길이다. (2026-09-22 결정 — "세부 계획에
+ *    연결된 지출을 계획 쪽에서 해제할 수 있게") 거래 시트의 연결 해제와
+ *    같은 칸(budget_plan_item_id)을 비우므로 자동 연결이든 손 연결이든 같다.
+ *
+ * ⚠️ 푼 뒤 그 계획의 실제 금액·상태를 다시 센다. 빼먹으면 계획은 여전히
+ *    '결제 완료 · 지출 연결됨' 으로 잠겨 있고 실제 금액도 옛 값에 머문다.
+ */
+export async function unlinkTransactionFromPlanItem(
+  transactionId: string,
+): Promise<void> {
+  const { data: before, error: beforeError } = await supabase
+    .from("transactions")
+    .select("budget_plan_item_id")
+    .eq("id", transactionId)
+    .single();
+  if (beforeError) throw beforeError;
+  if (!before.budget_plan_item_id) return;
+
+  const { error } = await supabase
+    .from("transactions")
+    .update({ budget_plan_item_id: null })
+    .eq("id", transactionId);
+  if (error) throw error;
+
+  await syncPlanItemActual(before.budget_plan_item_id);
 }
 
 /**

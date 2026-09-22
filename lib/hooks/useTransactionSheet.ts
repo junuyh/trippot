@@ -22,6 +22,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { track } from "@/lib/analytics/track";
 import { EVENTS } from "@/lib/analytics/events";
+import { sortPlansByMatch } from "@/lib/budget/planMatch";
 import {
   CATEGORY_CODE_TO_ANALYTICS,
   CATEGORY_METHOD,
@@ -111,11 +112,20 @@ export function useTransactionSheet({
   /** 확인이 필요한 이유. 없으면 null */
   const reason = transaction ? reviewReason(transaction) : null;
 
-  /** 이 거래를 붙일 수 있는 계획. **같은 카테고리만** 본다 */
+  /**
+   * 이 거래를 붙일 수 있는 계획. **같은 카테고리만** 본다.
+   *
+   * ⚠️ 이름이 맞을 법한 것을 위로 올린다. (2026-09-22 — 거래 상세 화면과 같게)
+   *    matchScore > 0 이면 시트가 '추천' 을 붙인다. 순서를 바꿀 뿐 연결은
+   *    사용자가 누른다. (CLAUDE.md 3장)
+   */
   const planCandidates = useMemo(() => {
     if (!transaction?.budget_category_id) return [];
-    return planItems.filter(
+    const sameCategory = planItems.filter(
       (item) => item.budget_category_id === transaction.budget_category_id,
+    );
+    return sortPlansByMatch(sameCategory, transaction.name).map(
+      ({ plan, score }) => ({ ...plan, matchScore: score }),
     );
   }, [planItems, transaction]);
 
