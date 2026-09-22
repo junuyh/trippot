@@ -8,7 +8,7 @@
 //   │ TripPot 먼저               ╰(TRIPPOT)      │
 //   │ 여행해 볼래요?                              │
 //   │ 계획부터 다음 여행까지, 1분이면 알 수 있어요 │
-//   ◖┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄◗ ← 티켓 절취선
+//   │                                          │
 //   │ ✈ PLAN ─ FUND ─ RECORD ─ NEXT  [둘러보기 →] │ ← 온보딩 네 장의 항로
 //   └──────────────────────────────────────────┘
 //
@@ -16,7 +16,7 @@
 // 설명은 궁금한 사람만 들어가서 보게 하고(/onboarding), 홈에는 **들어가 보고 싶게 만드는
 // 카드 한 장**만 둔다. 들어가지 않은 사람도 문구와 항로만 보고 앱이 뭔지 알 수 있어야 한다.
 //
-// ⚠️ **TripPot 여행 문서 체계 안에서 그린다.** 엽서 · 스탬프 · 소인 · 절취선은
+// ⚠️ **TripPot 여행 문서 체계 안에서 그린다.** 엽서 · 스탬프 · 소인은
 //    트래블 스토리 카드(travelStory)와 같은 소품이다. 사진 · 이모지를 쓰지 않는다.
 // ⚠️ 특정 여행이 아니라 서비스 소개라 국가색이 아닌 **브랜드 보라**를 쓴다.
 // ⚠️ 카드 전체가 누름 영역이다. '둘러보기' 알약은 표시다.
@@ -39,17 +39,14 @@ type Props = {
 
 const NAVY = '#0E1726';
 const MUTED = '#5B6472';
-/** 홈 바탕. 절취선 양 끝의 반원 홈을 이 색으로 파낸다. */
-const PAGE_BG = '#FFFFFF';
 
 /** 홈 좌우 여백(px-4) 합. */
 const SCREEN_PADDING = 32;
-/** 절취선 위 칸 높이. */
+/** 위 칸(문구 · 엽서) 높이. */
 const TOP_HEIGHT = 184;
-/** 절취선 아래 칸 높이. */
+/** 아래 칸(항로 · 둘러보기) 높이. */
 const BOTTOM_HEIGHT = 76;
 const PAD = 20;
-const NOTCH = 20;
 
 /** 온보딩 네 장과 같은 순서다. OnboardingView 의 SLIDES 를 바꾸면 같이 본다. */
 const STOPS = ['PLAN', 'FUND', 'RECORD', 'NEXT'] as const;
@@ -140,21 +137,11 @@ export function OnboardingEntryCard({ onPress }: Props) {
         </Text>
       </View>
 
-      {/* ── 티켓 절취선 · 양 끝 반원 홈 ─────────────────────────────────── */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          left: NOTCH / 2 + 6,
-          right: NOTCH / 2 + 6,
-          top: TOP_HEIGHT,
-          borderTopWidth: 1.2,
-          borderStyle: 'dashed',
-          borderColor: tint(accent, 0.3),
-        }}
-      />
-      <Notch side="left" color={line} />
-      <Notch side="right" color={line} />
+      {/*
+        ⚠️ 2026-09-22 가운데 티켓 절취선과 양 끝 반원 홈을 뺐다.
+           아래 항로(PLAN ─ FUND ─ RECORD ─ NEXT)도 점선이라, 가로 점선이 두 줄 겹쳐
+           카드가 복잡해 보였다. 위 문구와 아래 항로는 여백만으로 충분히 갈린다.
+      */}
 
       {/* ── 아래: 온보딩 네 장의 항로 · 둘러보기 ─────────────────────────── */}
       <View
@@ -202,35 +189,26 @@ export function OnboardingEntryCard({ onPress }: Props) {
           </View>
         </View>
 
+        {/*
+          ⚠️ 2026-09-22 꽉 찬 보라 → 트래블 스토리 카드의 '보기' 알약과 같은 모양.
+             옅게 깐 바탕(tint 0.14) + 진한 같은 색 글씨, 테두리 없음. (TravelStoryCard)
+             꽉 찬 보라는 홈 아래 '새 여행 만들기' 버튼과 무게가 같아 둘이 다퉜다.
+             홈 두 카드의 버튼이 같은 문법이라 "들어가 보는 카드" 로 함께 읽힌다.
+        */}
         <View
           className="flex-row items-center justify-center"
-          style={{ height: 40, paddingHorizontal: 16, borderRadius: 999, backgroundColor: accent }}
+          style={{
+            height: 40,
+            paddingHorizontal: 18,
+            borderRadius: 999,
+            backgroundColor: tint(accent, 0.14),
+          }}
         >
-          <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }}>둘러보기</Text>
-          <Ionicons name="arrow-forward" size={14} color="#FFFFFF" style={{ marginLeft: 4 }} />
+          <Text style={{ fontSize: 14, fontWeight: '800', color: accent }}>둘러보기</Text>
+          <Ionicons name="arrow-forward" size={14} color={accent} style={{ marginLeft: 4 }} />
         </View>
       </View>
     </Pressable>
-  );
-}
-
-/** 절취선 양 끝을 파낸 반원 홈. 홈 바탕색 동그라미를 카드 가장자리에 걸친다. */
-function Notch({ side, color }: { side: 'left' | 'right'; color: string }) {
-  return (
-    <View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        [side]: -NOTCH / 2,
-        top: TOP_HEIGHT - NOTCH / 2,
-        width: NOTCH,
-        height: NOTCH,
-        borderRadius: NOTCH / 2,
-        borderWidth: 1,
-        borderColor: color,
-        backgroundColor: PAGE_BG,
-      }}
-    />
   );
 }
 
