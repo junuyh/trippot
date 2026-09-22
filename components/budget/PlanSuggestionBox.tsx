@@ -213,7 +213,21 @@ export function PlanSuggestionBox({
                   }}
                 >
                   {suggestion.reason}
-                  {"\n"}
+                </Text>
+                {/*
+                  ⚠️ 금액을 이유 문장과 **따로** 적는다. (2026-09-22)
+                     9/02 시안부터 이유 뒤에 줄만 바꿔 같은 8pt 회색으로 붙어
+                     있어서, 카드에서 가장 중요한 숫자가 설명문처럼 묻혔다.
+                     사용자가 '추가' 를 누를지 정하는 근거는 금액이다.
+                */}
+                <Text
+                  style={{
+                    marginTop: 7,
+                    fontSize: 13,
+                    fontWeight: "800",
+                    color: "#111827",
+                  }}
+                >
                   {won(suggestion.amount)}
                 </Text>
                 <Text
