@@ -57,6 +57,7 @@ import {
   getBudgetByTripId,
   getBudgetCategories,
   getBudgetPlanItems,
+  raiseCategoryBudgetToPlanTotal,
   updateBudgetPlanItem,
 } from '@/lib/supabase/queries/budgets';
 import { getTripById, type Trip } from '@/lib/supabase/queries/trips';
@@ -84,6 +85,8 @@ type Loaded = {
   trip: Trip;
   /** 예산에 잡아 둔 여행자보험 금액. 예산이 없으면 null */
   budgetAmount: number | null;
+  /** trip_budgets.id. 보험을 넣어 카테고리 예산이 오르면 목표 여행비도 같이 고친다 */
+  budgetId: string | null;
   /**
    * 여행자보험 예산 카테고리 id. 견적을 예산에 반영하러 갈 곳이다.
    * 예산을 안 짠 여행이면 null 이고, 그때는 링크를 내지 않는다.
@@ -159,10 +162,12 @@ export default function ScreenINSURANCE01() {
         비교 줄만 빠진다.
       */
       let budgetAmount: number | null = null;
+      let budgetId: string | null = null;
       let insuranceCategoryId: string | null = null;
       try {
         const budget = await getBudgetByTripId(tripId);
         if (budget) {
+          budgetId = budget.id;
           const categories = await getBudgetCategories(budget.id);
           const insurance = categories.find(
             (c) => c.category_code === CATEGORY_CODE.INSURANCE,
@@ -173,10 +178,11 @@ export default function ScreenINSURANCE01() {
       } catch {
         // 예산 조회 실패로 화면을 막지 않는다. 비교 줄만 없는 채로 간다.
         budgetAmount = null;
+        budgetId = null;
         insuranceCategoryId = null;
       }
 
-      setData({ trip, budgetAmount, insuranceCategoryId });
+      setData({ trip, budgetAmount, budgetId, insuranceCategoryId });
     } catch {
       setError(true);
     } finally {
@@ -222,9 +228,16 @@ export default function ScreenINSURANCE01() {
    *    "메리츠화재 여행자보험 53,000원" 을 다시 손으로 적어야 했다. 고른 것이
    *    기록되지 않으면 고른 의미가 없다.
    *
-   * ⚠️ **planned_amount 를 여기서 바꾸지 않는다.** (CLAUDE.md 4장)
-   *    계획 항목만 남긴다. 설정 예산은 카테고리 화면이 계획 합계에 맞춰
-   *    다시 계산하고, 최종 확정은 사용자가 그 화면에서 한다.
+   * ⚠️ **계획을 넣은 뒤 보험 예산이 계획 합계보다 작으면 합계까지 올린다.**
+   *    (2026-09-22 테스트) 예전에는 계획 항목만 남기고 설정 예산은 카테고리
+   *    화면이 맞춰 줄 거라 믿었다. 그런데 그 화면은 자기 안에서 계획이 바뀔
+   *    때만 예산을 다시 계산하고 진입 시에는 하지 않는다. 결과: 보험 계획은
+   *    목록에 보이는데 보험 예산은 그대로고 여유 예산이 0으로 찍혔다.
+   *
+   *    규칙: 새 설정 예산 = max(지금 설정 예산, 계획 합계). 줄이지는 않는다.
+   *    사용자가 '이 보험으로 예산 추가' 를 눌러 생긴 값이라 applied_source 는
+   *    'user' 다. recommended_amount 는 건드리지 않는다. (CLAUDE.md 4장)
+   *    목표 여행비(trip_budgets.target_amount)도 카테고리 합으로 다시 더한다.
    *
    * ⚠️ 같은 제휴사 계획이 이미 있으면 더 만들지 않는다. 견적을 몇 번 눌러도
    *    계획이 쌓이면 안 된다.
@@ -251,6 +264,16 @@ export default function ScreenINSURANCE01() {
           });
         }
 
+        // 보험료가 예산에 실제로 들어가게 한다. 계획만 남기고 예산이 그대로면
+        // BUDGET-01/02 총액 어디에도 보험료가 잡히지 않는다.
+        if (data.budgetId) {
+          await raiseCategoryBudgetToPlanTotal({
+            budgetId: data.budgetId,
+            categoryId: data.insuranceCategoryId,
+            headcount: data.trip.headcount,
+          });
+        }
+
         router.push(
           `/trips/${tripId}/budget/${data.insuranceCategoryId}?from=insurance`,
         );
@@ -263,7 +286,7 @@ export default function ScreenINSURANCE01() {
         setApplying(false);
       }
     },
-    [applying, data?.insuranceCategoryId, tripId],
+    [applying, data?.budgetId, data?.insuranceCategoryId, data?.trip.headcount, tripId],
   );
 
   const handleGoToPartner = useCallback(

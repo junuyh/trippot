@@ -59,7 +59,10 @@ type Props = {
   items: PlanItem[];
   headcount: number;
   theme: CountryTheme;
-  /** 설정 예산 − 계획 합계. 0 이면 행을 그리지 않는다 */
+  /**
+   * 설정 예산 − 계획 합계. **0 이하면 행을 그리지 않는다.**
+   * 계산값이라 수정·삭제(스와이프)가 없다. 계획 항목처럼 보이지만 항목이 아니다.
+   */
   reserveAmount: number;
   /** 없으면 수정·삭제를 막는다 (결산 중·완료) */
   onEdit?: (id: string) => void;
