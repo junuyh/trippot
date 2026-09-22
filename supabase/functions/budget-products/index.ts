@@ -84,6 +84,14 @@ const TIMEOUT_MS = 8000;
 /** 워밍업(warm:true)의 예산. 사람이 기다리는 자리가 아니라 넉넉하게 준다 */
 const WARM_TIMEOUT_MS = 45000;
 /**
+ * 사용자 요청에서 **응답을 돌려준 뒤** 남은 칸을 채우는 데 쓰는 시간.
+ * 사람은 TIMEOUT_MS 만 기다린다. 이건 캐시를 채우는 시간이다.
+ */
+const BACKGROUND_TIMEOUT_MS = 40000;
+
+/** Supabase Edge Runtime 의 백그라운드 작업. 로컬 실행 등에서는 없을 수 있다 */
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
+/**
  * 한 번의 호출에 줄 시간.
  *
  * ⚠️ 카테고리를 **하나씩 나눠 병렬로** 부르기 때문에 이 값이 곧 체감 시간이다.
@@ -428,7 +436,24 @@ Deno.serve(async (request) => {
   // ⚠️ 관리 호출(service_role)만 워밍업으로 인정한다. 로그인 사용자가 warm:true 를
   //    보내면 요청 하나로 45초 동안 무료 한도를 태울 수 있다.
   const warming = caller.kind === "service" && (body as { warm?: boolean }).warm === true;
-  const deadline = Date.now() + (warming ? WARM_TIMEOUT_MS : TIMEOUT_MS);
+  /*
+    ⚠️⚠️ 2026-09-22 · **사용자에게는 8초에 답하고, 나머지는 뒤에서 마저 채운다.**
+
+       예전에는 8초가 지나면 모델 호출을 **끊었다.** 동시 2건 · 카테고리 7개라
+       8초 안에 끝나는 건 한두 개뿐이었고, 끊긴 칸은 캐시에도 안 남았다.
+       그래서 다음 사람도 똑같이 8초를 기다리고 똑같이 카탈로그를 받았다.
+       실측 캐시: paris 27칸, hong_kong 4, fukuoka 4, 나머지 11개 도시는 0.
+
+       캐시를 채우기로 한 워밍업 스크립트(.demo/warm-products.py)는 anon 키로
+       부르는데, 보안 점검 뒤로 anon 키는 401 이라 **아무것도 못 채우고 있었다.**
+
+       이제 사용자 요청은 8초에 그때까지 된 것만 돌려주고, 끝나지 않은 칸은
+       EdgeRuntime.waitUntil 로 **응답 뒤에도 계속 돌려 캐시에 넣는다.**
+       그 여행지를 처음 고른 한 사람만 일부를 카탈로그로 받고, 그다음부터는
+       캐시에서 1초 안에 전부 나온다. 스스로 채워지는 구조다.
+  */
+  const startedAt = Date.now();
+  const deadline = startedAt + (warming ? WARM_TIMEOUT_MS : BACKGROUND_TIMEOUT_MS);
 
   /** 다시 걸어 볼 만한 실패인가. 429·5xx 는 Gemini 무료 등급에서 흔하다 */
   const retryable = (status: number) => status === 429 || status >= 500;
@@ -610,11 +635,25 @@ Deno.serve(async (request) => {
     }
   }
 
-  await Promise.all(
+  const allDone = Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, pending.length) }, (_, i) => worker(i)),
   );
 
-  // 캐시에서 나온 것과 방금 만든 것을 합친다.
+  if (warming) {
+    await allDone;
+  } else {
+    // 사람은 TIMEOUT_MS 까지만 기다린다. 그때까지 된 것만 돌려준다.
+    const respondBy = new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.max(0, TIMEOUT_MS - (Date.now() - startedAt))),
+    );
+    await Promise.race([allDone, respondBy]);
+    // ⚠️ 끝나지 않은 칸은 응답 뒤에도 계속 돌려 캐시에 넣는다.
+    //    waitUntil 이 없는 환경이면 예전처럼 여기서 끝난다(응답은 이미 준비됨).
+    if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(allDone);
+  }
+
+  // 캐시에서 나온 것과 지금까지 만든 것을 합친다. 뒤에서 더 채워지는 것은
+  // 이번 응답에는 안 들어가고 다음 요청의 캐시로 간다.
   // 최종 검증과 가드레일은 앱에서 한다 (lib/budget/productLocalization.ts)
   const merged = [...fromCache, ...results.flat()];
   return ok(merged.slice(0, MAX_SLOTS));
