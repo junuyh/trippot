@@ -96,6 +96,7 @@ import {
   type TripBudget,
 } from "@/lib/supabase/queries/budgets";
 import { getGroupAccounts } from "@/lib/supabase/queries/funds";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import {
   createTransaction,
   getTransactions,
@@ -133,6 +134,8 @@ type CategoryData = {
   items: BudgetPlanItem[];
   transactions: Transaction[];
   maskedAccountNumber: string | null;
+  /** 참여자 id → 이름. 모임 여행에서만 채운다. 거래 시트에 적은 사람을 붙인다 */
+  memberNameById: Map<string, string>;
 };
 
 /** 실제 지출은 최근 몇 건까지 보여줄지 */
@@ -217,7 +220,7 @@ export default function ScreenBUDGET02() {
         return;
       }
 
-      const [items, transactions, accounts] = await Promise.all([
+      const [items, transactions, accounts, members] = await Promise.all([
         getBudgetPlanItems(category.id),
         getTransactions(trip.id, {
           categoryId: category.id,
@@ -227,6 +230,10 @@ export default function ScreenBUDGET02() {
           limit: RECENT_EXPENSE_LIMIT + 1,
         }),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+        // 모임 여행일 때만 참여자 이름을 읽는다. 실패해도 화면을 막지 않는다
+        trip.group_id
+          ? listActiveTripMembers(trip.id).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       setData({
@@ -237,6 +244,11 @@ export default function ScreenBUDGET02() {
         items,
         transactions,
         maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
+        memberNameById: new Map(
+          members
+            .filter((member) => member.user_id !== null)
+            .map((member) => [member.user_id as string, member.name]),
+        ),
       });
       setPlans(
         items
@@ -279,6 +291,7 @@ export default function ScreenBUDGET02() {
     planItems: data?.items ?? [],
     tripId: data?.trip.id ?? null,
     onNotice: (message) => setToast(message),
+    memberNameById: data?.memberNameById,
   });
 
   useFocusEffect(

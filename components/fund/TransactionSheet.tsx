@@ -93,6 +93,8 @@ export function TransactionSheet({
                 </Text>
                 <Text style={{ marginTop: 2, fontSize: 10, color: "#8b94a2" }}>
                   {format(parseISO(tx.occurred_at), "M월 d일")}
+                  {/* 누가 적었는지. 모임 여행에서만 채워져 있다 */}
+                  {c.authorName ? ` · ${c.authorName}` : ""}
                 </Text>
               </View>
               <Text
@@ -162,6 +164,7 @@ function DetailView({
           transactionType: tx.transaction_type as TransactionType,
           refundStatus: tx.refund_status as RefundStatus,
           categoryCode: code ?? null,
+          authorName: c.authorName,
         }}
         busy={c.busy}
       />

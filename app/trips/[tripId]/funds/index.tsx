@@ -218,6 +218,8 @@ export default function ScreenFUND01() {
     planItems: data?.planItems ?? [],
     tripId: data?.trip.id ?? null,
     onNotice: (message) => fundToast.show(message),
+    // 시트에도 누가 적었는지 붙인다. 모임 여행이 아니면 빈 Map 이다
+    memberNameById: data?.memberNameById,
   });
 
   useFocusEffect(

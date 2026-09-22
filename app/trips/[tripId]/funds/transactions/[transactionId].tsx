@@ -66,6 +66,7 @@ import {
   type BudgetPlanItem,
 } from "@/lib/supabase/queries/budgets";
 import { getGroupAccounts } from "@/lib/supabase/queries/funds";
+import { listActiveTripMembers } from "@/lib/supabase/queries/tripMembers";
 import {
   deleteTransaction,
   getTransactionById,
@@ -102,6 +103,11 @@ type DetailData = {
   planItems: BudgetPlanItem[];
   /** 마스킹된 계좌번호. 연결 계좌가 없으면 null (NFR-002) */
   maskedAccountNumber: string | null;
+  /**
+   * 이 거래를 적은 사람 이름. 모임 여행에서 created_by_user_id 가 있을 때만.
+   * 옛 기록·계좌 거래·개인 여행은 null — 모르는 것을 지어내지 않는다.
+   */
+  authorName: string | null;
 };
 
 export default function ScreenFUND03() {
@@ -168,10 +174,23 @@ export default function ScreenFUND03() {
       }
 
       const budget = await getBudgetByTripId(trip.id);
-      const [categories, accounts] = await Promise.all([
+      const [categories, accounts, members] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
         trip.group_id ? getGroupAccounts(trip.group_id) : Promise.resolve([]),
+        /*
+          ⚠️ 모임 여행이고 적은 사람이 남아 있을 때만 참여자를 읽는다.
+             실패해도 상세를 막지 않는다 — 이름 없이 그린다.
+             (2026-09-22 테스트 — 입력자 이름이 최근 내역에만 보였다)
+        */
+        trip.group_id && transaction.created_by_user_id
+          ? listActiveTripMembers(trip.id).catch(() => [])
+          : Promise.resolve([]),
       ]);
+      const authorName = transaction.created_by_user_id
+        ? (members.find(
+            (member) => member.user_id === transaction.created_by_user_id,
+          )?.name ?? null)
+        : null;
 
       /*
         ⚠️ 세부 계획은 **카테고리마다** 읽는다. getBudgetPlanItems 가 거르는 칸은
@@ -192,6 +211,7 @@ export default function ScreenFUND03() {
         categories,
         planItems,
         maskedAccountNumber: accounts[0]?.masked_account_number ?? null,
+        authorName,
       });
     } catch {
       setError(true);
@@ -481,6 +501,10 @@ export default function ScreenFUND03() {
   const rows: [string, string][] = [
     ["거래명", transaction.name ?? "이름 없는 거래"],
     ["거래일", format(parseISO(transaction.occurred_at), "yyyy년 M월 d일")],
+    // 누가 적었는지. 모임 여행에서만 채워져 있다
+    ...(data.authorName
+      ? ([["기록한 사람", data.authorName]] as [string, string][])
+      : []),
     ...(deposit
       ? []
       : ([

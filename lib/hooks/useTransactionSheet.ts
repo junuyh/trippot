@@ -56,6 +56,12 @@ export type TransactionSheetInput = {
   tripId?: string | null;
   /** 결과를 알리는 짧은 문구. 화면이 토스트로 띄운다 */
   onNotice?: (message: string) => void;
+  /**
+   * 참여자 id → 이름. 모임 여행에서만 넘긴다. 거래를 적은 사람 이름을 붙이는 데 쓴다.
+   *
+   * ⚠️ 화면이 한 번만 읽어서 넘긴다. 거래마다 조회하지 않는다.
+   */
+  memberNameById?: Map<string, string>;
 };
 
 export function useTransactionSheet({
@@ -65,6 +71,7 @@ export function useTransactionSheet({
   planItems,
   tripId = null,
   onNotice,
+  memberNameById,
 }: TransactionSheetInput) {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [mode, setMode] = useState<TransactionSheetMode>("detail");
@@ -117,6 +124,15 @@ export function useTransactionSheet({
     ? (planItems.find((item) => item.id === transaction.budget_plan_item_id)
         ?.name ?? "계획에 연결됨")
     : null;
+
+  /**
+   * 이 거래를 적은 사람. 모임 여행이 아니거나 옛 기록·계좌 거래면 null.
+   * ⚠️ 이름을 모르면(나간 사람 등) 지어내지 않고 null 로 둔다.
+   */
+  const authorName =
+    transaction?.created_by_user_id && memberNameById
+      ? (memberNameById.get(transaction.created_by_user_id) ?? null)
+      : null;
 
   const open = useCallback((next: Transaction) => {
     setTransaction(next);
@@ -375,6 +391,7 @@ export function useTransactionSheet({
     reason,
     planCandidates,
     linkedPlanName,
+    authorName,
     categories,
     // 수정
     startEdit,
