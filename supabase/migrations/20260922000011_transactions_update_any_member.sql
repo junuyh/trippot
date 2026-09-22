@@ -19,7 +19,7 @@
 -- ⚠️ UPDATE 의 WITH CHECK 에서 기록자 조건을 빼면 created_by_user_id 를 남의 id 로
 --    고쳐 쓰는 것을 정책이 막지 못한다. 앱은 그 칸을 INSERT 때만 채우고 UPDATE 로
 --    건드리지 않는다. 표 단위로 막으려면 트리거가 필요하다 — 이 파일은 정책만 다룬다.
---    [검토 필요] created_by_user_id 변경을 트리거로 막을지.
+--    트리거 transactions_keep_created_by 로 해결 (파일 하단) created_by_user_id 변경을 트리거로 막을지.
 --
 -- ⚠️ 두 번 실행해도 안전하다. drop policy if exists 뒤에 create.
 -- ⚠️ 표 GRANT · can_access_trip 은 20260916000008 그대로다. 새 권한을 주지 않는다.
@@ -71,3 +71,27 @@ create policy "transactions_update" on public.transactions
 create policy "transactions_delete" on public.transactions
   for delete to authenticated
   using (public.can_access_trip(trip_id));
+
+-- ----------------------------------------------------------------------------
+-- created_by_user_id 는 한 번 적히면 바꾸지 못한다. (2026-09-22 추가)
+-- UPDATE 정책에서 created_by 조건을 뺐으므로, 멤버가 다른 사람 id 로 바꿔 적는
+-- 경로를 트리거로 막는다. 앱은 이 칼럼을 UPDATE 하지 않는다.
+-- ----------------------------------------------------------------------------
+create or replace function public.transactions_keep_created_by()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.created_by_user_id is distinct from old.created_by_user_id then
+    raise exception 'transactions.created_by_user_id cannot be changed'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists transactions_keep_created_by on public.transactions;
+create trigger transactions_keep_created_by
+  before update on public.transactions
+  for each row execute function public.transactions_keep_created_by();
