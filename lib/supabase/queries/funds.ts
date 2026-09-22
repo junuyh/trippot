@@ -439,9 +439,9 @@ const MOCK_IMPORTED_SPEND = {
 
 export type MockConnectResult = {
   fund: FundSource;
-  /** 함께 들어온 거래 이름. 화면에서 안내에 쓴다 */
-  importedName: string;
-  importedAmount: number;
+  /** 함께 들어온 거래 이름. 화면에서 안내에 쓴다. 가상 계좌(테스트 빌드)는 안 들어와서 null */
+  importedName: string | null;
+  importedAmount: number | null;
 };
 
 /**
@@ -528,12 +528,12 @@ export async function connectExistingAccount(
   accountId: string,
 ): Promise<MockConnectResult> {
   const fund = await convertToAccount(tripId, accountId);
-  await importMockSpend(tripId, accountId);
-  return {
-    fund,
-    importedName: MOCK_IMPORTED_SPEND.name,
-    importedAmount: MOCK_IMPORTED_SPEND.amount,
-  };
+  /*
+    ⚠️ 가상 계좌에는 견본 항공 지출(230만 원)을 넣지 않는다. (2026-09-22)
+       계좌가 200만 원이라 넣는 순간 잔액이 마이너스로 보인다. 자동 분류·확인 필요
+       흐름은 직접 입력·영수증으로도 볼 수 있다. 옛 Mock 은행(480만 원) 경로는 그대로.
+  */
+  return { fund, importedName: null, importedAmount: null };
 }
 
 /**
