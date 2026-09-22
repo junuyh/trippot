@@ -50,6 +50,7 @@ import {
   restoredRemainingAmount,
 } from '@/lib/trip/cancelPolicy';
 import { tripStage } from '@/lib/trip/stage';
+import { isLeaderOfSharedTrip } from '@/lib/trip/tripLeader';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 import { reconcileSpendReminders } from '@/lib/notifications/spendReminder';
 
@@ -313,6 +314,8 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
         color: theme.primary,
         colorSoft: theme.primarySoft,
         stage: tripStage({ status, hasPlan: trip.hasPlan, hasExpense: trip.hasExpense }),
+        // 2인 이상 여행의 여행장이면 '여행장' 배지. (2026-09-21 한나 요청 · lib/trip/tripLeader)
+        isLeader: isLeaderOfSharedTrip(trip, userId),
       },
     ];
   });
@@ -348,6 +351,8 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
           color: theme.primary,
           colorSoft: theme.primarySoft,
           left,
+          // 나간 여행은 넘기고 나왔으니 여행장일 수 없다. 취소된 여행만 본다.
+          isLeader: !left && isLeaderOfSharedTrip(trip, userId),
         },
       ];
     });

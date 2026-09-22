@@ -60,6 +60,7 @@ import {
   getMyPersonalTrips,
   type Trip,
 } from '@/lib/supabase/queries/trips';
+import { isLeaderOfSharedTrip } from '@/lib/trip/tripLeader';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -112,6 +113,8 @@ export default function ScreenPersonalTrips() {
           finalAmount: amount?.finalAmount ?? null,
           color: theme.primary,
           colorSoft: theme.primarySoft,
+          // 개인 여행이라도 초대로 2인 이상이 되면 여행장 배지가 붙는다. (2026-09-21 한나 요청)
+          isLeader: isLeaderOfSharedTrip(trip, userId),
         };
       };
 
