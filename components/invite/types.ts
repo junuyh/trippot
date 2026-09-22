@@ -60,7 +60,8 @@ export type InviteFailReason =
   | "EXPIRED"
   | "REVOKED"
   | "NOT_FOUND"
-  | "ALREADY_REJECTED";
+  | "ALREADY_REJECTED"
+  | "CANCELED";
 
 /**
  * 로그인한 내가 이 여행과 어떤 관계인가. 서버 resolve_trip_invite 의 my_state 그대로.
@@ -86,6 +87,8 @@ export type InviteRouteState =
   | { kind: "EXPIRED" }
   | { kind: "REVOKED" }
   | { kind: "NOT_FOUND" }
+  /** 취소 · 삭제된 여행의 초대. 서버가 resolve 단계에서 끝낸다 — 여행 정보가 오지 않는다. (2026-09-22) */
+  | { kind: "CANCELED" }
   | { kind: "VALID"; preview: InvitePreview; myState: InviteMyState; myRequestId: string | null };
 
 /**

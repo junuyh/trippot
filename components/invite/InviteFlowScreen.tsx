@@ -82,6 +82,9 @@ function toRouteState(row: ResolveTripInviteRow): InviteRouteState {
       return { kind: 'EXPIRED' };
     case 'REVOKED':
       return { kind: 'REVOKED' };
+    // 취소 · 삭제된 여행. 서버가 여행 정보를 비워서 보낸다. (2026-09-22 · migration 20260922000011)
+    case 'CANCELED':
+      return { kind: 'CANCELED' };
     default:
       return { kind: 'NOT_FOUND' };
   }
@@ -248,7 +251,12 @@ export function InviteFlowScreen({
     );
   }
 
-  if (state.kind === 'EXPIRED' || state.kind === 'REVOKED' || state.kind === 'NOT_FOUND') {
+  if (
+    state.kind === 'EXPIRED' ||
+    state.kind === 'REVOKED' ||
+    state.kind === 'NOT_FOUND' ||
+    state.kind === 'CANCELED'
+  ) {
     return (
       <>
         {screen}
