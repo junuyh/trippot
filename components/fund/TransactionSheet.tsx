@@ -276,11 +276,43 @@ function DetailView({
             borderColor: "#eceef1",
           }}
         >
-          <Button
-            label="확인 완료"
-            loading={c.busy}
-            onPress={() => void c.confirmReview()}
-          />
+          {/*
+            ⚠️ 미분류에는 '확인 완료' 가 없다. (2026-09-22 테스트)
+               확인 완료는 "자동으로 붙은 분류가 맞다" 는 뜻인데 분류가 없으면
+               맞다고 할 것이 없다. 눌러도 "먼저 카테고리를 정해 주세요" 만
+               떴다. 그 자리에 할 일을 그대로 둔다 — 카테고리 정하기.
+          */}
+          {c.reason === "UNCATEGORIZED" ? (
+            <Button
+              label="카테고리 정하기"
+              disabled={c.busy}
+              onPress={c.startChangeCategory}
+            />
+          ) : (
+            <Button
+              label="확인 완료"
+              loading={c.busy}
+              onPress={() => void c.confirmReview()}
+            />
+          )}
+          {/*
+            누른 것에 대한 즉답. 환불 대기 거래는 확인해도 남는 이유를 적는다.
+            ⚠️ 시트 안에 둔다. 화면의 토스트는 Modal 뒤에 가려 안 보인다.
+          */}
+          {c.notice ? (
+            <View
+              style={{
+                marginTop: 10,
+                borderRadius: 10,
+                padding: 11,
+                backgroundColor: "#fff8e6",
+              }}
+            >
+              <Text style={{ fontSize: 11, lineHeight: 16, color: "#8a5a00" }}>
+                {c.notice}
+              </Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
 

@@ -18,7 +18,7 @@
 //
 // ⚠️ 저장이 끝나면 onChanged() 를 부른다. 목록을 다시 읽는 건 화면의 몫이다.
 // ============================================================================
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { track } from "@/lib/analytics/track";
 import { EVENTS } from "@/lib/analytics/events";
@@ -43,6 +43,9 @@ import {
 } from "@/lib/supabase/queries/transactions";
 
 export type TransactionSheetMode = "detail" | "edit" | "category" | "link";
+
+/** 시트 안 안내가 떠 있는 시간 */
+const NOTICE_MS = 3500;
 
 export type TransactionSheetInput = {
   /** 저장이 끝난 뒤 목록을 다시 읽는다 */
@@ -78,6 +81,19 @@ export function useTransactionSheet({
   const [mode, setMode] = useState<TransactionSheetMode>("detail");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * 시트 안에서 잠깐 보였다 사라지는 안내. 누른 것에 대한 즉답이다.
+   *
+   * ⚠️ 화면의 토스트(onNotice)를 쓰지 않는다. 이 시트는 Modal 이라 화면에
+   *    붙은 토스트는 시트 뒤에 가려 보이지 않는다. 시트가 열린 채로 답해야
+   *    하는 말은 시트 안에 적는다. (2026-09-22 — 환불 대기 거래의 '확인 완료')
+   */
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   // 수정 초안
   const [draftName, setDraftName] = useState("");
@@ -148,12 +164,14 @@ export function useTransactionSheet({
     setTransaction(next);
     setMode("detail");
     setError(null);
+    setNotice(null);
   }, []);
 
   const close = useCallback(() => {
     setTransaction(null);
     setMode("detail");
     setError(null);
+    setNotice(null);
   }, []);
 
   /** 상세로 돌아간다. 고르던 값은 버린다 */
@@ -274,6 +292,16 @@ export function useTransactionSheet({
     try {
       const next = await updateTransactionMapping(transaction.id, {
         categoryId: pickedCategoryId,
+        /*
+          ⚠️ 카테고리가 그대로면 계획 연결도 그대로 둔다. (2026-09-22)
+             budgetItemId 를 안 넘기면 null 로 덮여 연결이 풀리고 계획의
+             실제 금액이 0 이 됐다. 옮겼을 때만 푼다 — 옮긴 카테고리의
+             계획이 아니게 되므로.
+        */
+        budgetItemId:
+          pickedCategoryId === transaction.budget_category_id
+            ? transaction.budget_plan_item_id
+            : null,
         categoryMethod: CATEGORY_METHOD.USER,
       });
       const code = categories.find((c) => c.id === pickedCategoryId)
@@ -343,9 +371,26 @@ export function useTransactionSheet({
     }
   }, [busy, onChanged, onNotice, transaction]);
 
-  /** 자동 분류가 맞다고 확인한다. 카테고리가 없으면 먼저 정해야 한다 */
+  /**
+   * 자동 분류가 맞다고 확인한다. 카테고리가 없으면 먼저 정해야 한다.
+   *
+   * ⚠️ 환불 대기 거래는 여기서 끝나지 않는다. (2026-09-22 테스트)
+   *    '확인 필요' 인 이유가 분류가 아니라 환불이라, 분류를 확정해도 목록에서
+   *    빠지지 않는다. 전에는 눌러도 아무 변화가 없어 고장처럼 보였다.
+   *    저장하지 않고 왜 남는지만 시트 안에 잠깐 적는다.
+   *
+   * ⚠️ **계획 연결을 그대로 넘긴다.** budgetItemId 를 빼면 null 로 덮여
+   *    연결이 풀리고 계획 실제 금액이 0 이 됐다. (2026-09-22 테스트 — '확인 완료'
+   *    를 누르면 연결이 사라지던 것)
+   */
   const confirmReview = useCallback(async () => {
     if (!transaction || busy) return;
+    if (reason === "REFUND_PENDING") {
+      setNotice(
+        "환불 대기 중인 거래예요. 환불이 끝나면 확인 필요에서 사라져요.",
+      );
+      return;
+    }
     if (!transaction.budget_category_id) {
       setError("먼저 카테고리를 정해 주세요.");
       return;
@@ -354,6 +399,7 @@ export function useTransactionSheet({
     try {
       const next = await updateTransactionMapping(transaction.id, {
         categoryId: transaction.budget_category_id,
+        budgetItemId: transaction.budget_plan_item_id,
         categoryMethod: CATEGORY_METHOD.USER,
       });
       setTransaction(next);
@@ -364,7 +410,7 @@ export function useTransactionSheet({
     } finally {
       setBusy(false);
     }
-  }, [busy, onChanged, onNotice, transaction]);
+  }, [busy, onChanged, onNotice, reason, transaction]);
 
   /**
    * 거래를 지운다.
@@ -427,6 +473,7 @@ export function useTransactionSheet({
     confirmReview,
     remove,
     error,
+    notice,
     busy,
   };
 }
