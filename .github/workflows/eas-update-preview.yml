@@ -1,0 +1,76 @@
+# ============================================================================
+# develop 에 머지되면 EAS Update 를 preview 브랜치에 자동으로 올린다.
+#
+# 왜: 아이폰 테스터는 Expo Go 로 preview 채널의 최신 업데이트를 연다. 머지만으로는
+#     앱이 안 바뀌고 누군가 `eas update` 를 올려야 하는데, 아무도 안 올려서 9/22
+#     테스트에서 옛 화면이 보였다. 사람 기억에 맡기지 않고 CI 가 올린다.
+#
+# 조건
+#   · 저장소 Secret EXPO_TOKEN 이 있어야 한다 (Expo 조직 robot 토큰 · docs/19 §9)
+#   · docs/ · web/ · md 만 바뀐 머지는 건너뛴다 (앱 코드가 아니다)
+#   · 안드로이드 APK 는 이 워크플로가 만들지 않는다. eas build 는 사람이 직접 (docs/19 §3)
+#
+# ⚠️ EXPO_PUBLIC_* 값은 EAS 서버의 preview 환경(--environment preview)에서 온다.
+#    EXPO_PUBLIC_TEST_BUILD 만 서버에 없어서 여기서 1 로 준다 (eas.json preview 와 같음).
+# ⚠️ app.json version 을 올리면 runtime-version 이 바뀌어 기존 Expo Go 고정 주소로는
+#    새 업데이트가 안 보인다. 올리기 전에 팀 확인 (docs/19 §5).
+# ============================================================================
+name: EAS Update (preview) on develop
+
+on:
+  push:
+    branches: [develop]
+    paths-ignore:
+      - "docs/**"
+      - "web/**"
+      - "**/*.md"
+      - ".github/**"
+  workflow_dispatch:
+
+concurrency:
+  group: eas-update-preview
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: EXPO_TOKEN 확인
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::저장소 Secret EXPO_TOKEN 이 없어요. expo.dev → trippots-team → Settings → Access tokens 에서 robot 토큰을 만들어 GitHub Settings → Secrets → Actions 에 EXPO_TOKEN 으로 넣어 주세요. (docs/19 §9)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 의존성 설치
+        run: pnpm install --frozen-lockfile
+
+      - name: 타입 체크
+        run: npx tsc --noEmit
+
+      - name: EAS Update 올리기 (preview)
+        env:
+          EXPO_PUBLIC_TEST_BUILD: "1"
+        run: |
+          MSG="$(git log -1 --pretty=%s | cut -c1-120)"
+          eas update --branch preview --environment preview --non-interactive \
+            --message "CI · ${MSG}"
