@@ -16,21 +16,6 @@ type Props = {
   inviteContext?: boolean;
   onPressTerms: () => void;
   onPressPrivacy: () => void;
-  /**
-   * 개발용 미리보기 진입을 그릴지.
-   *
-   * ⚠️ 화면 파일이 __DEV__ 를 넘긴다. production 번들에서는 false 로 굳어
-   *    이 블록 전체가 그려지지 않는다. (app/login.tsx)
-   */
-  showDevPreview: boolean;
-  /**
-   * [개발용] 신규 사용자 홈(여행 0개)으로 들어가는 통로. (2026-09-16 · HOME-01 담당)
-   *
-   * ⚠️ seed 사용자 넷은 모두 여행이 있어서, 여행이 하나도 없는 사람의 홈을
-   *    볼 방법이 없었다. 이 버튼은 **화면만** 그렇게 그린다. DB 에는 쓰지 않는다.
-   * ⚠️ 넘기지 않으면 칩이 그려지지 않는다. showDevPreview 와 함께 사라진다.
-   */
-  onPressDevPreviewNewUser?: () => void;
 };
 
 /** 카카오 브랜드 색. 카카오가 지정한 값이라 pot 토큰을 쓰지 않는다. */
@@ -57,8 +42,6 @@ export function LoginView({
   inviteContext = false,
   onPressTerms,
   onPressPrivacy,
-  showDevPreview,
-  onPressDevPreviewNewUser,
 }: Props) {
   const insets = useSafeAreaInsets();
   // 초대로 왔으면 "계속하기" — 이미 하던 일(초대 확인)을 이어간다는 뜻이다.
@@ -106,7 +89,8 @@ export function LoginView({
           style={{ fontSize: 14, lineHeight: 21 }}
         >
           {inviteContext
-            ? '여행 정보를 확인하고 참여하려면\nTripPot 로그인이 필요해요.'
+            ? // 초대로 들어온 사람은 회원 · 비회원 구분 없이 같은 한 줄이다. (2026-09-22 확정 문구)
+              '로그인이 필요해요'
             : '여행 준비부터 자금 관리까지\nTripPot과 함께하세요.'}
         </Text>
       </View>
@@ -214,42 +198,6 @@ export function LoginView({
           </Pressable>
         </View>
 
-        {/*
-          개발용 미리보기.
-
-          ⚠️ 실제 사용자 기능이 아니다. '둘러보기' 처럼 읽히면 안 되므로
-             '개발용' 을 문구에 그대로 둔다.
-          ⚠️ 카카오 버튼과 약관 줄의 디자인·위치를 건드리지 않는다. 이 블록만
-             맨 아래에 덧붙인다. showDevPreview 가 false 면 통째로 사라지고
-             레이아웃도 원래대로 돌아간다.
-        */}
-        {showDevPreview ? (
-          <View className="mt-4 items-center" style={{ gap: 6 }}>
-            <Text className="text-pot-faint" style={{ fontSize: 11.5, lineHeight: 16 }}>
-              개발용으로 둘러보기
-            </Text>
-            {/*
-              ⚠️ seed 사용자 이름 칩(지수·민준…)은 2026-09-17 에 뺐다.
-                 미리보기는 Supabase 세션이 없어 서버가 로그인 전 사용자(anon)로 본다.
-                 권한 전환(20260916000008 이후) 뒤로 anon 은 여행·모임·글을 읽을 수 없어
-                 칩으로 들어가면 빈 화면만 나온다. 데이터 확인은 실제 로그인으로 한다.
-
-              [개발용] 여행이 하나도 없는 사람의 홈. 조회 결과와 무관하게 그리므로 남긴다.
-            */}
-            {onPressDevPreviewNewUser ? (
-              <Text
-                accessibilityRole="button"
-                accessibilityLabel="새 유저 홈으로 둘러보기"
-                onPress={onPressDevPreviewNewUser}
-                suppressHighlighting
-                className="rounded-full border border-dashed border-pot-line px-3 py-1.5 text-pot-mute"
-                style={{ fontSize: 12, lineHeight: 16 }}
-              >
-                새 유저 홈 (여행 0개)
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
       </View>
     </View>
   );

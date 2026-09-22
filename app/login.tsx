@@ -21,8 +21,7 @@ import { useState } from 'react';
 
 import { EmailAuthView, type EmailAuthMode } from '@/components/auth/EmailAuthView';
 import { LoginView } from '@/components/auth/LoginView';
-import { useAuth } from '@/lib/auth/AuthProvider';
-import { DEV_USER_ID } from '@/lib/constants/devUser';
+import { peekPendingNext } from '@/lib/auth/pendingNext';
 import {
   EMAIL_CODE_MAX,
   EMAIL_CODE_MIN,
@@ -41,9 +40,12 @@ export default function ScreenLogin() {
   const router = useRouter();
   // 초대 링크에서 왔는가. 가드가 /login?next=/invite/:token 으로 보낸다. (app/_layout.tsx)
   // next 를 여기서 소비하지 않는다 — 복귀는 가드가 한다. 문구만 바꾼다. (docs/14 · 2026-09-16)
+  // ⚠️ URL 의 next 가 없어도 기기에 남긴 목적지(lib/auth/pendingNext)가 초대면 초대 문맥이다. (2026-09-22)
+  //    카카오 · 구글 콜백이 Expo Go 를 다시 로드하면 ?next 는 사라지지만 저장값은 남는다. 그때도
+  //    "초대를 받았다" 는 설명과 [계속하기] 문구를 유지한다. 저장값은 가드가 로그인 뒤 한 번 쓰고 지운다.
   const { next } = useLocalSearchParams<{ next?: string }>();
-  const inviteContext = typeof next === 'string' && next.startsWith('/invite/');
-  const { enterPreview } = useAuth();
+  const continuation = typeof next === 'string' ? next : peekPendingNext();
+  const inviteContext = typeof continuation === 'string' && continuation.startsWith('/invite/');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -87,21 +89,6 @@ export default function ScreenLogin() {
   }
 
 
-  /**
-   * [개발용] 신규 사용자 홈(여행 0개) 미리보기. (2026-09-16 · HOME-01 담당)
-   *
-   * 미리보기로 들어간 **뒤 어디로 갈지**는 가드(app/_layout.tsx)가 next 파라미터로
-   * 정한다. 그래서 여기서 router.replace 를 부르지 않고 next 만 심어 둔다.
-   * 두 곳이 같이 옮기면 화면이 두 번 바뀐다. (이 파일 머리말)
-   *
-   * ⚠️ 어느 seed 사용자로 들어가도 화면은 같다. 홈이 ?preview=empty 를 보고
-   *    **조회 결과와 무관하게** 신규 사용자 홈을 그린다. (app/(tabs)/index.tsx)
-   * ⚠️ 확인이 끝나면 이 함수와 LoginView 의 칩을 지운다.
-   */
-  function handlePressNewUserPreview() {
-    router.setParams({ next: '/?preview=empty' });
-    enterPreview(DEV_USER_ID);
-  }
 
   function openEmail(mode: EmailAuthMode) {
     setEmailMode(mode);
@@ -255,11 +242,6 @@ export default function ScreenLogin() {
         inviteContext={inviteContext}
         onPressTerms={() => router.push('/me/settings/terms')}
         onPressPrivacy={() => router.push('/me/settings/privacy')}
-        // ⚠️ __DEV__ 는 production 번들에서 false 로 굳는다. 그래서 개발용
-        //    미리보기는 배포된 앱에 아예 그려지지 않는다. (AuthProvider 가
-        //    enterPreview 안에서도 한 번 더 막는다)
-        showDevPreview={__DEV__}
-        onPressDevPreviewNewUser={handlePressNewUserPreview}
       />
     </>
   );
