@@ -595,6 +595,14 @@ export default function ScreenHOME01() {
       } else if (code === TRIP_JOIN_ERROR.INVITE_NOT_VALID || code === TRIP_JOIN_ERROR.NOT_FOUND) {
         dismissInvite(token);
         Alert.alert('초대 링크가 만료됐어요', '초대한 사람에게 새 링크를 받아 주세요.');
+      } else if (code === TRIP_JOIN_ERROR.TRIP_NOT_OPEN) {
+        // 취소 · 삭제된 여행. 초대 링크는 살아 있어도 서버가 요청을 받지 않는다.
+        // 다시 눌러도 결과가 같으니 초대를 남겨 두지 않는다. (초대 화면과 같은 문구)
+        dismissInvite(token);
+        Alert.alert(
+          '사용할 수 없는 초대 링크예요',
+          '이 링크는 더 이상 쓸 수 없어요. 초대한 분에게 새 링크를 받아 주세요.',
+        );
       } else {
         // 일시적인 실패일 수 있다. 초대는 남겨 두고 다시 누를 수 있게 한다.
         Alert.alert('참여 의사를 보내지 못했어요', '잠시 후 다시 시도해 주세요.');
