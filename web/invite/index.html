@@ -7,18 +7,21 @@
 <meta name="referrer" content="no-referrer">
 <title>TripPot 여행 초대</title>
 <!--
-  초대 착륙 페이지 (2026-09-21)
+  초대 착륙 페이지 v2 (2026-09-22)
 
   초대 링크를 https 주소 하나로 통일하기 위한 페이지다.
-  앱 종류(APK · 개발용 빌드 · Expo Go · 시뮬레이터)마다 열 수 있는 주소가 달라서,
-  여는 사람이 자기 환경 버튼을 고르게 한다. 초대는 토큰으로 DB 에서 확인하니
-  어느 환경에서 열어도 같은 초대로 이어진다.
+  앱 종류(APK · Expo Go · 시뮬레이터)마다 열 수 있는 주소가 달라서,
+  받는 사람이 자기 폰에 맞는 카드의 버튼을 누른다. 초대는 토큰으로 DB 에서
+  확인하니 어느 환경에서 열어도 같은 초대로 이어진다.
+
+  v2: 안드로이드 / 아이폰 카드로 나누고 각 카드에 설명 + 열기 + 링크 복사.
+      기기(User-Agent)에 맞는 카드를 위로 올린다. 팀원용 개발 서버는 접어 둔다.
 
   ⚠️ 토큰은 ?t= 가 아니라 # 뒤에 둔다. fragment 는 서버로 전송되지 않아
      호스팅 로그에 남지 않는다.   예) https://…/invite/#<token>
-  ⚠️ 분석 스크립트를 넣지 않는다. 외부 요청은 폰트뿐이다.
-  ⚠️ EXPO_PROJECT_ID · runtime-version · channel 은 app.json / eas.json 과 같아야 한다.
-     app.json 의 version 을 올리면 runtime-version 도 함께 바꾼다.
+  ⚠️ 분석 스크립트를 넣지 않는다. 외부 요청은 폰트뿐이다. 토큰을 저장하지 않는다.
+  ⚠️ EXPO_PROJECT_ID · RUNTIME_VERSION · CHANNEL 은 app.json / eas.json 과 같아야 한다.
+     app.json 의 version 을 올리면 RUNTIME_VERSION 도 함께 바꾼다. (docs/19 §5)
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,84 +30,113 @@
   :root {
     --ground: #F5F7FA; --surface: #FFFFFF; --ink: #111827; --mute: #5F6673; --faint: #8B94A2;
     --line: #E5E8EC; --brand: #64139E; --brand-pressed: #521080; --brand-soft: #F6F0FA; --on-brand: #FFFFFF;
-    --warn-bg: #FDF1F1; --warn-ink: #9B2226;
+    --warn-bg: #FDF1F1; --warn-ink: #9B2226; --ok-bg: #EAF7EE; --ok-ink: #1E6B3A;
+    --android: #2E7D32; --android-soft: #EAF5EB; --ios: #1F2937; --ios-soft: #EEF1F5;
     --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root { --ground: #110E16; --surface: #1B1722; --ink: #EFEBF5; --mute: #B3ACBF; --faint: #8C8499;
-            --line: #2E2838; --brand-soft: #2A1E38; --warn-bg: #2E1A1C; --warn-ink: #F2A3A6; }
+            --line: #2E2838; --brand-soft: #2A1E38; --warn-bg: #2E1A1C; --warn-ink: #F2A3A6;
+            --ok-bg: #16281C; --ok-ink: #8FD3A5; --android: #7BC67E; --android-soft: #17261A;
+            --ios: #E5E7EB; --ios-soft: #232733; }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); padding: 24px 16px 48px; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); padding: 20px 16px 48px; }
   main { max-width: 480px; margin: 0 auto; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 24px 20px; }
+  .hero { padding: 4px 4px 14px; }
   .eyebrow { font-size: 12px; letter-spacing: .08em; color: var(--brand); font-weight: 700; text-transform: uppercase; }
   h1 { font-size: 22px; margin: 6px 0 8px; line-height: 1.3; }
-  p { margin: 0 0 12px; line-height: 1.6; color: var(--mute); font-size: 15px; }
-  .btn { display: block; width: 100%; padding: 15px 16px; border-radius: 14px; border: 1px solid var(--line);
-         background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; font-size: 16px;
-         text-align: left; text-decoration: none; cursor: pointer; margin-top: 10px; }
-  .btn .sub { display: block; font-size: 13px; font-weight: 400; color: var(--mute); margin-top: 3px; }
+  p { margin: 0 0 10px; line-height: 1.6; color: var(--mute); font-size: 15px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px 18px 16px; margin-top: 12px; }
+  .card.mine { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+  .badge.android { color: var(--android); background: var(--android-soft); }
+  .badge.ios { color: var(--ios); background: var(--ios-soft); }
+  .badge.mine { color: var(--brand); background: var(--brand-soft); }
+  h2 { font-size: 18px; margin: 0; }
+  .desc { font-size: 14px; color: var(--mute); line-height: 1.6; margin: 0 0 12px; }
+  .desc b { color: var(--ink); }
+  ol { margin: 0 0 12px; padding-left: 20px; color: var(--mute); font-size: 14px; line-height: 1.7; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 16px; border-radius: 14px;
+         border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; font-size: 16px;
+         text-decoration: none; cursor: pointer; margin-top: 8px; }
   .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
-  .btn.primary .sub { color: rgba(255,255,255,.8); }
   .btn.primary:active { background: var(--brand-pressed); }
-  .btn:active { background: var(--brand-soft); }
-  .warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.5; }
-  .section { margin-top: 22px; }
-  .section h2 { font-size: 14px; color: var(--faint); font-weight: 600; margin: 0 0 8px; }
-  details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
-  summary { cursor: pointer; font-size: 14px; color: var(--mute); }
+  .btn.ghost { font-weight: 600; font-size: 14px; color: var(--mute); padding: 11px 14px; }
+  .btn.ghost:active { background: var(--brand-soft); }
+  .btn.copied { color: var(--ok-ink); background: var(--ok-bg); border-color: var(--ok-bg); }
+  .warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.5; margin-top: 12px; }
+  .note { font-size: 13px; color: var(--faint); line-height: 1.6; margin: 8px 0 0; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; font-size: 14px; color: var(--mute); padding: 6px 4px; }
   code { font-size: 12px; word-break: break-all; color: var(--faint); }
-  footer { text-align: center; font-size: 12px; color: var(--faint); margin-top: 20px; line-height: 1.6; }
+  footer { text-align: center; font-size: 12px; color: var(--faint); margin-top: 22px; line-height: 1.6; }
   footer a { color: var(--faint); }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
-  <div class="card">
+  <div class="hero">
     <div class="eyebrow">TripPot · Invitation</div>
     <h1>여행에 초대됐어요</h1>
-    <p>지금 쓰는 앱에 맞는 버튼을 눌러 초대를 확인하고 참여 의사를 보내 주세요. 여행장이 수락하면 참여가 확정돼요. 초대 링크는 만든 날부터 7일 동안 쓸 수 있어요.</p>
-
-    <div id="no-token" class="warn" hidden>
-      초대 토큰이 없어요. 받은 링크를 그대로 다시 열어 주세요. 링크 끝의 <b>#</b> 뒤 글자까지 있어야 해요.
-    </div>
-
-    <div id="buttons" hidden>
-      <a id="btn-app" class="btn primary" href="#">
-        TripPot 앱으로 열기
-        <span class="sub">안드로이드 설치 파일(APK)로 TripPot을 깐 폰</span>
-      </a>
-      <a id="btn-go" class="btn" href="#">
-        Expo Go로 열기
-        <span class="sub">아이폰 · Expo Go에 팀 계정으로 로그인한 폰</span>
-      </a>
-      <a id="btn-install" class="btn" href="/install/">
-        아직 앱이 없어요
-        <span class="sub">설치 안내 페이지로 가요</span>
-      </a>
-
-      <details>
-        <summary>팀원용 · 시뮬레이터에서 열기</summary>
-        <a id="btn-dev" class="btn" href="#">
-          내 컴퓨터 개발 서버로 열기
-          <span class="sub">이 컴퓨터에서 <code>npx expo start</code> 가 켜져 있을 때 (포트 8081)</span>
-        </a>
-        <p style="margin-top:10px;font-size:13px">주소를 직접 쓰려면: <code id="raw"></code></p>
-      </details>
-    </div>
-
-    <div class="section">
-      <h2>버튼을 눌러도 안 열리면</h2>
-      <p>아이폰은 Expo Go 앱을 먼저 열어 팀 계정으로 로그인한 뒤 다시 눌러 주세요. 안드로이드는 TripPot이 설치돼 있는지 확인해 주세요. 그래도 안 되면 링크를 보낸 사람에게 알려 주세요.</p>
-    </div>
+    <p>쓰는 폰에 맞는 카드의 버튼을 눌러 초대를 확인하고 <b>참여 의사</b>를 보내 주세요. 여행장이 수락하면 참여가 확정돼요. 초대 링크는 만든 날부터 <b>7일</b> 동안 쓸 수 있어요.</p>
   </div>
+
+  <div id="no-token" class="warn" hidden>
+    초대 토큰이 없어요. 받은 링크를 그대로 다시 열어 주세요. 링크 끝의 <b>#</b> 뒤 글자까지 있어야 해요.
+  </div>
+
+  <div id="cards" hidden>
+
+    <section class="card" id="card-android">
+      <div class="head">
+        <span class="badge android">Android</span>
+        <h2>안드로이드 폰</h2>
+        <span class="badge mine" id="mine-android" hidden>지금 이 폰</span>
+      </div>
+      <p class="desc"><b>TripPot 앱(APK)</b>을 설치한 안드로이드 폰이면 바로 열려요. 앱이 아직 없으면 먼저 설치하고 다시 눌러 주세요.</p>
+      <a id="btn-app" class="btn primary" href="#">TripPot 앱으로 열기</a>
+      <button id="copy-app" class="btn ghost" type="button">앱 링크 복사</button>
+      <p class="note">눌러도 안 열리면 복사한 링크를 크롬 주소창에 붙여 넣어 보세요. 그래도 안 되면 TripPot 이 설치돼 있는지 확인해 주세요.</p>
+    </section>
+
+    <section class="card" id="card-ios">
+      <div class="head">
+        <span class="badge ios">iPhone</span>
+        <h2>아이폰</h2>
+        <span class="badge mine" id="mine-ios" hidden>지금 이 폰</span>
+      </div>
+      <p class="desc">아이폰은 앱을 따로 깔지 않고 <b>Expo Go</b> 앱 안에서 열어요. 처음이면 아래 순서를 먼저 마쳐야 버튼이 동작해요.</p>
+      <ol>
+        <li>앱스토어에서 <b>Expo Go</b> 설치</li>
+        <li>Expo 계정 만들기 → 가입 이메일을 팀에 알려 주기 → 팀 초대 메일 <b>수락</b></li>
+        <li>Expo Go 앱에서 그 계정으로 <b>로그인</b></li>
+      </ol>
+      <a id="btn-go" class="btn primary" href="#">Expo Go로 열기</a>
+      <button id="copy-go" class="btn ghost" type="button">Expo Go 링크 복사</button>
+      <p class="note">눌러도 안 열리면 Expo Go 앱을 먼저 열어 로그인한 뒤 다시 눌러 주세요. 복사한 링크는 Expo Go 앱 안의 "Enter URL manually" 에 붙여 넣어도 열려요.</p>
+    </section>
+
+    <a class="btn ghost" href="/install/">앱이 없어요 · 설치 안내 보기</a>
+
+    <details>
+      <summary>팀원용 · 시뮬레이터에서 열기</summary>
+      <div class="card" style="margin-top:8px">
+        <p class="desc">이 컴퓨터에서 <code>npx expo start</code> 가 켜져 있을 때 (포트 8081). 누가 만든 링크든 여는 사람의 시뮬레이터로 열려요.</p>
+        <a id="btn-dev" class="btn" href="#">내 컴퓨터 개발 서버로 열기</a>
+        <button id="copy-dev" class="btn ghost" type="button">개발 서버 링크 복사</button>
+        <p class="note">이 페이지 주소를 그대로 복사하려면: <button id="copy-page" class="btn ghost" type="button" style="display:inline-flex;width:auto;padding:6px 10px;margin:0">초대 링크 복사</button></p>
+      </div>
+    </details>
+  </div>
+
   <footer>TripPot 팀 · 테스트용 페이지 · 이 페이지는 초대 정보를 저장하지 않아요<br><a href="/install/">설치 · 참여 안내</a></footer>
 </main>
 
 <script>
-  // app.json · eas.json 과 같은 값이어야 한다.
+  // app.json · eas.json 과 같은 값이어야 한다. (docs/19_테스트배포절차 §5)
   const EXPO_PROJECT_ID = "7971a07a-f0f0-4ac8-a575-2dea8a16ff8b";
   const RUNTIME_VERSION = "1.0.0";
   const CHANNEL = "preview";
@@ -113,19 +145,66 @@
   const valid = /^[a-f0-9]{32,128}$/i.test(token);
 
   document.getElementById("no-token").hidden = valid;
-  document.getElementById("buttons").hidden = !valid;
+  document.getElementById("cards").hidden = !valid;
 
   if (valid) {
     const path = "invite/" + token;
-    const app = "trippot:///" + path;
-    const go = "exp://u.expo.dev/" + EXPO_PROJECT_ID + "/--/" + path +
-               "?runtime-version=" + encodeURIComponent(RUNTIME_VERSION) +
-               "&channel-name=" + encodeURIComponent(CHANNEL);
-    const dev = "exp://127.0.0.1:8081/--/" + path;
-    document.getElementById("btn-app").href = app;
-    document.getElementById("btn-go").href = go;
-    document.getElementById("btn-dev").href = dev;
-    document.getElementById("raw").textContent = go;
+    const links = {
+      app: "trippot:///" + path,
+      go: "exp://u.expo.dev/" + EXPO_PROJECT_ID + "/--/" + path +
+          "?runtime-version=" + encodeURIComponent(RUNTIME_VERSION) +
+          "&channel-name=" + encodeURIComponent(CHANNEL),
+      dev: "exp://127.0.0.1:8081/--/" + path,
+      page: location.href,
+    };
+    document.getElementById("btn-app").href = links.app;
+    document.getElementById("btn-go").href = links.go;
+    document.getElementById("btn-dev").href = links.dev;
+
+    // 기기에 맞는 카드를 위로 올리고 표시한다. 판정이 안 되면(PC 등) 순서 그대로.
+    const ua = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+    const isAndroid = /Android/i.test(ua);
+    const cards = document.getElementById("cards");
+    if (isIOS) {
+      cards.insertBefore(document.getElementById("card-ios"), document.getElementById("card-android"));
+      document.getElementById("card-ios").classList.add("mine");
+      document.getElementById("mine-ios").hidden = false;
+    } else if (isAndroid) {
+      document.getElementById("card-android").classList.add("mine");
+      document.getElementById("mine-android").hidden = false;
+    }
+
+    // 복사. clipboard API 가 막히면(http · 오래된 브라우저) 숨은 입력창으로 대신한다.
+    async function copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (_) { /* fall through */ }
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    }
+    function wireCopy(id, text, label) {
+      const el = document.getElementById(id);
+      el.addEventListener("click", async () => {
+        const ok = await copyText(text);
+        el.textContent = ok ? "복사했어요" : "복사가 막혔어요 · 길게 눌러 복사해 주세요";
+        el.classList.toggle("copied", ok);
+        setTimeout(() => { el.textContent = label; el.classList.remove("copied"); }, 2200);
+      });
+    }
+    wireCopy("copy-app", links.app, "앱 링크 복사");
+    wireCopy("copy-go", links.go, "Expo Go 링크 복사");
+    wireCopy("copy-dev", links.dev, "개발 서버 링크 복사");
+    wireCopy("copy-page", links.page, "초대 링크 복사");
   }
 </script>
 </body>
