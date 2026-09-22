@@ -197,6 +197,28 @@ export function buildJoinRequestAction(input: {
  *    요청에 동의하면 분모에서는 빠진 표가 분자에 더해져, 남은 사람이 동의하지
  *    않았는데 만장일치로 판정된다.
  */
+/**
+ * 이 사람이 취소 요청에 **아직 답하지 않았는가.**
+ *
+ * 요청자는 투표하지 않는다(분모에서 빠진다 · POL-CXL-068). 요청 자체가 그의
+ * 답이라 여기서도 '답한 사람' 으로 본다.
+ *
+ * ⚠️ 반대한 사람은 이 함수에 오지 않는다. 반대가 한 표라도 나오면 요청이
+ *    **즉시 폐기**되고 여행이 준비 중으로 돌아간다. (POL-CXL-062) 그래서
+ *    '답한 사람' 은 사실상 동의한 사람과 요청자 둘뿐이다.
+ *
+ * ⚠️ **홈과 여행 홈이 이 값을 다르게 쓴다.** 빌더는 버튼 문구·이동 지점을
+ *    가르는 데 쓰고(확인하기 ↔ 현황 보기), 홈 화면은 배너를 아예 만들지
+ *    말지를 가르는 데 쓴다. (app/(tabs)/index.tsx · 2026-09-22 다빈)
+ *    판정을 두 곳에 따로 적으면 어긋나므로 여기 한 곳에 둔다. (CLAUDE.md 7장)
+ */
+export function needsCancelVote(input: {
+  isRequester: boolean;
+  hasVoted: boolean;
+}): boolean {
+  return !input.isRequester && !input.hasVoted;
+}
+
 export function buildCancelPendingAction(input: {
   tripId: string;
   destination: string | null;
@@ -207,7 +229,7 @@ export function buildCancelPendingAction(input: {
   /** 취소를 요청한 사람 이름 */
   requesterName: string;
 }): TripAction {
-  const needsVote = !input.isRequester && !input.hasVoted;
+  const needsVote = needsCancelVote(input);
 
   return {
     id: `${input.tripId}:CANCEL_PENDING`,

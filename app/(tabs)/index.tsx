@@ -64,6 +64,7 @@ import { canDecideJoinRequest } from '@/lib/trip/tripLeader';
 import {
   buildCancelPendingAction,
   buildJoinRequestAction,
+  needsCancelVote,
   tripAcceptsNewMembers,
   type TripAction,
 } from '@/lib/trip/tripActions';
@@ -439,10 +440,35 @@ export default function ScreenHOME01() {
             try {
               const request = await getActiveCancelRequest(trip.id, trip.start_date);
               if (!request) return null;
-              const [progress, members] = await Promise.all([
-                getVoteProgress(request),
-                listActiveTripMembers(trip.id).catch(() => []),
-              ]);
+              const progress = await getVoteProgress(request);
+
+              /*
+                ⚠️ **이미 답한 사람에게는 홈 배너를 만들지 않는다.** (2026-09-22 다빈)
+                   이 캐러셀은 '지금 답해야 할 것' 이고 알약 숫자가 그 개수를 말한다.
+                   동의를 끝냈거나 자기가 요청한 사람에게 이 카드는 답할 것이 아니라
+                   구경거리다. 섞여 있으면 '2/3' 이 거짓말이 된다.
+
+                ⚠️ **여행 홈(app/trips/[tripId]/index.tsx)에서는 빼지 않는다.**
+                   거기는 그 여행 안이고, 답했든 안 했든 현황을 보는 자리다.
+                   같은 buildCancelPendingAction 을 쓰므로 빌더 안에서 막으면
+                   양쪽이 같이 사라진다. 그래서 거르는 일은 이 화면에서만 한다.
+
+                ⚠️ 그 대신 홈에서 '취소 요청 중' 을 알리는 것이 하나도 없어진다.
+                   준비 중인 여행 카드에 배지를 다는 작업이 짝으로 필요하다.
+                   그 카드(NextTripCard · TripCardShell)는 경민님 소유라
+                   이 PR 에 넣지 않았다. (CLAUDE.md 13장)
+              */
+              if (
+                !needsCancelVote({
+                  isRequester: request.requested_by === userId,
+                  hasVoted: progress.votes.some((v) => v.user_id === userId),
+                })
+              ) {
+                return null;
+              }
+
+              // 요청자 이름은 배너를 실제로 그릴 때만 있으면 된다
+              const members = await listActiveTripMembers(trip.id).catch(() => []);
               return buildCancelPendingAction({
                 tripId: trip.id,
                 destination: trip.destination,
