@@ -40,10 +40,12 @@ import {
   type TripStatus,
 } from '@/lib/constants/status';
 import { useScreenView } from '@/lib/hooks/useScreenView';
+import { tripStage } from '@/lib/trip/stage';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { findDestinationByName } from '@/lib/constants/destinations';
 import { getGroupTripAccounts } from '@/lib/supabase/queries/funds';
 import {
+  attachTripSummaries,
   getLeftTrips,
   getMyParticipatingTripIds,
 } from '@/lib/supabase/queries/trips';
@@ -54,7 +56,6 @@ import {
   getGroupMembers,
   getGroupTrips,
   getMyGroups,
-  getTripAmountSummaries,
   updateGroup,
 } from '@/lib/supabase/queries/groups';
 import {
@@ -198,10 +199,12 @@ export default function ScreenGROUP02() {
         return;
       }
 
-      // 카드에 금액·진행률을 그리려면 세 테이블이 더 필요하다.
-      // getTripsWithSummary() 와 같은 칼럼을 읽어 MY 목록과 값이 어긋나지 않는다.
+      // 카드에 금액·진행률·단계 배지를 그리려면 예산·자금·결산·지출이 더 필요하다.
+      // ⚠️ MY 목록과 **같은 함수**(attachTripSummaries)로 붙인다. 같은 여행이 두 화면에서
+      //    다른 배지('정산 대기 중' vs '결산 전')로 보이던 원인이 여기 있었다. (2026-09-22)
       const all = [...trips.ongoing, ...trips.past];
-      const summaries = await getTripAmountSummaries(all.map((trip) => trip.id));
+      const withSummary = await attachTripSummaries(all);
+      const summaries = new Map(withSummary.map((trip) => [trip.id, trip]));
 
       /**
        * 내가 나간 여행 id. **membership 메타일 뿐** 목록의 근거가 아니다.
@@ -243,6 +246,14 @@ export default function ScreenGROUP02() {
           finalAmount: amount?.finalAmount ?? null,
           color: theme.primary,
           colorSoft: theme.primarySoft,
+          // 지난 여행 배지('정산 대기 중' · '지출 입력 전' …). MY 와 같은 판정(lib/trip/stage). (2026-09-22)
+          stage: amount
+            ? tripStage({
+                status: trip.status as TripStatus,
+                hasPlan: amount.hasPlan,
+                hasExpense: amount.hasExpense,
+              })
+            : undefined,
           // 나간 여행이면 카드가 배지를 달고 색을 뺀다. 목록 위치는 그대로다.
           left: leftIds.has(trip.id),
           // 2인 이상 여행의 여행장이면 '여행장' 배지. MY-02 와 같은 판정이다. (2026-09-21 한나 요청)

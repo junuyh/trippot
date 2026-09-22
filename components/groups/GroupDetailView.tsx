@@ -351,8 +351,8 @@ export function GroupDetailView({
                    비참가자를 들여보내면 남의 여행을 고칠 수 있게 된다.
                 ⚠️ MyTripCard 는 MY 와 함께 쓰는 컴포넌트다. onPress 에 null 을
                    넘길 수 있게만 넓혔고 MY 동작은 그대로다.
-                ⚠️ 모임 이름을 끈다. 이미 이 모임 상세 안이라 카드마다
-                   같은 이름이 반복된다. MY 는 그대로다. (2026-09-09)
+                ⚠️ 모임 이름도 MY 와 똑같이 보여준다. 전에는 이 안에서 반복된다고 껐는데,
+                   같은 여행이 두 화면에서 다른 카드로 보이는 것이 더 큰 혼란이었다. (2026-09-22 팀 테스트)
               */
               /*
                 나간 여행(trip.left) — 최종 정책(2026-09-14 · docs/11 v2 §6-2):
@@ -369,7 +369,7 @@ export function GroupDetailView({
                   : () => onPressNonParticipantTrip(trip);
 
               const card = (
-                <MyTripCard trip={trip} onPress={onPress} showGroupName={false} />
+                <MyTripCard trip={trip} onPress={onPress} />
               );
 
               /*

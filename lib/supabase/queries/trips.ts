@@ -129,6 +129,20 @@ export async function getTripsWithSummary(
   userId: string,
 ): Promise<TripWithSummary[]> {
   const trips = await getTrips(userId);
+  return attachTripSummaries(trips);
+}
+
+/**
+ * 이미 읽어 온 여행 행에 목표 여행비 · 현재 여행자금 · 최종 여행비 · 단계 판정값(hasPlan · hasExpense)을 붙인다.
+ *
+ * MY 목록(getTripsWithSummary)과 모임 상세(app/groups/[groupId])가 **같은 함수**를 쓴다. (2026-09-22)
+ * 전에는 모임 상세가 금액만 읽는 다른 함수(getTripAmountSummaries)를 써서 stage 가 비었고,
+ * 같은 여행이 MY 에서는 '정산 대기 중', 모임 상세에서는 '결산 전' 으로 다르게 보였다.
+ *
+ * ⚠️ tripIds 가 아니라 **Trip 행**을 받는다. 행은 이미 RLS 를 통과해 읽힌 것이라
+ *    임의의 id 로 남의 여행 금액을 읽는 통로가 되지 않는다. (위 주석과 같은 이유)
+ */
+export async function attachTripSummaries(trips: Trip[]): Promise<TripWithSummary[]> {
   if (trips.length === 0) return [];
 
   const tripIds = trips.map((trip) => trip.id);
