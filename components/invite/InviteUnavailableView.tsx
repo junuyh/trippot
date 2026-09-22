@@ -48,6 +48,12 @@ const COPY: Record<InviteFailReason, Copy> = {
     title: "이 초대에는 다시 응답할 수 없어요",
     description: "새 초대 링크를 받으면 다시 참여 의사를 보낼 수 있어요.",
   },
+  // 취소 · 삭제된 여행. resolve 단계에서 이미 끝났고 여행 정보는 오지 않는다. (2026-09-22)
+  CANCELED: {
+    icon: "lock-closed-outline",
+    title: "취소된 여행이에요",
+    description: "이 여행은 취소되어 더 이상 참여할 수 없어요.",
+  },
   NOT_FOUND: {
     icon: "link-outline",
     title: "초대 정보를 찾을 수 없어요",
