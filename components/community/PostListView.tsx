@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomSheet, Header } from '@/components/ui';
@@ -25,6 +25,12 @@ type Props = {
   onChangeQuery: (value: string) => void;
   onPressPost: (postId: string) => void;
   onPressWrite: () => void;
+  /**
+   * 아래로 당겨 새로고침. 화면 파일이 목록을 다시 조회한다. (2026-09-22 · 홈과 같은 방식)
+   * 넘기지 않으면 새로고침을 그리지 않는다.
+   */
+  refreshing?: boolean;
+  onRefresh?: () => void;
 };
 
 const ACCENT = BRAND.primary;
@@ -50,6 +56,8 @@ export function PostListView({
   onChangeQuery,
   onPressPost,
   onPressWrite,
+  refreshing,
+  onRefresh,
 }: Props) {
   // 커뮤니티 탭은 헤더를 끈 상태다. 상태바·노치 밑으로 내용이 들어가지 않게 띄운다.
   const insets = useSafeAreaInsets();
@@ -211,7 +219,13 @@ export function PostListView({
         ))}
       </BottomSheet>
 
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-4">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-4 pb-28 pt-4"
+        refreshControl={
+          onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} /> : undefined
+        }
+      >
         {posts.length === 0 ? (
           <Text className="mt-8 text-center text-pot-faint" style={{ fontSize: 13.5 }}>
             {query.trim().length > 0
