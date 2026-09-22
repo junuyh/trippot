@@ -46,8 +46,15 @@ export function CategoryHeroCard({
   spentTotal,
   onStartEdit,
 }: Props) {
-  // 미계획 예산 = 아직 어디에 쓸지 정하지 않은 금액. 음수가 될 수 없다.
-  const unplanned = Math.max(0, budgetAmount - plannedTotal);
+  /**
+   * 여유 예산 = 설정 예산 − 세부 계획 합계.
+   *
+   * ⚠️ 계산값이다. 사용자가 슬라이드나 입력으로 고치는 항목이 아니다.
+   *    0보다 클 때만 칸을 그리고, 0 이하면 칸 자체를 내지 않는다.
+   *    "여유 예산 0원" 을 보여주면 예산이 모자란 것처럼 읽힌다. (2026-09-22 테스트)
+   *    세부 계획 목록 아래의 '여유 예산' 줄과 같은 값·같은 규칙이다. (PlanItemCard)
+   */
+  const reserve = budgetAmount - plannedTotal;
 
   return (
     <View
@@ -115,11 +122,13 @@ export function CategoryHeroCard({
 
       {/* 설정 예산 수정은 바텀시트에서 한다 (스펙: 별도 적용 버튼 없음) */}
 
-      {/* 세부 계획 / 미계획 예산 / 실제 사용 */}
+      {/* 세부 계획 / 여유 예산(0보다 클 때만) / 실제 사용 */}
       <View className="flex-row" style={{ marginTop: 15 }}>
         {[
           { label: "세부 계획", value: plannedTotal, danger: false },
-          { label: "미계획 예산", value: unplanned, danger: false },
+          ...(reserve > 0
+            ? [{ label: "여유 예산", value: reserve, danger: false }]
+            : []),
           {
             label: "실제 사용",
             value: spentTotal,
