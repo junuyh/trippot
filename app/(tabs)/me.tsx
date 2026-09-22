@@ -23,7 +23,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Alert, InteractionManager, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, InteractionManager, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -89,14 +89,15 @@ export default function ScreenMY01() {
   /** 로그아웃 확인창 노출 여부. Alert 대신 Modal 을 쓰는 이유는 아래 주석 참고. */
   const [logoutAsking, setLogoutAsking] = useState(false);
 
-  const load = useCallback(async () => {
+  /** @param silent 아래로 당겨 새로고침. 실패해도 보던 화면을 그대로 둔다(오류 화면으로 바꾸지 않는다). */
+  const load = useCallback(async (silent = false) => {
     try {
       if (!userId) return;
 
       const [user, trips] = await Promise.all([getUserProfile(userId), getMyParticipatingTrips(userId)]);
 
       if (!user) {
-        setLoadState('error');
+        if (!silent) setLoadState('error');
         return;
       }
 
@@ -126,9 +127,28 @@ export default function ScreenMY01() {
       setLoadState('ready');
     } catch {
       // 예외 객체를 화면에 그대로 노출하지 않는다. (components/ui/ErrorState)
-      setLoadState('error');
+      if (!silent) setLoadState('error');
     }
   }, [userId]);
+
+  /**
+   * 아래로 당겨 새로고침. (2026-09-22 · 팀 테스트 피드백)
+   * 프로필(이름 · 영문 이름 · 프로필 이미지 · 가입일)과 내 여행 개수를 조용히 다시 읽는다.
+   * 로그인 · 탭 · 저장된 설정은 건드리지 않는다. 이미 새로고침 중이면 한 번 더 당겨도 무시한다.
+   */
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
+  const refresh = useCallback(async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      await load(true);
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, [load]);
 
   // 여행을 만들거나 끝내고 돌아오면 개수가 달라져 있다.
   useFocusEffect(
@@ -433,7 +453,11 @@ export default function ScreenMY01() {
     <View className="flex-1 bg-white">
       {header}
 
-      <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-28">
+      <ScrollView
+        className="flex-1 bg-white"
+        contentContainerClassName="pb-28"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
+      >
       {/* ── 상단: 여권 영역 (프로필 · 내 여행) — 흰 바탕 위에 놓인 여권 한 장(카드) ──── */}
       <TravelPassportPanel
         profile={profile}

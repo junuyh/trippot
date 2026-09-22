@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, View, type LayoutChangeEvent } from 'react-native';
+import { RefreshControl, ScrollView, View, type LayoutChangeEvent } from 'react-native';
 
 import { FALLBACK_GROUP_CARD_THEME, assignGroupCardThemes } from './cardTheme';
 import { GroupTravelCard } from './GroupTravelCard';
@@ -14,6 +14,11 @@ type Props = {
   selectedIds?: string[];
   onToggleSelect?: (groupId: string) => void;
   actionsDisabled?: boolean;
+
+  // ── 아래로 당겨 새로고침 (2026-09-22 · 팀 테스트 피드백) ─────────────────
+  /** 넘기지 않으면 당겨도 아무 일도 없다(기존 동작). 화면 파일이 조용히 다시 읽는다. */
+  refreshing?: boolean;
+  onRefresh?: () => void;
 };
 
 /** 카드 사이 가로 간격. 여행준비홈 카드 리듬과 같은 12. */
@@ -37,6 +42,8 @@ export function GroupTravelCardList({
   selectedIds = [],
   onToggleSelect,
   actionsDisabled = false,
+  refreshing,
+  onRefresh,
 }: Props) {
   const selected = new Set(selectedIds);
 
@@ -53,7 +60,13 @@ export function GroupTravelCardList({
   // ⚠️ pb-28. pb-10 이면 마지막 카드가 떠 있는 탭바(FloatingTabBar)에 가려
   //    편집 모드에서 선택조차 되지 않는다. 다른 탭 화면과 같은 값이다.
   return (
-    <ScrollView className="flex-1" contentContainerClassName="px-4 pb-28 pt-1">
+    <ScrollView
+      className="flex-1"
+      contentContainerClassName="px-4 pb-28 pt-1"
+      refreshControl={
+        onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} /> : undefined
+      }
+    >
       <View onLayout={onLayout} className="flex-row flex-wrap" style={{ columnGap: GAP, rowGap: ROW_GAP }}>
         {cardWidth > 0
           ? groups.map((group) => (
