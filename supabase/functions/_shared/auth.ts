@@ -61,11 +61,36 @@ export async function identifyCaller(request: Request): Promise<Caller | null> {
     const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
       headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) return null;
-    const user = (await response.json()) as { id?: unknown };
-    return typeof user.id === "string" && user.id.length > 0
-      ? { kind: "user", userId: user.id }
-      : null;
+    if (response.ok) {
+      const user = (await response.json()) as { id?: unknown };
+      return typeof user.id === "string" && user.id.length > 0
+        ? { kind: "user", userId: user.id }
+        : null;
+    }
+
+    /*
+      ⚠️⚠️ 2026-09-22 · **대시보드의 service_role 키가 위 비교에 안 걸렸다.**
+
+         워밍업 스크립트에 대시보드(Legacy API keys)의 service_role 을 넣었는데
+         401 이 났다. Auth 로그: `/user 403 invalid claim: missing sub claim`.
+         사용자가 아닌 JWT(= service_role) 가 맞는데, 이 함수 안의
+         SUPABASE_SERVICE_ROLE_KEY 값과 글자가 달라 sameSecret 을 통과하지
+         못한 것이다. 새 API 키 체계로 바뀌면서 런타임에 주입되는 값과
+         대시보드에 보이는 값이 어긋날 수 있다.
+
+         그래서 **글자 비교로 못 가렸으면 Supabase 에게 직접 묻는다.**
+         관리자 API 는 service_role 로만 열린다. 200 이면 service 다.
+
+      ⚠️ 사용자 JWT 가 아니고(sub 없음) JWT 모양일 때만 묻는다. 아무 문자열에
+         관리자 API 를 때리지 않는다. anon 은 이미 위에서 걸러졌다.
+    */
+    if (token.split(".").length === 3) {
+      const admin = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1`, {
+        headers: { apikey: token, Authorization: `Bearer ${token}` },
+      });
+      if (admin.ok) return { kind: "service" };
+    }
+    return null;
   } catch (error) {
     // Auth 서버에 닿지 못하면 통과시키지 않는다. 열어 두는 쪽으로 실패하지 않는다.
     console.error("[auth] 사용자 확인 실패", error instanceof Error ? error.message : error);
