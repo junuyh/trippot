@@ -34,7 +34,15 @@ import { supabase } from "@/lib/supabase/client";
  *    실패 원인은 Edge Function 쪽 로그로 본다. (debug: true 로 호출하면
  *    응답에 failures 가 함께 온다)
  */
-const TIMEOUT_MS = 7000;
+/*
+  ⚠️⚠️ 2026-09-22 · **7초로는 AI 결과를 한 번도 받지 못했다.**
+     함수 실측 9.8초 · 13.8초. 앱이 7초에 포기하고 카탈로그를 띄워서,
+     사용자는 도시와 상관없는 같은 추천만 봤다. AI 는 뒤에서 끝까지 돌고
+     토큰을 쓴 뒤 결과를 버렸다. 하루 한도에서도 한 번씩 깎였다.
+     그래서 **기다리게 하지 않고**, 카탈로그를 먼저 보여 주고 AI 를 따로
+     기다린다. 기다리는 시간은 넉넉히 둔다 — 화면은 이미 떠 있다.
+*/
+const AI_TIMEOUT_MS = 20000;
 
 export type PlanSuggestionResult = {
   suggestions: PlanSuggestion[];
@@ -42,15 +50,23 @@ export type PlanSuggestionResult = {
   source: "ai" | "catalog";
 };
 
-export async function getPlanSuggestions(
+/** 규칙 기반 추천. 바로 나온다. 화면이 먼저 이것을 보여 준다 */
+export function getCatalogPlanSuggestions(
   context: SuggestionContext,
   limit = 4,
-): Promise<PlanSuggestionResult> {
-  const fallback: PlanSuggestionResult = {
-    suggestions: buildPlanSuggestions(context, limit),
-    source: "catalog",
-  };
+): PlanSuggestion[] {
+  return buildPlanSuggestions(context, limit);
+}
 
+/**
+ * AI 추천. **실패·빈 결과·시간 초과면 null.** 호출한 쪽은 카탈로그를 그대로 둔다.
+ *
+ * ⚠️ throw 하지 않는다. 이 결과는 덤이다. 없다고 화면이 오류가 되면 안 된다.
+ */
+export async function getAiPlanSuggestions(
+  context: SuggestionContext,
+  limit = 4,
+): Promise<PlanSuggestion[] | null> {
   try {
     const invocation = supabase.functions.invoke("plan-suggestions", {
       body: {
@@ -65,22 +81,20 @@ export async function getPlanSuggestions(
     });
 
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("timeout")), TIMEOUT_MS),
+      setTimeout(() => reject(new Error("timeout")), AI_TIMEOUT_MS),
     );
 
     const { data, error } = await Promise.race([invocation, timeout]);
-    if (error) return fallback;
+    if (error) return null;
 
     const suggestions = sanitizePlanSuggestions(
       (data as { suggestions?: unknown })?.suggestions,
       context,
       limit,
     );
-    // 다 걸러지면 추천이 없는 것과 같다. 카탈로그가 낫다.
-    if (suggestions.length === 0) return fallback;
-
-    return { suggestions, source: "ai" };
+    // 다 걸러지면 추천이 없는 것과 같다. 카탈로그를 그대로 둔다.
+    return suggestions.length > 0 ? suggestions : null;
   } catch {
-    return fallback;
+    return null;
   }
 }

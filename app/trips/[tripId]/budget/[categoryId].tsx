@@ -59,7 +59,10 @@ import { EVENTS } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 import { perPerson } from "@/lib/budget/recommendation";
 import type { PlanSuggestion } from "@/lib/budget/planSuggestions";
-import { getPlanSuggestions } from "@/lib/supabase/queries/planSuggestions";
+import {
+  getAiPlanSuggestions,
+  getCatalogPlanSuggestions,
+} from "@/lib/supabase/queries/planSuggestions";
 import { countryTheme } from "@/lib/constants/countryTheme";
 import { findDestinationByName } from "@/lib/constants/destinations";
 import {
@@ -180,6 +183,12 @@ export default function ScreenBUDGET02() {
 
   // ── 로컬 편집 상태 ────────────────────────────────────────────────────
   const [plans, setPlans] = useState<PlanItem[]>([]);
+  /**
+   * 가장 최근 계획. AI 추천을 기다리는 10여 초 사이에 계획이 바뀌므로,
+   * 응답이 왔을 때는 클로저에 잡힌 옛 plans 가 아니라 이것을 본다.
+   */
+  const plansRef = useRef<PlanItem[]>([]);
+  plansRef.current = plans;
   const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -466,6 +475,10 @@ export default function ScreenBUDGET02() {
     PLAN_ITEM_SOURCE.CATALOG,
   );
   const [suggestLoading, setSuggestLoading] = useState(false);
+  /** 카탈로그를 띄워 둔 채 AI 추천을 기다리는 중인가 */
+  const [aiPending, setAiPending] = useState(false);
+  /** 추천을 연 횟수. 늦게 온 AI 응답을 가려낸다 */
+  const suggestRequestRef = useRef(0);
   /** 추가 중인 추천 key. 그 카드만 잠근다 */
   const [suggestBusyKey, setSuggestBusyKey] = useState<string | null>(null);
   const [planDraft, setPlanDraft] = useState<PlanDraft>({
@@ -612,55 +625,83 @@ export default function ScreenBUDGET02() {
    */
   const loadSuggestions = useCallback(async () => {
     if (!data) return;
-    setSuggestLoading(true);
-    try {
-      const nightCount =
-        data.trip.start_date && data.trip.end_date
-          ? Math.max(
-              0,
-              Math.round(
-                (new Date(data.trip.end_date).getTime() -
-                  new Date(data.trip.start_date).getTime()) /
-                  86400000,
-              ),
-            )
-          : 0;
-      const result = await getPlanSuggestions({
-        destination: data.trip.destination,
-        days: nightCount + 1,
-        nights: nightCount,
-        headcount: data.trip.headcount,
-        categoryCode: data.category.category_code as CategoryCode,
-        // ⚠️ 지금 화면의 계획을 그대로 넘긴다. 이미 있는 항목이 다시
-        //    추천되면 추천이 화면을 안 보고 만들어졌다는 게 드러난다.
-        existingNames: plans.map((plan) => plan.name),
-      });
-      setSuggestions(result.suggestions);
-      // 쿼리의 'ai' | 'catalog' 를 로그 상수로 옮긴다. 리터럴을 그대로 쏘지 않는다
-      const source =
-        result.source === "ai" ? PLAN_ITEM_SOURCE.AI : PLAN_ITEM_SOURCE.CATALOG;
-      setSuggestSource(source);
+    // 이 호출의 번호. 늦게 온 AI 응답이 다음에 연 추천을 덮지 않게 한다
+    const requestId = ++suggestRequestRef.current;
 
-      /**
-       * 추천을 실제로 보여준 시점에만 쏜다. (docs/06 §11 — 저장 성공 후)
-       * 이게 budget_plan_item_added 의 분모다. 후보가 하나도 없으면
-       * 보여준 게 없으므로 쏘지 않는다.
-       */
-      if (result.suggestions.length > 0) {
-        track(EVENTS.BUDGET_PLAN_SUGGESTION_OFFERED, {
-          trip_id: data.trip.id,
-          category:
-            CATEGORY_CODE_TO_ANALYTICS[
-              data.category.category_code as CategoryCode
-            ],
-          plan_source: source,
-          suggestion_count: result.suggestions.length,
-        });
-      }
-    } catch {
-      setSuggestions([]);
-    } finally {
-      setSuggestLoading(false);
+    const nightCount =
+      data.trip.start_date && data.trip.end_date
+        ? Math.max(
+            0,
+            Math.round(
+              (new Date(data.trip.end_date).getTime() -
+                new Date(data.trip.start_date).getTime()) /
+                86400000,
+            ),
+          )
+        : 0;
+    const context = {
+      destination: data.trip.destination,
+      days: nightCount + 1,
+      nights: nightCount,
+      headcount: data.trip.headcount,
+      categoryCode: data.category.category_code as CategoryCode,
+      // ⚠️ 지금 화면의 계획을 그대로 넘긴다. 이미 있는 항목이 다시
+      //    추천되면 추천이 화면을 안 보고 만들어졌다는 게 드러난다.
+      existingNames: plans.map((plan) => plan.name),
+    };
+
+    /*
+      ⚠️⚠️ **카탈로그를 먼저 보여 주고, AI 는 따로 기다린다.** (2026-09-22)
+
+         AI 는 10~14초가 걸린다. 7초에 끊던 때는 AI 결과를 한 번도 못 봤고,
+         그렇다고 기다리게 하면 테스터가 "고장 났나" 하고 닫는다.
+         그래서 규칙 기반 추천을 바로 띄우고, 위에 "로마에 맞는 항목을
+         찾는 중…" 을 적어 둔다. AI 가 오면 **말해 둔 대로** 바꿔 끼운다.
+         말없이 카드가 바뀌면 사용자는 뭘 눌렀는지 헷갈린다.
+
+      ⚠️ AI 가 실패하거나 빈 결과면 조용히 카탈로그를 둔다. 덤이다.
+    */
+    const catalog = getCatalogPlanSuggestions(context);
+    setSuggestions(catalog);
+    setSuggestSource(PLAN_ITEM_SOURCE.CATALOG);
+    setSuggestLoading(false);
+    setAiPending(true);
+
+    const ai = await getAiPlanSuggestions(context);
+    // 그사이 추천을 다시 열었으면 이 응답은 버린다
+    if (requestId !== suggestRequestRef.current) return;
+    setAiPending(false);
+
+    // ⚠️ AI 를 기다리는 동안 카탈로그 카드를 눌러 넣었을 수 있다.
+    //    방금 넣은 항목이 AI 결과로 다시 나오면 안 된다.
+    const taken = new Set(plansRef.current.map((plan) => plan.name));
+    const fresh = ai?.filter((suggestion) => !taken.has(suggestion.name)) ?? [];
+    const shown = fresh.length > 0 ? fresh : catalog;
+    const source =
+      fresh.length > 0 ? PLAN_ITEM_SOURCE.AI : PLAN_ITEM_SOURCE.CATALOG;
+    if (fresh.length > 0) {
+      setSuggestions(fresh);
+      setSuggestSource(source);
+    }
+
+    /**
+     * 추천을 보여준 뒤 **한 번만** 쏜다. (docs/06 §11)
+     * 이게 budget_plan_item_added 의 분모다.
+     *
+     * ⚠️ 2026-09-22 · 쏘는 시점을 **AI 결과가 정해진 뒤**로 옮겼다.
+     *    카탈로그 때 한 번, AI 때 한 번 쏘면 분모가 두 배가 된다.
+     *    plan_source 는 사용자가 마지막으로 본 쪽이다.
+     */
+    if (shown.length > 0) {
+      track(EVENTS.BUDGET_PLAN_SUGGESTION_OFFERED, {
+        trip_id: data.trip.id,
+        category:
+          CATEGORY_CODE_TO_ANALYTICS[
+            data.category.category_code as CategoryCode
+          ],
+        plan_source: source,
+        suggestion_count: shown.length,
+      });
     }
   }, [data, plans]);
 
@@ -1417,6 +1458,9 @@ export default function ScreenBUDGET02() {
               theme={theme}
               suggestions={suggestions}
               loading={suggestLoading}
+              aiPending={aiPending}
+              aiApplied={suggestSource === PLAN_ITEM_SOURCE.AI}
+              destinationLabel={data.trip.destination ?? undefined}
               busyKey={suggestBusyKey}
               onAdd={(suggestion) => void handleAddSuggestion(suggestion)}
               onDirectAdd={() => {

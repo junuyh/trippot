@@ -28,6 +28,15 @@ type Props = {
   theme: CountryTheme;
   suggestions: PlanSuggestion[];
   loading: boolean;
+  /**
+   * 카탈로그를 띄워 둔 채 AI 추천을 기다리는 중인가.
+   * true 면 카드 위에 "○○에 맞는 항목을 찾는 중…" 을 적는다.
+   */
+  aiPending?: boolean;
+  /** 지금 보이는 카드가 AI 결과인가. 바뀐 뒤 무엇이 바뀌었는지 적는다 */
+  aiApplied?: boolean;
+  /** 여행지 이름. '로마에 맞는…' 에 쓴다 */
+  destinationLabel?: string;
   /** 추가 중인 항목 key. 그 카드만 잠근다 */
   busyKey: string | null;
   onAdd: (suggestion: PlanSuggestion) => void;
@@ -44,6 +53,9 @@ export function PlanSuggestionBox({
   theme,
   suggestions,
   loading,
+  aiPending = false,
+  aiApplied = false,
+  destinationLabel,
   busyKey,
   onAdd,
   onDirectAdd,
@@ -138,6 +150,32 @@ export function PlanSuggestionBox({
           일정·인원으로 잡은 대략적인 금액이에요. 확인하고 고쳐서 쓰세요.
         </Text>
       </View>
+
+      {/*
+        ⚠️ AI 를 기다리는 동안 **무엇을 기다리는지 말한다.** (2026-09-22)
+           카탈로그 카드를 먼저 보여 주고 AI 가 오면 바꿔 끼운다. 말없이
+           카드가 바뀌면 "방금 본 게 어디 갔지" 가 된다. 바뀔 거라고 미리
+           적어 두고, 바뀐 뒤에는 바뀌었다고 적는다.
+      */}
+      {aiPending || aiApplied ? (
+        <View
+          className="flex-row items-center"
+          style={{ marginTop: 9, gap: 6, paddingHorizontal: 2 }}
+        >
+          {aiPending ? (
+            <ActivityIndicator size="small" color={theme.primary} />
+          ) : (
+            <Ionicons name="sparkles" size={12} color={theme.primary} />
+          )}
+          <Text
+            style={{ fontSize: 10, fontWeight: "700", color: theme.primary }}
+          >
+            {aiPending
+              ? `${destinationLabel ?? "여행지"}에 맞는 항목을 찾는 중…`
+              : `${destinationLabel ?? "여행지"}에 맞춰 골랐어요`}
+          </Text>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={{ paddingVertical: 34, alignItems: "center" }}>
