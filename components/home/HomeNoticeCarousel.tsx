@@ -53,8 +53,11 @@ const CARD_GAP = 12;
  *    다음 장이 화면 끝이 아니라 여백 앞에서 잘려, '화면 밖으로 이어진다' 가
  *    아니라 '카드가 하나 더 있다' 로만 보인다. 안쪽 paddingHorizontal 이
  *    원래 여백을 대신한다. HomeView 는 건드리지 않는다.
+ *
+ * ⚠️ 가운데 장은 **좌우로 이만큼씩** 드러난다. 그래서 카드 폭에서 이 값과
+ *    장 사이 간격을 양쪽으로 뺀다. (아래 snapOffsets 주석)
  */
-const CARD_PEEK = 30;
+const CARD_PEEK = 20;
 
 export type HomeNoticeCarouselProps = {
   /** 답하지 않은 초대. 없으면 빈 배열. */
@@ -89,12 +92,40 @@ export function HomeNoticeCarousel({
   /**
    * 한 장뿐이면 **화면 폭 그대로** 쓴다. (2026-09-22 다빈)
    * 드러낼 다음 장이 없는데 자리만 비워 두면 카드가 이유 없이 좁아 보인다.
+   *
+   * 여러 장이면 가운데 섰을 때 좌우로 CARD_PEEK 씩 드러나도록 폭을 잡는다.
+   * 화면 = 드러남 + 간격 + 카드 + 간격 + 드러남.
    */
   const cardWidth = Math.max(
     0,
-    width - SCREEN_EDGE * 2 - (total > 1 ? CARD_PEEK : 0),
+    total > 1 ? width - (CARD_PEEK + CARD_GAP) * 2 : width - SCREEN_EDGE * 2,
   );
-  const step = cardWidth + CARD_GAP;
+
+  /**
+   * 장마다 멈출 자리.
+   *
+   * ⚠️ snapToInterval 이 아니라 **snapToOffsets** 다. (2026-09-22 다빈)
+   *    간격으로 멈추면 어느 장이든 화면 왼쪽 끝에 붙어서, 카드를 좁혀 만든
+   *    여유가 전부 오른쪽으로 몰린다. 가운데 장인데 왼쪽엔 아무것도 없고
+   *    오른쪽만 넓게 드러나 한쪽으로 쏠려 보였다.
+   *
+   * ⚠️ 가운데 장은 화면 한가운데, **첫 장과 마지막 장은 화면 여백에 붙는다.**
+   *    아래 clamp 가 그 일을 한다 — 첫 장의 자리는 음수라 0 으로, 마지막 장의
+   *    자리는 끝을 넘어가 최대 스크롤로 잘린다.
+   *    첫 장까지 가운데로 보내면 홈의 다른 것들(‘준비 중인 여행’ 제목 · 여행
+   *    카드)보다 안쪽으로 들어가 줄이 어긋난다.
+   */
+  const snapOffsets = (() => {
+    if (total <= 1) return undefined;
+    const contentWidth = SCREEN_EDGE * 2 + cardWidth * total + CARD_GAP * (total - 1);
+    const maxScroll = Math.max(0, contentWidth - width);
+    // 카드를 화면 한가운데 두려면 이만큼 지나야 한다
+    const centerInset = (width - cardWidth) / 2;
+    return Array.from({ length: total }, (_, index) => {
+      const cardLeft = SCREEN_EDGE + index * (cardWidth + CARD_GAP);
+      return Math.min(maxScroll, Math.max(0, cardLeft - centerInset));
+    });
+  })();
 
   /**
    * 각 장이 자기 번호를 그린다. 한 장뿐이면 없다 — '1/1' 은 알려주는 게 없다.
@@ -112,7 +143,7 @@ export function HomeNoticeCarousel({
             horizontal
             showsHorizontalScrollIndicator={false}
             // 한 장씩 딱 멈추게 한다. 배너가 화면보다 좁아서 pagingEnabled 로는 안 맞는다.
-            snapToInterval={step}
+            snapToOffsets={snapOffsets}
             decelerationRate="fast"
             // 장마다 높이가 다르다. stretch 로 두면 짧은 배너가 늘어나 버린다.
             // 좌우 여백은 여기서 준다 — 바깥 -mx-4 로 뚫고 나온 것을 되돌리는 값이다.
