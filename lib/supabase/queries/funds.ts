@@ -15,6 +15,7 @@ import {
   TRIP_OWNER_TYPE,
 } from "@/lib/constants/status";
 import { supabase } from "@/lib/supabase/client";
+import { shouldAutoDisconnect } from "@/lib/fund/accountConnectionPolicy";
 import { createUuidV4 } from "@/lib/uuid";
 import type { Tables, TablesInsert, TablesUpdate } from "@/types/database";
 
@@ -298,6 +299,49 @@ export async function disconnectAccount(tripId: string): Promise<FundSource> {
     financial_account_id: null,
     last_synced_at: null,
   });
+}
+
+/** 이 여행이 지금 계좌에 연결돼 있는가 */
+export function isAccountConnected(fund: FundSource | null): boolean {
+  return (
+    fund?.source_type === FUND_SOURCE_TYPE.ACCOUNT ||
+    fund?.source_type === FUND_SOURCE_TYPE.MOCK
+  );
+}
+
+/**
+ * 연결돼 있으면 끊는다. 결산을 확정한 직후에 부른다.
+ *
+ * ⚠️ 결산 확정 = 계좌 연결의 목적 달성이다. 지체 없이 끊는다.
+ *    (lib/fund/accountConnectionPolicy.ts)
+ * ⚠️ 이미 받아 온 거래는 그대로 둔다. disconnectAccount 는 자금 출처만
+ *    직접 입력으로 돌린다. 누적 모금액·지출은 바뀌지 않는다.
+ *
+ * @returns 끊었으면 true
+ */
+export async function disconnectAccountIfConnected(
+  tripId: string,
+): Promise<boolean> {
+  const fund = await getTravelFund(tripId);
+  if (!isAccountConnected(fund)) return false;
+  await disconnectAccount(tripId);
+  return true;
+}
+
+/**
+ * 결산을 안 한 채 종료 후 14일이 지났으면 끊는다.
+ *
+ * ⚠️ 서버 정기 작업이 아니라 **여행을 열 때** 확인한다. MVP 에 크론이 없다.
+ *    아무도 안 열면 연결이 남아 있지만, 그 사이 새 거래를 가져오는 경로도
+ *    여행을 열 때뿐이라 실제로 더 받아 오는 일은 없다.
+ */
+export async function disconnectAccountIfExpired(trip: {
+  id: string;
+  status: string | null;
+  end_date: string | null;
+}): Promise<boolean> {
+  if (!shouldAutoDisconnect(trip.status, trip.end_date)) return false;
+  return disconnectAccountIfConnected(trip.id);
 }
 
 // ============================================================================

@@ -102,7 +102,11 @@ import {
   type TripBudget,
   countPlanItems,
 } from "@/lib/supabase/queries/budgets";
-import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import {
+  disconnectAccountIfExpired,
+  getTravelFund,
+  type FundSource,
+} from "@/lib/supabase/queries/funds";
 import { raisedTotal } from "@/lib/fund/fundTotals";
 import { getGroupById, getGroupMembers } from "@/lib/supabase/queries/groups";
 import {
@@ -534,6 +538,13 @@ export default function ScreenTripHome() {
        * ⚠️ ENDED 까지만 올린다. 확정은 사용자가 한다.
        */
       const trip = await closeTripIfEnded(found).catch(() => found);
+
+      /*
+        ⚠️ 결산을 안 한 채 종료 후 14일이 지났으면 계좌 연결을 끊는다.
+           (lib/fund/accountConnectionPolicy.ts) 자금을 읽기 **전에** 해야
+           이 화면이 끊긴 상태를 그린다. 실패해도 화면은 뜬다.
+      */
+      await disconnectAccountIfExpired(trip).catch(() => false);
 
       // 여행을 찾은 뒤에야 나머지를 붙인다. 예산·자금이 없어도 화면은 떠야 한다.
       const budget = await getBudgetByTripId(trip.id);

@@ -45,6 +45,7 @@ import {
 } from "@/components/fund";
 import { TripHomeButton } from "@/components/navigation/TripHomeButton";
 import { isTripEnded } from "@/lib/trip/tripStatus";
+import { autoDisconnectLabel } from "@/lib/fund/accountConnectionPolicy";
 import { DateRangeCalendar } from "@/components/trip-create";
 import {
   BottomSheet,
@@ -94,7 +95,11 @@ import {
   type BudgetPlanItem,
   type TripBudget,
 } from "@/lib/supabase/queries/budgets";
-import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import {
+  disconnectAccountIfExpired,
+  getTravelFund,
+  type FundSource,
+} from "@/lib/supabase/queries/funds";
 import { classifyTransaction } from "@/lib/supabase/queries/transactionClassify";
 import {
   createExpenseWithAutoLink,
@@ -161,6 +166,8 @@ export default function ScreenFUND01() {
         setNotFound(true);
         return;
       }
+      // 결산 안 한 채 종료 후 14일이 지났으면 먼저 끊는다 (accountConnectionPolicy)
+      await disconnectAccountIfExpired(trip).catch(() => false);
       const budget = await getBudgetByTripId(trip.id);
       const [categories, fund, transactions, totals, members] = await Promise.all([
         budget ? getBudgetCategories(budget.id) : Promise.resolve([]),
@@ -642,7 +649,14 @@ export default function ScreenFUND01() {
             settledTrip
               ? "정산이 확정돼 더 기록할 수 없어요. 확정 시점의 기록을 보는 화면이에요."
               : endedTrip
-                ? "결산 중이라 입금과 계좌 연결은 닫혔어요. 빠뜨린 지출은 지금도 적을 수 있어요."
+                ? "결산 중이라 입금과 계좌 연결은 닫혔어요. 빠뜨린 지출은 지금도 적을 수 있어요." +
+                  /*
+                    ⚠️ 연결된 계좌가 언제 끊기는지 미리 말한다. (2026-09-22)
+                       말없이 끊기면 "계좌 거래가 왜 안 들어오지" 가 된다.
+                  */
+                  (connected && autoDisconnectLabel(data.trip.end_date)
+                    ? `\n연결된 계좌는 결산을 확정하면 끊겨요. 결산하지 않아도 ${autoDisconnectLabel(data.trip.end_date)}에 자동으로 끊겨요.`
+                    : "")
                 : null
           }
         />
