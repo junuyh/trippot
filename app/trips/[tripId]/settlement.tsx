@@ -72,7 +72,12 @@ import {
   type Settlement,
 } from "@/lib/supabase/queries/settlements";
 import { getTripById, type Trip } from "@/lib/supabase/queries/trips";
-import { getTravelFund, type FundSource } from "@/lib/supabase/queries/funds";
+import {
+  disconnectAccountIfConnected,
+  getTravelFund,
+  isAccountConnected,
+  type FundSource,
+} from "@/lib/supabase/queries/funds";
 import { ShareReportSheet } from "@/components/settlement/ShareReportSheet";
 import {
   buildSettlementReport,
@@ -477,6 +482,19 @@ export default function ScreenSETTLE01() {
         confirmed_at: new Date().toISOString(),
       });
 
+      /*
+        ⚠️ 결산을 확정하면 **계좌 연결을 그 자리에서 끊는다.** (2026-09-22)
+           결산 확정이 곧 연결의 목적 달성이다. 이미 받아 온 거래는 그대로다.
+           (lib/fund/accountConnectionPolicy.ts)
+        ⚠️ 끊기에 실패해도 확정은 성공이다. 확정을 되돌리지 않는다.
+           결산 중이 아니게 됐으니 자동 해제도 더는 안 걸린다 — 다음에
+           여기를 열 때 다시 시도하도록 남겨 두지 않고 콘솔에만 남긴다.
+      */
+      await disconnectAccountIfConnected(data.trip.id).catch((e) => {
+        if (__DEV__) console.warn("[settlement] 계좌 연결 해제 실패", e);
+        return false;
+      });
+
       // 저장에 성공한 뒤에만 쏜다. (docs/06 §11)
       track(EVENTS.SETTLEMENT_CONFIRMED, {
         trip_id: data.trip.id,
@@ -497,7 +515,11 @@ export default function ScreenSETTLE01() {
   const handleConfirmPress = useCallback(() => {
     Alert.alert(
       "정산을 확정할까요?",
-      "확정하면 지금의 예산과 지출이 그대로 기록돼요. 나중에 예산을 고쳐도 정산 결과는 바뀌지 않아요.",
+      "확정하면 지금의 예산과 지출이 그대로 기록돼요. 나중에 예산을 고쳐도 정산 결과는 바뀌지 않아요." +
+        // 연결돼 있으면 확정과 함께 끊긴다는 것을 미리 말한다
+        (isAccountConnected(data?.fund ?? null)
+          ? "\n\n연결된 계좌도 함께 끊겨요. 지금까지 가져온 거래는 그대로 남아요."
+          : ""),
       [
         { text: "취소", style: "cancel" },
         {
@@ -507,7 +529,7 @@ export default function ScreenSETTLE01() {
         },
       ],
     );
-  }, [confirmSettlement]);
+  }, [confirmSettlement, data?.fund]);
 
   // ── 4상태 ─────────────────────────────────────────────────────────────
   if (loading) {
