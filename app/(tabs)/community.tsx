@@ -142,6 +142,8 @@ export default function ScreenCOMM01() {
   const openedAt = typeof params.openedAt === 'string' ? params.openedAt : null;
 
   const [loadState, setLoadState] = useState<LoadState>('loading');
+  /** 아래로 당겨 새로고침 중인가. 스피너 표시에만 쓴다. */
+  const [refreshing, setRefreshing] = useState(false);
   const [posts, setPosts] = useState<PostListItem[]>([]);
   const [category, setCategory] = useState<string>(
     destinationParam ? `${DEST_PREFIX}${destinationParam}` : CATEGORY_ALL,
@@ -236,6 +238,25 @@ export default function ScreenCOMM01() {
     }, [load, category]),
   );
 
+  /**
+   * 아래로 당겨 새로고침. (2026-09-22 · 홈과 같은 방식)
+   *
+   * 탭에 들어올 때마다 다시 조회하지만(위 useFocusEffect), 탭에 머문 채로 다른 사람이
+   * 쓴 새 글을 보려면 직접 다시 부를 길이 필요하다. 지금 고른 카테고리 그대로 다시 읽는다.
+   *
+   * ⚠️ [로그 알림 — CLAUDE.md 13장] load 안의 TIP_LIST_VIEWED 가 당길 때마다 한 번 더 찍힌다.
+   *    호출은 지우거나 바꾸지 않았다. 이 이벤트는 이미 '탭에 들어올 때마다' 찍히는 목록 노출
+   *    기준이라(위 load 주석 2026-09-03), 목록을 다시 받아 보는 새로고침도 같은 노출로 센다.
+   */
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load(category);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, category]);
+
   if (loadState === 'loading') {
     return <Loading message="글을 불러오고 있어요" />;
   }
@@ -327,6 +348,8 @@ export default function ScreenCOMM01() {
       onChangeQuery={setQuery}
       onPressPost={(postId) => router.push(`/community/posts/${postId}`)}
       onPressWrite={() => router.push('/community/write')}
+      refreshing={refreshing}
+      onRefresh={() => void handleRefresh()}
     />
   );
 }

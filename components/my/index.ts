@@ -2,5 +2,5 @@
 export { MyTripCard } from './MyTripCard';
 export { MyTripListView } from './MyTripListView';
 export { MyTripsSection } from './MyTripsSection';
-export { MY_TRIP_FILTER_TABS, TripFilterTabs } from './TripFilterTabs';
-export type { MyTripFilter, MyTripItem } from './types';
+export { MY_TRIP_FILTER_TABS, MY_TRIP_LIST_TABS, TripFilterTabs } from './TripFilterTabs';
+export type { MyTripFilter, MyTripItem, MyTripListFilter } from './types';

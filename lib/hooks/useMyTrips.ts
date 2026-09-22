@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import type { CancelChangeItem } from '@/components/cancel';
-import type { MyTripFilter, MyTripItem } from '@/components/my/types';
+import type { MyTripItem, MyTripListFilter } from '@/components/my/types';
 import { countryTheme } from '@/lib/constants/countryTheme';
 import { useCurrentUserId } from '@/lib/auth/AuthProvider';
 import { findDestinationByName } from '@/lib/constants/destinations';
@@ -53,6 +53,7 @@ import { tripStage } from '@/lib/trip/stage';
 import { isLeaderOfSharedTrip } from '@/lib/trip/tripLeader';
 import { isTripBeforeDeparture } from '@/lib/trip/tripStatus';
 import { reconcileSpendReminders } from '@/lib/notifications/spendReminder';
+import { useLeaveTrip } from '@/lib/hooks/useLeaveTrip';
 
 /** 여행 상세 `?from=` 값. 여행 홈이 '<' 의 목적지를 이걸로 가른다. (app/trips/[tripId]/index.tsx) */
 export const MY_TRIPS_ORIGIN = {
@@ -122,7 +123,8 @@ function restoreDescription(target: RestoreTarget): string {
  * ⚠️ 취소됨·나간 여행도 받는다. 여행 홈의 '<' 가 보던 탭으로 돌아올 때 이 값이 온다.
  *    빠져 있으면 취소됨 탭에서 연 여행에서 돌아와도 준비 중 탭이 열린다. (2026-09-16)
  */
-export function toMyTripFilter(value: string | undefined): MyTripFilter {
+export function toMyTripFilter(value: string | undefined): MyTripListFilter {
+  if (value === 'all') return 'all';
   if (value === 'past') return 'past';
   if (value === 'traveling') return 'traveling';
   if (value === 'canceled') return 'canceled';
@@ -146,7 +148,7 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
   const userId = useCurrentUserId();
   const router = useRouter();
 
-  const [filter, setFilter] = useState<MyTripFilter>(() => toMyTripFilter(paramFilter));
+  const [filter, setFilter] = useState<MyTripListFilter>(() => toMyTripFilter(paramFilter));
   /**
    * 주소의 filter 가 바뀌면 탭을 맞춘다. (2026-09-17)
    * ⚠️ useState 초기값은 화면이 처음 만들어질 때 한 번만 읽힌다. 화면이 스택에 살아 있으면 ?filter=past 로
@@ -218,6 +220,34 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
       });
     }, [load, refreshOnFocus]),
   );
+
+  /**
+   * 여행에서 나가기. **여행 홈 · 모임 상세와 같은 훅 · 같은 시트다.** (2026-09-22)
+   * 나간 뒤에는 목록을 조용히 다시 읽는다 — 그 카드가 '나간 여행' 탭으로 옮겨 간다.
+   * 취소 · 초대는 여행 홈으로 보내 거기서 흐름을 잇는다. (모임 상세와 같다)
+   */
+  const leave = useLeaveTrip({
+    onLeft: () => void load(true),
+    onCancelTrip: (tripId) => router.push(`/trips/${tripId}?cancel=1`),
+    onInvite: (tripId) => router.push(`/trips/${tripId}/edit`),
+  });
+  /** 나가기 시트 · 완료 화면에 쓸 모임 이름. 누른 카드의 것이다. */
+  const [leavingGroupName, setLeavingGroupName] = useState<string>(TRIP_OWNER_TYPE_LABEL.GROUP);
+
+  /**
+   * 아래로 당겨 새로고침. (2026-09-22 · 홈과 같은 방식)
+   * ⚠️ 조용히(silent) 다시 읽는다. 로딩 화면으로 바꾸면 당기는 중에 목록이 사라졌다 나타난다.
+   *    실패해도 보던 목록을 그대로 둔다 — load(true) 는 실패 시 오류 화면으로 바꾸지 않는다.
+   */
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load(true);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
 
   /**
    * 되돌릴 수 있는 취소 여행 카드를 눌렀을 때. 바로 되돌리지 않고 확인 팝업을 연다. (POL-CXL-036)
@@ -316,6 +346,8 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
         stage: tripStage({ status, hasPlan: trip.hasPlan, hasExpense: trip.hasExpense }),
         // 2인 이상 여행의 여행장이면 '여행장' 배지. (2026-09-21 한나 요청 · lib/trip/tripLeader)
         isLeader: isLeaderOfSharedTrip(trip, userId),
+        // 준비 중(취소 요청 중 포함) 모임 여행이면 밀어서 나가기. (components/my/types.ts leavable)
+        leavable: isTripBeforeDeparture(status) && trip.owner_type === TRIP_OWNER_TYPE.GROUP,
       },
     ];
   });
@@ -395,11 +427,25 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
   canceled.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
   left.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
 
-  const BY_FILTER: Record<MyTripFilter, MyTripItem[]> = { planning, traveling, past, canceled, left };
+  /**
+   * 전체 탭. (2026-09-22) 다섯 탭을 **탭 순서대로** 이어 붙인다 — 준비 중 → 여행 중 → 지난 여행 → 취소됨 → 나간 여행.
+   * 각 묶음 안의 순서는 위에서 정렬한 그대로다. 하나로 섞어 날짜순으로 다시 세우지 않는다 —
+   * 곧 떠날 여행과 몇 달 전에 취소한 여행이 번갈아 나오면 무엇이 급한지 읽히지 않는다.
+   * ⚠️ 같은 여행이 두 묶음에 걸리지 않게 id 로 한 번 거른다. 나간 여행은 이미 취소됨에서 빠지지만,
+   *    trip_members 에 unique 가 없어 참여 중 목록과 나간 목록에 함께 걸릴 수 있다. (모임 상세 leftIds 주석)
+   */
+  const seenIds = new Set<string>();
+  const all = [...planning, ...traveling, ...past, ...canceled, ...left].filter((item) => {
+    if (seenIds.has(item.tripId)) return false;
+    seenIds.add(item.tripId);
+    return true;
+  });
+
+  const BY_FILTER: Record<MyTripListFilter, MyTripItem[]> = { all, planning, traveling, past, canceled, left };
   const visible = BY_FILTER[filter];
 
   /** 탭을 바꾼다. ⚠️ params 에도 적는다 — MY-02 는 여행 홈의 '<' (dismissTo) 가 params 까지 맞아야 이 화면을 찾는다. */
-  function changeFilter(next: MyTripFilter) {
+  function changeFilter(next: MyTripListFilter) {
     setFilter(next);
     router.setParams({ filter: next });
   }
@@ -426,9 +472,25 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
     router.push(`/trips/new/owner?entryPoint=${ENTRY_POINT.EMPTY_STATE}`);
   }
 
+  /**
+   * 카드를 밀어 나온 '여행 나가기'. (2026-09-22)
+   *
+   * ⚠️ 흐름은 여행 홈 · 모임 상세와 같은 훅(useLeaveTrip)이다. 여기서 따로 짜지 않는다.
+   *    누른 시점에 멤버 · 취소 요청을 다시 읽고, 여행장 위임 · 마지막 1명 · 취소 동의 재판정을
+   *    그 훅이 한다. (app/groups/[groupId]/index.tsx 의 useLeaveTrip 주석)
+   * ⚠️ 모임 이름은 여행마다 다르다. 누른 카드의 것을 붙잡아 둔다 — 시트 문구와 완료 화면이 쓴다.
+   */
+  function pressLeaveTrip(tripId: string) {
+    const item = planning.find((candidate) => candidate.tripId === tripId);
+    setLeavingGroupName(item?.ownerLabel ?? TRIP_OWNER_TYPE_LABEL.GROUP);
+    void leave.open(tripId, userId);
+  }
+
   return {
     loadState,
     retry: () => void load(),
+    refreshing,
+    refresh: () => void refresh(),
     filter,
     changeFilter,
     visible,
@@ -444,6 +506,10 @@ export function useMyTrips({ origin, paramFilter, refreshOnFocus = false }: Opti
     closeLeftNotice: () => setLeftNoticeOpen(false),
     pressTrip,
     pressCreateTrip,
+    // 여행 나가기 (MEM-01 ~ 04). MyTripsSection 이 LeaveTripFlow · LeaveDoneView 에 넘긴다.
+    leave,
+    leavingGroupName,
+    pressLeaveTrip,
   };
 }
 
