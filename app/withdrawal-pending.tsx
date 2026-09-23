@@ -26,6 +26,14 @@ export default function ScreenWithdrawalPending() {
   const effectiveAt =
     accountState?.kind === 'PENDING_WITHDRAWAL' ? new Date(accountState.effectiveAt) : null;
 
+  /**
+   * 30일이 지났는데 아직 최종 처리(cron) 전인 구간. (회원탈퇴 정책 v2 §5)
+   *
+   * ⚠️ 이때는 **취소할 수 없다.** 서버 cancel_withdrawal 도 같은 경계로 막는다
+   *    (WITHDRAWAL_WINDOW_CLOSED). 화면에서만 숨기지 않는다.
+   */
+  const windowClosed = effectiveAt !== null && Date.now() >= effectiveAt.getTime();
+
   /** 탈퇴 취소. 서버가 요청 시각을 지우면 계정 상태를 다시 읽고, 가드가 홈으로 보낸다. */
   async function handleCancelWithdrawal() {
     if (busy) return;
@@ -33,8 +41,17 @@ export default function ScreenWithdrawalPending() {
     try {
       await cancelWithdrawal();
       await refreshAccountState();
-    } catch {
-      Alert.alert('탈퇴를 취소하지 못했어요', '잠시 후 다시 시도해 주세요.');
+    } catch (error) {
+      // 30일이 지나 서버가 막은 경우는 다시 시도해도 같다. 다른 문구로 알린다. (정책 v2 §5 · §25)
+      const message = error !== null && typeof error === 'object' && 'message' in error
+        ? String((error as { message: unknown }).message)
+        : '';
+      if (message === 'WITHDRAWAL_WINDOW_CLOSED') {
+        await refreshAccountState().catch(() => undefined);
+        Alert.alert('탈퇴 취소 기간이 끝났어요', '탈퇴 처리가 곧 완료돼요.');
+      } else {
+        Alert.alert('탈퇴를 취소하지 못했어요', '잠시 후 다시 시도해 주세요.');
+      }
     } finally {
       setBusy(false);
     }
@@ -53,22 +70,25 @@ export default function ScreenWithdrawalPending() {
         className="mt-6 text-center text-pot-ink"
         style={{ fontSize: 20, fontWeight: '800', lineHeight: 28 }}
       >
-        이 계정은 탈퇴가 진행 중이에요
+        {windowClosed ? '탈퇴 처리 중이에요' : '이 계정은 탈퇴가 진행 중이에요'}
       </Text>
 
-      {effectiveAt ? (
+      {effectiveAt && !windowClosed ? (
         <Text className="mt-2 text-center text-pot-mute" style={{ fontSize: 14, lineHeight: 22 }}>
           탈퇴 예정일: {format(effectiveAt, 'yyyy.MM.dd')}
         </Text>
       ) : null}
 
       <Text className="mt-4 text-center text-pot-mute" style={{ fontSize: 13, lineHeight: 20 }}>
-        예정일까지는 탈퇴를 취소할 수 있어요.{'\n'}
-        취소하면 기존 여행과 기록을 그대로 다시 쓸 수 있어요.
+        {windowClosed
+          ? '탈퇴 취소 기간이 끝나 처리를 진행하고 있어요.\n처리가 끝나면 이 계정으로는 로그인할 수 없어요.'
+          : '예정일까지는 탈퇴를 취소할 수 있어요.\n취소하면 기존 여행과 기록을 그대로 다시 쓸 수 있어요.'}
       </Text>
 
       <View className="mt-8 w-full gap-2">
-        <Button label="탈퇴 취소" loading={busy} onPress={() => void handleCancelWithdrawal()} />
+        {windowClosed ? null : (
+          <Button label="탈퇴 취소" loading={busy} onPress={() => void handleCancelWithdrawal()} />
+        )}
         <Button
           label="로그아웃"
           variant="secondary"

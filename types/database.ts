@@ -1716,18 +1716,21 @@ export type Database = {
       user_public_profiles: {
         Row: {
           id: string | null
+          is_collaboration_available: boolean | null
           name: string | null
           profile_image_url: string | null
         }
         Insert: {
           id?: string | null
-          name?: string | null
-          profile_image_url?: string | null
+          is_collaboration_available?: never
+          name?: never
+          profile_image_url?: never
         }
         Update: {
           id?: string | null
-          name?: string | null
-          profile_image_url?: string | null
+          is_collaboration_available?: never
+          name?: never
+          profile_image_url?: never
         }
         Relationships: []
       }

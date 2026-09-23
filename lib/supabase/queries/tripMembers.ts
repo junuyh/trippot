@@ -27,6 +27,14 @@ export type TripMemberRow = Tables<'trip_members'>;
 export type TripMemberWithName = TripMemberRow & {
   /** users.name. 미가입 동행자는 display_name 을 쓴다 */
   name: string;
+  /**
+   * 지금 이 여행에서 행동할 수 있는 사람인가. (회원탈퇴 정책 v2 §9)
+   *
+   * ⚠️ 탈퇴 여부를 뜻하지 않는다. 공개 view 의 파생값(`is_collaboration_available`)일 뿐이고
+   *    신청 시각 · 예정일 · 사유는 어디에도 오지 않는다. 화면은 `현재 활동 불가` 만 쓴다.
+   * ⚠️ 미가입 동행자(user_id 없음)는 계정이 없으므로 true 로 둔다 — 라벨을 붙이지 않는다.
+   */
+  isCollaborationAvailable: boolean;
 };
 
 /**
@@ -66,7 +74,7 @@ export async function listActiveTripMembers(
   // ⚠️ users 가 아니라 공개 프로필 view 를 임베딩한다. users 는 본인 행만 읽혀 타인은 null 이 된다. (2026-09-22)
   const { data, error } = await supabase
     .from('trip_members')
-    .select('*, user_public_profiles(name)')
+    .select('*, user_public_profiles(name, is_collaboration_available)')
     .eq('trip_id', tripId)
     .eq('status', TRIP_MEMBER_STATUS.ACTIVE)
     .order('created_at', { ascending: true });
@@ -75,9 +83,13 @@ export async function listActiveTripMembers(
 
   return (data ?? []).map((row) => {
     const { user_public_profiles, ...member } = row as TripMemberRow & {
-      user_public_profiles: { name: string } | null;
+      user_public_profiles: { name: string; is_collaboration_available: boolean | null } | null;
     };
-    return { ...member, name: user_public_profiles?.name ?? member.display_name ?? '이름 없음' };
+    return {
+      ...member,
+      name: user_public_profiles?.name ?? member.display_name ?? '이름 없음',
+      isCollaborationAvailable: user_public_profiles?.is_collaboration_available ?? true,
+    };
   });
 }
 

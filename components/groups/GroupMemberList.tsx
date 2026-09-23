@@ -49,6 +49,16 @@ export function GroupMemberList({ members }: Props) {
             {member.name}
           </Text>
 
+          {/*
+            지금 함께 결정할 수 없는 사람. 탈퇴를 알리지 않는다 — 중립 문구 하나만 둔다.
+            (회원탈퇴 정책 v2 §9)
+          */}
+          {member.isCollaborationAvailable ? null : (
+            <Text className="shrink-0 text-pot-faint" style={{ fontSize: 11.5 }}>
+              현재 활동 불가
+            </Text>
+          )}
+
           {member.joinedAt ? (
             <Text className="shrink-0 text-pot-faint" style={{ fontSize: 11.5 }}>
               {`${formatCreatedDate(member.joinedAt)} 참여`}

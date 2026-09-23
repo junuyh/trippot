@@ -151,6 +151,11 @@ export async function addGroupMembers(
 export type GroupMemberWithUser = GroupMember & {
   /** 공개 프로필 3컬럼. users 직접 조회는 본인 행뿐이라 view 로 읽는다. (migration 20260922000001) */
   user: Pick<Tables<'users'>, 'id' | 'name' | 'profile_image_url'>;
+  /**
+   * 지금 함께 결정할 수 있는 사람인가. (회원탈퇴 정책 v2 §9)
+   * ⚠️ 탈퇴 여부가 아니다. 공개 view 의 파생 boolean 이며 시각은 오지 않는다.
+   */
+  isCollaborationAvailable: boolean;
 };
 
 /**
@@ -170,7 +175,7 @@ export type GroupMemberWithUser = GroupMember & {
 export async function getGroupMembers(groupId: string): Promise<GroupMemberWithUser[]> {
   const { data, error } = await supabase
     .from('group_members')
-    .select('*, user_public_profiles!inner(id, name, profile_image_url)')
+    .select('*, user_public_profiles!inner(id, name, profile_image_url, is_collaboration_available)')
     .eq('group_id', groupId)
     .eq('status', GROUP_MEMBER_STATUS.ACTIVE)
     .order('joined_at', { ascending: true });
@@ -181,6 +186,8 @@ export async function getGroupMembers(groupId: string): Promise<GroupMemberWithU
   return (data ?? [])
     .map(({ user_public_profiles: profile, ...member }) => ({
       ...member,
+      // 지금 행동할 수 있는 사람인가. 탈퇴 여부가 아니라 파생 협업 상태다. (정책 v2 §9)
+      isCollaborationAvailable: profile.is_collaboration_available ?? true,
       user: {
         id: profile.id ?? member.user_id,
         name: profile.name ?? '이름 없음',
