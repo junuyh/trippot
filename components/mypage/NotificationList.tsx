@@ -5,7 +5,7 @@ import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSw
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { formatNotifiedAt } from './format';
+import { formatNotifiedAtWithTime } from './format';
 import type { NotificationListItem } from './types';
 
 type Props = {
@@ -67,7 +67,7 @@ export function NotificationList({
       }
       renderItem={({ item }) => {
         const unread = item.readAt === null;
-        const at = formatNotifiedAt(item.createdAt);
+        const at = formatNotifiedAtWithTime(item.createdAt);
 
         return (
           <Swipeable

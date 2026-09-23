@@ -29,7 +29,7 @@
 // 데이터 조회·상태 관리만 한다. UI 는 components/groups/PersonalDetailView.
 // ============================================================================
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import {
@@ -177,6 +177,25 @@ export default function ScreenPersonalTrips() {
     }
   }, [userId]);
 
+  /**
+   * 아래로 당겨 새로고침. 개인 여행 목록 · 취소된 개인 여행 · 연결 계좌를 한 번에 다시 읽는다 —
+   * load 가 읽는 것 전부다. 이미 새로고침 중이면 한 번 더 당겨도 무시한다.
+   * (모임 상세 app/groups/[groupId] 와 같은 방식 · 2026-09-23 유저테스트 직전 피드백)
+   */
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
+  const refresh = useCallback(async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, [load]);
+
   // 여행을 만들거나 고치고 돌아오면 목록이 달라져 있다.
   useFocusEffect(
     useCallback(() => {
@@ -202,6 +221,8 @@ export default function ScreenPersonalTrips() {
       <Stack.Screen options={{ title: '개인 여행' }} />
       <PersonalDetailView
         data={data}
+        refreshing={refreshing}
+        onRefresh={() => void refresh()}
         onPressTrip={(tripId) => router.push(`/trips/${tripId}`)}
         // 계좌를 누르면 어느 여행의 계좌 화면으로 갈지 고른다. 모임 상세와 같다.
         onPressAccount={(account) => setPickingAccount(account)}

@@ -85,7 +85,9 @@ type Props = {
  *   NAME                       (카카오 닉네임 그대로)
  *   ENGLISH NAME               (users.english_name · 계정관리에서 입력. 없으면 '—'. 자동 변환하지 않는다)
  *   MEMBER SINCE               (users.created_at · TripPot 에 처음 들어온 날)
- *   PASSPORT TYPE = TripPot Member (고정. 권한·요금제와 무관)
+ *   PASSPORT TYPE = TripPot (고정. 권한·요금제와 무관)
+ *     ⚠️ 'TripPot Member' 였는데 실기기에서 칸을 넘어 'TripPot Mem…' 으로 잘렸다.
+ *        글자 크기·레이아웃을 건드리지 않고 값만 줄인다. (2026-09-23)
  *
  * ⚠️ 국적 · 생년월일 · 성별 · 여권 번호는 받지도 그리지도 않는다.
  * ⚠️ 흰 카드로 감싸지 않는다. 바깥 TravelPassportPanel 이 내지 한 장이다.
@@ -194,7 +196,7 @@ export function ProfileSection({ profile, pickedImageUri, onPressChangeImage }: 
           <Field label="ENGLISH NAME" value={profile.englishName || EMPTY} />
           <View className="flex-row gap-3">
             <Field label="MEMBER SINCE" value={toMemberSince(profile.memberSince)} />
-            <Field label="PASSPORT TYPE" value="TripPot Member" />
+            <Field label="PASSPORT TYPE" value="TripPot" />
           </View>
         </View>
       </View>
