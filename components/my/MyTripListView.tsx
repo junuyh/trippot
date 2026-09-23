@@ -92,25 +92,20 @@ export function MyTripListView({
 }: Props) {
   const empty = trips.length === 0;
   const emptyState = EMPTY_STATE[filter];
-  /*
-    ⚠️ 비었을 때는 화면 전체를 흰색으로 바꾼다. (2026-09-22)
-       EmptyState 가 흰 바탕을 스스로 깔아서, 회색 페이지 위에 두면 흰 네모만 떠 보인다.
-       모임 목록(GroupListSection)도 비었을 때만 흰 화면이다 — 같은 규칙이다.
-       components/ui/EmptyState 는 공유 파일이라 고치지 않는다. (CLAUDE.md 5장)
-  */
-  const pageBg = empty ? 'bg-white' : 'bg-gray-50';
 
   return (
     // 페이지 바탕 = 앱 공통 light gray(bg-gray-50 · 계정 관리·좋아요·여행 홈·결산과 같다). 헤더 아래 탭 영역부터
     // 하단까지 한 색이고 카드는 흰색. 브랜드 soft 는 선택된 칩 배경 몫이라 페이지 바탕으로 쓰지 않는다. (2026-09-21)
-    <View className={`flex-1 ${pageBg}`}>
+    // ⚠️ 빈 탭도 같은 회색이다. EmptyState 를 transparent 로 그려 흰 바탕을 깔지 않는다. (2026-09-22)
+    //    탭마다 바탕색이 바뀌면 탭을 누를 때마다 화면 전체가 번쩍인다.
+    <View className="flex-1 bg-gray-50">
       {/* 탭. GROUP-02 모임 상세와 같은 컴포넌트를 쓴다. */}
-      {/* 탭 버튼 스타일은 그대로, 탭 바깥 배경만 페이지와 같은 색으로 잇는다 (GROUP 상세는 기본 white 그대로). */}
+      {/* 탭 버튼 스타일은 그대로, 탭 바깥 배경만 페이지와 같은 gray 로 잇는다 (GROUP 상세는 기본 white 그대로). */}
       <TripFilterTabs
         filter={filter}
         onChangeFilter={onChangeFilter}
         tabs={MY_TRIP_LIST_TABS}
-        className={pageBg}
+        className="bg-gray-50"
       />
 
       <ScrollView
@@ -127,6 +122,7 @@ export function MyTripListView({
       >
         {empty ? (
           <EmptyState
+            transparent
             icon={emptyState.icon}
             title={emptyState.title}
             description={emptyState.description}

@@ -10,6 +10,11 @@ type Props = {
   actionLabel?: string;
   onAction?: () => void;
   icon?: keyof typeof Ionicons.glyphMap;
+  /**
+   * 흰 바탕을 깔지 않는다. 기본은 false — 지금까지처럼 흰 바탕이다. (2026-09-22)
+   * 회색 페이지 안에 놓일 때(MY-02 내 여행 빈 탭) 켠다. 켜면 부모 바탕이 그대로 보인다.
+   */
+  transparent?: boolean;
 };
 
 /** 화면 4상태 중 Empty. 데이터가 없을 때 쓴다. (CLAUDE.md 9장) */
@@ -19,9 +24,10 @@ export function EmptyState({
   actionLabel,
   onAction,
   icon = 'file-tray-outline',
+  transparent = false,
 }: Props) {
   return (
-    <View className="flex-1 items-center justify-center bg-white px-8">
+    <View className={`flex-1 items-center justify-center px-8 ${transparent ? '' : 'bg-white'}`}>
       <Ionicons name={icon} size={44} color="#d1d5db" />
       <Text className="mt-4 text-center text-base font-semibold text-gray-900">{title}</Text>
       {description ? (
