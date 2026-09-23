@@ -11,15 +11,21 @@
 //    생긴다. 둘 다 '지금 답해야 할 것' 이라 사용자에게는 한 무더기다.
 //    순서는 초대가 먼저다 — 답하지 않으면 여행이 시작되지 않는다.
 //
-// ⚠️ **자동으로 넘기지 않는다.** (2026-09-21 다빈)
-//    useAutoCarousel 을 쓰지 않는 유일한 홈 캐러셀이다. 여행 카드는 구경거리라
-//    저절로 넘어가도 되지만, 이건 버튼을 눌러 답하는 물건이다. 누르려는 순간
-//    넘어가면 엉뚱한 걸 누른다.
+// ⚠️ **한 장만 온전히 보이고, 저절로 넘어간다.** (2026-09-23 팀 의견 · 다빈)
+//    앞선 두 결정을 함께 뒤집은 것이라 경위를 남긴다.
 //
-// ⚠️ **다음 장이 오른쪽에 살짝 드러난다.** (2026-09-22 다빈 · CARD_PEEK)
-//    처음 낸 판은 카드 폭이 화면에 딱 맞아떨어져서, 옆에 뭐가 더 있다는 신호가
-//    아무 데도 없었다. 숫자는 몇 개인지만 말한다. 잘린 다음 장이 넘길 수 있다는
-//    것을 말하는 유일한 장치다. 장이 하나뿐이면 드러낼 게 없으니 원래 폭을 쓴다.
+//    (1) 09-21 에는 "자동으로 넘기지 않는다" 로 정했었다. 이건 버튼을 눌러
+//        답하는 물건이라 누르려는 순간 넘어가면 엉뚱한 걸 누른다는 이유였다.
+//        그 위험은 지금도 그대로다. 대신 useAutoCarousel 이 손이 닿는 순간
+//        멈추고(handleTouch · 8초), 여기서는 드래그뿐 아니라 **탭에도**
+//        멈추게 onTouchStart 를 같이 건다. 손가락이 내려앉으면 화면은 선다.
+//
+//    (2) 09-22 에는 다음 장을 20px 드러내(CARD_PEEK) 넘길 수 있다는 것을
+//        알렸다. 그 일을 이제 **움직임 자체가** 한다 — 저절로 넘어가는 것이
+//        옆에 더 있다는 가장 분명한 신호다. 잘린 조각이 없어져 한 장이
+//        온전히 보이고, 카드 폭도 화면 폭 그대로 돌아온다.
+//
+//    남는 것: 숫자 알약. 몇 개가 더 있는지는 움직임이 말해주지 않는다.
 //
 // ⚠️ 2026-09-17 에는 "개수를 줄이거나 접지 않는다" 로 정했었다. 답하면 사라지는
 //    것들이라 바로 답하게 하려던 것이다. 하나만 보이면 나머지는 덜 답하게
@@ -35,28 +41,12 @@ import type { TripAction } from '@/lib/trip/tripActions';
 import { HomeActionBanner } from './HomeActionBanner';
 import { InviteBanner } from './InviteBanner';
 import type { HomeInvite } from './types';
+import { useAutoCarousel } from './useAutoCarousel';
 
-/** 홈 좌우 여백(px-4). 캐러셀이 -mx-4 로 이 여백을 뚫고 나가 안쪽에서 다시 준다. */
-const SCREEN_EDGE = 16;
+/** 홈 좌우 여백(px-4) 합. 배너 폭을 화면 폭에서 이만큼 뺀다. */
+const SCREEN_PADDING = 32;
 /** 장 사이 간격. */
 const CARD_GAP = 12;
-/**
- * 다음 장이 오른쪽에 드러나는 폭(px).
- *
- * ⚠️ **넘길 수 있다는 걸 알리는 건 이것뿐이다.** (2026-09-22 다빈)
- *    전에는 카드 폭이 화면에 딱 맞아떨어져서(화면 - 좌우 여백) 옆에 뭐가 더
- *    있다는 신호가 아무 데도 없었다. 숫자 '1/3' 은 몇 개인지만 말하지 넘길 수
- *    있다는 말은 한 번도 하지 않는다.
- *
- * ⚠️ 그래서 캐러셀만 -mx-4 로 홈의 좌우 여백 밖으로 나간다. 여백 안에 갇히면
- *    다음 장이 화면 끝이 아니라 여백 앞에서 잘려, '화면 밖으로 이어진다' 가
- *    아니라 '카드가 하나 더 있다' 로만 보인다. 안쪽 paddingHorizontal 이
- *    원래 여백을 대신한다. HomeView 는 건드리지 않는다.
- *
- * ⚠️ 가운데 장은 **좌우로 이만큼씩** 드러난다. 그래서 카드 폭에서 이 값과
- *    장 사이 간격을 양쪽으로 뺀다. (아래 snapOffsets 주석)
- */
-const CARD_PEEK = 20;
 
 export type HomeNoticeCarouselProps = {
   /** 답하지 않은 초대. 없으면 빈 배열. */
@@ -83,43 +73,19 @@ export function HomeNoticeCarousel({
 
   const total = invites.length + actions.length;
 
-  /**
-   * 한 장뿐이면 **화면 폭 그대로** 쓴다. (2026-09-22 다빈)
-   * 드러낼 다음 장이 없는데 자리만 비워 두면 카드가 이유 없이 좁아 보인다.
-   *
-   * 여러 장이면 가운데 섰을 때 좌우로 CARD_PEEK 씩 드러나도록 폭을 잡는다.
-   * 화면 = 드러남 + 간격 + 카드 + 간격 + 드러남.
-   */
-  const cardWidth = Math.max(
-    0,
-    total > 1 ? width - (CARD_PEEK + CARD_GAP) * 2 : width - SCREEN_EDGE * 2,
-  );
+  /** 한 장이 화면을 꽉 채운다. 잘린 조각을 남기지 않는다. (2026-09-23) */
+  const cardWidth = Math.max(0, width - SCREEN_PADDING);
+  const step = cardWidth + CARD_GAP;
 
   /**
-   * 장마다 멈출 자리.
+   * 저절로 넘긴다. 여행 카드 캐러셀과 **같은 훅**을 쓴다.
    *
-   * ⚠️ snapToInterval 이 아니라 **snapToOffsets** 다. (2026-09-22 다빈)
-   *    간격으로 멈추면 어느 장이든 화면 왼쪽 끝에 붙어서, 카드를 좁혀 만든
-   *    여유가 전부 오른쪽으로 몰린다. 가운데 장인데 왼쪽엔 아무것도 없고
-   *    오른쪽만 넓게 드러나 한쪽으로 쏠려 보였다.
+   * 주기 · 손댔을 때 멈추는 시간 · '동작 줄이기' 대응이 한 곳에 있어야
+   * 홈의 두 캐러셀이 따로 놀지 않는다. (useAutoCarousel 머리말)
    *
-   * ⚠️ 가운데 장은 화면 한가운데, **첫 장과 마지막 장은 화면 여백에 붙는다.**
-   *    아래 clamp 가 그 일을 한다 — 첫 장의 자리는 음수라 0 으로, 마지막 장의
-   *    자리는 끝을 넘어가 최대 스크롤로 잘린다.
-   *    첫 장까지 가운데로 보내면 홈의 다른 것들(‘준비 중인 여행’ 제목 · 여행
-   *    카드)보다 안쪽으로 들어가 줄이 어긋난다.
+   * ⚠️ 한 장씩 꽉 차므로 마지막 장이 그대로 끝이다. lastIndex 를 주지 않는다.
    */
-  const snapOffsets = (() => {
-    if (total <= 1) return undefined;
-    const contentWidth = SCREEN_EDGE * 2 + cardWidth * total + CARD_GAP * (total - 1);
-    const maxScroll = Math.max(0, contentWidth - width);
-    // 카드를 화면 한가운데 두려면 이만큼 지나야 한다
-    const centerInset = (width - cardWidth) / 2;
-    return Array.from({ length: total }, (_, index) => {
-      const cardLeft = SCREEN_EDGE + index * (cardWidth + CARD_GAP);
-      return Math.min(maxScroll, Math.max(0, cardLeft - centerInset));
-    });
-  })();
+  const { ref, handleScroll, handleTouch } = useAutoCarousel({ count: total, step });
 
   /**
    * 각 장이 자기 번호를 그린다. 한 장뿐이면 없다 — '1/1' 은 알려주는 게 없다.
@@ -136,20 +102,26 @@ export function HomeNoticeCarousel({
   return (
     <>
       {total > 0 ? (
-        <View className="-mx-4 mb-6">
+        <View className="mb-6">
           <ScrollView
+            ref={ref}
             horizontal
             showsHorizontalScrollIndicator={false}
+            onScroll={handleScroll}
+            onScrollBeginDrag={handleTouch}
+            onScrollEndDrag={handleTouch}
+            /*
+              ⚠️ 여행 카드 캐러셀에는 없는 줄이다. 거기는 카드를 눌러 들어가기만
+                 하지만 여기는 **버튼이 있다.** 드래그만 감지하면 버튼을 누르려고
+                 손가락을 올린 순간에도 화면이 계속 움직인다. 손이 닿으면 선다.
+            */
+            onTouchStart={handleTouch}
+            scrollEventThrottle={16}
             // 한 장씩 딱 멈추게 한다. 배너가 화면보다 좁아서 pagingEnabled 로는 안 맞는다.
-            snapToOffsets={snapOffsets}
+            snapToInterval={step}
             decelerationRate="fast"
             // 장마다 높이가 다르다. stretch 로 두면 짧은 배너가 늘어나 버린다.
-            // 좌우 여백은 여기서 준다 — 바깥 -mx-4 로 뚫고 나온 것을 되돌리는 값이다.
-            contentContainerStyle={{
-              gap: CARD_GAP,
-              alignItems: 'flex-start',
-              paddingHorizontal: SCREEN_EDGE,
-            }}
+            contentContainerStyle={{ gap: CARD_GAP, alignItems: 'flex-start' }}
           >
             {/* 초대가 먼저다. 답하지 않으면 그 여행이 시작되지 않는다. */}
             {invites.map((invite, index) => (
