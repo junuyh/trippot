@@ -97,6 +97,14 @@ export type GroupMemberItem = {
   /** true 면 '모임장' 배지를 붙인다. group_members.role 이 OWNER 인 사람. */
   isOwner: boolean;
   /**
+   * 지금 함께 결정할 수 있는 사람인가. false 면 '현재 활동 불가' 를 붙인다.
+   * (회원탈퇴 정책 v2 §9)
+   *
+   * ⚠️ **탈퇴를 뜻하지 않는다.** 탈퇴 여부 · 신청일 · 예정일 · 사유는 다른 사람에게
+   *    보여주지 않는다. 공개 프로필 view 의 파생 boolean 하나만 받는다.
+   */
+  isCollaborationAvailable: boolean;
+  /**
    * group_members.joined_at. **nullable 이다.**
    *
    * ⚠️ 값이 없으면 날짜 줄을 그리지 않는다. created_at 이나 오늘 날짜로

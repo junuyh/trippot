@@ -291,6 +291,7 @@ export default function ScreenGROUP02() {
           userId: member.user.id,
           name: member.user.name,
           isOwner: member.role === GROUP_MEMBER_ROLE.OWNER,
+          isCollaborationAvailable: member.isCollaborationAvailable,
           joinedAt: member.joined_at,
         })),
         /**
