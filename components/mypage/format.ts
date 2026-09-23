@@ -17,3 +17,18 @@ export function formatNotifiedAt(createdAt: string): string | null {
   if (days < 7) return `${days}일 전`;
   return format(at, 'yyyy.MM.dd');
 }
+
+/**
+ * 알림 목록용. 위 날짜 표현 뒤에 시각을 붙인다. 예) `오늘 14:05` · `2026.05.20 07:11`
+ *
+ * ⚠️ 시각 포맷은 **알림 상세와 같은 `HH:mm`** 이다. (components/mypage/NotificationDetailView)
+ *    목록과 상세가 다른 시간 규칙을 갖지 않도록 여기서만 이어 붙인다.
+ * ⚠️ formatNotifiedAt 을 고치지 않는다. 그 함수는 내 글 · 내 댓글 목록도 함께 쓴다.
+ *    (2026-09-23 유저테스트 직전 · 알림 목록에만 시각을 더한다)
+ */
+export function formatNotifiedAtWithTime(createdAt: string): string | null {
+  const day = formatNotifiedAt(createdAt);
+  if (day === null) return null;
+  const at = parseISO(createdAt);
+  return `${day} ${format(at, 'HH:mm')}`;
+}

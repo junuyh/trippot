@@ -20,7 +20,7 @@
 // ============================================================================
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -72,6 +72,9 @@ type Props = {
   onPressAllAccounts: () => void;
   /** 하단 CTA — '개인으로 새 여행 만들기'. 화면 파일이 여행 만들기(혼자 가요 선택 상태)로 보낸다. */
   onPressCreateTrip: () => void;
+  /** 아래로 당겨 새로고침. 화면 파일이 load 를 다시 부른다. (모임 상세와 같은 계약) */
+  refreshing: boolean;
+  onRefresh: () => void;
   // ⚠️ '여행 나가기' 스와이프는 없다. (2026-09-18 최종 정책) 개인 여행은 나가는 개념이 없고
   //    여행 자체의 취소만 가능하며, 취소는 여행준비홈(다른 담당)이 제공한다. 여기서 다시 붙이지 않는다.
 };
@@ -82,6 +85,8 @@ export function PersonalDetailView({
   onPressAccount,
   onPressAllAccounts,
   onPressCreateTrip,
+  refreshing,
+  onRefresh,
 }: Props) {
   const insets = useSafeAreaInsets();
   // 기본은 '준비 중'. 모임 상세·MY-02 와 같다.
@@ -99,7 +104,12 @@ export function PersonalDetailView({
   return (
     // 페이지는 흰색(모임 상세와 같은 sibling). MY > 내 여행 목록(brand-soft)과 다른 화면이다.
     <View className="flex-1 bg-white">
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-10 pt-4">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-4 pb-10 pt-4"
+        // 아래로 당겨 새로고침. 모임 상세(GroupDetailView)와 같은 방식이다.
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/*
           상단 소개. 모임 상세의 기본정보 자리다. 이름 대신 시스템 표시명.
           ⚠️ 여행 수를 적지 않는다 — "준비하는 여행 3개" 는 준비 중 탭의 수와 헷갈린다.

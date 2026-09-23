@@ -199,6 +199,8 @@ export function GroupDetailView({
    *    앞으로 갈 여행이다.
    */
   const [filter, setFilter] = useState<MyTripFilter>('planning');
+  /** 탭 아래 안내문을 펼쳤는가. 기본은 접힌 상태다. (2026-09-23) */
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // ⚠️ 여기서 상태를 다시 판정하지 않는다. 화면 파일이 trips.status 로 이미
   //    세 갈래로 갈라 넘겨준다. (app/groups/[groupId]/index.tsx)
@@ -319,24 +321,44 @@ export function GroupDetailView({
       */}
       {/* ⚠️ 다른 섹션과 같은 mt-10(40) 을 쓴다. */}
       <View className="mt-10">
-        <View className="-mx-4">
-          {/* lifecycle 4탭. 취소됨은 표시만 한다. 나간 여행은 탭이 아니라 카드 배지다. */}
-          <TripFilterTabs
-            tabs={GROUP_TRIP_TABS}
-            filter={filter}
-            onChangeFilter={setFilter}
-            className="bg-transparent"
-          />
+        {/*
+          탭 줄 오른쪽 끝에 작은 ⓘ 버튼을 둔다. 설명은 기본으로 접어 두고 눌렀을 때만 편다.
+          (2026-09-23 유저테스트 직전 · 설명이 늘 보여 화면이 복잡했다)
+          ⚠️ 탭 필터 로직과 카드 · 배지 디자인은 그대로다. 모달 · 바텀시트 · 툴팁 라이브러리를 쓰지 않는다.
+        */}
+        <View className="-mx-4 flex-row items-center">
+          <View className="flex-1">
+            {/* lifecycle 4탭. 취소됨은 표시만 한다. 나간 여행은 탭이 아니라 카드 배지다. */}
+            <TripFilterTabs
+              tabs={GROUP_TRIP_TABS}
+              filter={filter}
+              onChangeFilter={setFilter}
+              className="bg-transparent"
+            />
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={helpOpen ? '여행 목록 안내 닫기' : '여행 목록 안내 보기'}
+            accessibilityState={{ expanded: helpOpen }}
+            hitSlop={8}
+            onPress={() => setHelpOpen((prev) => !prev)}
+            className="mr-4 h-7 w-7 items-center justify-center rounded-full active:opacity-60"
+          >
+            <Ionicons
+              name={helpOpen ? 'information-circle' : 'information-circle-outline'}
+              size={17}
+              color={helpOpen ? theme.accent : '#A8AFBA'}
+            />
+          </Pressable>
         </View>
 
-        {/*
-          왜 '나간 여행' 탭이 없는지 한 줄로 알린다. (2026-09-22 · 팀 테스트 피드백 · 문구 확정)
-          카드 · 배지 · 탭 디자인은 그대로다. 본문 px-4 에 맞춰 작은 회색 보조 글씨로만 둔다.
-        */}
-        <Text className="mt-2 text-pot-faint" style={{ fontSize: 12, lineHeight: 18 }}>
-          모임의 여행 목록은 모든 모임원이 함께 봐요. 나간 여행은 별도 탭 없이 배지로 표시되며, 전체 내역은 ‘내
-          여행’에서 확인할 수 있어요.
-        </Text>
+        {/* 왜 '나간 여행' 탭이 없는지 한 줄로 알린다. (2026-09-22 · 문구 확정 · 내용 변경 없음) */}
+        {helpOpen ? (
+          <Text className="mt-2 text-pot-faint" style={{ fontSize: 12, lineHeight: 18 }}>
+            모임의 여행 목록은 모든 모임원이 함께 봐요. 나간 여행은 별도 탭 없이 배지로 표시되며, 전체 내역은 ‘내
+            여행’에서 확인할 수 있어요.
+          </Text>
+        ) : null}
 
         <View className="mt-3 gap-3">
           {visibleTrips.length === 0 ? (
